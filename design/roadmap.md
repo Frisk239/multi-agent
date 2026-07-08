@@ -19,19 +19,15 @@
 
 ## Phase 0 — 地基（1-2 月）
 
-> 目标：monorepo 能跑，最薄的端到端路径打通（UI 建 Issue → DB → 列表刷新）
+> 目标：看板端到端通 + WebSocket 实时推送。FRI-11 答辩路径的看板部分点亮。
+> 详细切片划分见 [slices.md](slices.md)
 
-| 切片 | 目标 | 验收（可跑） | 分支 | 参考实现 |
-|---|---|---|---|---|
-| **S00** | 提交全部文档到 git | main 上有完整文档基线 | `docs/initial-docs` | — |
-| **S01** | monorepo 骨架 | `pnpm dev` 起 server+web，互能 import shared 类型 | `feat/s01-monorepo-scaffold` | synthesis §2.2 |
-| **S02** | Drizzle schema | `pnpm db:migrate` 建表；照搬 seed.js 结构 | `feat/s02-db-schema` | [chanpin seed.js](../chanpin/prototype/data/seed.js) / synthesis §2.4 |
-| **S03** | Issue CRUD API | `POST/GET /issues` 落库；seed 数据能加载 | `feat/s03-issue-api` | synthesis §2.5 |
-| **S04** | WebSocket 基础 | 能从 server 推一条假事件到前端 console | `feat/s04-ws-base` | synthesis §2.7 / [multica.md](../references/deep/multica.md) §2c |
-| **S05** | 看板视图（移植原型） | Next.js 渲染五列看板，调 GET /issues | `feat/s05-kanban-view` | [chanpin prototype](../chanpin/prototype/) |
-| **S06** | 状态机 + 拖拽 | 拖拽改 status → DB 条件更新 → WS 推送 → UI 刷新 | `feat/s06-state-machine` | synthesis §2.5 / [multica.md](../references/deep/multica.md) §2a |
+| 切片 | 覆盖 | 验收画面 | 分支 |
+|---|---|---|---|
+| ~~S00~~ | ~~提交文档基线~~ | ✅ 已完成（commit `ac85f88`） | — |
+| **S01** | monorepo 骨架 + shared 契约 + DB schema/seed + Issue CRUD API + 五列看板 + 状态机最薄版 + WebSocket 实时推送 | 五列看板真实数据；拖拽/新建实时同步；双窗口联动 | `feat/s01-kanban-ws` |
 
-**Phase 0 验收：** 建一个 Issue → 看板显示 → 拖到「进行中」→ 刷新还在。FRI-11 seed 路径可演示。
+**Phase 0 验收：** `pnpm dev` → 看板显示 FRI-11 → 拖拽改 status 实时同步 → 新建 issue 实时出现。
 
 **论文：** 需求分析、总体架构、相关工作表
 
@@ -39,32 +35,15 @@
 
 ## Phase 1 — 编排闭环 + 执行层（2-5 月）
 
-> 目标：真实 agent 能跑任务，小队能委派，Issue 时间线完整
+> 目标：真实 agent 跑任务，小队能委派，Issue 时间线完整。FRI-11 答辩路径全真实。
 
-### 1a — 执行层接入
-
-| 切片 | 目标 | 验收 |
+| 切片 | 覆盖 | 验收画面 |
 |---|---|---|
-| **S07** | RuntimeBackend 接口 + MockBackend | MockBackend 按协议 emit 事件 |
-| **S08** | PiBackend | 真实 Pi 跑一个 prompt，事件流到 Issue 时间线 |
-| **S09** | ClaudeCodeBackend | spawn `claude --output-format stream-json`，解析事件 |
-| **S10** | 运行时发现 | 启动时 `which` 探测本机 CLI，agent 创建时可选 |
-
-### 1b — Squad（★★★★★ 你的核心体验）
-
-| 切片 | 目标 | 验收 |
-|---|---|---|
-| **S11** | Squad CRUD + 成员管理 | 小队列表 + 详情（移植原型 squad 视图） |
-| **S12** | briefing 注入 | Issue 指派 squad → leader claim 时注入 Operating Protocol + Roster + Directive |
-| **S13** | mention-trigger 路由 | leader comment 的 `[@Name](mention://agent/<id>)` → 在被 mention 的 agent 队列排任务 |
-| **S14** | Issue 详情 + 时间线 | 完整移植原型 inbox 三栏；agent/人 comment 都进时间线 |
-
-### 1c — Skill + MCP
-
-| 切片 | 目标 | 验收 |
-|---|---|---|
-| **S15** | Skill URL 导入 + 分配 | 从 URL 拉取 skill 内容；agent 可分配 skill |
-| **S16** | MCP 配置 | agent 详情 MCP Tab 可配 MCP server 并连接 |
+| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | 点卡片进详情，看到描述+评论，能发评论，mention 渲染成 pill |
+| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI |
+| **S04** | Squad CRUD + 成员管理 + briefing 注入 + mention-trigger 路由 | 指派小队 → leader claim 注入 briefing → @mention 委派 → 队列入任务 |
+| **S05** | Skill URL 导入 + 分配 + MCP 配置 | agent 详情可导入/分配 skill，MCP Tab 配 MCP server |
+| **S06+** | 待定（收件箱/智能体详情/运行时页/命令面板等，做到时定） | — |
 
 **Phase 1 验收：** FRI-11 答辩路径全真实——看板建 Issue 指派产品小队 → 队长 briefing → @mention 委派 → 队员执行（真实 Pi/Claude）→ 时间线显示汇报。
 
@@ -78,12 +57,12 @@
 
 | 切片 | 目标 | 参考 |
 |---|---|---|
-| **S17** | Wiki 存储结构（raw/ + wiki/ + index.md + log.md） | [concepts/llm-wiki-pattern.md](../concepts/llm-wiki-pattern.md) |
-| **S18** | ingest 管线（Issue 完成 → 抽取 → entity/concept 页） | openwiki（Git diff evidence）/ OpenDeepWiki（分阶段流水线） |
-| **S19** | query + health（零 LLM）+ lint（语义） | llm-wiki-agent 四操作 |
-| **S20** | Wiki 浏览器 UI（移植原型 wiki 视图） | [chanpin prototype](../chanpin/prototype/) |
-| **S21** | AGENTS.md 桥梁（Wiki ingest → 更新 → runtime 加载） | agents.md 规范 |
-| **S22** | ingest 队列 + DLQ（产品化） | WeKnora |
+| **S07+** | Wiki 存储结构（raw/ + wiki/ + index.md + log.md） | [concepts/llm-wiki-pattern.md](../concepts/llm-wiki-pattern.md) |
+| | ingest 管线（Issue 完成 → 抽取 → entity/concept 页） | openwiki（Git diff evidence）/ OpenDeepWiki（分阶段流水线） |
+| | query + health（零 LLM）+ lint（语义） | llm-wiki-agent 四操作 |
+| | Wiki 浏览器 UI | [chanpin prototype](../chanpin/prototype/) |
+| | AGENTS.md 桥梁（Wiki ingest → 更新 → runtime 加载） | agents.md 规范 |
+| | ingest 队列 + DLQ（产品化） | WeKnora |
 
 **论文实验：** 编译式 Wiki vs 朴素 RAG 的 ablation
 
@@ -97,11 +76,11 @@
 
 | 切片 | 目标 | 参考 |
 |---|---|---|
-| **S23** | MemoryProvider ABC + MemoryManager | hermes [deep/hermes-memory-delegate.md](../references/deep/hermes-memory-delegate.md) §1 |
-| **S24** | mem0 向量后端（TS SDK） | mem0 |
-| **S25** | brain-first 协议（搜→用→写回 + ambient capture） | GBrains 笔记 |
-| **S26** | graphiti 时序图后端（可选实验） | graphiti |
-| **S27** | Skill pack 预置（plan/review/QA/ship） | gstack |
+| **S13+** | MemoryProvider ABC + MemoryManager | hermes [deep/hermes-memory-delegate.md](../references/deep/hermes-memory-delegate.md) §1 |
+| | mem0 向量后端（TS SDK） | mem0 |
+| | brain-first 协议（搜→用→写回 + ambient capture） | GBrains 笔记 |
+| | graphiti 时序图后端（可选实验） | graphiti |
+| | Skill pack 预置（plan/review/QA/ship） | gstack |
 
 **论文实验：** 向量（mem0）vs 时序图（graphiti）记忆 ablation
 

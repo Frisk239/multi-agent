@@ -6,6 +6,8 @@
 
 **要做什么：** **纯本地**的多智能体编排平台 — 人在本地 Web 控制台上分配任务给 Agent，Agent 绑定并驱动本机已有的编码 CLI（Claude Code / opencode / Cursor / Pi…），产出写入**项目 Wiki**，经验写入**记忆层**。
 
+> **进程模型：** 编排主进程（Node 长驻）+ 每个 agent 执行一个子进程（学 multica/pi 的方案 C 混合）。详见 [synthesis.md](synthesis.md) §进程模型。不是单进程——agent 是外部 CLI，必须 spawn 子进程。
+
 **核心体验目标（按优先级，源自 multica 实际使用反馈）：**
 
 | 优先级 | 功能 | 为什么重要 |
@@ -16,11 +18,14 @@
 | ★★★★ | **Skill URL 导入 + 按智能体分配** | 从 URL 导入 skill，给每个 agent 配独立 skill 集 + 系统指令 |
 | ★★★ | **每个 agent 的 MCP 支持** | agent 可连接 MCP server 扩展工具 |
 
-**部署模型：纯本地，单进程。** 这是相对 multica 的最大简化 ——
+**部署模型：纯本地，混合进程。** 基于 multica/pi 源码验证（见 [synthesis.md](synthesis.md) §进程模型）——
+
 - ❌ 不做云端 server + 多节点 daemon 的分离架构
 - ❌ 不需要 Redis relay、多节点 broadcaster、唤醒 WebSocket
-- ✅ server + daemon **合并成一个本地 Node 进程**：EventBus 是进程内同步调用，运行时发现就是本机 `which`/`LookPath`
-- ✅ DB 可用 SQLite（毕设够用）或本地 PostgreSQL
+- ✅ **编排主进程**（Node 长驻）：负责 agent 注册、任务派发、并发槽位（semaphore）、子进程崩溃处理、状态持久化、HTTP/WebSocket 服务
+- ✅ **每个 agent 执行 = 一个子进程**：spawn `claude --output-format stream-json` 等 CLI，stdin/stdout 管道读流式事件（学 multica `pkg/agent/agent.go` + pi orchestrator 的 supervisor/worker 模式）
+- ✅ 这是 multica 和 pi 在"编排外部 agent CLI"场景下的共同收敛方案（方案 C 混合）；hermes 的单进程线程池模式不适用，因为它的 agent 是进程内对象而非外部 CLI
+- ✅ DB 可用 SQLite（Phase 0-2）或本地 PostgreSQL（Phase 3 起需向量）
 - ✅ 「云端」唯一允许的出口：调用 LLM provider API（Anthropic/OpenAI/…）
 
 **不做什么：**
@@ -83,7 +88,7 @@ flowchart TB
 | 后端框架 | Hono 或 Fastify | Hono 更现代，Fastify 生态成熟 |
 | ORM | Drizzle | sqlc 风格类型安全；最接近 multica 的 sqlc 体验 |
 | DB | **SQLite**（Phase 0-2）→ PostgreSQL+pgvector（Phase 3） | 纯本地零配置；任务表用 SQLite 够；记忆层要向量时再升 |
-| 实时 | `ws`（WebSocket） | multica 用 gorilla/ws 验证过；纯本地单进程不需要 Redis |
+| 实时 | `ws`（WebSocket） | multica 用 gorilla/ws 验证过；纯本地主进程内同步 EventBus，不需要 Redis |
 | 前端 | Next.js (App Router) | multica / WeKnora 同路线 |
 | 前端状态 | React Query + Zustand | multica 已验证组合 |
 | 执行层 | **多 Backend adapter**（非单一 runtime） | 每个 agent 绑定一个本机 CLI，见下方「执行层」 |

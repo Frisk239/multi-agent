@@ -25,7 +25,7 @@
 ## 技术栈（已锁定）
 
 - **TypeScript 全栈**（前后端共享类型）
-- **纯本地单进程**：不需要 Redis、不需要多节点、不需要云端托管
+- **纯本地混合进程**：编排主进程（Node 长驻）+ 每个 agent 执行一个子进程。不需要 Redis、不需要多节点、不需要云端托管。详见 [design/synthesis.md](design/synthesis.md) §进程模型
 - 后端：Node + Hono/Fastify + Drizzle ORM
 - DB：SQLite（Phase 0-2）→ PostgreSQL+pgvector（Phase 3 起需向量）
 - 前端：Next.js + React Query + Zustand
@@ -38,7 +38,7 @@
 
 1. **不自造 Agent loop。** 执行层驱动用户本机已有的 CLI，每个 CLI 是一个 `RuntimeBackend`（学 multica 的 `pkg/agent/agent.go:16` Backend 接口）。Pi 是其中一个 backend（进程内 SDK），Claude Code/opencode 是子进程 backend。
 
-2. **DB 行即锁。** 状态转换用条件 `UPDATE ... WHERE status IN (...) RETURNING *`，不用内存 mutex（学 multica）。纯本地单进程下可简化（无竞争），但保留这个模式。
+2. **DB 行即锁。** 状态转换用条件 `UPDATE ... WHERE status IN (...) RETURNING *`，不用内存 mutex（学 multica）。纯本地主进程是唯一 DB 写入者，无跨进程竞争，可简化，但保留这个模式。
 
 3. **多态指派 `(type, id)`。** Issue/Squad/Comment 的指派用 `(assigneeType, assigneeId)` 判别列对 + CHECK 约束，不用 join table。原型的 `seed.js` 已是这个结构。
 
@@ -80,7 +80,7 @@
 ### 核心方法：垂直切片 × 计划者-执行者
 
 **两个维度，不是二选一：**
-- **垂直切片**决定「做什么」——每次端到端打通一条最薄路径，再加深。不做水平分层（先全 schema、再全 API、最后集成）。
+- **垂直切片**决定「做什么」——每次端到端打通一条最薄路径，再加深。不做水平分层（先全 schema、再全 API、最后集成）。切片清单见 [`design/slices.md`](design/slices.md)。
 - **计划者-执行者**决定「每个切片内部怎么执行」——你（人）是编排者，每个垂直切片派一个**计划者主代理** + 多个**顺序执行的执行者子代理**。
 
 **为什么这样组合：** 一个会话执行时间太长质量会下降，所以切片内部要拆成短会话；但拆出来的子代理之间会丢上下文，所以用 handoff 文档传递。

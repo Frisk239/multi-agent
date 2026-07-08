@@ -158,7 +158,29 @@ app/
 └── README.md
 ```
 
-### 2.3 关键技术选型（纯本地优先）
+### 2.3 进程模型（基于 multica/hermes/pi 源码验证）
+
+**方案 C 混合：编排主进程 + 每个 agent 执行一个子进程。**
+
+基于三家源码的事实（不是猜测）：
+
+| 平台 | 模型 | 为什么 |
+|---|---|---|
+| **multica** | 主进程(goroutine池) + 每任务一子进程 | agent 是外部 CLI 必须 spawn；主进程负责排队/限流/崩溃清理 |
+| **pi orchestrator** | supervisor 主进程 + 每 agent 一子进程 | 明知有进程内选项仍选子进程——崩溃隔离、生命周期独立、监督重启 |
+| **hermes** | 单进程 + 线程池 | agent 是自己进程内的 Python 对象，不 spawn 外部进程 |
+
+**关键区别：** hermes 选单进程是因为它的 agent 是"自产自销"的进程内对象。**你的场景和 multica/pi 一样——agent 是外部 CLI**，本来就必须 spawn 子进程，所以是方案 C。
+
+**你的实现：**
+- **编排主进程**（Node 长驻）：HTTP/WebSocket 服务、agent 注册、任务派发、并发槽位（semaphore，3-5 个）、子进程崩溃处理、状态持久化。学 multica 的 `newTaskSlotSemaphore` + `go func(){handleTask}` 模式（换成 Node 的 async semaphore + 子进程池）。
+- **每个 agent 任务 = 一个子进程**：spawn `claude --output-format stream-json` 等，stdin/stdout 管道读流（multica `pkg/agent/claude.go` 是最直接的参考实现，含 timeout 进程树 kill、stderr tail）。
+- **崩溃恢复**（学 pi）：子进程意外退出 → `handleUnexpectedRpcExit` 清状态；主进程重启 → `recoverAfterRestart` 把残留 agent 标记 stopped。
+- **不需要 hermes 的线程池模型**——你的 agent 不是进程内对象。
+
+**相对 multica 的简化：** multica 是「云端 server + 本地 daemon」两个物理进程（因为执行在本地、API 在云端）。你纯本地，server 和 daemon 合并成一个 Node 主进程即可——Redis relay、多节点 broadcaster、唤醒 WebSocket 都不需要。EventBus 是主进程内同步调用，DB 用 SQLite。
+
+### 2.4 关键技术选型（纯本地优先）
 
 | 组件 | 选择 | 理由 |
 |---|---|---|
@@ -167,14 +189,14 @@ app/
 | 后端框架 | Hono 或 Fastify | Hono 更现代；Fastify 生态成熟。都比 Express 好 |
 | ORM | Drizzle | sqlc 风格的类型安全；最接近 multica 的 sqlc 体验；迁移工具好 |
 | DB | **SQLite**（Phase 0-2）→ PostgreSQL+pgvector（Phase 3 起需向量） | 纯本地零配置启动；任务表 SQLite 够；记忆层要向量再升 |
-| 实时 | `ws`（WebSocket） | 纯本地单进程，不需要 Redis relay |
+| 实时 | `ws`（WebSocket） | 纯本地，主进程内同步 EventBus，不需要 Redis relay |
 | 前端 | Next.js (App Router) | multica / WeKnora 同路线 |
 | 前端状态 | React Query + Zustand | multica 已验证的组合 |
 | 执行层 | **多 Backend adapter**（非单一 runtime） | 每个 agent 绑定一个本机 CLI，见 §2.6 |
 | LLM 调用（Wiki/Memory 用） | LangChain.js | 只用于非执行层；执行层各 CLI 自带 LLM 调用 |
 | 校验 | Zod | 全栈共享 schema |
 
-**全本地的简化红利：** multica 是「云端 server + 本地 daemon」双进程，所以它要 Redis relay、多节点 broadcaster、唤醒 WebSocket、`FOR UPDATE SKIP LOCKED` 跨进程公平。你纯本地单进程，这些都**不需要**：EventBus 是进程内同步调用，DB 用 SQLite，运行时发现就是本机 `which`。复杂度降一个量级。
+**全本地的简化红利：** multica 是「云端 server + 本地 daemon」双进程，所以它要 Redis relay、多节点 broadcaster、唤醒 WebSocket、`FOR UPDATE SKIP LOCKED` 跨进程公平。你纯本地（server+daemon 合一），这些都**不需要**：EventBus 是主进程内同步调用，DB 用 SQLite，运行时发现就是本机 `which`。复杂度降一个量级。
 
 ### 2.4 多态指派的 TS 实现（学 multica）
 
@@ -409,8 +431,8 @@ export class EventBus {
 }
 
 // server/src/orchestration/ws-broadcaster.ts
-// 纯本地单进程：直接 Map<workspaceId, Set<WebSocket>>，不需要 Redis
-// （multica 需要 Redis 是因为它多节点；你单进程用不上）
+// 纯本地：直接 Map<workspaceId, Set<WebSocket>>，不需要 Redis
+// （multica 需要 Redis 是因为它多节点；你主进程内直接用 Map）
 export interface Broadcaster {
   broadcastToWorkspace(workspaceId: string, data: unknown): void;
   sendToUser(userId: string, data: unknown): void;
@@ -541,7 +563,7 @@ export interface Broadcaster {
 | Squad 组长路由 | multica | — | 1b | leader 执行 + briefing 注入 + mention 闭环 |
 | 调度器（cron/webhook） | multica | — | 2+ | 通用 plan+claim+lease；初期可只做 cron |
 | Daemon 运行时发现 | multica | — | 1a | LookPath + env 覆盖；登录 shell fallback 后加 |
-| 事件总线 + WebSocket | multica | — | 0-1 | 同步 EventBus + 单进程 Broadcaster（无 Redis） |
+| 事件总线 + WebSocket | multica | — | 0-1 | 同步 EventBus + 主进程内 Broadcaster（无 Redis） |
 | **执行层** | | | | |
 | Agent loop | Pi（白嫖） | hermes（cache 规则） | 0 | 不自造；Pi 进程内 SDK 直接用 |
 | Backend 抽象 | multica + Pi | — | 1a | `RuntimeBackend` 接口；Pi + Claude Code 两个实现 |
@@ -574,7 +596,7 @@ export interface Broadcaster {
 
 - **抄 multica：** `UPDATE ... WHERE status IN (...) RETURNING *` 条件更新作状态机守卫；lease 列（`dispatched_at`、`prepare_lease_expires_at`）+ 后台 sweeper 做崩溃恢复
 - **抄到什么程度：** 六状态起步（`queued → dispatched → running → completed | failed | cancelled`）。multica 累积的 `wait_reason`、`force_fresh_session`、`head_sha` 去重等边界列**先不加**，按需补
-- **简化：** 纯本地单进程无跨进程竞争，`FOR UPDATE SKIP LOCKED` 可省（Phase 0）；Phase 1+ 若要并发 worker 再加
+- **简化：** 纯本地无跨进程竞争（主进程是唯一的 DB 写入者），`FOR UPDATE SKIP LOCKED` 可省（Phase 0）；Phase 1+ 若要并发 worker 再加
 - **深读：** [deep/multica.md](../references/deep/multica.md) §2
 - **数据真源：** [chanpin/prototype/data/seed.js](../chanpin/prototype/data/seed.js) 的 `issues[]`（status: planning|todo|in_progress|in_review|done）
 
@@ -718,6 +740,6 @@ export interface Broadcaster {
 
 ## 一句话总结
 
-**你的毕设 = multica 的编排骨架（TS 重写，纯本地单进程）+ 多 Backend 驱动本机 CLI（Pi 进程内 + Claude Code/opencode 子进程）+ hermes 的记忆/扩展设计（模式搬运）+ 编译式 Wiki（你的创新点）。**
+**你的毕设 = multica 的编排骨架（TS 重写，纯本地混合进程）+ 多 Backend 驱动本机 CLI（Pi 进程内 + Claude Code/opencode 子进程）+ hermes 的记忆/扩展设计（模式搬运）+ 编译式 Wiki（你的创新点）。**
 
 论文叙事不变：「四层架构，编译式 Wiki + 可插拔记忆解决 RAG 不累积、执行不可追踪、跨会话上下文丢失」。全本地让你避开 multica 的分布式复杂度（Redis/多节点/唤醒 WS），把精力集中在你的体验优先级上：**Squad 小队、Issue 时间线、多运行时绑定、Skill 导入**。

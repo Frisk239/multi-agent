@@ -11,6 +11,7 @@ multi-agent/
 ├── design/                   毕设设计（你要实现的系统）
 │   ├── architecture.md       四层架构、技术选型、数据模型
 │   ├── roadmap.md            一年四阶段 + demo + 风险
+│   ├── slices.md             ★ 垂直切片划分（S01-S05 + 占位）
 │   └── synthesis.md          ★ 综合分析：Pi能否做底层 + TS架构建议 + 借鉴清单
 │
 ├── chanpin/                  ★ 产品规格 + 可交互原型（PM小队产出，已验收）
@@ -49,6 +50,7 @@ multi-agent/
 | ★ 看原型数据模型怎么映射生产 schema | [chanpin/ANALYSIS.md](chanpin/ANALYSIS.md) |
 | ★ 看技术选型结论（Pi能否做底层、怎么用TS造multica） | [design/synthesis.md](design/synthesis.md) |
 | 看毕设整体架构与创新点 | [design/architecture.md](design/architecture.md) |
+| 看每个垂直切片做什么 | [design/slices.md](design/slices.md) |
 | 看每月该做什么 | [design/roadmap.md](design/roadmap.md) |
 | 看 PRD 和需求矩阵（88 Must） | [chanpin/docs/prd/multi-agent-platform-rtm-v2.md](chanpin/docs/prd/multi-agent-platform-rtm-v2.md) |
 | 快速扫 12 个参考项目 | [references/catalog.md](references/catalog.md) |
