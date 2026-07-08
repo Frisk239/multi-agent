@@ -1,0 +1,47 @@
+# ── 参考仓库 clone（1.3G，独立 git，绝不进父仓库）──
+references/repos/*/
+
+# ── 上游截图 / 视觉素材（版权敏感，不进 git）──
+chanpin/multica-image/
+
+# ── Python 缓存（chanpin/prototype 的测试产生）──
+__pycache__/
+*.py[cod]
+
+# ── OS 垃圾 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 编辑器 ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── 应用构建产物与依赖（app/ Phase 0 起）──
+node_modules/
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# ── 环境与密钥 ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── 日志 ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ── 数据库文件（SQLite 本地库）──
+*.db
+*.db-journal
+*.sqlite

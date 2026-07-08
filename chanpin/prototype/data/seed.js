@@ -1,0 +1,432 @@
+﻿window.__SEED__ = {
+  "workspace": {
+    "name": "毕设 Multi-Agent",
+    "description": "本地单用户编排控制台 — Multica V2 高保真复刻 + Wiki 差异化"
+  },
+  "user": {
+    "id": "user-linyuan",
+    "name": "林远",
+    "initials": "LY",
+    "email": "linyuan@example.com",
+    "about": "毕设作者，关注 Multi-Agent 编排与产品原型。"
+  },
+  "machines": [
+    {
+      "id": "machine-local",
+      "name": "林远 本机",
+      "type": "local",
+      "status": "online",
+      "runtimeCount": 3,
+      "version": "v0.3.40-mock",
+      "daemonId": "019f1283-mock"
+    }
+  ],
+  "runtimes": [
+    {
+      "id": "rt-claude",
+      "machineId": "machine-local",
+      "name": "Claude 内置",
+      "type": "Claude",
+      "health": "online",
+      "agentIds": [],
+      "cost7d": null,
+      "cliVersion": "2.1.150 (mock)"
+    },
+    {
+      "id": "rt-cursor",
+      "machineId": "machine-local",
+      "name": "Cursor 内置",
+      "type": "Cursor",
+      "health": "online",
+      "agentIds": ["agt-proto", "agt-lead", "agt-prd", "agt-research"],
+      "cost7d": 3.31,
+      "cliVersion": "2024.07.01-mock"
+    },
+    {
+      "id": "rt-opencode",
+      "machineId": "machine-local",
+      "name": "Opencode 内置",
+      "type": "Opencode",
+      "health": "online",
+      "agentIds": ["agt-prd"],
+      "cost7d": 0,
+      "cliVersion": "1.17.14"
+    }
+  ],
+  "agents": [
+    {
+      "id": "agt-lead",
+      "name": "产品·策划队长",
+      "role": "leader",
+      "category": "产品",
+      "runtime": "Pi",
+      "runtimeLabel": "Pi (林远)",
+      "status": "online",
+      "ownerId": "user-linyuan",
+      "lastActive": "2026-07-08T06:10:00Z",
+      "runCount": 44,
+      "instructions": "协调产品小队，拆解 Issue，发布 briefing 并 @mention 专精成员。",
+      "skillIds": ["skl-squads", "skl-prd"],
+      "mcpServers": [],
+      "archived": false,
+      "model": "auto",
+      "visibility": "workspace",
+      "concurrency": 6,
+      "createdAt": "2026-07-07T08:00:00Z",
+      "recentTasks": [
+        { "issueId": "iss-11", "identifier": "FRI-11", "title": "毕设 multi-agent：产出 PRD 与可交互原型", "status": "success", "duration": "1m 08s", "timestamp": "2026-07-08T06:15:00Z" }
+      ]
+    },
+    {
+      "id": "agt-research",
+      "name": "产品·调研与洞察官",
+      "role": "member",
+      "category": "产品",
+      "runtime": "Claude Code",
+      "runtimeLabel": "Claude Code (林远)",
+      "status": "online",
+      "ownerId": "user-linyuan",
+      "lastActive": "2026-07-08T05:58:00Z",
+      "runCount": 8,
+      "instructions": "竞品调研、persona、JTBD 与 Multica 对标分析。",
+      "skillIds": ["skl-research"],
+      "mcpServers": [],
+      "archived": false,
+      "model": "auto",
+      "visibility": "workspace",
+      "concurrency": 4,
+      "createdAt": "2026-07-07T08:00:00Z",
+      "recentTasks": []
+    },
+    {
+      "id": "agt-prd",
+      "name": "产品·需求与PRD官",
+      "role": "member",
+      "category": "产品",
+      "runtime": "opencode",
+      "runtimeLabel": "Opencode (林远)",
+      "status": "online",
+      "ownerId": "user-linyuan",
+      "lastActive": "2026-07-08T06:05:00Z",
+      "runCount": 5,
+      "instructions": "PRD、RTM、capability contract 与 handoff 文档。",
+      "skillIds": ["skl-prd", "skl-research"],
+      "mcpServers": [],
+      "archived": false,
+      "model": "auto",
+      "visibility": "workspace",
+      "concurrency": 4,
+      "createdAt": "2026-07-07T08:00:00Z",
+      "recentTasks": []
+    },
+    {
+      "id": "agt-proto",
+      "name": "产品·设计·原型官",
+      "role": "member",
+      "category": "产品",
+      "runtime": "Cursor",
+      "runtimeLabel": "Cursor (林远)",
+      "status": "online",
+      "ownerId": "user-linyuan",
+      "lastActive": "2026-07-08T06:15:00Z",
+      "runCount": 76,
+      "instructions": "信息架构、design token、可交互 HTML 原型与 Must 路径验证。",
+      "skillIds": ["skl-frontend", "skl-design"],
+      "mcpServers": [],
+      "archived": false,
+      "model": "auto",
+      "visibility": "workspace",
+      "concurrency": 6,
+      "createdAt": "2026-07-07T08:00:00Z",
+      "recentTasks": []
+    }
+  ],
+  "squads": [
+    {
+      "id": "sqd-product",
+      "name": "产品小队",
+      "leaderId": "agt-lead",
+      "memberIds": ["agt-research", "agt-prd", "agt-proto"],
+      "creatorId": "user-linyuan",
+      "creatorName": "林远",
+      "operatingProtocol": "1. 队长接收 Issue briefing\n2. 按专精 @mention 委派\n3. 成员回帖交付物路径\n4. 队长汇总后请求 MVP 签核",
+      "missionDirective": "基于 chanpin 真源产出 PRD + RTM + 可交互原型，Must 路径可点通。",
+      "issueCount": 3,
+      "updatedAt": "2026-07-08T06:00:00Z"
+    },
+    {
+      "id": "sqd-philosophy",
+      "name": "哲学与人文研究小队",
+      "leaderId": "agt-lead",
+      "memberIds": ["agt-research"],
+      "creatorId": "user-linyuan",
+      "creatorName": "林远",
+      "operatingProtocol": "文献综述 → 论点提炼 → 答辩材料。",
+      "missionDirective": "人文类课题调研与写作支持。",
+      "issueCount": 1,
+      "updatedAt": "2026-07-07T10:00:00Z"
+    },
+    {
+      "id": "sqd-eco",
+      "name": "生态研究团队",
+      "leaderId": "agt-prd",
+      "memberIds": ["agt-research", "agt-proto"],
+      "creatorId": "user-linyuan",
+      "creatorName": "林远",
+      "operatingProtocol": "数据采集 → 分析 → 可视化报告。",
+      "missionDirective": "生态监测与数据分析 mock 小队。",
+      "issueCount": 2,
+      "updatedAt": "2026-07-06T14:00:00Z"
+    }
+  ],
+  "skills": [
+    {
+      "id": "skl-squads",
+      "name": "multica-squads",
+      "url": "https://github.com/example/multica-squads",
+      "usedBy": { "type": "agent", "id": "agt-lead", "label": "产品·策划队长" },
+      "addedBy": { "id": "user-linyuan", "name": "林远" },
+      "updatedAt": "2026-07-07T08:00:00Z"
+    },
+    {
+      "id": "skl-prd",
+      "name": "to-prd",
+      "url": "https://github.com/example/to-prd",
+      "usedBy": { "type": "agent", "id": "agt-prd", "label": "产品·需求与PRD官" },
+      "addedBy": { "id": "user-linyuan", "name": "林远" },
+      "updatedAt": "2026-07-07T08:00:00Z"
+    },
+    {
+      "id": "skl-research",
+      "name": "extract-prototype-requirements",
+      "url": "https://github.com/example/extract-prototype-requirements",
+      "usedBy": { "type": "agent", "id": "agt-research", "label": "产品·调研与洞察官" },
+      "addedBy": { "id": "user-linyuan", "name": "林远" },
+      "updatedAt": "2026-07-07T08:00:00Z"
+    },
+    {
+      "id": "skl-frontend",
+      "name": "frontend-design",
+      "url": "https://github.com/example/frontend-design",
+      "usedBy": { "type": "agent", "id": "agt-proto", "label": "产品·设计·原型官" },
+      "addedBy": { "id": "user-linyuan", "name": "林远" },
+      "updatedAt": "2026-07-07T08:00:00Z"
+    },
+    {
+      "id": "skl-design",
+      "name": "design-system",
+      "url": "https://github.com/example/design-system",
+      "usedBy": { "type": "agent", "id": "agt-proto", "label": "产品·设计·原型官" },
+      "addedBy": { "id": "user-linyuan", "name": "林远" },
+      "updatedAt": "2026-07-07T08:00:00Z"
+    }
+  ],
+  "inboxItems": [
+    {
+      "id": "inbox-1",
+      "issueId": "iss-11",
+      "title": "毕设 multi-agent：产出 PRD 与可交互原型",
+      "snippet": "## 原型启动 & PRD 交接",
+      "timestamp": "2026-07-08T06:15:00Z",
+      "unread": true,
+      "status": "success"
+    },
+    {
+      "id": "inbox-2",
+      "issueId": "iss-09",
+      "title": "PRD 真源与 RTM 32 条 Must REQ",
+      "snippet": "PRD v1.0 已交付，RTM 覆盖全 Must 域。",
+      "timestamp": "2026-07-08T06:05:00Z",
+      "unread": false,
+      "status": "running"
+    },
+    {
+      "id": "inbox-3",
+      "issueId": "iss-10",
+      "title": "竞品矩阵与 Multica 功能对标",
+      "snippet": "competitive-analysis.md 已写入 research/。",
+      "timestamp": "2026-07-08T05:50:00Z",
+      "unread": false,
+      "status": "done"
+    }
+  ],
+  "issues": [
+    {
+      "id": "iss-11",
+      "identifier": "FRI-11",
+      "title": "毕设 multi-agent：产出 PRD 与可交互原型",
+      "description": "读取 D:\\code\\multi-agent 调研资料，在 chanpin 目录交付 PRD、RTM 与 Must 级 HTML 原型。",
+      "status": "in_review",
+      "priority": "high",
+      "assignee": { "type": "squad", "id": "sqd-product" },
+      "updatedAt": "2026-07-08T06:15:00Z",
+      "comments": [
+        {
+          "id": "c1",
+          "authorType": "human",
+          "authorName": "林远",
+          "body": "请基于调研写 PRD，并派原型官做可点击 demo。",
+          "timestamp": "2026-07-08T05:53:00Z"
+        },
+        {
+          "id": "c2",
+          "authorType": "agent",
+          "authorId": "agt-lead",
+          "body": "## Operating Protocol\n\n本 Issue 由产品小队承接。Roster：[@产品·调研与洞察官](mention://agent/agt-research)、[@产品·需求与PRD官](mention://agent/agt-prd)、[@产品·设计·原型官](mention://agent/agt-proto)\n\n[@产品·调研与洞察官](mention://agent/agt-research) 请先完成 research/ 交付，再串 PRD → 原型。",
+          "timestamp": "2026-07-08T05:55:00Z",
+          "delegated": true
+        },
+        {
+          "id": "c3",
+          "authorType": "agent",
+          "authorId": "agt-research",
+          "body": "research/ 已交付：persona、JTBD、竞品矩阵、Multica 对标表。",
+          "timestamp": "2026-07-08T05:58:00Z"
+        }
+      ]
+    },
+    {
+      "id": "iss-10",
+      "identifier": "FRI-10",
+      "title": "竞品矩阵与 Multica 功能对标",
+      "description": "5 家竞品 + 2×2 定位图，Must 对齐 brief。",
+      "status": "done",
+      "priority": "medium",
+      "assignee": { "type": "agent", "id": "agt-research" },
+      "updatedAt": "2026-07-08T05:50:00Z",
+      "comments": [
+        {
+          "id": "c1",
+          "authorType": "agent",
+          "authorId": "agt-research",
+          "body": "competitive-analysis.md 与 multica-feature-matrix.md 已写入 research/。",
+          "timestamp": "2026-07-08T05:50:00Z"
+        }
+      ]
+    },
+    {
+      "id": "iss-09",
+      "identifier": "FRI-09",
+      "title": "PRD 真源与 RTM 32 条 Must REQ",
+      "description": "docs/prd/multi-agent-platform.md + RTM + handoff。",
+      "status": "in_progress",
+      "priority": "high",
+      "assignee": { "type": "agent", "id": "agt-prd" },
+      "updatedAt": "2026-07-08T06:05:00Z",
+      "comments": [
+        {
+          "id": "c1",
+          "authorType": "human",
+          "authorName": "林远",
+          "body": "Open Questions 需在 PRD 内拍板：暗色、Wiki 5 页、Cursor mock。",
+          "timestamp": "2026-07-08T05:59:00Z"
+        },
+        {
+          "id": "c2",
+          "authorType": "agent",
+          "authorId": "agt-prd",
+          "body": "PRD v1.0 已交付，RTM 覆盖 ISS/SQD/AGT/SKL/NAV/WIK 全 Must 域。",
+          "timestamp": "2026-07-08T06:05:00Z"
+        }
+      ]
+    },
+    {
+      "id": "iss-08",
+      "identifier": "FRI-08",
+      "title": "Wiki 架构占位与 llm-wiki-pattern 对齐",
+      "description": "5 页 mock：Home / Architecture / Synthesis / Sprint Log / Glossary。",
+      "status": "planning",
+      "priority": "medium",
+      "assignee": null,
+      "updatedAt": "2026-07-07T12:00:00Z",
+      "comments": []
+    },
+    {
+      "id": "iss-07",
+      "identifier": "FRI-07",
+      "title": "Agent runtime 适配调研（Pi / Claude / opencode）",
+      "description": "Cursor 仅 UI mock，Phase 1 实装 TBD。",
+      "status": "todo",
+      "priority": "low",
+      "assignee": { "type": "agent", "id": "agt-lead" },
+      "updatedAt": "2026-07-07T10:00:00Z",
+      "comments": []
+    },
+    {
+      "id": "iss-06",
+      "identifier": "FRI-06",
+      "title": "Skill URL 导入 UX 走查",
+      "description": "GitHub URL 导入 + Agent 分配 checkbox。",
+      "status": "done",
+      "priority": "low",
+      "assignee": { "type": "agent", "id": "agt-proto" },
+      "updatedAt": "2026-07-08T06:00:00Z",
+      "comments": [
+        {
+          "id": "c1",
+          "authorType": "agent",
+          "authorId": "agt-proto",
+          "body": "SKL-001~003 AC 已在原型 wireframe 对齐。",
+          "timestamp": "2026-07-08T06:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "iss-05",
+      "identifier": "FRI-05",
+      "title": "答辩 Demo Script 排练（≤10 min）",
+      "description": "5 步 demo + 差异化一句话。",
+      "status": "todo",
+      "priority": "high",
+      "assignee": { "type": "squad", "id": "sqd-product" },
+      "updatedAt": "2026-07-07T09:00:00Z",
+      "comments": []
+    },
+    {
+      "id": "iss-04",
+      "identifier": "FRI-04",
+      "title": "Memory 检索面板 mock（Should）",
+      "description": "Phase 2+ 可插拔 Memory，MVP 仅占位。",
+      "status": "planning",
+      "priority": "low",
+      "assignee": null,
+      "updatedAt": "2026-07-06T08:00:00Z",
+      "comments": []
+    }
+  ],
+  "wikiPages": [
+    {
+      "id": "wiki-home",
+      "path": "/wiki/home",
+      "title": "Home",
+      "content": "<h2>项目概述</h2><p>本地 Multi-Agent 编排控制台：Issue 看板 + Squad 委派 + Agent/Skill 配置 + Wiki 知识层占位。</p><p><strong>差异化：</strong>Multica 管编排，本毕设加 Wiki + Memory 入口（MVP mock）。</p><p>问题陈述见 <code>docs/problem-statement.md</code>。</p>"
+    },
+    {
+      "id": "wiki-architecture",
+      "path": "/wiki/architecture",
+      "title": "Architecture",
+      "content": "<h2>系统架构</h2><p>Phase 0 原型：纯前端 mock，无 PostgreSQL / WebSocket。</p><ul><li><strong>编排层</strong> — Issue + Squad + @mention</li><li><strong>执行层</strong> — Agent runtime 绑定（Phase 1 adapter）</li><li><strong>知识层</strong> — Wiki ingest（Phase 2）</li><li><strong>记忆层</strong> — Memory 可插拔（Phase 2+）</li></ul><p>对齐 <code>design/architecture.md</code> 摘要。</p>"
+    },
+    {
+      "id": "wiki-synthesis",
+      "path": "/wiki/synthesis",
+      "title": "Synthesis",
+      "content": "<h2>调研综合</h2><p>Multica 深读 + OpenHands/Devin 对标 + WeKnora RAG 参考。</p><p>白空间：Multica 级编排深度 × 本地 Wiki 知识深度。</p><p>内容来源 <code>design/synthesis.md</code>。</p>"
+    },
+    {
+      "id": "wiki-sprint-log",
+      "path": "/wiki/sprint-log",
+      "title": "Sprint Log",
+      "content": "<h2>Sprint Log</h2><table><tr><th>日期</th><th>里程碑</th></tr><tr><td>2026-07-08</td><td>M0 PRODUCT-BRIEF ✅</td></tr><tr><td>2026-07-08</td><td>M1 research/ ✅</td></tr><tr><td>2026-07-08</td><td>M2 PRD + RTM ✅</td></tr><tr><td>2026-07-08</td><td>M3 HTML 原型 🔄</td></tr></table>"
+    },
+    {
+      "id": "wiki-glossary",
+      "path": "/wiki/glossary",
+      "title": "Glossary",
+      "content": "<h2>术语表</h2><dl><dt>Agent</dt><dd>可配置 runtime 与 skills 的 AI 执行单元。</dd><dt>Squad</dt><dd>含 leader + roster 的协作小队，Issue 可指派给 squad。</dd><dt>Skill</dt><dd>从 URL 导入的能力包，可分配给 Agent。</dd><dt>Briefing</dt><dd>队长 Operating Protocol + Roster + 指令三段摘要。</dd><dt>REQ</dt><dd>RTM 需求 ID，前缀 ISS/SQD/AGT/SKL/NAV/WIK。</dd></dl>"
+    }
+  ],
+  "projects": [],
+  "automations": []
+}
+;
