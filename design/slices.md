@@ -1,6 +1,6 @@
 # 垂直切片划分
 
-> 更新：2026-07-08 · brainstorm 产出 · 配套 [roadmap.md](roadmap.md)（Phase 视角）、[synthesis.md](synthesis.md)（技术选型）
+> 更新：2026-07-09 · S01 已合 main · 配套 [roadmap.md](roadmap.md)（Phase 视角）、[synthesis.md](synthesis.md)（技术选型）
 > 工程模式见 [AGENTS.md](../AGENTS.md) §工程模式
 
 ## 切法原则
@@ -8,40 +8,37 @@
 1. **每片端到端可跑**——做完浏览器里能看到新东西，不是攒到最后集成
 2. **FRI-11 答辩路径渐进度过**——每片都让 demo 路径更完整一点
 3. **不按工作量切，按"做完看到什么"切**——一个切片可大可小，由它的验收画面定义边界
-4. **S01 细化到可执行，后续切片只占位**——做到时各自起会话细化
+4. **当前切片细化到可执行，后续切片只占位**——做到时各自起会话细化
 5. **一切片一 feature 分支，不直接进 main**
 
 ---
 
 ## 切片清单
 
-### S01 — 看板 + WebSocket（待启动）
+### S01 — 看板 + WebSocket（✅ 已合 main）
 
 **覆盖：**
 - pnpm workspace monorepo（server / web / shared 三包互能 import）
-- shared 包：Zod schema（照 [seed.js](../chanpin/prototype/data/seed.js) 结构定义 Issue / Agent / Squad / Skill / Comment）
+- shared 包：Zod schema（Issue / Assignee / 事件契约）
 - Drizzle schema + SQLite migration + seed 脚本
-- server：Issue CRUD API（GET / POST / PATCH status）
-- web：五列看板视图 + 卡片 + 拖拽 + 新建
+- server：Issue CRUD API（GET / POST / PUT）+ EventBus + WebSocket
+- web：六列看板视图 + 卡片 + 拖拽 + 新建
 - 状态机最薄版（条件 UPDATE，**不含** lease/sweeper）
 - WebSocket 实时推送（issue:created / issue:updated）
 
-**验收画面（浏览器里能看到的）：**
-- `pnpm dev` 起 server + web
-- 五列看板，卡片从 SQLite 真实读取（FRI-04~FRI-11，FRI-11 在「审核中」列）
-- 点「新建 issue」→ 填标题 → 提交 → 看板**实时刷新**（WS 推 issue:created）
-- 拖拽卡片到「进行中」→ DB 条件更新 → WS 推 issue:updated → 客户端同步
-- **开两个浏览器窗口，一个拖卡片，另一个实时看到移动**
+**验收画面：** ✅ 全部通过（见 [app/.progress/s01-planner-2.md](../app/.progress/s01-planner-2.md)）
 
-**不包含：** Issue 详情/时间线、评论、Squad、收件箱、真实 agent 执行、运行时发现
+**分支 / 合并：** `feat/s01-kanban-ws` → PR #1 → main `2e989b4`（2026-07-09）
 
-**答辩路径点亮：** 看板部分
+**不包含（留给后续）：** Issue 详情/时间线、评论、Squad、收件箱、真实 agent 执行、运行时发现
 
-**下一步：** 起一个计划者会话，读本文档 + AGENTS.md + synthesis.md，产出 S01 spec（执行者拆分 + 详细验收标准），存 `app/.progress/s01-planner-1.md`
+**答辩路径点亮：** ✅ 看板部分
+
+**遗留给 S02：** D11（Assignee id 放宽为业务短 id）、D12（乐观更新 onMutate）、UpdateIssue 放开 assignee
 
 ---
 
-### S02 — Issue 详情 + 时间线 + 评论（占位）
+### S02 — Issue 详情 + 时间线 + 评论（计划中）
 
 **覆盖：** Issue 详情页 + 时间线 + 评论 CRUD + @mention pill 渲染
 
@@ -49,7 +46,11 @@
 
 **答辩路径点亮：** 时间线部分
 
-**细化时机：** S01 合并后起会话
+**前置：** 读 [s01-planner-2.md](../app/.progress/s01-planner-2.md) + S01 spec/plan + 原型 seed 中 FRI-11 comments
+
+**细化时机：** ✅ S01 已合并 — **本会话作为计划者启动 brainstorm**
+
+**建议分支：** `feat/s02-issue-detail`
 
 ---
 
@@ -123,8 +124,8 @@ FRI-11 路径随切片渐进点亮：
 
 | 切片 | 点亮的部分 | 状态 |
 |---|---|---|
-| S01 | 看板显示 FRI-11 | ⬜ |
-| S02 | 时间线 + 评论 | ⬜ |
+| S01 | 看板显示 FRI-11 | ✅ |
+| S02 | 时间线 + 评论 | ⬜ 计划中 |
 | S03 | 真实 agent 执行 | ⬜ |
 | S04 | 小队 briefing + @mention 委派 | ⬜ |
 | S05 | Skill + MCP | ⬜ |

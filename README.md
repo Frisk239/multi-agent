@@ -37,7 +37,8 @@ multi-agent/
 ├── concepts/                 跨项目理论/模式（与具体 repo 无关）
 │   └── llm-wiki-pattern.md   Karpathy 式「编译式 Wiki」
 │
-└── app/                      你的应用代码（尚未开始）
+└── app/                      应用代码（pnpm monorepo，S01 已合 main）
+    ├── packages/shared|server|web
     ├── .progress/            ★ 跨会话 handoff 文档（计划者-执行者交接）
     └── README.md
 ```
@@ -58,6 +59,8 @@ multi-agent/
 | 看源码级深读（带 file:line 索引） | [references/deep/](references/deep/) |
 | 理解 Wiki 模式（论文 Related Work） | [concepts/llm-wiki-pattern.md](concepts/llm-wiki-pattern.md) |
 | 直接读上游源码 | [references/repos/](references/repos/) |
+| ★ 跑本地应用 | [app/README.md](app/README.md) · `cd app && pnpm dev` |
+| 看跨会话 handoff | [app/.progress/](app/.progress/)（最新：`s01-planner-2.md`） |
 
 ## 当前状态
 
@@ -65,7 +68,8 @@ multi-agent/
 - ✅ 源码深读完成：`references/deep/`（multica/hermes/pi，带 file:line 索引）
 - ✅ 技术选型锁定：`design/synthesis.md`（TS 全栈 + Pi 当 Backend 之一 + 纯本地）
 - ✅ **产品原型已验收**：`chanpin/prototype/`（88 Must REQ 可交互，数据模型可直接映射生产 schema）
-- ⬜ **应用代码** — 待在 `app/` 启动 Phase 0
+- ✅ **S01 看板 + WebSocket** 已合并 main（PR #1）— 六列看板 + Issue CRUD + 双窗口实时同步；FRI-11 看板路径点亮
+- ⬜ **S02** Issue 详情 + 时间线 + 评论（下一切片）
 
 ## 工作标题（暂定）
 

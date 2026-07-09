@@ -13,7 +13,11 @@
 ## 当前状态
 
 - ✅ 调研 + 源码深读 + 技术选型 + 产品原型 全部完成
-- ⬜ **工程实现未启动**——以下切片待执行
+- ✅ **S01 已合并 main**（PR #1 · `2e989b4`）— Phase 0 看板地基完成
+- ⬜ **S02 进行中（计划者会话）** — Issue 详情 + 时间线 + 评论
+- ⬜ S03–S05 · Phase 2 Wiki · Phase 3 记忆
+
+**最新交接：** [app/.progress/s01-planner-2.md](../app/.progress/s01-planner-2.md)
 
 ---
 
@@ -24,10 +28,10 @@
 
 | 切片 | 覆盖 | 验收画面 | 分支 |
 |---|---|---|---|
-| ~~S00~~ | ~~提交文档基线~~ | ✅ 已完成（commit `ac85f88`） | — |
-| **S01** | monorepo 骨架 + shared 契约 + DB schema/seed + Issue CRUD API + 五列看板 + 状态机最薄版 + WebSocket 实时推送 | 五列看板真实数据；拖拽/新建实时同步；双窗口联动 | `feat/s01-kanban-ws` |
+| ~~S00~~ | ~~提交文档基线~~ | ✅ 已完成 | — |
+| **S01** | monorepo 骨架 + shared 契约 + DB schema/seed + Issue CRUD API + 六列看板 + 状态机最薄版 + WebSocket 实时推送 | ✅ 六列看板真实数据；拖拽/新建实时同步；双窗口联动 | `feat/s01-kanban-ws` → **已合 main** |
 
-**Phase 0 验收：** `pnpm dev` → 看板显示 FRI-11 → 拖拽改 status 实时同步 → 新建 issue 实时出现。
+**Phase 0 验收：** ✅ `pnpm dev` → 看板显示 FRI-11 → 拖拽改 status 实时同步 → 新建 issue 实时出现。
 
 **论文：** 需求分析、总体架构、相关工作表
 
@@ -37,13 +41,13 @@
 
 > 目标：真实 agent 跑任务，小队能委派，Issue 时间线完整。FRI-11 答辩路径全真实。
 
-| 切片 | 覆盖 | 验收画面 |
-|---|---|---|
-| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | 点卡片进详情，看到描述+评论，能发评论，mention 渲染成 pill |
-| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI |
-| **S04** | Squad CRUD + 成员管理 + briefing 注入 + mention-trigger 路由 | 指派小队 → leader claim 注入 briefing → @mention 委派 → 队列入任务 |
-| **S05** | Skill URL 导入 + 分配 + MCP 配置 | agent 详情可导入/分配 skill，MCP Tab 配 MCP server |
-| **S06+** | 待定（收件箱/智能体详情/运行时页/命令面板等，做到时定） | — |
+| 切片 | 覆盖 | 验收画面 | 状态 |
+|---|---|---|---|
+| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | 点卡片进详情，看到描述+评论，能发评论，mention 渲染成 pill | ⬜ 计划中 |
+| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI | ⬜ |
+| **S04** | Squad CRUD + 成员管理 + briefing 注入 + mention-trigger 路由 | 指派小队 → leader claim 注入 briefing → @mention 委派 → 队列入任务 | ⬜ |
+| **S05** | Skill URL 导入 + 分配 + MCP 配置 | agent 详情可导入/分配 skill，MCP Tab 配 MCP server | ⬜ |
+| **S06+** | 待定（收件箱/智能体详情/运行时页/命令面板等，做到时定） | — | ⬜ |
 
 **Phase 1 验收：** FRI-11 答辩路径全真实——看板建 Issue 指派产品小队 → 队长 briefing → @mention 委派 → 队员执行（真实 Pi/Claude）→ 时间线显示汇报。
 

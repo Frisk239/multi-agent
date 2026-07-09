@@ -8,7 +8,7 @@
 
 **论文一句话：** 四层架构（编排-执行-知识-记忆），用「编译式项目 Wiki」+「可插拔记忆」解决 RAG 不累积、执行不可追踪、跨会话上下文丢失。
 
-**还没开始写代码。** 当前是设计/调研/产品原型阶段，`app/` 只有 README。
+**工程实现已启动。** S01（看板 + WebSocket）已合并 main；下一切片是 S02（Issue 详情 + 时间线 + 评论）。
 
 ## 目录地图
 
@@ -20,7 +20,7 @@
 | `references/`（高层摘要） | catalog/orchestration/runtime/wiki/memory 各层摘要 | 快速了解用 |
 | `references/repos/` | 12 个上游开源 clone（**只读，gitignore，独立 git**） | **绝不在此改上游代码** |
 | `concepts/` | 跨项目理论（Wiki 模式等） | 论文 Related Work 用 |
-| `app/` | 应用代码（Phase 0 起，目前空） | 待启动 |
+| `app/` | 应用代码（pnpm monorepo：shared / server / web） | 一切片一 feature 分支；handoff 在 `app/.progress/` |
 
 ## 技术栈（已锁定）
 
@@ -65,7 +65,11 @@
 - ✅ 12 个参考项目调研 + 源码深读
 - ✅ 技术选型锁定（TS 全栈 + 纯本地 + 多 Backend）
 - ✅ 产品原型已验收（`chanpin/`，88 Must REQ 可交互）
-- ⬜ **app/ Phase 0 未启动**
+- ✅ **S01 看板 + WebSocket**（`feat/s01-kanban-ws` → PR #1 合 main）— 六列看板、Issue CRUD、双窗口实时同步；FRI-11 看板路径点亮
+- ⬜ **S02 Issue 详情 + 时间线 + 评论**（下一切片）
+- ⬜ S03 真实 agent 执行 · S04 Squad · S05 Skill/MCP · Phase 2 Wiki · Phase 3 记忆
+
+**最新 handoff：** [`app/.progress/s01-planner-2.md`](app/.progress/s01-planner-2.md)（S01 收尾 + 给 S02 的交接）
 
 ## 不可破坏的约束
 

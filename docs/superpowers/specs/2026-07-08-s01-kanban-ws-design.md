@@ -1,6 +1,6 @@
 # S01 设计 spec — 看板 + WebSocket
 
-> 状态：草案（待用户复核） · 日期：2026-07-08 · 切片：S01 · 分支：`feat/s01-kanban-ws`
+> 状态：✅ 已实现并合 main（PR #1 · 2026-07-09） · 日期：2026-07-08 · 切片：S01 · 分支：`feat/s01-kanban-ws`
 > 真源依据：[AGENTS.md](../../../AGENTS.md) · [design/slices.md](../../../design/slices.md) · [design/synthesis.md](../../../design/synthesis.md) · multica `references/repos/multica/server/migrations/001_init.up.sql` · [chanpin/prototype/data/seed.js](../../../chanpin/prototype/data/seed.js) · prototype `assets/js/app.js` + `assets/css/tokens.css`
 > 产出流程：superpowers brainstorming（本文件）→ writing-plans（实现计划）→ 执行者拆分
 
