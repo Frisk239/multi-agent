@@ -21,6 +21,8 @@ S02 = Issue 详情 + 时间线 + 评论。本会话是 **impl-3（web 详情页 
 - [x] **Task 3.2** `/issues/[id]` · IssueHeader / Timeline / TimelineItem / MarkdownBody / CommentComposer / IssueDetail · IssueCard 标题 Link · globals.css
 - [x] **Task 3.3** `pnpm dev` 浏览器 §9 验收 · 本 handoff · push 分支
 - [x] 联调修复（记偏离）：Next webpack `extensionAlias`；`urlTransform` 放行 `mention://`
+- [x] **A** `sqlite.pragma('foreign_keys = ON')`（`db/client.ts`，WAL 后立刻）
+- [x] **B** `LOCAL_MEMBER` 单点（`local-member.ts`；seed / issues / comments 共用）
 
 ## 自测结果
 
@@ -85,6 +87,15 @@ $ pnpm dev
 | 双窗口：A 改状态 → B 顶栏 + 时间线 | ✅ | A: Done→In Progress；B: select=`in_progress` + status_change 句 |
 | HTTP+WS 同 id 不双条 | ✅ | FRI-11 comments API 8 条 / unique ids 8；UI timeline 8 条无重复文本 |
 
+### 计划者附加 A/B
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| A `foreign_keys = ON` | ✅ | `client.ts` WAL 后 `pragma('foreign_keys = ON')`；临时库 `DB_PATH=_tmp_fk.db` migrate+seed 成功（8 issue / 6 comment） |
+| B `LOCAL_MEMBER` 单点 | ✅ | `src/local-member.ts`；seed/issues/comments 无散落 `user-linyuan` 字面量（仅常量定义处） |
+| B 运行时 author | ✅ | POST comment `authorId=user-linyuan`；PUT status_change 同 id（label 经 resolveAuthorLabel → 林远） |
+| server typecheck | ✅ | `pnpm --filter @ma/server typecheck` exit 0 |
+
 ## 与计划的偏离
 
 1. **`next.config.mjs` 增加 `webpack.resolve.extensionAlias`**  
@@ -97,17 +108,21 @@ $ pnpm dev
 
 3. **Next params：** 项目为 Next **14.2**，`params` 同步 `{ id: string }`，未用 Promise 形态。
 
-4. **未改 server。**
+4. **计划者附加 A/B（impl-3 顺手，非片段 C 正文）：**  
+   - A：`foreign_keys = ON`  
+   - B：`LOCAL_MEMBER = { id: 'user-linyuan', name: '林远' }` 单点；禁止 `member-local`  
+   - 未做 FK 负向测试；未改 shared Zod
 
 ## 遗留 / 给计划者的注意点
 
 1. **D11/D12：** D12 已在 `useUpdateIssue` onMutate 落地（只乐观 Issue 字段；不乐观插 timeline）。D11 由 impl-1 关闭，本会话无回归。
-2. **可开 PR：** §9 工程/功能/实时核心项已过；建议计划者快速再点 FRI-11 + 双窗口后开 PR。
+2. **可开 PR：** §9 工程/功能/实时核心项已过；A/B 已带上。建议计划者快速再点 FRI-11 + 双窗口后开 PR。
 3. **UI 小瑕疵（非阻塞）：**
    - mention 菜单在长页面底部，未做绝对定位浮层（功能可用）
    - 详情页无单独 loading skeleton
 4. **拖拽 vs 点标题：** 标题 `Link` + `draggable={false}` + `stopPropagation`；Playwright 对 article 拖拽可触发 status 更新（FRI-04 已验）。
-5. **分支 tip：** `f6ac301`（含 `aa50a43` hooks · `a2c3015` 详情页 · `69edb47` Next/mention 修复 · 本 docs）。
+5. **分支 tip：** push 后以 `git log -1` 为准（含 A/B commit）。
+6. **重启 server：** A 的 pragma 仅对新连接生效；长驻 `pnpm dev` 若未 reload，需重启一次后 FK 才 enforce（tsx watch 改 `client.ts` 通常会自动重启）。
 
 ## 验收结论（仅计划者填）
 

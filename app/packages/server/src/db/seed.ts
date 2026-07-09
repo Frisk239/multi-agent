@@ -2,13 +2,13 @@ import { eq } from 'drizzle-orm';
 import { db } from './client.js';
 import { workspaces, users, agents, squads, skills, issues, comments } from './schema.js';
 import type { IssueStatus, Priority, AssigneeType } from '@ma/shared';
+import { LOCAL_MEMBER } from '../local-member.js';
 
 // spec §3.4 position 策略（R3）：seed 全设 position=0，依赖 created_at DESC 兜底排序
 // 插入顺序 = 期望显示顺序（同一 status 的 issue 后插入排后面）
 
 const NOW = Date.now();
 const WS_ID = 'ws-local';
-const USER_ID = 'user-linyuan';
 
 // 基础数据（照 seed.js）
 db.insert(workspaces)
@@ -16,7 +16,7 @@ db.insert(workspaces)
   .run();
 
 db.insert(users)
-  .values({ id: USER_ID, name: '林远', email: 'linyuan@example.com', createdAt: NOW })
+  .values({ id: LOCAL_MEMBER.id, name: LOCAL_MEMBER.name, email: 'linyuan@example.com', createdAt: NOW })
   .run();
 
 db.insert(agents)
@@ -83,7 +83,7 @@ for (const iss of seedIssues) {
       assigneeType: iss.assigneeType,
       assigneeId: iss.assigneeId,
       creatorType: 'member',
-      creatorId: USER_ID,
+      creatorId: LOCAL_MEMBER.id,
       position: 0, // R3：全 0，依赖 createdAt DESC
       createdAt: ts(),
       updatedAt: ts(),
@@ -104,7 +104,7 @@ const seedComments: SeedComment[] = [
   {
     identifier: 'FRI-11',
     authorType: 'member',
-    authorId: USER_ID,
+    authorId: LOCAL_MEMBER.id,
     body: '请基于调研写 PRD，并派原型官做可点击 demo。',
     createdAt: Date.parse('2026-07-08T05:53:00Z'),
   },
@@ -136,7 +136,7 @@ const seedComments: SeedComment[] = [
   {
     identifier: 'FRI-09',
     authorType: 'member',
-    authorId: USER_ID,
+    authorId: LOCAL_MEMBER.id,
     body: 'Open Questions 需在 PRD 内拍板：暗色、Wiki 5 页、Cursor mock。',
     createdAt: Date.parse('2026-07-08T05:59:00Z'),
   },

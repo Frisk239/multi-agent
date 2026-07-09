@@ -5,8 +5,7 @@ import { db } from '../db/client.js';
 import { comments, issues } from '../db/schema.js';
 import { toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
-
-const LOCAL_MEMBER_ID = 'user-linyuan';
+import { LOCAL_MEMBER } from '../local-member.js';
 
 export async function commentRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/issues/:id/comments — R3: created_at ASC, id ASC
@@ -43,7 +42,7 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
         issueId: id,
         type: 'comment',
         authorType: 'member',
-        authorId: LOCAL_MEMBER_ID,
+        authorId: LOCAL_MEMBER.id,
         body: parsed.data.body,
         createdAt: now,
       })

@@ -5,9 +5,9 @@ import { db, sqlite } from '../db/client.js';
 import { issues, comments } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
+import { LOCAL_MEMBER } from '../local-member.js';
 
 const WS_ID = 'ws-local';
-const USER_ID = 'user-linyuan';
 
 export async function issueRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/issues —— spec §5.1，扁平数组，按 position ASC, created_at DESC
@@ -69,7 +69,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         assigneeType: input.assignee?.type ?? null,
         assigneeId: input.assignee?.id ?? null,
         creatorType: 'member',
-        creatorId: USER_ID,
+        creatorId: LOCAL_MEMBER.id,
         position,
         createdAt: now,
         updatedAt: now,
@@ -121,7 +121,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
             issueId: id,
             type: 'status_change',
             authorType: 'member',
-            authorId: USER_ID, // user-linyuan
+            authorId: LOCAL_MEMBER.id,
             body: JSON.stringify({ from: prev.status, to: input.status }),
             createdAt: Date.now(),
           })
