@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import type { Issue, DomainEvent } from '@ma/shared';
+import type { Issue, Comment, DomainEvent } from '@ma/shared';
 
 // spec §7.4：Zustand 管 WS 连接状态
 interface WsState {
@@ -14,8 +14,7 @@ export const useWsStore = create<WsState>((set) => ({
   setStatus: (s) => set({ status: s }),
 }));
 
-// spec §6.6 + §7.5 R4：WS 广播含发起者，事件处理必须幂等
-// setQueryData 天然幂等（写相同值不触发重渲染）
+// S02：issue 列表 + 单条 issue + comments 幂等更新
 export function useWsEvents() {
   const qc = useQueryClient();
   const setStatus = useWsStore((s) => s.setStatus);
@@ -29,19 +28,27 @@ export function useWsEvents() {
 
     ws.onmessage = (ev) => {
       const event = JSON.parse(ev.data) as DomainEvent;
-      // 幂等：用 issue id 更新 cache，相同状态不触发重渲染
-      qc.setQueryData<Issue[]>(['issues'], (old) => {
-        if (!old) return old;
-        if (event.type === 'issue:created') {
-          // 避免重复添加（幂等）
-          if (old.some((i) => i.id === event.issue.id)) return old;
-          return [...old, event.issue];
-        }
-        if (event.type === 'issue:updated') {
+
+      if (event.type === 'issue:created' || event.type === 'issue:updated') {
+        qc.setQueryData<Issue[]>(['issues'], (old) => {
+          if (!old) return old;
+          if (event.type === 'issue:created') {
+            if (old.some((i) => i.id === event.issue.id)) return old;
+            return [...old, event.issue];
+          }
           return old.map((i) => (i.id === event.issue.id ? event.issue : i));
-        }
-        return old;
-      });
+        });
+        qc.setQueryData<Issue>(['issue', event.issue.id], event.issue);
+      }
+
+      if (event.type === 'comment:created') {
+        const { comment } = event;
+        qc.setQueryData<Comment[]>(['comments', comment.issueId], (old) => {
+          if (!old) return [comment];
+          if (old.some((c) => c.id === comment.id)) return old;
+          return [...old, comment];
+        });
+      }
     };
 
     return () => {
