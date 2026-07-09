@@ -62,8 +62,8 @@ R1-R5 五个自审问题已修复（见 spec §8.3）
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过 —— **impl-1 已验证 @ma/shared typecheck 全绿（计划者复核确认）**
-- [ ] `pnpm dev` 能跑（impl-2 后）
+- [x] typecheck 通过 —— **impl-1（shared）+ impl-2（server）全绿，计划者复核确认**
+- [ ] `pnpm dev` 能跑（impl-3 建 web 后）
 - [ ] 切片验收标准达成（impl-3 后）
 
 ### impl-1 验收（2026-07-09 计划者复核）
@@ -82,5 +82,41 @@ R1-R5 五个自审问题已修复（见 spec §8.3）
 2. **label map 查询在 `db/client.ts`**（计划 Task 2.2 Step 1）——`resolveAssigneeLabel(type, id)` 是同步函数，读 better-sqlite3 同步 API。注意：label map 依赖 agent/squad/user 表已被 seed 填充，所以 **migrate + seed 必须在 server 首次启动前跑过**（计划 Task 2.2 Step 4 的 `db:generate && db:migrate && db:seed`）。在 `app/packages/server/` 目录下跑（dev.db 相对路径在那）。
 3. **Drizzle 的 SQLite enum 是 TS 层约束**，SQLite 不强制 CHECK。S01 靠应用层 Zod 校验把关（CreateIssueInput/UpdateIssueInput 已挡），CHECK 约束不阻塞，可不做。
 4. **`crypto.randomUUID()` 在 Node 24 全局可用**，但 server 的 tsconfig 要有 `types: ["node"]`（计划 Task 2.1 Step 2 已含），否则类型报错。
-5. **WS 自测**：计划 Task 2.5 Step 4 的 node 内联脚本在 Windows Git Bash 下 `fetch` 可能不在全局（那是浏览器 API）。若失败，改用 curl POST + 另开 node WebSocket 监听的方式验证，灵活处理，记入 handoff。
+### impl-2 验收（2026-07-09 计划者复核）
+
+**结论：✅ 通过，移交 impl-3（web 全栈 + 验收）。**
+
+复核项（契约逐条核对，这是 impl-3 的命脉）：
+- ✅ `toIssue` 正确填 label（R2），assignee null 时返回 null
+- ✅ POST 只取 `assignee?.type/.id` 存 DB，不接 label（R2）
+- ✅ `validateUpdateIssue` 在 PUT 单独调，空 body 返回 400（R1）
+- ✅ identifier SUBSTR 已修成 5（★9 修复正确）
+- ✅ statusChanged/prevStatus 逻辑正确（PUT :106-112）
+- ✅ WS 三跳全通（route→eventBus→wsBroadcaster→client）
+- ✅ GET 返回扁平数组，label 填充正确（FRI-05→"产品小队"）
+- ✅ POST position=-1 浮顶 + identifier FRI-12
+- ✅ DB 重置干净（8 条 seed，无测试残留）
+
+**3 处 ★ 偏离的计划者裁定（全部接受 + 决定回写文档）：**
+
+| 偏离 | 裁定 | 处置 |
+|---|---|---|
+| ★1 better-sqlite3 11→12.11.1 | ✅ 接受 | Node 24 无 prebuilt 是硬约束。回写 spec §2 技术选型表（`^12.0.0`）。这是真实正确版本 |
+| ★5 drizzle 0.33 `.sync()` | ✅ 接受 | 计划代码 bug（`db.query.X.findFirst()` 返回 query builder，需 `.sync()` 触发）。回写计划 Task 2.2 代码 |
+| ★9 SUBSTR(4)→(5) | ✅ 接受 | 计划代码 off-by-one（SQL 1-based，`FRI-` 4 字符，数字从第 5 位）。回写计划 Task 2.4 代码 |
+
+> 文档回写由计划者在切片收尾后统一做（切片验收通过后），不阻塞 impl-3。
+
+**新增偏离 D11（计划者发现）：seed id 非 UUID 与 schema UUID 契约冲突**
+- 现象：seed 的 agent/squad id 是 `agt-lead`/`sqd-product`（短 ID），但 shared schema 的 `Assignee.id`/`Issue.id` 要求 `z.string().uuid()`。
+- S01 影响：**不阻塞**。前端不 safeParse 返回值（直接用 fetch().json()），TS 的 uuid 推导类型只是 `string` 不窄化，typecheck 不报、运行时不报。
+- 决策：**S01 保持现状不返工**。长期修正留 S02+（要么 seed 改 UUID，要么 schema 放宽为 `z.string()`）。记入 spec §8.2 偏离表。
+
+**给 impl-3 的计划者补充注意点（impl-2 handoff 之外）：**
+
+1. **web 内部相对 import 不带 `.js`**（impl-2 handoff 第 6 条已修正 impl-1 的说法——web 用 Next bundler，与 server 的纯 ESM 不同）。但 `@ma/shared` 仍用包名 import。
+2. **`transpilePackages: ['@ma/shared']`** 必须在 `next.config.mjs`（计划 Task 3.1 Step 3），否则 web 读 shared 的 `.ts` 报错。
+3. **D11 的实际影响**：新建表单（Task 3.3 NewIssueForm）传 `assignee: null` 即可，**不要**让表单选 seed agent/squad 作为 assignee（它们的 id 非 UUID 会被 POST 的 Zod 校验 400 拒——因为 `CreateIssueInput.assignee.id` 也要求 uuid）。S01 新建表单只做"标题+priority"，assignee 恒 null。这符合计划 Task 3.3 的代码（`create.mutate({ title, priority, assignee: null })`），照抄即可。
+4. **验收前重置 DB**：impl-2 已重置成干净 8 条 seed。impl-3 验收时若新建了测试 issue，验收后跑一次 `pnpm --filter @ma/server db:seed`（会报重复？若 seed 脚本不是 upsert，先删 dev.db 再 migrate+seed）——**注意：seed.ts 当前不是幂等的**（直接 insert，重复跑会主键冲突）。impl-3 验收要新建测试数据没问题，但**最终合并前要确保 dev.db 是干净 8 条**（删 dev.db → migrate → seed）。这条提醒 impl-3 在 handoff 记录最终 DB 状态。
+
 
