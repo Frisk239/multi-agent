@@ -1,5 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { db } from './client.js';
-import { workspaces, users, agents, squads, skills, issues } from './schema.js';
+import { workspaces, users, agents, squads, skills, issues, comments } from './schema.js';
 import type { IssueStatus, Priority, AssigneeType } from '@ma/shared';
 
 // spec §3.4 position 策略（R3）：seed 全设 position=0，依赖 created_at DESC 兜底排序
@@ -90,4 +91,84 @@ for (const iss of seedIssues) {
     .run();
 }
 
-console.log(`✓ seed 完成：${seedIssues.length} 条 issue`);
+// 原型 seed.js 时间线（按 identifier 挂靠；issue.id 每次 seed 新 UUID）
+type SeedComment = {
+  identifier: string;
+  authorType: 'member' | 'agent';
+  authorId: string;
+  body: string;
+  createdAt: number; // ms
+};
+
+const seedComments: SeedComment[] = [
+  {
+    identifier: 'FRI-11',
+    authorType: 'member',
+    authorId: USER_ID,
+    body: '请基于调研写 PRD，并派原型官做可点击 demo。',
+    createdAt: Date.parse('2026-07-08T05:53:00Z'),
+  },
+  {
+    identifier: 'FRI-11',
+    authorType: 'agent',
+    authorId: 'agt-lead',
+    body: `## Operating Protocol
+
+本 Issue 由产品小队承接。Roster：[@产品·调研与洞察官](mention://agent/agt-research)、[@产品·需求与PRD官](mention://agent/agt-prd)、[@产品·设计·原型官](mention://agent/agt-proto)
+
+[@产品·调研与洞察官](mention://agent/agt-research) 请先完成 research/ 交付，再串 PRD → 原型。`,
+    createdAt: Date.parse('2026-07-08T05:55:00Z'),
+  },
+  {
+    identifier: 'FRI-11',
+    authorType: 'agent',
+    authorId: 'agt-research',
+    body: 'research/ 已交付：persona、JTBD、竞品矩阵、Multica 对标表。',
+    createdAt: Date.parse('2026-07-08T05:58:00Z'),
+  },
+  {
+    identifier: 'FRI-10',
+    authorType: 'agent',
+    authorId: 'agt-research',
+    body: 'competitive-analysis.md 与 multica-feature-matrix.md 已写入 research/。',
+    createdAt: Date.parse('2026-07-08T05:50:00Z'),
+  },
+  {
+    identifier: 'FRI-09',
+    authorType: 'member',
+    authorId: USER_ID,
+    body: 'Open Questions 需在 PRD 内拍板：暗色、Wiki 5 页、Cursor mock。',
+    createdAt: Date.parse('2026-07-08T05:59:00Z'),
+  },
+  {
+    identifier: 'FRI-09',
+    authorType: 'agent',
+    authorId: 'agt-prd',
+    body: 'PRD v1.0 已交付，RTM 覆盖 ISS/SQD/AGT/SKL/NAV/WIK 全 Must 域。',
+    createdAt: Date.parse('2026-07-08T06:05:00Z'),
+  },
+];
+
+let commentCount = 0;
+for (const c of seedComments) {
+  const issue = db.select().from(issues).where(eq(issues.identifier, c.identifier)).get();
+  if (!issue) {
+    console.warn(`⚠ seed comment 跳过：找不到 issue ${c.identifier}`);
+    continue;
+  }
+  db.insert(comments)
+    .values({
+      id: crypto.randomUUID(),
+      issueId: issue.id,
+      type: 'comment',
+      authorType: c.authorType,
+      authorId: c.authorId,
+      body: c.body,
+      createdAt: c.createdAt,
+    })
+    .run();
+  commentCount++;
+}
+
+console.log(`✓ seed 完成：${seedIssues.length} 条 issue，${commentCount} 条 comment`);
+

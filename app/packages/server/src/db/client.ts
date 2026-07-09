@@ -28,3 +28,15 @@ export function resolveAssigneeLabel(
   const s = db.query.squads.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
   return s?.name ?? '未知小队';
 }
+
+export function resolveAuthorLabel(
+  type: 'member' | 'agent',
+  id: string,
+): string {
+  if (type === 'member') {
+    const u = db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
+    return u?.name ?? id;
+  }
+  const a = db.query.agents.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
+  return a?.name ?? id;
+}
