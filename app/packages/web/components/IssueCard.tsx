@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Issue, IssueStatus } from '@ma/shared';
 
 const STATUS_COLORS: Record<IssueStatus, string> = {
@@ -44,7 +45,16 @@ export function IssueCard({ issue, onDragStart }: Props) {
           <span style={{ fontSize: 'var(--text-xs)' }}>{PRIORITY_LABEL[issue.priority]}</span>
         )}
       </div>
-      <div style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-2)' }}>{issue.title}</div>
+      <div style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-2)' }}>
+        <Link
+          href={`/issues/${issue.id}`}
+          onClick={(e) => e.stopPropagation()}
+          draggable={false}
+          style={{ color: 'inherit', textDecoration: 'none' }}
+        >
+          {issue.title}
+        </Link>
+      </div>
       <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
         {issue.assignee ? `▸${issue.assignee.label}` : '▸未指派'}
       </div>

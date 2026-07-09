@@ -84,3 +84,144 @@ body {
   font-family: var(--font-ui);
   font-size: var(--text-base);
 }
+
+/* S02 Issue 详情 + 时间线 + @ 补全 */
+.mention-pill {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent-hover);
+  font-size: var(--text-xs, 12px);
+}
+.issue-detail {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+.issue-header-top {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.issue-id {
+  font-family: var(--font-mono, monospace);
+  color: var(--accent);
+}
+.issue-title {
+  font-size: 1.5rem;
+  margin: 0 0 var(--space-2);
+}
+.issue-desc {
+  white-space: pre-wrap;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+.issue-meta {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--text-dim);
+  font-size: var(--text-sm, 13px);
+  margin-bottom: var(--space-4);
+}
+.timeline-header {
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+.timeline-item {
+  border-left: 2px solid var(--border);
+  padding: 0 var(--space-3) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.timeline-item--status {
+  border-left-color: var(--color-orange, #f97316);
+}
+.timeline-meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs, 12px);
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.timeline-author {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.timeline-badge {
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 0 6px;
+}
+.timeline-body--status {
+  color: var(--text-muted);
+  font-size: var(--text-sm, 13px);
+}
+.md-body h1, .md-body h2, .md-body h3 {
+  margin: 0.6em 0 0.3em;
+}
+.md-body p {
+  margin: 0.4em 0;
+}
+.md-body pre {
+  background: var(--bg-elevated);
+  padding: var(--space-2);
+  overflow: auto;
+  border-radius: var(--radius-md, 6px);
+}
+.composer {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  position: relative;
+}
+.composer-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-3);
+  font: inherit;
+}
+.mention-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow: auto;
+}
+.mention-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.mention-menu button:hover {
+  background: var(--bg-hover);
+}
+.btn-primary {
+  align-self: flex-end;
+  background: var(--accent);
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.error {
+  color: var(--color-red, #ef4444);
+}
+
