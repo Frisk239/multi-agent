@@ -46,7 +46,15 @@ s01-planner-2.md     S01 计划者验收 + 给下个切片的注意点
 |---|---|---|
 | S01 | [`s01-planner-2.md`](s01-planner-2.md) | ✅ 已合 main（PR #1） |
 | S02 | [`s02-planner-2.md`](s02-planner-2.md) | ✅ 已合 main（PR #2） |
-| S03 | [`s03-planner-1.md`](s03-planner-1.md) | ⬜ 计划者开片 / brainstorm |
+| S03 | [`s03-planner-1.md`](s03-planner-1.md) | ⬜ plan 就绪 · 待 impl-1 |
+
+## S03 执行者启动词
+
+| 执行者 | 文件 | 开始条件 |
+|---|---|---|
+| impl-1 | [`s03-impl-1-kickoff.md`](s03-impl-1-kickoff.md) | 可开工 |
+| impl-2 | [`s03-impl-2-kickoff.md`](s03-impl-2-kickoff.md) | impl-1 验收通过 |
+| impl-3 | [`s03-impl-3-kickoff.md`](s03-impl-3-kickoff.md) | impl-2 验收通过 |
 
 ## S02 执行者启动词（复制到新会话）
 

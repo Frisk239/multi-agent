@@ -20,8 +20,8 @@ Issue 指派 agent → 真实 Backend 执行 → 时间线出现工具调用/产
 - [x] 进度文档同步（S02 ✅ · S03 计划中）
 - [x] Brainstorm 决策 N1–N10（三 CLI、指派即跑、multica 混合流、agent_run、cwd env、双栏 runtimes、方案1+终止、confirm）
 - [x] Design spec + 自审 R1–R6 → `docs/superpowers/specs/2026-07-09-s03-runtime-backend-design.md`
-- [ ] writing-plans
-- [ ] 执行者 kickoff
+- [x] writing-plans → `docs/superpowers/plans/2026-07-09-s03-runtime-backend.md`
+- [x] 执行者 kickoff：`s03-impl-1/2/3-kickoff.md`
 
 ## 给自己 / 后续执行者的已知约束
 
@@ -36,6 +36,6 @@ Issue 指派 agent → 真实 Backend 执行 → 时间线出现工具调用/产
 ## 验收结论
 
 - [x] brainstorm 完成
-- [ ] spec 用户通过（待复核）
-- [ ] plan 就绪
-- 结论：spec 已写待用户过目后 writing-plans
+- [x] spec 用户通过
+- [x] plan 就绪
+- 结论：可派 impl-1（kickoff：`s03-impl-1-kickoff.md`）

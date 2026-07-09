@@ -1,6 +1,6 @@
 # S03 设计 spec — 真实 Agent 执行层（RuntimeBackend）
 
-> 状态：草案（自审 R1–R6 后 · 待用户复核） · 日期：2026-07-09 · 切片：S03 · 建议分支：`feat/s03-runtime-backend`
+> 状态：✅ 用户已通过 · 实现计划已就绪 · 日期：2026-07-09 · 切片：S03 · 建议分支：`feat/s03-runtime-backend`
 > 真源依据：[AGENTS.md](../../../AGENTS.md) · [design/slices.md](../../../design/slices.md) · [design/synthesis.md](../../../design/synthesis.md) §2.6 · [design/borrow-from-references.md](../../../design/borrow-from-references.md) · [s02-planner-2.md](../../../app/.progress/s02-planner-2.md) · [deep/multica.md](../../../references/deep/multica.md) §5 · [deep/pi.md](../../../references/deep/pi.md) §5 · 原型 `renderRuntime` + seed machines/runtimes · RTM UI-RT
 > 产出流程：brainstorming（本文件）→ writing-plans → 执行者拆分
 
@@ -431,9 +431,9 @@ PiBackend、mention 入队、Squad、Skill/MCP、多机、真费用。
 
 ## 14. 下一步
 
-1. 用户复核本 spec  
-2. writing-plans → `docs/superpowers/plans/2026-07-09-s03-runtime-backend.md`  
-3. 开 `feat/s03-runtime-backend`，impl-1 → 2 → 3  
+1. ~~用户复核本 spec~~ ✅  
+2. ~~writing-plans~~ → [`docs/superpowers/plans/2026-07-09-s03-runtime-backend.md`](../plans/2026-07-09-s03-runtime-backend.md)  
+3. 开 `feat/s03-runtime-backend`，impl-1 → 2 → 3（kickoff：`app/.progress/s03-impl-*-kickoff.md`）
 
 ---
 
