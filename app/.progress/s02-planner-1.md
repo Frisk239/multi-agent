@@ -39,9 +39,20 @@ S01（看板 + WebSocket）已合 main（PR #1）。本会话完成 S02 brainsto
 6. 计划代码若与运行时 drizzle/zod API 冲突，以 typecheck 为准并记偏离；spec 语义优先于计划字面量。
 7. 完成后写 `s02-impl-1.md`，**等计划者验收**再开 impl-2（或按用户指示连续执行）。
 
+## 执行者启动词（已预写，按序派发）
+
+| 执行者 | 文件 | 开始条件 |
+|---|---|---|
+| impl-1 | [`s02-impl-1-kickoff.md`](s02-impl-1-kickoff.md) | 可开工 |
+| impl-2 | [`s02-impl-2-kickoff.md`](s02-impl-2-kickoff.md) | **等** `s02-impl-1.md` 计划者验收通过 |
+| impl-3 | [`s02-impl-3-kickoff.md`](s02-impl-3-kickoff.md) | **等** `s02-impl-2.md` 计划者验收通过 |
+
+实现计划真源：`docs/superpowers/plans/2026-07-09-s02-issue-detail.md`。  
+impl-1 若有偏离，计划者验收后回写 plan / kickoff 再放 impl-2。
+
 ## 验收结论（本文件仅开片，不验实现）
 
-- [ ] impl-1 待执行
-- [ ] impl-2 待执行
-- [ ] impl-3 待执行
-- 结论：计划已就绪，可开工
+- [ ] impl-1 待执行 / 进行中
+- [ ] impl-2 待执行（kickoff 已备）
+- [ ] impl-3 待执行（kickoff 已备）
+- 结论：计划已就绪；impl-2/3 启动词已预写，串行验收后派发

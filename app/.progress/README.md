@@ -45,4 +45,12 @@ s01-planner-2.md     S01 计划者验收 + 给下个切片的注意点
 | 切片 | 最新 handoff | 状态 |
 |---|---|---|
 | S01 | [`s01-planner-2.md`](s01-planner-2.md) | ✅ 已合 main（PR #1） |
-| S02 | [`s02-planner-1.md`](s02-planner-1.md) | ⬜ 计划就绪 · 待 impl-1 |
+| S02 | [`s02-planner-1.md`](s02-planner-1.md) | ⬜ impl-1 进行中 · 计划就绪 |
+
+## S02 执行者启动词（复制到新会话）
+
+| 执行者 | 启动词文件 | 开始条件 |
+|---|---|---|
+| impl-1 | [`s02-impl-1-kickoff.md`](s02-impl-1-kickoff.md) | 计划已就绪 |
+| impl-2 | [`s02-impl-2-kickoff.md`](s02-impl-2-kickoff.md) | impl-1 handoff 验收通过 |
+| impl-3 | [`s02-impl-3-kickoff.md`](s02-impl-3-kickoff.md) | impl-2 handoff 验收通过 |
