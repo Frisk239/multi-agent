@@ -62,7 +62,25 @@ R1-R5 五个自审问题已修复（见 spec §8.3）
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过（impl-1 后由 impl-1 自测）
+- [x] typecheck 通过 —— **impl-1 已验证 @ma/shared typecheck 全绿（计划者复核确认）**
 - [ ] `pnpm dev` 能跑（impl-2 后）
 - [ ] 切片验收标准达成（impl-3 后）
-- 结论：**计划阶段完成，移交第一个执行者（impl-1）。**
+
+### impl-1 验收（2026-07-09 计划者复核）
+
+**结论：✅ 通过，移交 impl-2（server 全栈）。**
+
+复核项：
+- ✅ 分支 `feat/s01-kanban-ws`，3 commit（`72ea580` 骨架 / `69334c9` shared / `3ddb9ea` handoff），未碰 main
+- ✅ 范围守得住——`app/packages/` 仅 shared，未越界建 server/web
+- ✅ `schema.ts` 严格照 spec §4 + R1（`validateUpdateIssue` 独立函数）+ R2（`Assignee` 有 label，`CreateIssueInput.assignee` 输入无 label）
+- ✅ handoff 完整：5 条给 impl-2 的注意点 + 1 处偏离（补 typescript devDep，属计划内部矛盾的合理修复）+ 真实依赖版本
+
+**给 impl-2 的计划者补充注意点（impl-1 handoff 之外）：**
+
+1. **dev script 暂时不全量可用**：根 `package.json` 的 `pnpm dev` 用 `--filter=@ma/server --filter=@ma/web`，但 web 还没建。impl-2 阶段用 `pnpm --filter @ma/server dev` 单独起 server 自测，不要直接 `pnpm dev`（会因 web 不存在而部分失败）。`pnpm -r typecheck` 此时只跑 shared+server，OK。
+2. **label map 查询在 `db/client.ts`**（计划 Task 2.2 Step 1）——`resolveAssigneeLabel(type, id)` 是同步函数，读 better-sqlite3 同步 API。注意：label map 依赖 agent/squad/user 表已被 seed 填充，所以 **migrate + seed 必须在 server 首次启动前跑过**（计划 Task 2.2 Step 4 的 `db:generate && db:migrate && db:seed`）。在 `app/packages/server/` 目录下跑（dev.db 相对路径在那）。
+3. **Drizzle 的 SQLite enum 是 TS 层约束**，SQLite 不强制 CHECK。S01 靠应用层 Zod 校验把关（CreateIssueInput/UpdateIssueInput 已挡），CHECK 约束不阻塞，可不做。
+4. **`crypto.randomUUID()` 在 Node 24 全局可用**，但 server 的 tsconfig 要有 `types: ["node"]`（计划 Task 2.1 Step 2 已含），否则类型报错。
+5. **WS 自测**：计划 Task 2.5 Step 4 的 node 内联脚本在 Windows Git Bash 下 `fetch` 可能不在全局（那是浏览器 API）。若失败，改用 curl POST + 另开 node WebSocket 监听的方式验证，灵活处理，记入 handoff。
+
