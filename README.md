@@ -68,8 +68,9 @@ multi-agent/
 - ✅ 源码深读完成：`references/deep/`（multica/hermes/pi，带 file:line 索引）
 - ✅ 技术选型锁定：`design/synthesis.md`（TS 全栈 + Pi 当 Backend 之一 + 纯本地）
 - ✅ **产品原型已验收**：`chanpin/prototype/`（88 Must REQ 可交互，数据模型可直接映射生产 schema）
-- ✅ **S01 看板 + WebSocket** 已合并 main（PR #1）— 六列看板 + Issue CRUD + 双窗口实时同步；FRI-11 看板路径点亮
-- ⬜ **S02** Issue 详情 + 时间线 + 评论（下一切片）
+- ✅ **S01 看板 + WebSocket** 已合并 main（PR #1）— 六列看板 + Issue CRUD + 双窗口实时
+- ✅ **S02 Issue 详情 + 时间线 + 评论** 已合并 main（PR #2）— FRI-11 时间线路径点亮
+- ⬜ **S03** 真实 agent 执行（RuntimeBackend · 下一切片）
 
 ## 工作标题（暂定）
 

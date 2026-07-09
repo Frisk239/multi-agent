@@ -45,7 +45,8 @@ s01-planner-2.md     S01 计划者验收 + 给下个切片的注意点
 | 切片 | 最新 handoff | 状态 |
 |---|---|---|
 | S01 | [`s01-planner-2.md`](s01-planner-2.md) | ✅ 已合 main（PR #1） |
-| S02 | [`s02-planner-2.md`](s02-planner-2.md) | ✅ 切片验收通过 · 待 PR 合 main |
+| S02 | [`s02-planner-2.md`](s02-planner-2.md) | ✅ 已合 main（PR #2） |
+| S03 | [`s03-planner-1.md`](s03-planner-1.md) | ⬜ 计划者开片 / brainstorm |
 
 ## S02 执行者启动词（复制到新会话）
 

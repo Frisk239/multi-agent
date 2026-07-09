@@ -65,11 +65,12 @@
 - ✅ 12 个参考项目调研 + 源码深读
 - ✅ 技术选型锁定（TS 全栈 + 纯本地 + 多 Backend）
 - ✅ 产品原型已验收（`chanpin/`，88 Must REQ 可交互）
-- ✅ **S01 看板 + WebSocket**（`feat/s01-kanban-ws` → PR #1 合 main）— 六列看板、Issue CRUD、双窗口实时同步；FRI-11 看板路径点亮
-- ⬜ **S02 Issue 详情 + 时间线 + 评论**（下一切片）
-- ⬜ S03 真实 agent 执行 · S04 Squad · S05 Skill/MCP · Phase 2 Wiki · Phase 3 记忆
+- ✅ **S01 看板 + WebSocket**（PR #1 合 main）— 六列看板、Issue CRUD、双窗口实时同步
+- ✅ **S02 Issue 详情 + 时间线 + 评论**（PR #2 合 main）— 详情页、comment/status_change、@ 补全、WS 实时；FRI-11 时间线点亮
+- ⬜ **S03 真实 agent 执行**（下一切片 · 本计划者会话）
+- ⬜ S04 Squad · S05 Skill/MCP · Phase 2 Wiki · Phase 3 记忆
 
-**最新 handoff：** [`app/.progress/s01-planner-2.md`](app/.progress/s01-planner-2.md)（S01 收尾 + 给 S02 的交接）
+**最新 handoff：** [`app/.progress/s02-planner-2.md`](app/.progress/s02-planner-2.md)（S02 收尾 + 给 S03 的交接）
 
 ## 不可破坏的约束
 

@@ -38,23 +38,19 @@
 
 ---
 
-### S02 — Issue 详情 + 时间线 + 评论（计划中）
+### S02 — Issue 详情 + 时间线 + 评论（✅ 已合 main）
 
-**覆盖：** Issue 详情页 + 时间线 + 评论 CRUD + @mention pill 渲染
+**覆盖：** Issue 详情页 + 时间线 + 评论 CRUD + @mention pill 渲染 + status_change + WS
 
-**验收画面（一句话）：** 点卡片进详情，看到描述 + comment 列表，能发评论，@mention 渲染成 pill
+**验收画面：** ✅ 见 [s02-planner-2.md](../app/.progress/s02-planner-2.md)
 
-**答辩路径点亮：** 时间线部分
+**分支 / 合并：** `feat/s02-issue-detail` → PR #2 → main `e1d42b9`（2026-07-09）
 
-**前置：** 读 [s01-planner-2.md](../app/.progress/s01-planner-2.md) + S01 spec/plan + 原型 seed 中 FRI-11 comments
-
-**细化时机：** ✅ S01 已合并 — **本会话作为计划者启动 brainstorm**
-
-**建议分支：** `feat/s02-issue-detail`
+**答辩路径点亮：** ✅ 时间线部分
 
 ---
 
-### S03 — 执行层：真实 agent 接入（占位）
+### S03 — 执行层：真实 agent 接入（计划中）
 
 **覆盖：** RuntimeBackend 接口 + PiBackend + ClaudeCodeBackend + 运行时发现 + 执行事件流接入时间线
 
@@ -62,9 +58,14 @@
 
 **答辩路径点亮：** 真实执行（替代 mock）
 
-**注意：** 不做 MockBackend——直接上真实 Backend。参考 [synthesis.md §2.6](synthesis.md) 的 `RuntimeBackend` 接口 + [deep/multica.md](../references/deep/multica.md) §5 的 Backend 抽象 + [deep/pi.md](../references/deep/pi.md) §5 的 SDK 嵌入
+**注意：** slices 原文写「不做 MockBackend」；brainstorm 时与 synthesis MockBackend 表对照，以本会话决策为准。  
+参考 [synthesis.md §2.6](synthesis.md) · [deep/multica.md](../references/deep/multica.md) §5 · [deep/pi.md](../references/deep/pi.md) §5
 
-**细化时机：** S02 合并后起会话
+**前置：** [s02-planner-2.md](../app/.progress/s02-planner-2.md)
+
+**细化时机：** ✅ S02 已合并 — **本会话作为计划者启动 brainstorm**
+
+**建议分支：** `feat/s03-runtime-backend`
 
 ---
 
@@ -125,8 +126,8 @@ FRI-11 路径随切片渐进点亮：
 | 切片 | 点亮的部分 | 状态 |
 |---|---|---|
 | S01 | 看板显示 FRI-11 | ✅ |
-| S02 | 时间线 + 评论 | ⬜ 计划中 |
-| S03 | 真实 agent 执行 | ⬜ |
+| S02 | 时间线 + 评论 | ✅ |
+| S03 | 真实 agent 执行 | ⬜ 计划中 |
 | S04 | 小队 briefing + @mention 委派 | ⬜ |
 | S05 | Skill + MCP | ⬜ |
 

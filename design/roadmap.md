@@ -13,11 +13,12 @@
 ## 当前状态
 
 - ✅ 调研 + 源码深读 + 技术选型 + 产品原型 全部完成
-- ✅ **S01 已合并 main**（PR #1 · `2e989b4`）— Phase 0 看板地基完成
-- ⬜ **S02 进行中（计划者会话）** — Issue 详情 + 时间线 + 评论
-- ⬜ S03–S05 · Phase 2 Wiki · Phase 3 记忆
+- ✅ **S01 已合并 main**（PR #1）— Phase 0 看板地基
+- ✅ **S02 已合并 main**（PR #2 · `e1d42b9`）— 详情 + 时间线 + 评论
+- ⬜ **S03 进行中（计划者会话）** — 真实 agent 执行
+- ⬜ S04–S05 · Phase 2 Wiki · Phase 3 记忆
 
-**最新交接：** [app/.progress/s01-planner-2.md](../app/.progress/s01-planner-2.md)
+**最新交接：** [app/.progress/s02-planner-2.md](../app/.progress/s02-planner-2.md)
 
 ---
 
@@ -43,8 +44,8 @@
 
 | 切片 | 覆盖 | 验收画面 | 状态 |
 |---|---|---|---|
-| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | 点卡片进详情，看到描述+评论，能发评论，mention 渲染成 pill | ⬜ 计划中 |
-| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI | ⬜ |
+| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | ✅ 已合 main（PR #2） | ✅ |
+| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI | ⬜ 计划中 |
 | **S04** | Squad CRUD + 成员管理 + briefing 注入 + mention-trigger 路由 | 指派小队 → leader claim 注入 briefing → @mention 委派 → 队列入任务 | ⬜ |
 | **S05** | Skill URL 导入 + 分配 + MCP 配置 | agent 详情可导入/分配 skill，MCP Tab 配 MCP server | ⬜ |
 | **S06+** | 待定（收件箱/智能体详情/运行时页/命令面板等，做到时定） | — | ⬜ |
