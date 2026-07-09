@@ -18,23 +18,24 @@ Issue 指派 agent → 真实 Backend 执行 → 时间线出现工具调用/产
 ## 本会话完成了什么
 
 - [x] 进度文档同步（S02 ✅ · S03 计划中）
-- [ ] Brainstorm 决策
-- [ ] Design spec
+- [x] Brainstorm 决策 N1–N10（三 CLI、指派即跑、multica 混合流、agent_run、cwd env、双栏 runtimes、方案1+终止、confirm）
+- [x] Design spec + 自审 R1–R6 → `docs/superpowers/specs/2026-07-09-s03-runtime-backend-design.md`
 - [ ] writing-plans
 - [ ] 执行者 kickoff
 
-## 给自己 / 后续执行者的已知约束（开片时）
+## 给自己 / 后续执行者的已知约束
 
-1. **不自造 Agent loop**——`RuntimeBackend` 驱动本机 CLI / Pi SDK（AGENTS.md）
-2. S02 时间线已通；执行事件可扩 `CommentType` 或并行表（s02-planner-2）
-3. S02 **assignee 只读**——S03 若要「指派后执行」，必须放开指派或提供「运行」触发
-4. mention **不入队**（S04）
-5. 建议分支：`feat/s03-runtime-backend`
-6. slices 写「不做 Mock」；synthesis 表里仍有 MockBackend——brainstorm 拍板
+1. 不自造 Agent loop；**Pi 参考不实装**；Backend = Claude / opencode / Cursor
+2. 进程方案 1：主进程 + CLI 子进程；终止必做
+3. 流式对齐 multica：progress 仅 WS；`run_message` 回放；摘要 comment
+4. 放开 assignee；指派 agent 即跑 + confirm
+5. `/runtimes` 抄原型双栏
+6. 分支：`feat/s03-runtime-backend`
+7. Borrow：`design/borrow-from-references.md` + spec §10
 
 ## 验收结论
 
-- [ ] brainstorm 完成
-- [ ] spec 用户通过
+- [x] brainstorm 完成
+- [ ] spec 用户通过（待复核）
 - [ ] plan 就绪
-- 结论：开片中
+- 结论：spec 已写待用户过目后 writing-plans
