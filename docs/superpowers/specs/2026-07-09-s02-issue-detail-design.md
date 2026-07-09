@@ -1,6 +1,6 @@
 # S02 设计 spec — Issue 详情 + 时间线 + 评论
 
-> 状态：草案（自审修订 R1–R10 后 · 待用户复核） · 日期：2026-07-09 · 切片：S02 · 建议分支：`feat/s02-issue-detail`
+> 状态：✅ 用户已通过 · 实现计划已就绪 · 日期：2026-07-09 · 切片：S02 · 建议分支：`feat/s02-issue-detail`
 > 真源依据：[AGENTS.md](../../../AGENTS.md) · [design/slices.md](../../../design/slices.md) · [s01-planner-2.md](../../../app/.progress/s01-planner-2.md) · S01 spec · multica `001_init.up.sql` comment 段 · [seed.js](../../../chanpin/prototype/data/seed.js) FRI-11 comments · prototype `app.js` `renderIssueDetailContent` / `parseMentions`
 > 产出流程：superpowers brainstorming（本文件）→ writing-plans → 执行者拆分
 > 决策记录：独立详情页 A · 详情可改状态 B · mention 渲染+@补全 B · status_change 自动写入 B · 轻 MD B · 固定本地用户 A · 补全 agent+squad B · WS 全实时 A · 方案 2 统一时间线
@@ -463,6 +463,6 @@ Handoff 路径：`app/.progress/s02-impl-N.md` / `s02-planner-N.md`。
 
 ## 13. 下一步
 
-1. 用户复核本 spec  
-2. 通过后 writing-plans → `docs/superpowers/plans/2026-07-09-s02-issue-detail.md`  
-3. 开分支 `feat/s02-issue-detail`，按 impl-1 → 2 → 3 执行  
+1. ~~用户复核本 spec~~ ✅  
+2. ~~writing-plans~~ → [`docs/superpowers/plans/2026-07-09-s02-issue-detail.md`](../plans/2026-07-09-s02-issue-detail.md)  
+3. 开分支 `feat/s02-issue-detail`，按 impl-1 → 2 → 3 执行（handoff：`app/.progress/s02-planner-1.md`）  
