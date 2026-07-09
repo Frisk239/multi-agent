@@ -124,11 +124,19 @@ FRI-11 id（本次 seed）：`83bcf69a-bad1-4ce8-bc05-9b7d92321137`
 
 ## 验收结论（仅计划者填）
 
-> 验收人：· 日期：
+> 验收人：S02 计划者 · 日期：2026-07-09 · 分支 tip：`151b660`  
+> 方式：对照 handoff 自测表 + 读 `comments.ts` / `issues.ts` PUT 事务 / `roster.ts` / `app.ts` 注册
 
-- [ ] typecheck 通过
-- [ ] GET issue/:id / comments / agents / squads 行为正确
-- [ ] POST comment author=林远；PUT status 真变写 status_change JSON + 双事件
-- [ ] handoff 完整、可交 impl-3
+- [x] typecheck 通过（server tsc exit 0）
+- [x] GET issue/:id / comments / agents / squads 行为正确（FRI-11 产品小队；comments≥3；agents 4 / squads 3）
+- [x] POST comment author=林远；PUT status 真变写 status_change JSON + 双事件接线
+- [x] handoff 完整、可交 impl-3
 
-**结论：**（计划者填）
+### 代码核对（计划者）
+- `toIssue` / `toComment` 共用；LOCAL=`user-linyuan` ✅
+- comments 排序 `asc(createdAt), asc(id)` ✅
+- PUT：`sqlite.transaction` 内 update + 条件 insert status_change；事务外 `issue:updated` + 条件 `comment:created` ✅
+- body `JSON.stringify({ from: prev.status, to: input.status })` ✅
+- 范围：无 web 改动；WS 客户端联调留给 impl-3（合理）
+
+**结论：impl-2 达标，可开 impl-3。**
