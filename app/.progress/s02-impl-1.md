@@ -92,8 +92,34 @@ FRI-11 comment: { n: 3 }   ← 达标（≥3）
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过
-- [ ] seed 后 FRI-11 ≥ 3 条 comment
-- [ ] BusinessId 已清 uuid；migration additive
-- [ ] handoff 完整、可交 impl-2
-- 结论：
+> 验收人：S02 计划者（本机复跑）· 日期：2026-07-09 · 分支 tip：`3d6a568`
+
+### 复跑证据
+
+| 检查项 | 结果 |
+|---|---|
+| 分支基点 | `feat/s02-issue-detail` 祖先含 `ac1b216`（main 开片点）✅ |
+| `pnpm -r typecheck` | shared/server/web 三包 Done，exit 0 ✅ |
+| shared 无 `z.string().uuid()` | 无匹配 ✅ |
+| migration | `0001_early_centennial.sql` additive：`CREATE TABLE comment` + `idx_comment_issue_created`；journal 含 0000+0001 ✅ |
+| 重置 migrate+seed | `✓ 迁移完成` / `✓ seed 完成：8 条 issue，6 条 comment` ✅ |
+| FRI-11 `type=comment` | **3** 条（user-linyuan / agt-lead / agt-research）✅ |
+| 无 orphan FK / 无 member-local | 0 / 0 ✅ |
+| `toComment` smoke | authorLabel 正确：`林远` / `产品·策划队长` / `产品·调研与洞察官` 等 ✅ |
+| 范围未越界 | routes 仍仅 `issues.ts`+`ws.ts`；无 web 改动 ✅ |
+| seed 按 identifier | `eq(issues.identifier, c.identifier)` 后 insert ✅ |
+
+### 勾选
+
+- [x] typecheck 通过
+- [x] seed 后 FRI-11 ≥ 3 条 comment
+- [x] BusinessId 已清 uuid；migration additive
+- [x] handoff 完整、可交 impl-2
+
+### 非阻塞备注
+
+1. 分支上另有并发 commit `84213de`（kickoff prompts），与 impl-1 代码无关，不影响验收。
+2. `origin/main` 曾出现仅 handoff 文档的 tip（`cc75772`），本地 `main` 在 `2f12c55`。工程代码仍在 feature 分支；合并前注意不要把空壳 handoff 当实现合进 main。
+3. 偏离项（reshape 用 value import）可接受，与 S01 一致。
+
+**结论：impl-1 达标，可开 impl-2。**

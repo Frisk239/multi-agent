@@ -1,8 +1,9 @@
-import type { Issue, Assignee } from '@ma/shared';
-import type { issues } from '../db/schema.js';
-import { resolveAssigneeLabel } from './client.js';
+import type { Issue, Assignee, Comment } from '@ma/shared';
+import { issues, comments } from './schema.js';
+import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 
 type IssueRow = typeof issues.$inferSelect;
+type CommentRow = typeof comments.$inferSelect;
 
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
 export function toIssue(row: IssueRow): Issue {
@@ -25,5 +26,18 @@ export function toIssue(row: IssueRow): Issue {
     position: row.position,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+export function toComment(row: CommentRow): Comment {
+  return {
+    id: row.id,
+    issueId: row.issueId,
+    type: row.type,
+    authorType: row.authorType,
+    authorId: row.authorId,
+    authorLabel: resolveAuthorLabel(row.authorType, row.authorId),
+    body: row.body,
+    createdAt: new Date(row.createdAt).toISOString(),
   };
 }

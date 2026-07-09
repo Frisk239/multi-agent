@@ -6,6 +6,7 @@ const DB_PATH = process.env.DB_PATH ?? './dev.db';
 
 export const sqlite = new Database(DB_PATH);
 sqlite.pragma('journal_mode = WAL');
+sqlite.pragma('foreign_keys = ON');
 
 export const db = drizzle(sqlite, { schema });
 
@@ -27,4 +28,16 @@ export function resolveAssigneeLabel(
   // squad
   const s = db.query.squads.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
   return s?.name ?? '未知小队';
+}
+
+export function resolveAuthorLabel(
+  type: 'member' | 'agent',
+  id: string,
+): string {
+  if (type === 'member') {
+    const u = db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
+    return u?.name ?? id;
+  }
+  const a = db.query.agents.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
+  return a?.name ?? id;
 }

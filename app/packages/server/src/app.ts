@@ -2,6 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import { issueRoutes } from './routes/issues.js';
+import { commentRoutes } from './routes/comments.js';
+import { rosterRoutes } from './routes/roster.js';
 import { wsRoutes } from './routes/ws.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
@@ -18,6 +20,8 @@ export async function buildApp() {
   eventBus.on((e) => wsBroadcaster.broadcast(e));
 
   await app.register(issueRoutes);
+  await app.register(commentRoutes);
+  await app.register(rosterRoutes);
   await app.register(wsRoutes);
 
   return app;

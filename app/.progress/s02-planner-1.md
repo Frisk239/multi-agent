@@ -50,9 +50,9 @@ S01（看板 + WebSocket）已合 main（PR #1）。本会话完成 S02 brainsto
 实现计划真源：`docs/superpowers/plans/2026-07-09-s02-issue-detail.md`。  
 impl-1 若有偏离，计划者验收后回写 plan / kickoff 再放 impl-2。
 
-## 验收结论（本文件仅开片，不验实现）
+## 验收结论
 
-- [ ] impl-1 待执行 / 进行中
-- [ ] impl-2 待执行（kickoff 已备）
-- [ ] impl-3 待执行（kickoff 已备）
-- 结论：计划已就绪；impl-2/3 启动词已预写，串行验收后派发
+- [x] impl-1 ✅ 达标（见 [`s02-impl-1.md`](s02-impl-1.md)）
+- [x] impl-2 ✅ 达标（见 [`s02-impl-2.md`](s02-impl-2.md)）
+- [x] impl-3 ✅ 达标（`3f4fe8a` · 见 [`s02-impl-3.md`](s02-impl-3.md)；§9 + A/B）
+- 结论：**S02 全切片验收通过，可开 PR 合 main。**

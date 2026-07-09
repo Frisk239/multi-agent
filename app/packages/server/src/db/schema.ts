@@ -71,3 +71,22 @@ export const issues = sqliteTable(
     assigneeIdx: index('idx_issue_assignee').on(t.assigneeType, t.assigneeId),
   }),
 );
+
+// —— comment（S02 时间线真源）——
+export const comments = sqliteTable(
+  'comment',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id),
+    type: text('type', { enum: ['comment', 'status_change'] }).notNull(),
+    authorType: text('author_type', { enum: ['member', 'agent'] }).notNull(),
+    authorId: text('author_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    issueCreatedIdx: index('idx_comment_issue_created').on(t.issueId, t.createdAt),
+  }),
+);
