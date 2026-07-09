@@ -1,0 +1,86 @@
+/* Multica V2 Design Tokens — Dark theme（全量移植自 chanpin/prototype/assets/css/tokens.css） */
+
+:root {
+  /* Primitive */
+  --color-bg-base: #0a0a0a;
+  --color-bg-panel: #161616;
+  --color-bg-elevated: #1c1c1c;
+  --color-bg-hover: #222222;
+  --color-bg-active: #2a2a2a;
+  --color-border: #2a2a2a;
+  --color-border-subtle: #1f1f1f;
+  --color-text: #ededed;
+  --color-text-muted: #888888;
+  --color-text-dim: #666666;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-green: #22c55e;
+  --color-yellow: #eab308;
+  --color-orange: #f97316;
+  --color-red: #ef4444;
+  --color-blue: #3b82f6;
+  --color-purple: #a855f7;
+
+  /* Semantic */
+  --bg-primary: var(--color-bg-base);
+  --bg-secondary: var(--color-bg-panel);
+  --bg-elevated: var(--color-bg-elevated);
+  --bg-hover: var(--color-bg-hover);
+  --border: var(--color-border);
+  --border-subtle: var(--color-border-subtle);
+  --text-primary: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --text-dim: var(--color-text-dim);
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+
+  /* Status columns（prototype 原始命名，保留） */
+  --status-planning: var(--color-text-dim);
+  --status-todo: var(--color-text-muted);
+  --status-in-progress: var(--color-yellow);
+  --status-in-review: var(--color-green);
+  --status-done: var(--color-blue);
+
+  /* spec §8.1：prototype 缺 blocked 状态色，补；并补 backlog（spec D1: backlog 取代 planning）+ cancelled（不渲染列，仅 token 预留，spec §7.5 R5） */
+  --status-backlog: var(--status-planning);
+  --status-blocked: var(--color-orange); /* #f97316 */
+  --status-cancelled: var(--color-text-dim);
+
+  /* Typography */
+  --font-ui: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --tabbar-height: 40px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Component */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+}
