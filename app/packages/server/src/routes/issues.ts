@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, sql, and } from 'drizzle-orm';
 import { CreateIssueInput, UpdateIssueInput, validateUpdateIssue } from '@ma/shared';
-import { db } from '../db/client.js';
-import { issues } from '../db/schema.js';
-import { toIssue } from '../db/reshape.js';
+import { db, sqlite } from '../db/client.js';
+import { issues, comments } from '../db/schema.js';
+import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 
 const WS_ID = 'ws-local';
@@ -19,6 +19,14 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       .orderBy(issues.position, sql`created_at DESC`)
       .all();
     return rows.map(toIssue);
+  });
+
+  // GET /api/issues/:id —— 与 list 共用 toIssue（R6）
+  app.get('/api/issues/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    return toIssue(row);
   });
 
   // POST /api/issues —— spec §5.2
@@ -74,7 +82,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send(issue);
   });
 
-  // PUT /api/issues/:id —— spec §5.3，不加条件守卫（D2）
+  // PUT /api/issues/:id —— status 真变时同事务写 status_change + 双事件
   app.put('/api/issues/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = UpdateIssueInput.safeParse(req.body);
@@ -99,17 +107,45 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (input.priority !== undefined) updates.priority = input.priority;
     if (input.position !== undefined) updates.position = input.position;
 
-    db.update(issues).set(updates).where(eq(issues.id, id)).run();
+    const statusChanged = input.status !== undefined && input.status !== prev.status;
+
+    const run = sqlite.transaction(() => {
+      db.update(issues).set(updates).where(eq(issues.id, id)).run();
+
+      let statusCommentId: string | null = null;
+      if (statusChanged && input.status) {
+        statusCommentId = crypto.randomUUID();
+        db.insert(comments)
+          .values({
+            id: statusCommentId,
+            issueId: id,
+            type: 'status_change',
+            authorType: 'member',
+            authorId: USER_ID, // user-linyuan
+            body: JSON.stringify({ from: prev.status, to: input.status }),
+            createdAt: Date.now(),
+          })
+          .run();
+      }
+      return statusCommentId;
+    });
+
+    const statusCommentId = run();
 
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     const issue = toIssue(row!);
-    const statusChanged = input.status !== undefined && input.status !== prev.status;
     eventBus.publish({
       type: 'issue:updated',
       issue,
       statusChanged,
       prevStatus: statusChanged ? prev.status : null,
     });
+
+    if (statusCommentId) {
+      const cRow = db.select().from(comments).where(eq(comments.id, statusCommentId)).get();
+      eventBus.publish({ type: 'comment:created', comment: toComment(cRow!) });
+    }
+
     return reply.send(issue);
   });
 }
