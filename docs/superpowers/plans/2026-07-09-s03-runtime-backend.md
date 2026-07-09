@@ -39,13 +39,15 @@ app/packages/
 │   │   ├── types.ts                  CREATE — RuntimeBackend 接口（可 re-export shared）
 │   │   ├── registry.ts               CREATE
 │   │   ├── detect-path.ts            CREATE — LookPath 工具
+│   │   ├── spawn-line.ts             CREATE — 通用 spawn + 取消杀进程
 │   │   ├── claude-code.ts            CREATE
 │   │   ├── opencode.ts               CREATE
 │   │   ├── cursor.ts                 CREATE
 │   │   └── prompt.ts                 CREATE — 组装 prompt K=20
 │   ├── orchestration/
 │   │   ├── run-worker.ts             CREATE
-│   │   ├── run-control.ts            CREATE — cancel + AbortController map
+│   │   ├── run-control.ts            CREATE — AbortController map
+│   │   ├── run-service.ts            CREATE — enqueue / cancelActive
 │   │   └── event-bus.ts              保持（类型随 DomainEvent）
 │   ├── routes/
 │   │   ├── issues.ts                 MODIFY — assignee + enqueue
@@ -446,8 +448,6 @@ export interface RuntimeBackend {
 }
 ```
 
-修正：不要写 `Execution-facing`——上表已完整。
-
 - [ ] **Step 2: `detect-path.ts`**
 
 ```typescript
@@ -498,14 +498,131 @@ export async function versionOf(bin: string, args: string[] = ['--version']): Pr
 }
 ```
 
-- [ ] **Step 3: 三 Backend 骨架（先 Claude 真解析，另两个可整段 stdout）**
-
-`claude-code.ts` 核心：
+- [ ] **Step 3a: 通用 `spawn-line.ts`（三 Backend 共用）**
 
 ```typescript
+// app/packages/server/src/runtime/spawn-line.ts
 import { spawn } from 'node:child_process';
-import type { RuntimeBackend, ExecutionInput, AgentEvent, ExecutionResult, DetectResult } from './types.js';
+import type { AgentEvent, ExecutionResult } from './types.js';
+
+export type LineHandler = (line: string, onEvent: (e: AgentEvent) => void) => void;
+
+export function spawnLineProcess(
+  bin: string,
+  args: string[],
+  cwd: string,
+  signal: AbortSignal,
+  onEvent: (e: AgentEvent) => void,
+  onLine: LineHandler | null,
+): Promise<ExecutionResult> {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, {
+      cwd,
+      shell: false,
+      windowsHide: true,
+      env: process.env,
+    });
+    let buf = '';
+    let stdoutAll = '';
+    let stderrAll = '';
+    let settled = false;
+
+    const finish = (result: ExecutionResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+
+    const onAbort = () => {
+      try {
+        child.kill('SIGTERM');
+        if (process.platform === 'win32' && child.pid) {
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (chunk: string) => {
+      stdoutAll += chunk;
+      if (!onLine) return;
+      buf += chunk;
+      const parts = buf.split(/\r?\n/);
+      buf = parts.pop() ?? '';
+      for (const line of parts) {
+        if (line.trim()) onLine(line, onEvent);
+      }
+    });
+    child.stderr?.on('data', (chunk: string) => {
+      stderrAll += chunk;
+      onEvent({ type: 'log', text: chunk });
+    });
+    child.on('error', (err) => {
+      finish({ finalText: '', exitReason: 'failed', error: String(err) });
+    });
+    child.on('close', (code) => {
+      if (signal.aborted) {
+        finish({ finalText: stdoutAll.trim(), exitReason: 'cancelled' });
+        return;
+      }
+      if (buf.trim() && onLine) onLine(buf, onEvent);
+      if (!onLine && stdoutAll.trim()) {
+        onEvent({ type: 'message', role: 'assistant', text: stdoutAll.trim() });
+      }
+      if (code === 0) {
+        finish({ finalText: stdoutAll.trim(), exitReason: 'completed' });
+      } else {
+        finish({
+          finalText: stdoutAll.trim(),
+          exitReason: 'failed',
+          error: stderrAll.trim() || `exit ${code}`,
+        });
+      }
+    });
+  });
+}
+```
+
+- [ ] **Step 3b: `claude-code.ts`**
+
+```typescript
+import type { RuntimeBackend, DetectResult, ExecutionInput, AgentEvent, ExecutionResult } from './types.js';
 import { resolveCmd, versionOf } from './detect-path.js';
+import { spawnLineProcess } from './spawn-line.js';
+
+function parseClaudeLine(line: string, onEvent: (e: AgentEvent) => void): void {
+  try {
+    const j = JSON.parse(line) as Record<string, unknown>;
+    // 尽力映射常见 stream-json 形态；字段名随 CLI 版本可能变化
+    if (j.type === 'stream_event' || j.type === 'content_block_delta') {
+      const text =
+        (j as { event?: { delta?: { text?: string } } }).event?.delta?.text ??
+        (j as { delta?: { text?: string } }).delta?.text;
+      if (text) onEvent({ type: 'message_delta', text });
+    }
+    if (j.type === 'assistant' && typeof j.message === 'object') {
+      // 忽略或展开
+    }
+    if (j.type === 'tool_use' || (j as { name?: string }).name) {
+      const name = String((j as { name?: string }).name ?? 'tool');
+      onEvent({ type: 'tool_start', name, args: j });
+    }
+    if (j.type === 'tool_result') {
+      onEvent({
+        type: 'tool_end',
+        name: String((j as { name?: string }).name ?? 'tool'),
+        result: JSON.stringify(j).slice(0, 4000),
+      });
+    }
+  } catch {
+    /* 非 JSON 行忽略 */
+  }
+}
 
 export class ClaudeCodeBackend implements RuntimeBackend {
   readonly id = 'claude-code' as const;
@@ -514,28 +631,101 @@ export class ClaudeCodeBackend implements RuntimeBackend {
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CLAUDE_PATH', ['claude']);
     if (!path) return { installed: false, version: null, path: null };
-    const version = await versionOf(path);
-    return { installed: true, version, path };
+    return { installed: true, version: await versionOf(path), path };
   }
 
-  async execute(input: ExecutionInput, onEvent: (e: AgentEvent) => void, signal: AbortSignal): Promise<ExecutionResult> {
+  async execute(
+    input: ExecutionInput,
+    onEvent: (e: AgentEvent) => void,
+    signal: AbortSignal,
+  ): Promise<ExecutionResult> {
     const det = await this.detect();
-    if (!det.path) {
-      return { finalText: '', exitReason: 'failed', error: 'claude CLI 未安装' };
-    }
-    const args = ['-p', input.prompt, '--output-format', 'stream-json', '--verbose'];
-    return spawnCollect(det.path, args, input.cwd, signal, onEvent, parseClaudeLine);
+    if (!det.path) return { finalText: '', exitReason: 'failed', error: 'claude CLI 未安装' };
+    return spawnLineProcess(
+      det.path,
+      ['-p', input.prompt, '--output-format', 'stream-json', '--verbose'],
+      input.cwd,
+      signal,
+      onEvent,
+      parseClaudeLine,
+    );
   }
 }
-
-// spawnCollect: 通用 spawn；line handler 可选
-// parseClaudeLine: 尽力解析 JSON 行 → message_delta / tool_*；失败则 ignore
-// signal 时 child.kill()；win32 可 child.kill() 后 taskkill
 ```
 
-`opencode.ts`：`opencode run` + prompt；detect `OPENCODE_PATH` / `opencode`。  
-`cursor.ts`：spike 后钉死 argv（如 `cursor agent -p` 或文档 headless）；detect `CURSOR_PATH` / `cursor`。  
-**实现时把最终 argv 写进 handoff。**
+- [ ] **Step 3c: `opencode.ts`（整段 stdout 降级，spec R5）**
+
+```typescript
+import type { RuntimeBackend, DetectResult, ExecutionInput, AgentEvent, ExecutionResult } from './types.js';
+import { resolveCmd, versionOf } from './detect-path.js';
+import { spawnLineProcess } from './spawn-line.js';
+
+export class OpencodeBackend implements RuntimeBackend {
+  readonly id = 'opencode' as const;
+  readonly label = 'Opencode';
+
+  async detect(): Promise<DetectResult> {
+    const path = await resolveCmd('OPENCODE_PATH', ['opencode']);
+    if (!path) return { installed: false, version: null, path: null };
+    return { installed: true, version: await versionOf(path), path };
+  }
+
+  async execute(
+    input: ExecutionInput,
+    onEvent: (e: AgentEvent) => void,
+    signal: AbortSignal,
+  ): Promise<ExecutionResult> {
+    const det = await this.detect();
+    if (!det.path) return { finalText: '', exitReason: 'failed', error: 'opencode CLI 未安装' };
+    // argv 若 spike 发现不同，改这里并记 handoff
+    return spawnLineProcess(
+      det.path,
+      ['run', input.prompt],
+      input.cwd,
+      signal,
+      onEvent,
+      null, // 无 stream：spawn-line 结束时整段 assistant message
+    );
+  }
+}
+```
+
+- [ ] **Step 3d: `cursor.ts`（默认 headless 形态；spike 后可改 argv）**
+
+```typescript
+import type { RuntimeBackend, DetectResult, ExecutionInput, AgentEvent, ExecutionResult } from './types.js';
+import { resolveCmd, versionOf } from './detect-path.js';
+import { spawnLineProcess } from './spawn-line.js';
+
+export class CursorBackend implements RuntimeBackend {
+  readonly id = 'cursor' as const;
+  readonly label = 'Cursor';
+
+  async detect(): Promise<DetectResult> {
+    const path = await resolveCmd('CURSOR_PATH', ['cursor', 'cursor-agent']);
+    if (!path) return { installed: false, version: null, path: null };
+    return { installed: true, version: await versionOf(path), path };
+  }
+
+  async execute(
+    input: ExecutionInput,
+    onEvent: (e: AgentEvent) => void,
+    signal: AbortSignal,
+  ): Promise<ExecutionResult> {
+    const det = await this.detect();
+    if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
+    // 默认尝试 --headless；本机 spike 失败则改 argv 并写入 s03-impl-2 handoff
+    return spawnLineProcess(
+      det.path,
+      ['--headless', input.prompt],
+      input.cwd,
+      signal,
+      onEvent,
+      null,
+    );
+  }
+}
+```
 
 - [ ] **Step 4: `registry.ts`**
 
@@ -634,23 +824,195 @@ export function buildPrompt(issueId: string): string | null {
 }
 ```
 
-- [ ] **Step 3: `orchestration/run-worker.ts`（核心逻辑）**
+- [ ] **Step 3: `orchestration/run-worker.ts`**
 
-要点（完整实现时按此语义）：
+```typescript
+import { eq, and, inArray, asc, sql } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { agentRuns, runMessages, comments } from '../db/schema.js';
+import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
+import { eventBus } from './event-bus.js';
+import { registerRunAbort, clearRunAbort } from './run-control.js';
+import { getBackend } from '../runtime/registry.js';
+import { buildPrompt } from '../runtime/prompt.js';
+import type { AgentEvent } from '../runtime/types.js';
 
-1. `setInterval(tick, 500)` 或循环  
-2. claim：取一条 `status=queued`，UPDATE `running` + `started_at`  
-3. `registerRunAbort(runId)`  
-4. 检查 `MA_WORKSPACE_CWD`  
-5. `getBackend(run.runtime).execute(...)`  
-6. onEvent：  
-   - `message_delta`/`log` → `eventBus.publish({ type:'run:progress', ...})`  
-   - `message`/`tool_*` → insert run_message seq++ + `run:message`  
-7. 结果：  
-   - completed → update run + insert comment agent + `comment:created` + `run:completed`  
-   - cancelled/failed 类似  
-8. `clearRunAbort`  
-9. 导出 `wakeRunWorker()` 空实现即可（interval 已轮询）
+let timer: ReturnType<typeof setInterval> | null = null;
+let busy = false;
+
+export function startRunWorker(): void {
+  if (timer) return;
+  timer = setInterval(() => {
+    void tick();
+  }, 500);
+}
+
+export function wakeRunWorker(): void {
+  void tick();
+}
+
+async function tick(): Promise<void> {
+  if (busy) return;
+  busy = true;
+  try {
+    const queued = db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.status, 'queued'))
+      .orderBy(asc(agentRuns.createdAt))
+      .limit(1)
+      .get();
+    if (!queued) return;
+
+    const now = Date.now();
+    const claimed = db
+      .update(agentRuns)
+      .set({ status: 'running', startedAt: now })
+      .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
+      .returning()
+      .get?.();
+    // better-sqlite3 drizzle: 无 returning 时再 select
+    const runRow =
+      claimed ??
+      db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
+    if (!runRow || runRow.status !== 'running') return;
+
+    const run = toAgentRun(runRow);
+    eventBus.publish({ type: 'run:running', run });
+
+    const cwd = process.env.MA_WORKSPACE_CWD;
+    if (!cwd) {
+      await failRun(runRow.id, runRow.issueId, '未配置 MA_WORKSPACE_CWD');
+      return;
+    }
+    const prompt = buildPrompt(runRow.issueId);
+    if (!prompt) {
+      await failRun(runRow.id, runRow.issueId, 'issue 不存在');
+      return;
+    }
+
+    const signal = registerRunAbort(runRow.id);
+    let seq = 0;
+    const nextSeq = () => ++seq;
+
+    const onEvent = (e: AgentEvent) => {
+      if (e.type === 'message_delta' || e.type === 'log') {
+        eventBus.publish({
+          type: 'run:progress',
+          runId: runRow.id,
+          issueId: runRow.issueId,
+          text: e.type === 'log' ? e.text : e.text,
+        });
+        return;
+      }
+      let kind: 'assistant' | 'user' | 'tool_start' | 'tool_end' | 'system' = 'system';
+      let body = '';
+      if (e.type === 'message') {
+        kind = e.role === 'user' ? 'user' : 'assistant';
+        body = e.text;
+      } else if (e.type === 'tool_start') {
+        kind = 'tool_start';
+        body = JSON.stringify({ name: e.name, args: e.args ?? null });
+      } else if (e.type === 'tool_end') {
+        kind = 'tool_end';
+        body = JSON.stringify({ name: e.name, result: e.result ?? '' });
+      }
+      const id = crypto.randomUUID();
+      const createdAt = Date.now();
+      const s = nextSeq();
+      db.insert(runMessages)
+        .values({ id, runId: runRow.id, seq: s, kind, body, createdAt })
+        .run();
+      const message = toRunMessage({
+        id,
+        runId: runRow.id,
+        seq: s,
+        kind,
+        body,
+        createdAt,
+      });
+      eventBus.publish({ type: 'run:message', message, issueId: runRow.issueId });
+    };
+
+    try {
+      const backend = getBackend(runRow.runtime);
+      const result = await backend.execute(
+        {
+          prompt,
+          cwd,
+          issueId: runRow.issueId,
+          agentId: runRow.agentId,
+          runId: runRow.id,
+        },
+        onEvent,
+        signal,
+      );
+      clearRunAbort(runRow.id);
+      const finishedAt = Date.now();
+      if (result.exitReason === 'cancelled' || signal.aborted) {
+        db.update(agentRuns)
+          .set({ status: 'cancelled', finishedAt, error: result.error ?? null })
+          .where(eq(agentRuns.id, runRow.id))
+          .run();
+        const r = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!);
+        eventBus.publish({ type: 'run:cancelled', run: r });
+        return;
+      }
+      if (result.exitReason === 'failed') {
+        await failRun(runRow.id, runRow.issueId, result.error ?? '执行失败', result.finalText);
+        return;
+      }
+      // completed
+      db.update(agentRuns)
+        .set({ status: 'completed', finishedAt, error: null })
+        .where(eq(agentRuns.id, runRow.id))
+        .run();
+      const finalText = result.finalText || '(无输出)';
+      const cid = crypto.randomUUID();
+      db.insert(comments)
+        .values({
+          id: cid,
+          issueId: runRow.issueId,
+          type: 'comment',
+          authorType: 'agent',
+          authorId: runRow.agentId,
+          body: finalText,
+          createdAt: finishedAt,
+        })
+        .run();
+      const cRow = db.select().from(comments).where(eq(comments.id, cid)).get()!;
+      eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+      const r = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!);
+      eventBus.publish({ type: 'run:completed', run: r });
+    } catch (err) {
+      clearRunAbort(runRow.id);
+      await failRun(runRow.id, runRow.issueId, String(err));
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+async function failRun(
+  runId: string,
+  issueId: string,
+  error: string,
+  finalText?: string,
+): Promise<void> {
+  const finishedAt = Date.now();
+  db.update(agentRuns)
+    .set({ status: 'failed', finishedAt, error })
+    .where(eq(agentRuns.id, runId))
+    .run();
+  if (finalText) {
+    // 可选：不写 comment
+  }
+  const r = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!);
+  eventBus.publish({ type: 'run:failed', run: r });
+}
+```
+
+注意：若当前 drizzle-orm 0.33 的 `update().returning()` 不可用，claim 后用 `select` 校验 `status==='running'` 即可（上面已兼容）。删掉未使用的 `inArray`/`sql` import 若 typecheck 报错。
 
 - [ ] **Step 4: commit**
 
@@ -702,13 +1064,140 @@ export async function runtimeRoutes(app: FastifyInstance) {
 }
 ```
 
-- [ ] **Step 2: `runs.ts`** — GET list/by id/messages；POST cancel（条件 update + `abortRun` + WS）
+- [ ] **Step 2: `orchestration/run-service.ts`（cancel + enqueue，供 issues/runs 共用）**
 
-- [ ] **Step 3: `roster.ts`** agents map 含 `runtime: a.runtime`
+```typescript
+import { eq, and, inArray } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { agentRuns, agents } from '../db/schema.js';
+import { toAgentRun } from '../db/reshape.js';
+import { eventBus } from './event-bus.js';
+import { abortRun } from './run-control.js';
+import { wakeRunWorker } from './run-worker.js';
 
-- [ ] **Step 4: `issues.ts` PUT**
+const ACTIVE = ['queued', 'running'] as const;
 
-在 updates 中：
+export function cancelActiveRunsForIssue(issueId: string): void {
+  const rows = db
+    .select()
+    .from(agentRuns)
+    .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, [...ACTIVE])))
+    .all();
+  for (const row of rows) {
+    cancelRunById(row.id);
+  }
+}
+
+export function cancelRunById(runId: string): { ok: boolean; run?: ReturnType<typeof toAgentRun> } {
+  const prev = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+  if (!prev || !ACTIVE.includes(prev.status as (typeof ACTIVE)[number])) {
+    return { ok: false };
+  }
+  const finishedAt = Date.now();
+  db.update(agentRuns)
+    .set({ status: 'cancelled', finishedAt })
+    .where(and(eq(agentRuns.id, runId), inArray(agentRuns.status, [...ACTIVE])))
+    .run();
+  abortRun(runId);
+  const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!;
+  const run = toAgentRun(row);
+  eventBus.publish({ type: 'run:cancelled', run });
+  return { ok: true, run };
+}
+
+export function enqueueAgentRun(issueId: string, agentId: string): ReturnType<typeof toAgentRun> | null {
+  const active = db
+    .select()
+    .from(agentRuns)
+    .where(and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, [...ACTIVE])))
+    .get();
+  if (active) return null;
+  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
+  if (!agent) return null;
+  const id = crypto.randomUUID();
+  const createdAt = Date.now();
+  db.insert(agentRuns)
+    .values({
+      id,
+      issueId,
+      agentId,
+      runtime: agent.runtime,
+      status: 'queued',
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      createdAt,
+    })
+    .run();
+  const row = db.select().from(agentRuns).where(eq(agentRuns.id, id)).get()!;
+  const run = toAgentRun(row);
+  eventBus.publish({ type: 'run:queued', run });
+  wakeRunWorker();
+  return run;
+}
+```
+
+- [ ] **Step 3: `routes/runs.ts`**
+
+```typescript
+import type { FastifyInstance } from 'fastify';
+import { eq, desc, asc } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { agentRuns, runMessages } from '../db/schema.js';
+import { toAgentRun, toRunMessage } from '../db/reshape.js';
+import { cancelRunById } from '../orchestration/run-service.js';
+
+export async function runRoutes(app: FastifyInstance) {
+  app.get('/api/runs', async (req) => {
+    const q = req.query as { issueId?: string };
+    if (!q.issueId) return [];
+    const rows = db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.issueId, q.issueId))
+      .orderBy(desc(agentRuns.createdAt))
+      .all();
+    return rows.map(toAgentRun);
+  });
+
+  app.get('/api/runs/:runId', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    if (!row) return reply.status(404).send({ error: 'run 不存在' });
+    return toAgentRun(row);
+  });
+
+  app.get('/api/runs/:runId/messages', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const run = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    if (!run) return reply.status(404).send({ error: 'run 不存在' });
+    const rows = db
+      .select()
+      .from(runMessages)
+      .where(eq(runMessages.runId, runId))
+      .orderBy(asc(runMessages.seq))
+      .all();
+    return rows.map(toRunMessage);
+  });
+
+  app.post('/api/runs/:runId/cancel', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const res = cancelRunById(runId);
+    if (!res.ok) return reply.status(409).send({ error: 'run 不可取消' });
+    return res.run;
+  });
+}
+```
+
+- [ ] **Step 4: `roster.ts`** agents 映射加 `runtime: a.runtime`
+
+```typescript
+return rows.map((a) => ({ id: a.id, name: a.name, runtime: a.runtime }));
+```
+
+- [ ] **Step 5: `issues.ts` PUT 扩展 assignee + 副作用**
+
+在 updates 构造中：
 
 ```typescript
 if (input.assignee !== undefined) {
@@ -717,42 +1206,65 @@ if (input.assignee !== undefined) {
 }
 ```
 
-事务后（或事务内）比较 prev assignee vs new：
+在 status 事务与 `issue:updated` 发布**之后**（assignee 变更独立于 status_change 事务亦可，但须同一请求内）：
 
 ```typescript
+import { cancelActiveRunsForIssue, enqueueAgentRun } from '../orchestration/run-service.js';
+
 function assigneeKey(t: string | null, id: string | null) {
   return t && id ? `${t}:${id}` : '';
 }
-const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
-const nextType = input.assignee !== undefined ? (input.assignee?.type ?? null) : prev.assigneeType;
-const nextId = input.assignee !== undefined ? (input.assignee?.id ?? null) : prev.assigneeId;
-const nextKey = assigneeKey(nextType, nextId);
 
-if (input.assignee !== undefined && prevKey !== nextKey) {
-  // cancel active runs for issue
-  // if nextType === 'agent' && nextId: load agent.runtime, insert agent_run queued, publish run:queued
+// 在成功 update issue 之后：
+if (input.assignee !== undefined) {
+  const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
+  const nextType = input.assignee?.type ?? null;
+  const nextId = input.assignee?.id ?? null;
+  const nextKey = assigneeKey(nextType, nextId);
+  if (prevKey !== nextKey) {
+    cancelActiveRunsForIssue(id);
+    if (nextType === 'agent' && nextId) {
+      enqueueAgentRun(id, nextId);
+    }
+  }
 }
 ```
 
-cancel active / insert run 抽到 `orchestration/run-service.ts` 更清晰（可选文件）。
+- [ ] **Step 6: `app.ts` 注册 `runRoutes` + `runtimeRoutes`；`index.ts` 在 listen 前 `startRunWorker()`**
 
-- [ ] **Step 5: `app.ts` 注册 routes；`index.ts` 启动后 `startRunWorker()`**
+```typescript
+// app.ts
+import { runRoutes } from './routes/runs.js';
+import { runtimeRoutes } from './routes/runtimes.js';
+await app.register(runRoutes);
+await app.register(runtimeRoutes);
 
-- [ ] **Step 6: 自测**
-
-```bash
-$env:MA_WORKSPACE_CWD="D:\code\multi-agent"   # 或你的仓库路径
-pnpm --filter @ma/server dev
-# GET /api/runtimes
-# PUT issue assignee agent → GET runs
-# POST cancel
-# 三 CLI 各跑一次（本机已装）
+// index.ts
+import { startRunWorker } from './orchestration/run-worker.js';
+startRunWorker();
+await app.listen(...);
 ```
 
-- [ ] **Step 7: handoff s03-impl-2.md + commit**
+- [ ] **Step 7: 自测**
 
 ```bash
+$env:MA_WORKSPACE_CWD="D:\code\multi-agent"
+pnpm --filter @ma/server typecheck
+pnpm --filter @ma/server dev
+# GET /api/runtimes
+# PUT /api/issues/:id {"assignee":{"type":"agent","id":"agt-lead"}}
+# GET /api/runs?issueId=
+# POST /api/runs/:runId/cancel
+# 三 CLI 各指派对应 agent 跑通（agt-lead/research/prd）
+```
+
+- [ ] **Step 8: handoff + commit**
+
+```bash
+git add app/packages/server
 git commit -m "feat(s03): runs API + 指派即跑 + cancel + runtimes"
+# 写 s03-impl-2.md 后
+git add app/.progress/s03-impl-2.md
 git commit -m "docs(s03): impl-2 handoff"
 ```
 
@@ -764,107 +1276,377 @@ git commit -m "docs(s03): impl-2 handoff"
 
 ### Task 3.1: api + ws
 
-**Files:** `lib/api.ts`, `lib/ws.ts`
+**Files:** Modify `lib/api.ts`, `lib/ws.ts`
 
-- [ ] **Step 1: hooks**
-
-```typescript
-// useRuntimes → GET /api/runtimes
-// useRuns(issueId) → GET /api/runs?issueId=
-// useRunMessages(runId) → GET /api/runs/:id/messages
-// useCancelRun → POST /api/runs/:id/cancel
-// useUpdateIssue 已支持 body.assignee（确认类型）
-// useAgents 类型含 runtime
-```
-
-- [ ] **Step 2: ws 处理 run:lifecycle / run:message / run:progress**
+- [ ] **Step 1: 在 `api.ts` 追加 hooks（API 基址与现网一致 `http://localhost:3001/api`）**
 
 ```typescript
-// run:* lifecycle → setQueryData ['runs', issueId]
-// run:message → append ['run-messages', runId] by id
-// run:progress → 可选 zustand ephemeral text by runId（不进 messages）
-// comment:created 保持
+import type { AgentRun, RunMessage, RuntimesResponse, AgentSummary } from '@ma/shared';
+
+export function useRuntimes() {
+  return useQuery<RuntimesResponse>({
+    queryKey: ['runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/runtimes`);
+      if (!res.ok) throw new Error('runtimes');
+      return res.json();
+    },
+  });
+}
+
+export function useRuns(issueId: string) {
+  return useQuery<AgentRun[]>({
+    queryKey: ['runs', issueId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/runs?issueId=${encodeURIComponent(issueId)}`);
+      if (!res.ok) throw new Error('runs');
+      return res.json();
+    },
+    enabled: !!issueId,
+  });
+}
+
+export function useRunMessages(runId: string | undefined) {
+  return useQuery<RunMessage[]>({
+    queryKey: ['run-messages', runId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/runs/${runId}/messages`);
+      if (!res.ok) throw new Error('messages');
+      return res.json();
+    },
+    enabled: !!runId,
+  });
+}
+
+export function useCancelRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      const res = await fetch(`${API_BASE}/runs/${runId}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error('cancel failed');
+      return res.json() as Promise<AgentRun>;
+    },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+    },
+  });
+}
 ```
 
-- [ ] **Step 3: commit** `feat(s03): web hooks + WS run events`
+确认 `useUpdateIssue` 的 body 可传 `assignee`；`useAgents` 泛型为 `AgentSummary[]`（含 runtime）。将现有 `API` 常量统一为 `API_BASE`（或保留原名，全文一致即可）。
+
+- [ ] **Step 2: `ws.ts` 扩展 DomainEvent 处理**
+
+```typescript
+import type { AgentRun, RunMessage, DomainEvent } from '@ma/shared';
+
+// 在 onmessage 内追加：
+if (
+  event.type === 'run:queued' ||
+  event.type === 'run:running' ||
+  event.type === 'run:completed' ||
+  event.type === 'run:failed' ||
+  event.type === 'run:cancelled'
+) {
+  const run = event.run;
+  qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
+    if (!old) return [run];
+    const i = old.findIndex((r) => r.id === run.id);
+    if (i >= 0) {
+      const next = old.slice();
+      next[i] = run;
+      return next;
+    }
+    return [run, ...old];
+  });
+}
+
+if (event.type === 'run:message') {
+  const { message } = event;
+  qc.setQueryData<RunMessage[]>(['run-messages', message.runId], (old) => {
+    if (!old) return [message];
+    if (old.some((m) => m.id === message.id)) return old;
+    return [...old, message].sort((a, b) => a.seq - b.seq);
+  });
+}
+
+// run:progress：可选
+// useRunProgressStore.getState().setText(event.runId, event.text)
+```
+
+- [ ] **Step 3: commit**
+
+```bash
+git add app/packages/web/lib
+git commit -m "feat(s03): web hooks + WS run events"
+```
 
 ---
 
 ### Task 3.2: 详情指派 / 停止 / 轨迹
 
-**Files:** Create AssigneeSelect, RunStatusBar, RunTrace；Modify IssueHeader, IssueDetail
+**Files:** Create `AssigneeSelect.tsx`, `RunStatusBar.tsx`, `RunTrace.tsx`；Modify `IssueHeader.tsx`, `IssueDetail.tsx`
 
-- [ ] **Step 1: AssigneeSelect** — agents 下拉，显示 `name · runtime`；confirm 后 `update.mutate({ id, input: { assignee: { type:'agent', id }}})`；选项「未指派」→ `assignee: null`
+- [ ] **Step 1: `AssigneeSelect.tsx`**
 
-- [ ] **Step 2: RunStatusBar** — 从 runs 找 active 或最新；显示 status；停止调用 cancel
+```tsx
+'use client';
+import { useAgents, useUpdateIssue } from '@/lib/api';
 
-- [ ] **Step 3: RunTrace** — messages 列表；kind 样式区分
+export function AssigneeSelect({ issueId, currentAgentId }: { issueId: string; currentAgentId: string | null }) {
+  const { data: agents = [] } = useAgents();
+  const update = useUpdateIssue();
 
-- [ ] **Step 4: IssueDetail 组装**
+  function onChange(value: string) {
+    if (value === '') {
+      if (!confirm('清除指派并停止当前运行？')) return;
+      update.mutate({ id: issueId, input: { assignee: null } });
+      return;
+    }
+    const ag = agents.find((a) => a.id === value);
+    if (!ag) return;
+    if (!confirm(`将用 ${ag.runtime} 启动 ${ag.name}，可随时停止。继续？`)) return;
+    update.mutate({ id: issueId, input: { assignee: { type: 'agent', id: ag.id } } });
+  }
 
-- [ ] **Step 5: commit** `feat(s03): 详情指派/停止/运行轨迹`
+  return (
+    <select
+      value={currentAgentId ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="指派 agent"
+    >
+      <option value="">未指派</option>
+      {agents.map((a) => (
+        <option key={a.id} value={a.id}>
+          {a.name} · {a.runtime}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+- [ ] **Step 2: `RunStatusBar.tsx`**
+
+```tsx
+'use client';
+import { useRuns, useCancelRun } from '@/lib/api';
+
+export function RunStatusBar({ issueId }: { issueId: string }) {
+  const { data: runs = [] } = useRuns(issueId);
+  const cancel = useCancelRun();
+  const active = runs.find((r) => r.status === 'queued' || r.status === 'running') ?? runs[0];
+  if (!active) return <p className="run-status">指派 agent 后自动执行</p>;
+  const canStop = active.status === 'queued' || active.status === 'running';
+  return (
+    <div className="run-status-bar">
+      <span>
+        运行 {active.status} · {active.runtime}
+        {active.error ? ` · ${active.error}` : ''}
+      </span>
+      {canStop && (
+        <button type="button" onClick={() => cancel.mutate(active.id)} disabled={cancel.isPending}>
+          停止
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: `RunTrace.tsx`**
+
+```tsx
+'use client';
+import { useRuns, useRunMessages } from '@/lib/api';
+
+export function RunTrace({ issueId }: { issueId: string }) {
+  const { data: runs = [] } = useRuns(issueId);
+  const runId = runs[0]?.id;
+  const { data: messages = [] } = useRunMessages(runId);
+  if (!runId) return null;
+  return (
+    <section className="run-trace">
+      <h3>运行轨迹</h3>
+      <ul>
+        {messages.map((m) => (
+          <li key={m.id} data-kind={m.kind}>
+            <code>#{m.seq}</code> <strong>{m.kind}</strong> {m.body.slice(0, 500)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+```
+
+- [ ] **Step 4: `IssueHeader` 挂 `AssigneeSelect`（传入 issue.id 与 assignee?.type==='agent' ? assignee.id : null）；`IssueDetail` 挂 `RunStatusBar` + `RunTrace`**
+
+- [ ] **Step 5: commit**
+
+```bash
+git add app/packages/web/components
+git commit -m "feat(s03): 详情指派/停止/运行轨迹"
+```
 
 ---
 
 ### Task 3.3: /runtimes 双栏 + 导航
 
-**Files:** `components/RuntimesPage.tsx`, `app/runtimes/page.tsx`, `layout.tsx`, `globals.css`
+**Files:** Create `components/RuntimesPage.tsx`, `app/runtimes/page.tsx`；Modify `layout.tsx`, `globals.css`
 
-- [ ] **Step 1: UI 按 spec §9.3 / 原型双栏**
-
-左：本机卡；右：头 + 表 5 列；费用 `—`；按钮重新探测 `refetch`
-
-- [ ] **Step 2: layout 顶栏**
+- [ ] **Step 1: `RuntimesPage.tsx`**
 
 ```tsx
-<nav>
+'use client';
+import { useRuntimes } from '@/lib/api';
+
+export function RuntimesPage() {
+  const { data, refetch, isFetching } = useRuntimes();
+  if (!data) return <div>加载中…</div>;
+  const { machine, runtimes } = data;
+  const installed = runtimes.filter((r) => r.installed).length;
+  return (
+    <div className="runtime-layout">
+      <aside className="machine-list">
+        <div className="machine-item active">
+          <div className="machine-item-name">{machine.name}</div>
+          <div className="machine-item-meta">{runtimes.length} 个运行时</div>
+          <span className="machine-tag">本机</span>
+        </div>
+      </aside>
+      <section className="runtime-detail">
+        <header>
+          <h1>
+            <span className="status-dot-green" /> {machine.name} 在线
+          </h1>
+          <p>
+            {installed} 已安装 · cwd={machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
+          </p>
+          <button type="button" onClick={() => refetch()} disabled={isFetching}>
+            重新探测
+          </button>
+        </header>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>运行时</th>
+              <th>健康度</th>
+              <th>智能体</th>
+              <th>费用 - 7天</th>
+              <th>CLI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runtimes.map((rt) => (
+              <tr key={rt.id}>
+                <td>{rt.label}</td>
+                <td>{rt.installed ? '可用' : '未检测到'}</td>
+                <td>{rt.agentIds.length ? `${rt.agentIds.length} 个` : '—'}</td>
+                <td>—</td>
+                <td>
+                  <code>{rt.version ?? '—'}</code>
+                  {rt.path ? <div><small>{rt.path}</small></div> : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: `app/runtimes/page.tsx`**
+
+```tsx
+import { RuntimesPage } from '@/components/RuntimesPage';
+export default function Page() {
+  return <RuntimesPage />;
+}
+```
+
+- [ ] **Step 3: `layout.tsx` 顶栏导航（保留 Providers）**
+
+```tsx
+import Link from 'next/link';
+// 在 body 内 children 上方：
+<nav style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
   <Link href="/">看板</Link>
   {' · '}
   <Link href="/runtimes">运行时</Link>
 </nav>
-{children}
 ```
 
-- [ ] **Step 3: typecheck**
+- [ ] **Step 4: globals.css 增加 `.runtime-layout` 双栏 flex（左约 240px，右 flex1）**
+
+- [ ] **Step 5: typecheck**
 
 ```bash
+cd D:/code/multi-agent/app
 pnpm -r typecheck
 ```
 
-- [ ] **Step 4: §12 浏览器验收**（三 CLI 各一次；FRI-11 改指派 agent）
+- [ ] **Step 6: §12 浏览器验收**
 
-- [ ] **Step 5: handoff s03-impl-3.md + commit + push**
+- 工程 / 运行时页 / 执行三 CLI / 停止 / 回归  
+- **FRI-11 改指派到 agent**（seed 为 squad）  
+- 在 `app/packages/server` 或根 README 片段注明 `MA_WORKSPACE_CWD` 与三 CLI 登录  
+
+- [ ] **Step 7: handoff + push**
 
 ```bash
+# 写 app/.progress/s03-impl-3.md（§12 勾选 + 证据）
+git add app/packages/web app/.progress/s03-impl-3.md
+git commit -m "feat(s03): /runtimes 双栏 + 导航 + 验收 handoff"
 git push -u origin feat/s03-runtime-backend
 ```
 
 ---
 
-## Plan Self-Review
+## Plan Self-Review（二次，2026-07-09）
 
-| Spec 需求 | Task |
+### 1. Spec 覆盖
+
+| Spec | Task |
 |---|---|
-| shared Run 契约 + assignee | 1.2 |
-| agent.runtime + tables | 1.3–1.4 |
-| Backend 三实现 + detect | 2.1 |
-| Worker + prompt K=20 | 2.2 |
-| PUT 指派即跑 + cancel + runtimes API | 2.3 |
-| 详情 UI + /runtimes 双栏 | 3.2–3.3 |
-| 三 CLI 验收 | 2.3 自测 + 3.4 |
-| progress 不进 DB | 2.2 onEvent |
-| 终态 comment | 2.2 |
-| Borrow 文档 | Global Constraints |
+| §3 数据模型 agent.runtime / agent_run / run_message | 1.3–1.4 |
+| §4 shared 契约 + assignee + assignee | 1.2 |
+| §5 API runs/runtimes/agents | 2.3 |
+| §6 指派即跑 / Worker / cancel | 2.2–2.3 + run-service |
+| §7 三 Backend + detect + R5 降级 | 2.1 spawn-line + 三文件 |
+| §8 WS run:* | 2.2 publish + 3.1 消费 |
+| §9 前端指派/轨迹/runtimes 双栏 | 3.2–3.3 |
+| §12 验收三 CLI + FRI-11 提示 | 2.3 自测 + 3.3 Step 6 |
+| 终止必做 | run-control + cancelRunById + UI 停止 |
+| progress 不进 DB | Worker onEvent 仅 progress 事件 |
+| 终态 agent comment | Worker completed 分支 |
 
-**无 TBD。** Cursor argv 由 impl-2 spike 写入 handoff（spec R5 允许）。
+### 2. Placeholder 扫描（已修）
 
----
+| 问题 | 处置 |
+|---|---|
+| spawnCollect/parseClaude 仅注释 | → 完整 `spawn-line.ts` + 三 Backend 文件 |
+| RunWorker 仅要点 | → 完整 `run-worker.ts` |
+| runs.ts / enqueue 仅注释 | → 完整 `runs.ts` + `run-service.ts` |
+| web hooks/组件仅注释 | → 完整 hooks + 组件代码块 |
+| 错误引用 Task 3.4 | → 改为 3.3 Step 6 |
 
-## 执行方式（计划者）
+### 3. 类型一致性
 
-Plan 已保存。可选：
+| 名称 | 约定 |
+|---|---|
+| 表导出 | drizzle `agentRuns` / `runMessages`；SQL 表名 `agent_run` / `run_message` |
+| API 类型 | `AgentRun` / `RunMessage` / `RuntimesResponse` / `RuntimeId` |
+| WS | `run:queued|running|completed|failed|cancelled` + `run:progress` + `run:message` |
+| queryKey | `['runs', issueId]` · `['run-messages', runId]` · `['runtimes']` |
+| cancel | 仅 `POST /api/runs/:runId/cancel` |
 
-1. **新会话执行者**（推荐，项目惯例）— 用 `s03-impl-1-kickoff`  
-2. **本会话 Subagent / Inline**  
+### 4. 实现者注意（非占位）
 
-需要 kickoff 提示词时说一声即可。
+- Windows 上 `fs.access(..., X_OK)` 可能对 `.exe` 行为怪异：`resolveCmd` 若 env 路径失败，依赖 `where`  
+- drizzle `update.returning` 在 0.33 可能不可用：Worker claim 已写兼容路径  
+- Cursor 默认 argv 可能需 spike 修改：**允许改 `cursor.ts` 参数，必须记 handoff**（非 TBD）
+
+**结论：计划可执行；无阻塞性 TBD。**
