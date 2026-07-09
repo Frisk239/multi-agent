@@ -30,9 +30,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const input = parsed.data;
     const now = Date.now();
 
-    // identifier 生成：MAX(SUBSTR(identifier,4))+1
+    // identifier 生成：MAX(SUBSTR(identifier,5))+1
+    // 注意 SUBSTR 是 1-based：FRI-11 的数字从第 5 字符开始（F=1,R=2,I=3,-=4,1=5）
     const maxRow = db
-      .select({ maxNum: sql<number>`MAX(CAST(SUBSTR(${issues.identifier}, 4) AS INTEGER))` })
+      .select({ maxNum: sql<number>`MAX(CAST(SUBSTR(${issues.identifier}, 5) AS INTEGER))` })
       .from(issues)
       .where(eq(issues.workspaceId, WS_ID))
       .get();
