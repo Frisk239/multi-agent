@@ -50,9 +50,9 @@ S01（看板 + WebSocket）已合 main（PR #1）。本会话完成 S02 brainsto
 实现计划真源：`docs/superpowers/plans/2026-07-09-s02-issue-detail.md`。  
 impl-1 若有偏离，计划者验收后回写 plan / kickoff 再放 impl-2。
 
-## 验收结论（本文件仅开片，不验实现）
+## 验收结论
 
-- [ ] impl-1 待执行 / 进行中
+- [x] impl-1 ✅ 达标（见 [`s02-impl-1.md`](s02-impl-1.md)；typecheck 三包绿 / FRI-11×3 / migration `0001_early_centennial`）
 - [ ] impl-2 待执行（kickoff 已备）
 - [ ] impl-3 待执行（kickoff 已备）
-- 结论：计划已就绪；impl-2/3 启动词已预写，串行验收后派发
+- 结论：impl-1 已验收通过，可派发 impl-2
