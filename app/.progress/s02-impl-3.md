@@ -126,8 +126,19 @@ $ pnpm dev
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck
-- [ ] §9 功能
-- [ ] §9 实时
-- [ ] 可合并 main
-- 结论：
+> 验收人：S02 计划者 · 日期：2026-07-09 · 分支 tip：`3f4fe8a`  
+> 方式：对照 handoff §9 表 + 读码确认 A/B 与偏离项
+
+- [x] typecheck（三包绿，handoff 证据）
+- [x] §9 功能（FRI-11 详情 / MD+pill / 评论 / status_change / @ 补全 / 看板回归）
+- [x] §9 实时（双窗口评论 + 改状态；id 幂等）
+- [x] A foreign_keys ON · B LOCAL_MEMBER 单点（源码核对）
+- [x] 可合并 main
+
+### 偏离裁定
+1. Next `extensionAlias` — 接受（web 消费 shared 值导入必需）
+2. `urlTransform` 放行 `mention://` — 接受（R1 必需）
+3. Next 14 同步 params — 接受
+4. A/B review 项 — 已合入，关闭
+
+**结论：S02 切片达标，可开 PR 合 main。** FRI-11 时间线路径点亮。

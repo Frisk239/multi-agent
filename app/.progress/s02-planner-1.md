@@ -52,7 +52,7 @@ impl-1 若有偏离，计划者验收后回写 plan / kickoff 再放 impl-2。
 
 ## 验收结论
 
-- [x] impl-1 ✅ 达标（见 [`s02-impl-1.md`](s02-impl-1.md)；typecheck 三包绿 / FRI-11×3 / migration `0001_early_centennial`）
-- [x] impl-2 ✅ 达标（`151b660` · 见 [`s02-impl-2.md`](s02-impl-2.md)；GET/POST comments · GET :id · PUT status_change 双事件 · roster）
-- [ ] impl-3 待执行（kickoff：[`s02-impl-3-kickoff.md`](s02-impl-3-kickoff.md)）
-- 结论：可派发 impl-3；impl-2 无偏离，计划无需改
+- [x] impl-1 ✅ 达标（见 [`s02-impl-1.md`](s02-impl-1.md)）
+- [x] impl-2 ✅ 达标（见 [`s02-impl-2.md`](s02-impl-2.md)）
+- [x] impl-3 ✅ 达标（`3f4fe8a` · 见 [`s02-impl-3.md`](s02-impl-3.md)；§9 + A/B）
+- 结论：**S02 全切片验收通过，可开 PR 合 main。**
