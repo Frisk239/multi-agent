@@ -1,0 +1,60 @@
+'use client';
+import { useState } from 'react';
+import type { Issue, IssueStatus } from '@ma/shared';
+import { useIssues, useUpdateIssue } from '@/lib/api';
+import { KanbanColumn } from './KanbanColumn';
+import { NewIssueForm } from './NewIssueForm';
+
+// spec §7.2：6 列，cancelled 不建列
+const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
+  { title: 'Backlog', status: 'backlog', color: 'var(--status-backlog)' },
+  { title: 'Todo', status: 'todo', color: 'var(--status-todo)' },
+  { title: 'In Progress', status: 'in_progress', color: 'var(--status-in-progress)' },
+  { title: 'In Review', status: 'in_review', color: 'var(--status-in-review)' },
+  { title: 'Done', status: 'done', color: 'var(--status-done)' },
+  { title: 'Blocked', status: 'blocked', color: 'var(--status-blocked)' },
+];
+
+export function KanbanBoard() {
+  const { data: issues, isLoading } = useIssues();
+  const update = useUpdateIssue();
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  if (isLoading) return <div>加载中…</div>;
+
+  // spec §7.5 R5：cancelled 的 issue 不渲染到任何列
+  const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
+
+  function handleDrop(targetStatus: IssueStatus) {
+    if (!dragId) return;
+    const dragged = visible.find((i) => i.id === dragId);
+    if (!dragged || dragged.status === targetStatus) {
+      setDragId(null);
+      return;
+    }
+    // spec §7.3 ①：乐观更新 + PUT（只传 status，不传 position，D4）
+    update.mutate({ id: dragId, input: { status: targetStatus } });
+    setDragId(null);
+  }
+
+  return (
+    <div style={{ padding: 'var(--space-4)' }}>
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <NewIssueForm />
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', overflowX: 'auto' }}>
+        {COLUMNS.map((col) => (
+          <KanbanColumn
+            key={col.status}
+            title={col.title}
+            status={col.status}
+            color={col.color}
+            issues={visible.filter((i) => i.status === col.status)}
+            onDragStart={setDragId}
+            onDrop={handleDrop}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

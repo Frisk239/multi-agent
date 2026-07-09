@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.next/
+.turbo/
