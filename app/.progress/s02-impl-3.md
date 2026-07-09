@@ -107,7 +107,7 @@ $ pnpm dev
    - mention 菜单在长页面底部，未做绝对定位浮层（功能可用）
    - 详情页无单独 loading skeleton
 4. **拖拽 vs 点标题：** 标题 `Link` + `draggable={false}` + `stopPropagation`；Playwright 对 article 拖拽可触发 status 更新（FRI-04 已验）。
-5. **分支 tip（本 handoff 提交前）：** 含 `aa50a43` hooks、`a2c3015` 详情页，以及后续 fix + 本 docs commit。
+5. **分支 tip：** `f6ac301`（含 `aa50a43` hooks · `a2c3015` 详情页 · `69edb47` Next/mention 修复 · 本 docs）。
 
 ## 验收结论（仅计划者填）
 
