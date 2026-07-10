@@ -45,3 +45,7 @@ pnpm-debug.log*
 *.db
 *.db-journal
 *.sqlite
+
+# ── 工具产物（验收/MCP 调试产生，不进版本库）──
+.playwright-mcp/
+mcps/
