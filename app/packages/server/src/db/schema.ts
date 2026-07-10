@@ -22,6 +22,9 @@ export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   category: text('category'),
+  runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] })
+    .notNull()
+    .default('claude-code'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -88,5 +91,49 @@ export const comments = sqliteTable(
   },
   (t) => ({
     issueCreatedIdx: index('idx_comment_issue_created').on(t.issueId, t.createdAt),
+  }),
+);
+
+// —— agent_run（S03 执行层，薄状态机，对齐 multica task）——
+export const agentRuns = sqliteTable(
+  'agent_run',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id),
+    agentId: text('agent_id').notNull(),
+    runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] }).notNull(),
+    status: text('status', {
+      enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
+    }).notNull(),
+    error: text('error'),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    issueIdx: index('idx_agent_run_issue').on(t.issueId),
+    statusIdx: index('idx_agent_run_status').on(t.status),
+  }),
+);
+
+// —— run_message（S03 执行轨迹回放，对齐 multica task_message）——
+export const runMessages = sqliteTable(
+  'run_message',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => agentRuns.id),
+    seq: integer('seq').notNull(),
+    kind: text('kind', {
+      enum: ['assistant', 'user', 'tool_start', 'tool_end', 'system'],
+    }).notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    runSeqIdx: index('idx_run_message_run_seq').on(t.runId, t.seq),
   }),
 );

@@ -15,6 +15,13 @@
       "when": 1783597464635,
       "tag": "0001_early_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783642781686,
+      "tag": "0002_smart_northstar",
+      "breakpoints": true
     }
   ]
 }
