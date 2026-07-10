@@ -74,6 +74,27 @@ agent (4 行，全部带 runtime):
 COUNTS: agents=4  issues=8  comments=6
 ```
 
+### 联调自测（`pnpm --filter @ma/server dev` 起 server，curl 打 API）
+
+起 server 后逐个端点验证，确认数据层改动未破坏 S01/S02，且新表/新字段可用：
+
+```
+1. GET /api/agents       → 4 行，全部带 runtime（claude-code/opencode/cursor/claude-code，覆盖三 runtime）✓
+2. GET /api/squads       → 3 行（S01 回归）✓
+3. GET /api/issues       → 8 条，assignee 多态指派完整（member/agent/squad + label）✓
+4. GET /api/issues/:id   → FRI-11 答辩 demo 路径：in_review + squad:产品小队 ✓
+5. GET /api/issues/:id/comments → FRI-11 时间线 3 条 comment（林远 + agt-lead + agt-research，含 mention 链接）✓
+6. agent_run / run_message 表存在且为空（0|0）✓
+7. agent 表 schema 含 runtime 列（text DEFAULT 'claude-code' NOT NULL）✓
+8. PUT /api/issues/:id（priority）→ 正常更新 ✓
+9. PUT 带 assignee → 静默忽略（当前路由未读 input.assignee，priority 仍生效）✓ 这是 impl-2 要接的副作用
+
+端到端 reshape 验证（临时脚本插入 test 行 → toAgentRun/toRunMessage 读出 → 自清理）：
+- toAgentRun: ms → ISO datetime 正确（startedAt/finishedAt/createdAt）；error null 保留；形状匹配 AgentRun 契约 ✓
+- toRunMessage: seq 数字、kind/body 直传；createdAt ms → ISO；形状匹配 RunMessage 契约 ✓
+- 清理后两表回到 0 行 ✓
+```
+
 ## 与计划的偏离
 
 1. **PowerShell → Bash 删库命令（kickoff 坑1）。** plan Task 1.3 Step 3 写的是 `Remove-Item ...`，本会话用 Git Bash，改用 `rm -f app/packages/server/dev.db app/packages/server/dev.db-shm app/packages/server/dev.db-wal`。
@@ -83,6 +104,10 @@ COUNTS: agents=4  issues=8  comments=6
 3. **`git pull origin main` 网络超时失败。** 本地 main 已与 origin/main 同步（`Your branch is up to date`），分支从本地最新 main 切出，无影响。
 
 4. **真实依赖版本记录（给 impl-2/3 参考）：** drizzle-kit 自动生成的 migration 名 `0002_smart_northstar.sql`（非 `0002_agent_run.sql`，drizzle 随机后缀）；migration 顺序号正确（0000→0001→0002）。
+
+5. **roster 路由修复（联调发现，超 plan 范围）。** plan 把 roster 的 runtime 返回归在 impl-2 Task 2.3 Step 4，但联调时发现：`AgentSummary.runtime` 改成 required 后，旧 `GET /api/agents` 仍只返回 `{ id, name }`（typecheck 不报是因为 Fastify 无返回类型断言）。为让联调自测干净 + 避免前端拿到 undefined runtime，提前把 `runtime: a.runtime` 加上。**这样 impl-2 无需再改 roster（注意点 5 已同步更新）。**
+
+6. **`git push` 网络失败（环境问题）。** 本机代理（127.0.0.1:443）连不上 github，push 两次均超时失败。本地分支 4 commit 完整，**网络恢复后执行 `git push -u origin feat/s03-runtime-backend` 即可**。不影响代码验收。
 
 ## 遗留 / 下一个执行者（impl-2）要注意的点
 
@@ -99,7 +124,7 @@ COUNTS: agents=4  issues=8  comments=6
    - `toRunMessage(row: typeof runMessages.$inferSelect): RunMessage`
    - import from `'../db/reshape.js'`
 
-5. **`AgentSummary` 加了 required `runtime` 字段。** 你的 roster 路由（`GET /api/agents`）返回要加 `runtime: a.runtime`，否则前端拿不到、TS 也可能再报（当前 server typecheck 没报是因为 roster 没断言 AgentSummary，但前端 impl-3 会用 `AgentSummary[]` 泛型）。按 plan Task 2.3 Step 4：`rows.map((a) => ({ id: a.id, name: a.name, runtime: a.runtime }))`。
+5. **`AgentSummary` 加了 required `runtime` 字段，roster 路由已配套接好。** `GET /api/agents` 已返回 `{ id, name, runtime }`（本会话联调时发现并修复，原 S02 只返回 `{ id, name }`）。你无需再改 roster。前端 impl-3 可直接用 `AgentSummary[]` 泛型（含 runtime）。
 
 6. **DB client 已就绪：** `db` 来自 `'../db/client.js'`，better-sqlite3 同步 API。新表 `agentRuns` / `runMessages` 从 `'../db/schema.js'` 导入。
 
