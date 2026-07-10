@@ -132,9 +132,28 @@ COUNTS: agents=4  issues=8  comments=6
 
 ## 验收结论（计划者填）
 
-> 待计划者验收。
+### impl-1 验收（2026-07-10 计划者复核）
 
-- [x] typecheck 通过（shared + server + web 全绿）
-- [ ] `pnpm dev` 能跑（impl-2/3 接完后验证）
-- [ ] 切片验收标准达成（见 spec §12）
-- 结论：<待计划者填>
+**结论：✅ 通过，移交 impl-2（Backend + Worker + API）。**
+
+复核项（契约 + 数据层逐条核对）：
+- ✅ shared 契约：RuntimeId/AgentRun/RunMessage/RuntimeInfo/RuntimesResponse 全部正确；UpdateIssueInput.assignee 放开（无 label 输入，GET 服务端填）；DomainEvent 联合扩展含全部 8 种 run:* 事件；validateUpdateIssue 加了 assignee 判断
+- ✅ DB schema：agent 加 runtime 列（default 'claude-code' NOT NULL）；agent_run（9 列 2 索引 FK→issue）、run_message（6 列 复合索引 FK→agent_run）结构正确
+- ✅ migration `0002_smart_northstar.sql`（顺序 0000→0001→0002 正确）
+- ✅ seed：4 agent runtime 绑定覆盖三 runtime（lead/proto→claude-code, research→opencode, prd→cursor）；issue 8 条 + comment 6 条 S02 数据保留
+- ✅ reshape：toAgentRun（ms→ISO，null 保持 null）、toRunMessage 就绪
+- ✅ roster 计划外修复正确：AgentSummary.runtime 改 required 后，GET /api/agents 配套返回 runtime（否则前端 undefined）。**impl-2 无需再碰 roster**
+- ✅ web 乐观更新 assignee 剥离补丁（合理，impl-3 会重写指派 UI）
+- ✅ 5 commit 干净，工作树 clean，typecheck 三包全绿
+
+**5 处偏离全部接受**：PowerShell→Bash（已知坑）、web 乐观补丁（assignee 连带）、git pull 超时（无害）、migration 随机名（drizzle 正常）、roster 提前修复（主动且正确，避免 impl-2 再踩）。
+
+**给 impl-2 的计划者补充注意点（impl-1 handoff 之外）：**
+
+1. **MA_WORKSPACE_CWD 已确认本机三 CLI 可用**：claude 2.1.150 / opencode 1.17.15 / cursor 3.9.16 都装了且 multica 能检测到。impl-2 的 detect() 若检测不到，是 detect 逻辑问题（对齐 multica LookPath），不是环境问题。验收时 MA_WORKSPACE_CWD 设 `D:\code\multi-agent`。
+2. **PUT issues 的 assignee 副作用是 impl-2 核心**（plan Task 2.3 Step 5）：当前 routes/issues.ts 完全没碰 assignee（impl-1 自测确认 PUT 带 assignee 静默忽略）。impl-2 必须接：assignee identity 变化 → cancelActiveRunsForIssue + 若 type=agent 则 enqueueAgentRun。
+3. **plan Task 2.3 Step 7 的自测命令用了 PowerShell 语法**（`$env:MA_WORKSPACE_CWD=...`），impl-2 用 Git Bash 改成 `MA_WORKSPACE_CWD="D:\code\multi-agent" pnpm --filter @ma/server dev`。
+4. **三 CLI argv 需 spike 钉死**（spec §7.2）：plan 给的初值是 claude `-p <prompt> --output-format stream-json --verbose` / opencode `run <prompt>` / cursor `--headless <prompt>`。这些是**未验证的猜测**，impl-2 必须实跑每个 CLI 确认真实 argv，记进 handoff。cursor 的 headless 模式尤其要 spike——可能根本不支持。
+5. **RunWorker 的 `db.update().returning()` 在 drizzle 0.33 可能不可用**：plan Task 2.2 Step 3 已兼容（claim 后用 select 校验 status==='running'）。impl-2 照 plan 那段代码的兼容写法即可，别强求 returning。
+6. **Windows 进程树 kill**：plan spawn-line.ts 已用 `taskkill /T /F`（正确）。impl-2 照抄，注意 AbortSignal 触发后 child.kill + taskkill 双保险。
+
