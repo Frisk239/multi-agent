@@ -121,16 +121,19 @@ export function useUpdateIssue() {
       return res.json() as Promise<Issue>;
     },
     // D12 + R2：只乐观 Issue 字段
+    // 注意：assignee 在 UpdateIssueInput 无 label，乐观展开会破坏 Issue.assignee 的 label 形状；
+    // 故 assignee 不参与乐观更新，等服务端返回带 label 的完整 Issue（onSuccess）落地。
     onMutate: async ({ id, input }) => {
       await qc.cancelQueries({ queryKey: ['issues'] });
       await qc.cancelQueries({ queryKey: ['issue', id] });
       const prevList = qc.getQueryData<Issue[]>(['issues']);
       const prevOne = qc.getQueryData<Issue>(['issue', id]);
+      const { assignee: _dropAssignee, ...patch } = input;
       qc.setQueryData<Issue[]>(['issues'], (old) =>
-        old?.map((i) => (i.id === id ? { ...i, ...input } : i)),
+        old?.map((i) => (i.id === id ? { ...i, ...patch } : i)),
       );
       if (prevOne) {
-        qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...input });
+        qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...patch });
       }
       return { prevList, prevOne };
     },
