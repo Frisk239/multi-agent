@@ -191,9 +191,28 @@ spec §3.3 写 MCP JSON 是 array 格式 `[{"name":...,"command":...,"args":...}
 
 ## 验收结论（计划者填）
 
-> 待计划者复核。
+### impl-2 验收（2026-07-15 计划者复核）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 spec §10.2-10.6）
-- 结论：<待填>
+**结论：✅ 通过，移交 impl-3（前端 + 端到端验收）。**
+
+复核项（逐文件核对 + handoff 自测证据审查）：
+- ✅ claude stdin 修复（S04 遗留最重要的修复）：spike 确认 argv `['-p', '--output-format', 'stream-json', '--verbose']`，prompt 走 stdin。实测 2 分钟 43 条 messages 无 `no stdin data`——完全修复
+- ✅ spawn-line stdinInput 结构扩展正确（spec R2）：签名加可选参数，传了时 write+end+error 处理，不传时保持 argv 模式
+- ✅ skill 注入正确：buildPrompt 查 agent_skill + join getSkillIndex + 拼 skillBlock 前置。拼接顺序 skillBlock + briefing + issueBody（parts.filter.join）
+- ✅ MCP 注入正确：ExecutionInput 加 mcpServers + claude-code `--mcp-config` 临时文件 + try/finally（R3）+ array→object 格式转换（spike 修正）
+- ✅ API 6 端点全通：GET /api/skills（5 skill + usedBy 反查）+ refresh + 分配 GET/PUT + mcp GET/PUT。R1 悬空过滤正确
+- ✅ typecheck 三包全绿
+- ✅ 回归 S03/S04 执行层不破坏
+
+**2 处偏离全部接受**：
+1. spawn-line 省略 setEncoding（Writable 无此方法，正确判断）
+2. MCP 格式 array→object（spike 发现 claude 要 object，spec §3.3 误判，存储格式不变只注入边界转换）
+
+**给 impl-3 的计划者补充注意点（impl-2 handoff 之外）：**
+
+1. **skill name 是唯一标识**（无 id 字段）：GET /api/skills 返回的数组项 key 是 `name`。前端 checkbox value 用 `name`，不用 id。
+2. **MCP 存 array 显示 array**：前端 MCP Tab 的 textarea 让用户编辑 array 格式 JSON `[{name,command,args,env}]`，后端注入时自动转 object，前端不用管转换。
+3. **Skills 页照原型 renderSkills**（app.js:619）：表格 4 列（名称/被谁使用/来源/更新时间），重新扫描按钮。impl-2 handoff 有完整 API 路径 + 响应形状。
+4. **agent 详情 Skills/MCP Tab 是新建**（S03 只建了 Tab 栏占位）：Skills Tab = 全 skill checkbox 列表 + 分配 PUT；MCP Tab = JSON textarea + 保存。
+5. **侧栏 Skills 入口激活**（S03 Sidebar 12 项里 Skills 占位不可跳转）→ `/skills`。
+6. **端到端验收是 impl-3 核心**：skill 分配 + 执行验证（buildPrompt 含 skill body 已由 impl-2 证明，impl-3 确认前端能操作）；claude stdin 已修复，leader run 能跑完产出 finalText——这次可以验证完整 squad 闭环（leader briefing + @mention → comment-trigger → worker 执行）。
