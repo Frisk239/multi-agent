@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { comments, issues } from '../db/schema.js';
 import { toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
+import { triggerFromComment } from '../orchestration/comment-trigger.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 
 export async function commentRoutes(app: FastifyInstance): Promise<void> {
@@ -51,6 +52,8 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(comments).where(eq(comments.id, commentId)).get();
     const comment = toComment(row!);
     eventBus.publish({ type: 'comment:created', comment });
+    // S04：comment-trigger 解析 mention 派任务（spec §7.3 入口1）
+    triggerFromComment(comment);
     return reply.status(201).send(comment);
   });
 }

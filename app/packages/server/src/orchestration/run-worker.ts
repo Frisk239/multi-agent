@@ -1,20 +1,25 @@
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, runMessages, comments } from '../db/schema.js';
+import { agentRuns, runMessages, comments, agents } from '../db/schema.js';
 import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
 import { getBackend } from '../runtime/registry.js';
 import { buildPrompt } from '../runtime/prompt.js';
+import { triggerFromComment } from './comment-trigger.js';
 import type { AgentEvent } from '../runtime/types.js';
 
 // RunWorker —— 主进程内的单线程 run 执行循环（spec §6.2，学 multica daemon）。
+// S04 并发模型改造（★核心重写，spec §6.2 R3）：
+// - 删除 S03 的全局 busy 锁（单 run 串行）→ per-agent 槽（agent.concurrency）
 // - timer 每 500ms tick；wake 可立即触发
-// - busy 锁防并发（同进程无竞态，锁只是防 setInterval 重入）
-// - tick: claim 一条 queued → running → backend.execute → 终态写库 + 事件
+// - tick: 遍历所有 queued，对每个检查其 agent 的 per-agent 槽位，
+//   可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）
+// 并发安全（排雷补充#5）：Node 单线程 + tick 内 executeRun fire-and-forget（void，不 await）
+//   = tick 同步跑完不会并发重入。不加锁——加锁反而会导致 executeRun 异步续体和 tick 死锁。
+//   多个 executeRun 并发时各自 onEvent 同步写 DB（better-sqlite3 线程安全）+ eventBus 同步遍历。
 
 let timer: ReturnType<typeof setInterval> | null = null;
-let busy = false;
 
 export function startRunWorker(): void {
   if (timer) return;
@@ -27,153 +32,171 @@ export function wakeRunWorker(): void {
   void tick();
 }
 
+// tick —— 遍历 queued，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
+// 可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）。
 async function tick(): Promise<void> {
-  if (busy) return;
-  busy = true;
-  try {
-    const queued = db
-      .select()
-      .from(agentRuns)
-      .where(eq(agentRuns.status, 'queued'))
-      .orderBy(asc(agentRuns.createdAt))
-      .limit(1)
-      .get();
-    if (!queued) return;
+  const queuedRows = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'queued'))
+    .orderBy(asc(agentRuns.createdAt))
+    .all();
 
+  for (const queued of queuedRows) {
+    // per-agent 槽位检查
+    const agent = db.select().from(agents).where(eq(agents.id, queued.agentId)).get();
+    if (!agent) continue;
+    const activeCount = db
+      .select({ cnt: sql<number>`COUNT(*)` })
+      .from(agentRuns)
+      .where(
+        and(eq(agentRuns.agentId, queued.agentId), eq(agentRuns.status, 'running')),
+      )
+      .get();
+    if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
+
+    // claim（条件 UPDATE queued→running）
     const now = Date.now();
-    // claim: 条件 UPDATE（DB 行即锁，学 multica）。
-    // drizzle 0.33 better-sqlite3 的 returning() 可能不可用（注意点 4），
-    // 用 update 后 select 校验 status==='running' 兜底。
     db.update(agentRuns)
       .set({ status: 'running', startedAt: now })
       .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
       .run();
     const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
-    if (!runRow || runRow.status !== 'running') return;
+    if (!runRow || runRow.status !== 'running') continue; // 没抢到（被别的 tick 抢）
 
     const run = toAgentRun(runRow);
     eventBus.publish({ type: 'run:running', run });
 
-    const cwd = process.env.MA_WORKSPACE_CWD;
-    if (!cwd) {
-      await failRun(runRow.id, '未配置 MA_WORKSPACE_CWD');
-      return;
-    }
-    const prompt = buildPrompt(runRow.issueId);
-    if (!prompt) {
-      await failRun(runRow.id, 'issue 不存在');
-      return;
-    }
+    // fire-and-forget 并发执行（不 await）
+    void executeRun(runRow);
+  }
+}
 
-    const signal = registerRunAbort(runRow.id);
-    let seq = 0;
-    const nextSeq = () => ++seq;
+// executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
+async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
+  const cwd = process.env.MA_WORKSPACE_CWD;
+  if (!cwd) {
+    await failRun(runRow.id, '未配置 MA_WORKSPACE_CWD');
+    return;
+  }
+  const prompt = buildPrompt(runRow.issueId, {
+    isLeader: runRow.isLeader === 1,
+    squadId: runRow.squadId,
+  });
+  if (!prompt) {
+    await failRun(runRow.id, 'issue 不存在');
+    return;
+  }
 
-    // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
-    //   progress/log/delta → run:progress only（不进 DB）
-    //   message/tool_* → run_message + run:message 事件
-    const onEvent = (e: AgentEvent) => {
-      if (e.type === 'message_delta' || e.type === 'log') {
-        eventBus.publish({
-          type: 'run:progress',
-          runId: runRow.id,
-          issueId: runRow.issueId,
-          text: e.text,
-        });
-        return;
-      }
-      let kind: 'assistant' | 'user' | 'tool_start' | 'tool_end' | 'system' = 'system';
-      let body = '';
-      if (e.type === 'message') {
-        kind = e.role === 'user' ? 'user' : 'assistant';
-        body = e.text;
-      } else if (e.type === 'tool_start') {
-        kind = 'tool_start';
-        body = JSON.stringify({ name: e.name, args: e.args ?? null });
-      } else if (e.type === 'tool_end') {
-        kind = 'tool_end';
-        body = JSON.stringify({ name: e.name, result: e.result ?? '' });
-      }
-      const id = crypto.randomUUID();
-      const createdAt = Date.now();
-      const s = nextSeq();
-      db.insert(runMessages)
-        .values({ id, runId: runRow.id, seq: s, kind, body, createdAt })
-        .run();
-      const message = toRunMessage({
-        id,
+  const signal = registerRunAbort(runRow.id);
+  let seq = 0;
+  const nextSeq = () => ++seq;
+
+  // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
+  //   progress/log/delta → run:progress only（不进 DB）
+  //   message/tool_* → run_message + run:message 事件
+  const onEvent = (e: AgentEvent) => {
+    if (e.type === 'message_delta' || e.type === 'log') {
+      eventBus.publish({
+        type: 'run:progress',
         runId: runRow.id,
-        seq: s,
-        kind,
-        body,
-        createdAt,
+        issueId: runRow.issueId,
+        text: e.text,
       });
-      eventBus.publish({ type: 'run:message', message, issueId: runRow.issueId });
-    };
+      return;
+    }
+    let kind: 'assistant' | 'user' | 'tool_start' | 'tool_end' | 'system' = 'system';
+    let body = '';
+    if (e.type === 'message') {
+      kind = e.role === 'user' ? 'user' : 'assistant';
+      body = e.text;
+    } else if (e.type === 'tool_start') {
+      kind = 'tool_start';
+      body = JSON.stringify({ name: e.name, args: e.args ?? null });
+    } else if (e.type === 'tool_end') {
+      kind = 'tool_end';
+      body = JSON.stringify({ name: e.name, result: e.result ?? '' });
+    }
+    const id = crypto.randomUUID();
+    const createdAt = Date.now();
+    const s = nextSeq();
+    db.insert(runMessages)
+      .values({ id, runId: runRow.id, seq: s, kind, body, createdAt })
+      .run();
+    const message = toRunMessage({
+      id,
+      runId: runRow.id,
+      seq: s,
+      kind,
+      body,
+      createdAt,
+    });
+    eventBus.publish({ type: 'run:message', message, issueId: runRow.issueId });
+  };
 
-    try {
-      const backend = getBackend(runRow.runtime);
-      const result = await backend.execute(
-        {
-          prompt,
-          cwd,
-          issueId: runRow.issueId,
-          agentId: runRow.agentId,
-          runId: runRow.id,
-        },
-        onEvent,
-        signal,
-      );
-      clearRunAbort(runRow.id);
-      const finishedAt = Date.now();
+  try {
+    const backend = getBackend(runRow.runtime);
+    const result = await backend.execute(
+      {
+        prompt,
+        cwd,
+        issueId: runRow.issueId,
+        agentId: runRow.agentId,
+        runId: runRow.id,
+      },
+      onEvent,
+      signal,
+    );
+    clearRunAbort(runRow.id);
+    const finishedAt = Date.now();
 
-      if (result.exitReason === 'cancelled' || signal.aborted) {
-        db.update(agentRuns)
-          .set({ status: 'cancelled', finishedAt, error: result.error ?? null })
-          .where(eq(agentRuns.id, runRow.id))
-          .run();
-        const r = toAgentRun(
-          db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
-        );
-        eventBus.publish({ type: 'run:cancelled', run: r });
-        return;
-      }
-
-      if (result.exitReason === 'failed') {
-        await failRun(runRow.id, result.error ?? '执行失败');
-        return;
-      }
-
-      // completed —— 写终态 + 一条 agent comment（人读最终回复，spec §3.4）
+    if (result.exitReason === 'cancelled' || signal.aborted) {
       db.update(agentRuns)
-        .set({ status: 'completed', finishedAt, error: null })
+        .set({ status: 'cancelled', finishedAt, error: result.error ?? null })
         .where(eq(agentRuns.id, runRow.id))
         .run();
-      const finalText = result.finalText || '(无输出)';
-      const cid = crypto.randomUUID();
-      db.insert(comments)
-        .values({
-          id: cid,
-          issueId: runRow.issueId,
-          type: 'comment',
-          authorType: 'agent',
-          authorId: runRow.agentId,
-          body: finalText,
-          createdAt: finishedAt,
-        })
-        .run();
-      const cRow = db.select().from(comments).where(eq(comments.id, cid)).get()!;
-      eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
       const r = toAgentRun(
         db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
       );
-      eventBus.publish({ type: 'run:completed', run: r });
-    } catch (err) {
-      clearRunAbort(runRow.id);
-      await failRun(runRow.id, String(err));
+      eventBus.publish({ type: 'run:cancelled', run: r });
+      return;
     }
-  } finally {
-    busy = false;
+
+    if (result.exitReason === 'failed') {
+      await failRun(runRow.id, result.error ?? '执行失败');
+      return;
+    }
+
+    // completed —— 写终态 + 一条 agent comment（人读最终回复，spec §3.4）
+    db.update(agentRuns)
+      .set({ status: 'completed', finishedAt, error: null })
+      .where(eq(agentRuns.id, runRow.id))
+      .run();
+    const finalText = result.finalText || '(无输出)';
+    const cid = crypto.randomUUID();
+    db.insert(comments)
+      .values({
+        id: cid,
+        issueId: runRow.issueId,
+        type: 'comment',
+        authorType: 'agent',
+        authorId: runRow.agentId,
+        body: finalText,
+        createdAt: finishedAt,
+      })
+      .run();
+    const cRow = db.select().from(comments).where(eq(comments.id, cid)).get()!;
+    const comment = toComment(cRow);
+    eventBus.publish({ type: 'comment:created', comment });
+    // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
+    triggerFromComment(comment);
+    const r = toAgentRun(
+      db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
+    );
+    eventBus.publish({ type: 'run:completed', run: r });
+  } catch (err) {
+    clearRunAbort(runRow.id);
+    await failRun(runRow.id, String(err));
   }
 }
 
