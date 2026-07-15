@@ -53,9 +53,7 @@ export function IssueHeader({ issue }: { issue: Issue }) {
         <span>指派：{issue.assignee?.label ?? '未指派'}</span>
         <AssigneeSelect
           issueId={issue.id}
-          currentAgentId={
-            issue.assignee?.type === 'agent' ? issue.assignee.id : null
-          }
+          currentAssignee={issue.assignee}
         />
       </div>
     </header>

@@ -13,6 +13,7 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
   return (
     <div className="run-status-bar" data-run-status={active.status}>
       <span className="run-status-pill">
+        {active.isLeader && <span className="leader-badge">队长</span>}
         运行 {active.status} · {active.runtime}
         {active.error ? ` · ${active.error}` : ''}
       </span>
