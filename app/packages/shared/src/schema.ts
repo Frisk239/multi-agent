@@ -186,6 +186,16 @@ export const AgentSummary = z.object({
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
+// S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
+// skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
+export const SkillInfo = z.object({
+  name: z.string(),
+  description: z.string(),
+  source: z.enum(['project', 'user']),
+  usedBy: z.array(AgentSummary),
+});
+export type SkillInfo = z.infer<typeof SkillInfo>;
+
 export const SquadSummary = z.object({
   id: BusinessId,
   name: z.string(),
