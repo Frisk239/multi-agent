@@ -132,11 +132,25 @@ plan 的 Task 3.2/3.3 只涉及新组件。但样式重构（去 emoji + classNa
 
 5. **Icon.tsx 是新组件**：集中管理 17 个 Lucide 风格 SVG 图标。后续新增图标加到这里。
 
-## 验收结论（仅计划者填）
+## 验收结论（计划者填）
 
-> 待计划者复核。
+### impl-3 验收（2026-07-15 计划者复核）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] §12 验收标准达成
-- 结论：<待填>
+**结论：✅ 通过。S03 切片验收通过，可开 PR → 合并 main。**
+
+复核项：
+- ✅ typecheck 三包全绿
+- ✅ pnpm dev 双端口起
+- ✅ §12.2 运行时页：双栏 + 三 CLI 行 + detect 正确
+- ✅ §12.3 执行链路全验证：指派→confirm→running→WS 实时轨迹增长（60 tool msg）→progress 不污染 comment（60 vs 0）→停止→cancelled→改指派无双 active
+- ✅ §12.4 回归：FRI-11 demo 路径 + 看板/详情/评论全正常
+- ✅ WS run:* 事件处理正确（ws.ts 核对：生命周期按 id upsert、message 按 id 幂等+seq 排序、progress 不进 cache）
+- ✅ 滚动 bug 修复（overflow-y:auto，JS 验证 canScroll:true）
+
+**4 处偏离全部接受**：
+1. 顶栏→左侧边栏（用户要求，照原型 renderShell 更准确）
+2. logo SVG（用户要求）
+3. 全面样式重构（修滚动+去 emoji+className 化，用户要求，只改样式不改逻辑）
+4. 范围扩展到 S01 组件（样式重构连带，功能不变）
+
+**三 CLI completed 状态**：claude 端到端链路全验证（impl-2 实证 13s completed + impl-3 浏览器验证 WS 实时轨迹/停止/cancel）。opencode（环境慢）/cursor（无额度）detect+argv 就绪，代码无问题。
