@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer, index, check } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, real, integer, index, check, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // —— workspace（spec §3.1，单行）——
@@ -18,6 +18,7 @@ export const users = sqliteTable('user', {
 });
 
 // —— agent（spec §3.1，4 行静态，用于 assignee label）——
+// S04：加 concurrency（per-agent 并发槽上限，照 multica 001_init.up.sql:45 max_concurrent_tasks）
 export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -25,14 +26,18 @@ export const agents = sqliteTable('agent', {
   runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] })
     .notNull()
     .default('claude-code'),
+  concurrency: integer('concurrency').notNull().default(1),
   createdAt: integer('created_at').notNull(),
 });
 
 // —— squad（spec §3.1，3 行静态，用于 assignee label）——
+// S04：加 operating_protocol + mission_directive（briefing 三段的第一/第三段，spec §3.1）
 export const squads = sqliteTable('squad', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   leaderId: text('leader_id'),
+  operatingProtocol: text('operating_protocol').notNull().default(''),
+  missionDirective: text('mission_directive').notNull().default(''),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -107,6 +112,9 @@ export const agentRuns = sqliteTable(
     status: text('status', {
       enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
     }).notNull(),
+    // S04：is_leader + squad_id（照 multica 090/127 migration，标记 squad-leader run）
+    isLeader: integer('is_leader').notNull().default(0),
+    squadId: text('squad_id'),
     error: text('error'),
     startedAt: integer('started_at'),
     finishedAt: integer('finished_at'),
@@ -135,5 +143,24 @@ export const runMessages = sqliteTable(
   },
   (t) => ({
     runSeqIdx: index('idx_run_message_run_seq').on(t.runId, t.seq),
+  }),
+);
+
+// —— squad_member（成员关系，简化版，不建 member_type/role，成员恒 agent）——
+// S04：照 multica 084_squad.up.sql:17，但简化——我们纯本地成员恒是 agent
+// leader 不进此表（leader 在 squad.leaderId 单独存，roster 是"可被 @mention 的成员"）
+export const squadMembers = sqliteTable(
+  'squad_member',
+  {
+    squadId: text('squad_id')
+      .notNull()
+      .references(() => squads.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.squadId, t.agentId] }),
+    squadIdx: index('idx_squad_member_squad').on(t.squadId),
   }),
 );
