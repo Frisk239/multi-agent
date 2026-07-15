@@ -12,11 +12,19 @@ const STATUS_COLORS: Record<IssueStatus, string> = {
 };
 
 const PRIORITY_LABEL: Record<string, string> = {
-  urgent: '🔴 紧急',
-  high: '🟠 高',
-  medium: '🟡 中',
-  low: '🔵 低',
+  urgent: '紧急',
+  high: '高',
+  medium: '中',
+  low: '低',
   none: '',
+};
+
+const PRIORITY_COLOR: Record<string, string> = {
+  urgent: 'var(--color-red)',
+  high: 'var(--color-orange)',
+  medium: 'var(--color-yellow)',
+  low: 'var(--color-blue)',
+  none: 'transparent',
 };
 
 interface Props {
@@ -29,34 +37,29 @@ export function IssueCard({ issue, onDragStart }: Props) {
     <article
       draggable
       onDragStart={() => onDragStart(issue.id)}
-      style={{
-        background: 'var(--bg-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: 'var(--space-3)',
-        cursor: 'grab',
-      }}
+      className="issue-card"
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-1)' }}>
-        <span style={{ color: STATUS_COLORS[issue.status], fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
+      <div className="issue-card-top">
+        <span className="issue-card-id" style={{ color: STATUS_COLORS[issue.status] }}>
           {issue.identifier}
         </span>
         {issue.priority !== 'none' && (
-          <span style={{ fontSize: 'var(--text-xs)' }}>{PRIORITY_LABEL[issue.priority]}</span>
+          <span className="issue-card-priority">
+            <span
+              className="priority-dot"
+              style={{ background: PRIORITY_COLOR[issue.priority] }}
+            />
+            {PRIORITY_LABEL[issue.priority]}
+          </span>
         )}
       </div>
-      <div style={{ fontSize: 'var(--text-sm)', marginBottom: 'var(--space-2)' }}>
-        <Link
-          href={`/issues/${issue.id}`}
-          onClick={(e) => e.stopPropagation()}
-          draggable={false}
-          style={{ color: 'inherit', textDecoration: 'none' }}
-        >
+      <div className="issue-card-title">
+        <Link href={`/issues/${issue.id}`} onClick={(e) => e.stopPropagation()} draggable={false}>
           {issue.title}
         </Link>
       </div>
-      <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-        {issue.assignee ? `▸${issue.assignee.label}` : '▸未指派'}
+      <div className="issue-card-assignee">
+        {issue.assignee ? issue.assignee.label : '未指派'}
       </div>
     </article>
   );

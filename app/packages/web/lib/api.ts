@@ -8,6 +8,9 @@ import type {
   CreateCommentInput,
   AgentSummary,
   SquadSummary,
+  AgentRun,
+  RunMessage,
+  RuntimesResponse,
 } from '@ma/shared';
 
 const API = 'http://localhost:3001/api';
@@ -121,16 +124,19 @@ export function useUpdateIssue() {
       return res.json() as Promise<Issue>;
     },
     // D12 + R2：只乐观 Issue 字段
+    // 注意：assignee 在 UpdateIssueInput 无 label，乐观展开会破坏 Issue.assignee 的 label 形状；
+    // 故 assignee 不参与乐观更新，等服务端返回带 label 的完整 Issue（onSuccess）落地。
     onMutate: async ({ id, input }) => {
       await qc.cancelQueries({ queryKey: ['issues'] });
       await qc.cancelQueries({ queryKey: ['issue', id] });
       const prevList = qc.getQueryData<Issue[]>(['issues']);
       const prevOne = qc.getQueryData<Issue>(['issue', id]);
+      const { assignee: _dropAssignee, ...patch } = input;
       qc.setQueryData<Issue[]>(['issues'], (old) =>
-        old?.map((i) => (i.id === id ? { ...i, ...input } : i)),
+        old?.map((i) => (i.id === id ? { ...i, ...patch } : i)),
       );
       if (prevOne) {
-        qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...input });
+        qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...patch });
       }
       return { prevList, prevOne };
     },
@@ -142,9 +148,60 @@ export function useUpdateIssue() {
       qc.setQueryData<Issue[]>(['issues'], (old) =>
         old?.map((i) => (i.id === issue.id ? issue : i)),
       );
-      qc.setQueryData(['issue', issue.id], issue);
+      qc.setQueryData<Issue>(['issue', issue.id], issue);
       // 时间线条等 WS comment:created；也可 invalidate 兜底
       qc.invalidateQueries({ queryKey: ['comments', issue.id] });
+    },
+  });
+}
+
+// —— S03 Run / Runtimes hooks ——
+
+export function useRuntimes() {
+  return useQuery<RuntimesResponse>({
+    queryKey: ['runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runtimes`);
+      if (!res.ok) throw new Error('加载运行时失败');
+      return res.json();
+    },
+  });
+}
+
+export function useRuns(issueId: string) {
+  return useQuery<AgentRun[]>({
+    queryKey: ['runs', issueId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs?issueId=${encodeURIComponent(issueId)}`);
+      if (!res.ok) throw new Error('加载运行失败');
+      return res.json();
+    },
+    enabled: !!issueId,
+  });
+}
+
+export function useRunMessages(runId: string | undefined) {
+  return useQuery<RunMessage[]>({
+    queryKey: ['run-messages', runId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs/${runId}/messages`);
+      if (!res.ok) throw new Error('加载轨迹失败');
+      return res.json();
+    },
+    enabled: !!runId,
+  });
+}
+
+export function useCancelRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      const res = await fetch(`${API}/runs/${runId}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error('取消失败');
+      return res.json() as Promise<AgentRun>;
+    },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
     },
   });
 }

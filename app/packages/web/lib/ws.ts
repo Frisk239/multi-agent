@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import type { Issue, Comment, DomainEvent } from '@ma/shared';
+import type { Issue, Comment, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
 
 // spec §7.4：Zustand 管 WS 连接状态
 interface WsState {
@@ -49,6 +49,39 @@ export function useWsEvents() {
           return [...old, comment];
         });
       }
+
+      // S03 run 生命周期：更新 ['runs', issueId] cache
+      if (
+        event.type === 'run:queued' ||
+        event.type === 'run:running' ||
+        event.type === 'run:completed' ||
+        event.type === 'run:failed' ||
+        event.type === 'run:cancelled'
+      ) {
+        const run: AgentRun = event.run;
+        qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
+          if (!old) return [run];
+          const i = old.findIndex((r) => r.id === run.id);
+          if (i >= 0) {
+            const next = old.slice();
+            next[i] = run;
+            return next;
+          }
+          return [run, ...old];
+        });
+      }
+
+      // S03 run:message：按 id 幂等插入 ['run-messages', runId]（spec D12 禁止乐观插，等 WS）
+      if (event.type === 'run:message') {
+        const { message }: { message: RunMessage } = event;
+        qc.setQueryData<RunMessage[]>(['run-messages', message.runId], (old) => {
+          if (!old) return [message];
+          if (old.some((m) => m.id === message.id)) return old;
+          return [...old, message].sort((a, b) => a.seq - b.seq);
+        });
+      }
+
+      // S03 run:progress：fire-and-forget，不进 DB 也不进 cache（刷新即丢失，正常）
     };
 
     return () => {

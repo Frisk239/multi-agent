@@ -25,6 +25,64 @@ export type AuthorType = z.infer<typeof AuthorType>;
 export const CommentType = z.enum(['comment', 'status_change']);
 export type CommentType = z.infer<typeof CommentType>;
 
+// —— Runtime / Run / RunMessage（S03 执行层契约）——
+export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor']);
+export type RuntimeId = z.infer<typeof RuntimeId>;
+
+export const AgentRunStatus = z.enum([
+  'queued', 'running', 'completed', 'failed', 'cancelled',
+]);
+export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
+
+export const RunMessageKind = z.enum([
+  'assistant', 'user', 'tool_start', 'tool_end', 'system',
+]);
+export type RunMessageKind = z.infer<typeof RunMessageKind>;
+
+export const AgentRun = z.object({
+  id: BusinessId,
+  issueId: BusinessId,
+  agentId: BusinessId,
+  runtime: RuntimeId,
+  status: AgentRunStatus,
+  error: z.string().nullable(),
+  startedAt: z.string().datetime().nullable(),
+  finishedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type AgentRun = z.infer<typeof AgentRun>;
+
+export const RunMessage = z.object({
+  id: BusinessId,
+  runId: BusinessId,
+  seq: z.number().int(),
+  kind: RunMessageKind,
+  body: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type RunMessage = z.infer<typeof RunMessage>;
+
+export const RuntimeInfo = z.object({
+  id: RuntimeId,
+  label: z.string(),
+  installed: z.boolean(),
+  version: z.string().nullable(),
+  path: z.string().nullable(),
+  agentIds: z.array(BusinessId),
+});
+export type RuntimeInfo = z.infer<typeof RuntimeInfo>;
+
+export const RuntimesResponse = z.object({
+  machine: z.object({
+    id: z.literal('machine-local'),
+    name: z.string(),
+    status: z.literal('online'),
+    cwd: z.string().nullable(),
+  }),
+  runtimes: z.array(RuntimeInfo),
+});
+export type RuntimesResponse = z.infer<typeof RuntimesResponse>;
+
 // —— 多态指派 ——
 export const Assignee = z
   .object({
@@ -74,7 +132,11 @@ export const UpdateIssueInput = z.object({
   status: IssueStatus.optional(),
   priority: Priority.optional(),
   position: z.number().optional(),
-  // assignee 仍不开放（S02 N2 指派只读）
+  // S03：放开 assignee（与 Create 同形，无 label；GET 时服务端填 label）
+  assignee: z
+    .object({ type: AssigneeType, id: BusinessId })
+    .nullable()
+    .optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueInput>;
 
@@ -84,7 +146,8 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
     d.description !== undefined ||
     d.status !== undefined ||
     d.priority !== undefined ||
-    d.position !== undefined
+    d.position !== undefined ||
+    d.assignee !== undefined
   );
 }
 
@@ -116,6 +179,7 @@ export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
 export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
+  runtime: RuntimeId,
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
@@ -146,4 +210,38 @@ export const CommentCreatedEvent = z.object({
 });
 export type CommentCreatedEvent = z.infer<typeof CommentCreatedEvent>;
 
-export type DomainEvent = IssueCreatedEvent | IssueUpdatedEvent | CommentCreatedEvent;
+// —— Run 生命周期 / 进度 / 消息 事件（S03）——
+export const RunLifecycleEvent = z.object({
+  type: z.enum([
+    'run:queued',
+    'run:running',
+    'run:completed',
+    'run:failed',
+    'run:cancelled',
+  ]),
+  run: AgentRun,
+});
+export type RunLifecycleEvent = z.infer<typeof RunLifecycleEvent>;
+
+export const RunProgressEvent = z.object({
+  type: z.literal('run:progress'),
+  runId: BusinessId,
+  issueId: BusinessId,
+  text: z.string(),
+});
+export type RunProgressEvent = z.infer<typeof RunProgressEvent>;
+
+export const RunMessageEvent = z.object({
+  type: z.literal('run:message'),
+  message: RunMessage,
+  issueId: BusinessId,
+});
+export type RunMessageEvent = z.infer<typeof RunMessageEvent>;
+
+export type DomainEvent =
+  | IssueCreatedEvent
+  | IssueUpdatedEvent
+  | CommentCreatedEvent
+  | RunLifecycleEvent
+  | RunProgressEvent
+  | RunMessageEvent;

@@ -5,6 +5,7 @@ import { db, sqlite } from '../db/client.js';
 import { issues, comments } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
+import { cancelActiveRunsForIssue, enqueueAgentRun } from '../orchestration/run-service.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 
 const WS_ID = 'ws-local';
@@ -106,6 +107,11 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (input.status !== undefined) updates.status = input.status;
     if (input.priority !== undefined) updates.priority = input.priority;
     if (input.position !== undefined) updates.position = input.position;
+    // assignee 多态指派对（spec §3.5）：放开输入，GET 时服务端填 label
+    if (input.assignee !== undefined) {
+      updates.assigneeType = input.assignee?.type ?? null;
+      updates.assigneeId = input.assignee?.id ?? null;
+    }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;
 
@@ -146,6 +152,27 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       eventBus.publish({ type: 'comment:created', comment: toComment(cRow!) });
     }
 
+    // assignee 副作用（spec §6.1）：identity=(type,id) 变化才触发。
+    // 仅 label 变化不触发。→ cancelActiveRunsForIssue + 若 type=agent 则 enqueueAgentRun。
+    if (input.assignee !== undefined) {
+      const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
+      const nextType = input.assignee?.type ?? null;
+      const nextId = input.assignee?.id ?? null;
+      const nextKey = assigneeKey(nextType, nextId);
+      if (prevKey !== nextKey) {
+        cancelActiveRunsForIssue(id);
+        if (nextType === 'agent' && nextId) {
+          enqueueAgentRun(id, nextId);
+        }
+      }
+    }
+
     return reply.send(issue);
   });
+}
+
+// assignee identity 归一化为 "type:id" 串，用于检测是否真变化（spec §6.1）。
+// 仅 label 变化时 key 不变 → 不触发 run 副作用。
+function assigneeKey(t: string | null, id: string | null): string {
+  return t && id ? `${t}:${id}` : '';
 }
