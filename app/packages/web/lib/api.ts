@@ -7,6 +7,8 @@ import type {
   UpdateIssueInput,
   CreateCommentInput,
   AgentSummary,
+  AgentDetail,
+  SkillInfo,
   SquadSummary,
   AgentRun,
   RunMessage,
@@ -202,6 +204,114 @@ export function useCancelRun() {
     },
     onSuccess: (run) => {
       qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+    },
+  });
+}
+
+// —— S05 Skills / MCP hooks ——
+
+// GET /api/skills —— 内存索引 skill 列表（含 usedBy 反查）
+export function useSkills() {
+  return useQuery<SkillInfo[]>({
+    queryKey: ['skills'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/skills`);
+      if (!res.ok) throw new Error('加载 skills 失败');
+      return res.json();
+    },
+  });
+}
+
+// POST /api/skills/refresh —— 重扫目录刷新索引
+export function useRefreshSkills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API}/skills/refresh`, { method: 'POST' });
+      if (!res.ok) throw new Error('重新扫描失败');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['skills'] });
+    },
+  });
+}
+
+// GET /api/agents/:id —— 单 agent 详情（profile + MCP Tab 回填）
+export function useAgent(id: string) {
+  return useQuery<AgentDetail | null>({
+    queryKey: ['agent', id],
+    queryFn: async () => {
+      const res = await fetch(`${API}/agents/${id}`);
+      if (!res.ok) throw new Error('加载 agent 失败');
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+// GET /api/agents/:id/skills —— 已分配 skillId（name）列表
+export function useAgentSkills(agentId: string) {
+  return useQuery<string[]>({
+    queryKey: ['agent-skills', agentId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/agents/${agentId}/skills`);
+      if (!res.ok) throw new Error('加载分配失败');
+      return res.json();
+    },
+    enabled: !!agentId,
+  });
+}
+
+// PUT /api/agents/:id/skills —— 整体替换分配
+export function useUpdateAgentSkills(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (skillIds: string[]) => {
+      const res = await fetch(`${API}/agents/${agentId}/skills`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillIds }),
+      });
+      if (!res.ok) throw new Error('保存分配失败');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agent-skills', agentId] });
+      qc.invalidateQueries({ queryKey: ['skills'] }); // usedBy 反查会变
+    },
+  });
+}
+
+// GET /api/agents/:id/mcp —— MCP 配置 JSON
+export function useAgentMcp(agentId: string) {
+  return useQuery<{ mcpServers: string | null }>({
+    queryKey: ['agent-mcp', agentId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/agents/${agentId}/mcp`);
+      if (!res.ok) throw new Error('加载 MCP 失败');
+      return res.json();
+    },
+    enabled: !!agentId,
+  });
+}
+
+// PUT /api/agents/:id/mcp —— 更新 MCP（mcpServers 传 JSON 字符串或 null）
+export function useUpdateAgentMcp(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (mcpServers: string | null) => {
+      const res = await fetch(`${API}/agents/${agentId}/mcp`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mcpServers }),
+      });
+      if (!res.ok) throw new Error('保存 MCP 失败');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agent-mcp', agentId] });
+      qc.invalidateQueries({ queryKey: ['agent', agentId] });
     },
   });
 }
