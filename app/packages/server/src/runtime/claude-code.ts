@@ -85,14 +85,18 @@ export class ClaudeCodeBackend implements RuntimeBackend {
   ): Promise<ExecutionResult> {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'claude CLI 未安装' };
-    // spike 钉死 argv：claude -p <prompt> --output-format stream-json --verbose
+    // S05 stdin 修复（spec §8）：claude -p 不带 prompt 参数时从 stdin 读
+    // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose 跑通）。
+    // argv 不含 prompt，prompt 经 spawnLineProcess 的 stdinInput → child.stdin pipe 传。
+    // 修复 S04 遗留的 argv 传 prompt 导致 "no stdin data received" 问题。
     return spawnLineProcess(
       det.path,
-      ['-p', input.prompt, '--output-format', 'stream-json', '--verbose'],
+      ['-p', '--output-format', 'stream-json', '--verbose'],
       input.cwd,
       signal,
       onEvent,
       parseClaudeLine,
+      input.prompt, // stdinInput（S05）
     );
   }
 }
