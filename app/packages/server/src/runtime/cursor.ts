@@ -86,12 +86,14 @@ export class CursorBackend implements RuntimeBackend {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
     // spike + multica buildCursorArgs 钉死 argv：
-    //   cursor-agent -p <prompt> --output-format stream-json --yolo
-    // --yolo = 自动批准工具调用（autonomous，对齐 multica）。
+    //   cursor-agent -p <prompt> --output-format stream-json --yolo --trust
+    // --yolo(--force) = 自动批准工具调用；--trust = 信任 cwd（非交互必需）。
+    // spike 实测：本机 cursor-agent 版本把 trust 和 force 分开，仅 --yolo 会
+    // 报 "Workspace Trust Required" 退出，必须额外加 --trust（multica 版本可能不同）。
     // cursor-agent 是 stream-json backend（与 opencode 的降级不同）。
     return spawnLineProcess(
       det.path,
-      ['-p', input.prompt, '--output-format', 'stream-json', '--yolo'],
+      ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'],
       input.cwd,
       signal,
       onEvent,

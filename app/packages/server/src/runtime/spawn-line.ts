@@ -64,6 +64,12 @@ export function spawnLineProcess(
       } catch {
         /* ignore */
       }
+      // 兜底：Windows shell:true spawn 的进程树 kill 不可靠（cmd.exe shim 退出后
+      // opencode.exe 成孤儿，close 事件不触发，Promise 永挂 → worker busy 死锁）。
+      // abort 后 5s 若仍未 settle，强制 finish(cancelled)，打破死锁。
+      setTimeout(() => {
+        finish({ finalText: stdoutAll.trim(), exitReason: 'cancelled' });
+      }, 5000);
     };
     if (signal.aborted) onAbort();
     else signal.addEventListener('abort', onAbort, { once: true });
