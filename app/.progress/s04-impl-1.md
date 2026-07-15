@@ -137,9 +137,30 @@ issue 8 条 + comment 6 条：seed.ts 中 seed 数组本身未改（`seedIssues`
 
 `dev.db` 当前可能还是旧 schema（migration 0003 已通过 `db:migrate` 应用到它，但 seed 没重跑，所以 squad/agent 行缺 protocol/concurrency 真值、squad_member 表为空）。impl-2 或计划者验收前需重置 dev.db：删 `dev.db*` → `db:migrate` → `db:seed`（删不掉时先停占用 dev.db 的 server 进程）。
 
-## 验收结论（仅计划者填）
+## 验收结论（计划者填）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap）
-- 结论：<达标合并 / 需返工 / 需追加切片>
+### impl-1 验收（2026-07-15 计划者复核）
+
+**结论：✅ 通过，移交 impl-2（briefing + comment-trigger + 并发改造）。**
+
+复核项（逐文件核对）：
+- ✅ migration `0003_chief_excalibur.sql`：5 ADD COLUMN（squad×2 + agent×1 + agent_run×2）+ squad_member（复合 PK + 2 FK cascade + index），结构正确
+- ✅ shared AgentRun 扩展正确（isLeader: z.boolean().default(false) + squadId: BusinessId.nullable()）
+- ✅ SquadDetail/SquadMember 契约就绪
+- ✅ seed squad 3 行带 protocol/directive 真值；agent 4 行 concurrency（6/4/4/6）；squad_member 6 行
+- ✅ toAgentRun 映射 isLeader（`row.isLeader === 1`）+ squadId
+- ✅ squad-loader.ts loadSquadDetail（含 members join）+ getSquadLeaderId 就绪
+- ✅ 4 commit 干净，typecheck 三包全绿
+
+**两处偏离全部接受**：
+1. primaryKey import（plan 遗漏，drizzle-kit 报错才发现，修复正确）
+2. loadSquadDetail null guard（leaderId 可空 vs 契约非空，`if (!squad.leaderId) return null` 符合业务语义——无 leader 的 squad 无法 briefing）
+
+**给 impl-2 的计划者补充注意点（impl-1 handoff 之外 + 排雷成果）：**
+
+1. **【执行顺序】先做 Task 2.5（RunWorker 重写）再做 Task 2.4**（comment-trigger）。原因：2.5 重写整个 run-worker.ts，其 executeRun 已包含 triggerFromComment 的 import 和调用；2.4 只需新建 comment-trigger.ts + 挂 comments.ts，不再改 run-worker。或合并 2.4+2.5。
+2. **【循环 import 安全】** comment-trigger → run-service → run-worker → comment-trigger 形成循环。ES module live binding 使其安全（所有交叉引用只在函数体内用，不在模块顶层求值）。别因循环改架构。
+3. **【DRY：抽共用 enqueue】** enqueueAgentRun 和 enqueueLeaderRun 重复多，建议抽 checkAndEnqueue(issueId, agentId, opts?) 共用函数。
+4. **【run-service.ts 缺 3 个 import】** 当前只有 eq/and/inArray + agentRuns/agents + toAgentRun。需加 sql（drizzle-orm）+ comments（schema）+ toComment（reshape）。熔断 system comment 需要后两者。
+5. **【并发无锁安全】** 删掉 S03 全局 busy 后别加锁——Node 单线程 + tick 内 executeRun fire-and-forget（void 不 await）= tick 同步跑完不会并发。加锁会死锁。
+6. **【dev.db 需重置】** migration 0003 已应用，但 seed 未重跑（dev.db 被占用）。impl-2 开工前或自测前需重置：停 server → 删 dev.db* → db:migrate → db:seed。否则 squad/agent 行缺 protocol/concurrency 真值、squad_member 表为空，briefing 会拿到空 protocol。
