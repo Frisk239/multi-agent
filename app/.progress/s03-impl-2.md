@@ -246,12 +246,37 @@ MA_WORKSPACE_CWD="D:\code\multi-agent" pnpm --filter @ma/server dev
 
 ## 验收结论（计划者填）
 
-### impl-2 验收（待计划者复核）
+### impl-2 验收（2026-07-15 计划者复核）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑（MA_WORKSPACE_CWD 配好）
-- [ ] GET /api/runtimes 三 runtime + detect
-- [ ] PUT 指派→agent 触发 enqueue + 真实执行
-- [ ] POST cancel 生效
-- [ ] claude completed（已实证）；opencode/cursor 因 CLI 环境/额度未到 completed（代码就绪）
-- 结论：<待计划者填>
+**结论：✅ 通过，移交 impl-3（web 前端 + 端到端验收）。**
+
+复核项（代码逐文件核对 + handoff 自测证据审查）：
+- ✅ 三 CLI spike 彻底：argv/bin/输出格式全实测。cursor 的 `cursor-agent` 偏离有 multica `launchHeaders` + `buildCursorArgs` 源码背书，`--trust` 是本机版本必需（计划者预测的"高风险"中招，处置正确）
+- ✅ detect Windows .cmd shim 修复正确：`resolveCmd` 优先取 .exe/.cmd（spawn-line.ts:36-48），`versionOf` 对 .cmd 加 shell:true（detect-path.ts:64-71）
+- ✅ spawn-line abort 死锁兜底（spawn-line.ts:67-72）：5s setTimeout 强制 finish(cancelled)——Windows shell:true 进程树 kill 不可靠的必要安全网
+- ✅ claude 端到端 completed 实证：enqueue→running→stream-json 轨迹（1 assistant msg）→终态 agent comment，13s 完成
+- ✅ cancel 链路 + 409 重复取消（spec §6.3 R1）
+- ✅ 指派即跑（issues.ts:157-168 PUT assignee=agent → cancelActiveRunsForIssue + enqueueAgentRun → worker claim → execute）
+- ✅ run-service.ts 的 enqueueAgentRun（per-issue 单 active 去重，S04 会改 per-agent）+ cancelRunById + cancelActiveRunsForIssue
+- ✅ app.ts 路由全注册（runs/runtimes）+ index.ts startRunWorker
+- ✅ 回归 S01/S02 无破坏（8 issue + FRI-11 demo 路径完好）
+- ✅ DB 清理干净（8 issue + 6 comment + 0 run/message）
+
+**5 处偏离全部接受**（均为真实 bug 修复或 spike 确认，非随意改）：
+1. Windows .cmd shim（真实 bug）
+2. abort 死锁兜底（Windows 必需的安全网）
+3. cursor-agent argv（spike + multica 确认）
+4. stream-json 解析对齐 multica（plan 的 delta 字段不准）
+5. failRun 签名简化（plan 多传无用 issueId）
+
+**opencode/cursor 未到 completed**：CLI 环境（opencode build/index 极慢）/额度（cursor 无额度）问题，非代码问题。detect + argv + 解析代码就绪，有额度/优化后可直接跑。
+
+**给 impl-3 的计划者补充注意点（impl-2 handoff 之外）：**
+
+1. **cursor-agent stream-json 解析**已对齐 claude（parseCursorLine 复用 assistant/tool_use/tool_result/result 分支）。前端 RunTrace 对 cursor run 会像 claude 一样实时增长轨迹。
+2. **opencode 降级模式**：执行期间 0 run_message（结束时整段 stdout 作一条 assistant message）。前端对 opencode run 的 RunTrace 要显示"执行中无轨迹属正常"，别显示成卡住——可以靠 run status=running + progress 事件判断。
+3. **run:progress 事件不进 DB**（fire-and-forget），前端只能靠 WS 实时收。刷新页面后进度丢失（正常，进度是临时的）。RunTrace 列表只展示 run_message（持久化的）。
+4. **详情页"停止"按钮**：先 GET /api/runs?issueId= 取 active run（status ∈ queued/running），再 POST cancel。改指派时后端自动 cancel，前端不用额外调。
+5. **/runtimes 页照原型 renderRuntime 双栏**（spec §9.3）：左固定机器卡，右 5 列表。数据一次 GET /api/runtimes。impl-2 的响应形状见 handoff §API 路径。
+6. **顶栏导航加"运行时"**（spec §9.1）：看板 | 运行时 两个入口。
+7. **验收前提**：MA_WORKSPACE_CWD 要配（Git Bash：`MA_WORKSPACE_CWD="D:\code\multi-agent" pnpm dev`），否则 run 快速 failed。
