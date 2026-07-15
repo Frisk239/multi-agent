@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { Providers } from '@/lib/providers';
+import { Sidebar } from '@/components/Sidebar';
 
 export const metadata: Metadata = {
   title: '毕设 Multi-Agent',
@@ -13,12 +13,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN">
       <body>
         <Providers>
-          <nav className="topnav">
-            <Link href="/">看板</Link>
-            <span className="topnav-sep">|</span>
-            <Link href="/runtimes">运行时</Link>
-          </nav>
-          {children}
+          <div className="app-shell">
+            <Sidebar />
+            <div className="main-column">
+              <main className="main-content">{children}</main>
+            </div>
+          </div>
         </Providers>
       </body>
     </html>

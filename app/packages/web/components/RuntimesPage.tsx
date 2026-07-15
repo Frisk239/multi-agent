@@ -1,5 +1,12 @@
 'use client';
 import { useRuntimes } from '@/lib/api';
+import type { RuntimeId } from '@ma/shared';
+
+const RUNTIME_ICON: Record<RuntimeId, string> = {
+  'claude-code': '☀',
+  cursor: '◧',
+  opencode: '▣',
+};
 
 export function RuntimesPage() {
   const { data, refetch, isFetching } = useRuntimes();
@@ -12,6 +19,14 @@ export function RuntimesPage() {
     <div className="runtime-layout">
       <aside className="machine-list">
         <div className="machine-list-header">运行时 {runtimes.length}</div>
+        <div className="machine-filters">
+          <button type="button" className="machine-filter active">
+            全部 {installed}
+          </button>
+          <button type="button" className="machine-filter">
+            在线 {installed}
+          </button>
+        </div>
         <div style={{ padding: '8px 16px', fontSize: 'var(--text-xs)', color: 'var(--text-dim)' }}>
           本机
         </div>
@@ -23,25 +38,23 @@ export function RuntimesPage() {
       </aside>
 
       <section className="runtime-detail">
-        <header className="runtime-detail-header">
-          <div className="runtime-detail-title">
-            <span className="status-dot-green" /> {machine.name}{' '}
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-dim)' }}>在线</span>
-          </div>
-          <div className="runtime-meta">
-            {installed} 已安装 · cwd={machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
-          </div>
-          <div className="runtime-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => refetch()}
-              disabled={isFetching}
-            >
-              重新探测
-            </button>
-          </div>
-        </header>
+        <div className="runtime-detail-title">
+          <span className="status-dot-green" /> {machine.name}{' '}
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-dim)' }}>在线</span>
+        </div>
+        <div className="runtime-meta">
+          {runtimes.length} 个运行时 · {installed} 个在线 · cwd={machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
+        </div>
+        <div className="runtime-actions">
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            重新探测
+          </button>
+        </div>
 
         <div className="data-table-wrap">
           <table className="data-table">
@@ -57,11 +70,14 @@ export function RuntimesPage() {
             <tbody>
               {runtimes.map((rt) => (
                 <tr key={rt.id}>
-                  <td>{rt.label}</td>
+                  <td>
+                    <span className="runtime-type-icon">{RUNTIME_ICON[rt.id]}</span> {rt.label}{' '}
+                    <span style={{ color: 'var(--text-dim)', fontSize: 'var(--text-xs)' }}>[内置]</span>
+                  </td>
                   <td>
                     {rt.installed ? (
                       <span className="status-online">
-                        <span className="status-dot-green" /> 可用
+                        <span className="status-dot-green" /> 在线
                       </span>
                     ) : (
                       <span className="status-offline">未检测到</span>
@@ -69,13 +85,9 @@ export function RuntimesPage() {
                   </td>
                   <td>{rt.agentIds.length ? `${rt.agentIds.length} 个` : '—'}</td>
                   <td>—</td>
-                  <td>
-                    <code>{rt.version ?? '—'}</code>
-                    {rt.path ? (
-                      <div>
-                        <small className="runtime-path">{rt.path}</small>
-                      </div>
-                    ) : null}
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
+                    {rt.version ?? '—'}
+                    {rt.path ? <div className="runtime-path">{rt.path}</div> : null}
                   </td>
                 </tr>
               ))}
