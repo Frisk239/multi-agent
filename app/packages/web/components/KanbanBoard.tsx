@@ -20,7 +20,7 @@ export function KanbanBoard() {
   const update = useUpdateIssue();
   const [dragId, setDragId] = useState<string | null>(null);
 
-  if (isLoading) return <div>加载中…</div>;
+  if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
   // spec §7.5 R5：cancelled 的 issue 不渲染到任何列
   const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
@@ -38,11 +38,9 @@ export function KanbanBoard() {
   }
 
   return (
-    <div style={{ padding: 'var(--space-4)' }}>
-      <div style={{ marginBottom: 'var(--space-4)' }}>
-        <NewIssueForm />
-      </div>
-      <div style={{ display: 'flex', gap: 'var(--space-3)', overflowX: 'auto' }}>
+    <div className="kanban-board">
+      <NewIssueForm />
+      <div className="kanban-columns">
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.status}

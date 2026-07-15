@@ -4,6 +4,7 @@ import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
 import { useUpdateIssue } from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
+import { Icon } from './Icon';
 
 const ALL_STATUS = IssueStatusEnum.options;
 
@@ -23,9 +24,13 @@ export function IssueHeader({ issue }: { issue: Issue }) {
   return (
     <header className="issue-header">
       <div className="issue-header-top">
-        <Link href="/">← 看板</Link>
+        <Link href="/" className="back-link">
+          <Icon name="arrow-left" size={16} />
+          看板
+        </Link>
         <span className="issue-id">{issue.identifier}</span>
         <select
+          className="status-select"
           value={issue.status}
           onChange={(e) =>
             update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
@@ -45,9 +50,7 @@ export function IssueHeader({ issue }: { issue: Issue }) {
       )}
       <div className="issue-meta">
         <span>优先级：{issue.priority}</span>
-        <span>
-          指派：{issue.assignee?.label ?? '未指派'}
-        </span>
+        <span>指派：{issue.assignee?.label ?? '未指派'}</span>
         <AssigneeSelect
           issueId={issue.id}
           currentAgentId={
