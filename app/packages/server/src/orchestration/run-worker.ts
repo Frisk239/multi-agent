@@ -82,6 +82,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   const prompt = buildPrompt(runRow.issueId, {
     isLeader: runRow.isLeader === 1,
     squadId: runRow.squadId,
+    agentId: runRow.agentId, // S05：查 agent_skill 分配 → skillBlock 拼接
   });
   if (!prompt) {
     await failRun(runRow.id, 'issue 不存在');
