@@ -133,11 +133,28 @@ names: design-system, extract-prototype-requirements, frontend-design, multica-s
 - 扫描依赖环境变量 **`MA_WORKSPACE_CWD`**（指向项目根），server 进程启动时要有这个 env，否则只扫用户级目录。验证时 `MA_WORKSPACE_CWD="D:\code\multi-agent" pnpm dev`。
 - shared 的 `SkillInfo` 契约（schema.ts）是 **API 响应**契约（含 usedBy），与 scanner 内部的 SkillInfo（含 body/path）是**两个不同类型**，别混。API 路由（plan Task 2.4）把 scanner 内部 SkillInfo 映射成 shared SkillInfo（拼 usedBy 反查）。
 
-## 验收结论（仅计划者填）
+## 验收结论（计划者填）
 
-> 切片是否达标、能否合并、是否要点亮 FRI-11 路径的某一段。
+### impl-1 验收（2026-07-15 计划者复核）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap）
-- 结论：<达标合并 / 需返工 / 需追加切片>
+**结论：✅ 通过，移交 impl-2（stdin 修复 + skill/MCP 注入 + API）。**
+
+复核项：
+- ✅ migration 0004：DROP skill + ALTER agent ADD mcp_servers + CREATE agent_skill（复合 PK + 索引），结构正确
+- ✅ seed：删 skill insert + agent_skill 6 行分配正确（照 seed.js skillIds）
+- ✅ scanner.ts：R4 降级（无 frontmatter 用文件名）+ R5 绝对路径（resolve + 空串检查）+ 两种目录形态 + frontmatter 解析（不引依赖）
+- ✅ .skills/ 5 个 SKILL.md，scanSkills() 扫到全部 5 个（name/description/body 正确）
+- ✅ shared SkillInfo 契约（API 响应形态，含 usedBy）
+- ✅ index.ts 启动 scanSkills()
+- ✅ scanner 不 import db（避免循环），agent→skill 查询留给 prompt.ts——handoff 写清了
+- ✅ 两种 SkillInfo 类型区分（scanner 内部含 body/path vs shared API 含 usedBy）
+
+**1 处偏离接受**：migration 手写（drizzle-kit 交互式 rename 在非 TTY 无法喂入），三件套（sql + snapshot + journal）格式正确。
+
+**给 impl-2 的计划者补充注意点（impl-1 handoff 之外）：**
+
+1. **scanner 的 getSkillIndex() 就绪**，但 getSkillsForAgent() 是占位返回 []——prompt.ts 里自己查 agent_skill + join getSkillIndex()（impl-1 handoff 已给代码片段）。
+2. **claude stdin 修复是 impl-2 第一步（Task 2.1）**：spike 确认 argv（`echo "say hi" | claude -p --output-format stream-json --verbose`），然后改 spawn-line 加 stdinInput + claude-code.ts 改 stdin 传 prompt。这是 S04 遗留 + S05 验收前提。
+3. **spawn-line stdinInput 是结构扩展**：不是加几行，spawnLineProcess 签名加参数 + spawn 后 stdin write/end + stdin error 处理。opencode/cursor 不传 stdinInput（保持 argv prompt）。
+4. **MCP 临时文件必须 try/finally**（R3）：claude-code.ts 的 execute 方法用 try/finally 包临时文件，即使 abort 兜底触发也清理。
+5. **buildPrompt 拼接顺序**：skillBlock + briefing(if leader) + issueBody。注意 briefing 逻辑是 S04 已有的（prompt.ts 里），S05 只是在前面加 skillBlock。
