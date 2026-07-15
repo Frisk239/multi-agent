@@ -1,4 +1,4 @@
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages, comments, agents } from '../db/schema.js';
 import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
@@ -151,9 +151,17 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     const finishedAt = Date.now();
 
     if (result.exitReason === 'cancelled' || signal.aborted) {
+      // A1 修复（审计）：终态 UPDATE 加 WHERE status IN active，
+      // 避免 signal 在 execute 返回后才 abort 把已落定的 completed 覆写成 cancelled。
+      // 与 cancelRunById 的条件 UPDATE 对齐。
       db.update(agentRuns)
         .set({ status: 'cancelled', finishedAt, error: result.error ?? null })
-        .where(eq(agentRuns.id, runRow.id))
+        .where(
+          and(
+            eq(agentRuns.id, runRow.id),
+            inArray(agentRuns.status, ['running', 'queued']),
+          ),
+        )
         .run();
       const r = toAgentRun(
         db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
@@ -168,9 +176,15 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     }
 
     // completed —— 写终态 + 一条 agent comment（人读最终回复，spec §3.4）
+    // A1 修复（审计）：加 WHERE status IN active，防 cancelled 后被覆写成 completed。
     db.update(agentRuns)
       .set({ status: 'completed', finishedAt, error: null })
-      .where(eq(agentRuns.id, runRow.id))
+      .where(
+        and(
+          eq(agentRuns.id, runRow.id),
+          inArray(agentRuns.status, ['running', 'queued']),
+        ),
+      )
       .run();
     const finalText = result.finalText || '(无输出)';
     const cid = crypto.randomUUID();
@@ -204,9 +218,15 @@ async function failRun(runId: string, error: string): Promise<void> {
   const finishedAt = Date.now();
   const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (row) {
+    // A1 修复（审计）：加 WHERE status IN active，避免覆盖已落定的终态。
     db.update(agentRuns)
       .set({ status: 'failed', finishedAt, error })
-      .where(eq(agentRuns.id, runId))
+      .where(
+        and(
+          eq(agentRuns.id, runId),
+          inArray(agentRuns.status, ['running', 'queued']),
+        ),
+      )
       .run();
     const r = toAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!,
