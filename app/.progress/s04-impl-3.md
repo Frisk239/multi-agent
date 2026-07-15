@@ -205,7 +205,29 @@ run agent=agt-research status=running runtime=opencode isLeader=false
 
 ## 验收结论（计划者填）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap）
-- 结论：<待计划者复核>
+### impl-3 验收（2026-07-15 计划者复核）
+
+**结论：✅ 通过。S04 切片验收通过，可开 PR → 合并 main。**
+
+复核项：
+- ✅ typecheck 三包全绿
+- ✅ pnpm dev 起服务
+- ✅ A1 终态竞态修复正确（run-worker.ts:153-165 cancelled/completed/failed 三处终态 UPDATE 全加 WHERE status IN active，与 cancelRunById 对齐）
+- ✅ A2 system label 修复正确（client.ts:39 `id==='system'` 短路返回"系统"，熔断脚本实测）
+- ✅ §9.2 squad→leader 路由：指派 squad → leader run is_leader=1 enqueue+claim；briefing 8 项检查全过
+- ✅ §9.3 comment-trigger 闭环：含 2 mention 的 comment → 2 worker 并发 enqueue+claim（per-agent 槽）
+- ✅ §9.4 防自指（3 场景）+ 熔断（≥15 → system comment「系统」label）
+- ✅ §9.5 回归 S01/S02/S03 全不破坏
+- ✅ §9.6 FRI-11 答辩路径 squad 段可演示
+- ✅ AssigneeSelect 重写支持 squad（纠正 spec §5.1 R7 错误假设——原组件确实不能选 squad，不修则 demo 无法在 UI 指派）
+- ✅ RunStatusBar 队长徽标（审计 B2）
+- ✅ dev.db 干净（重置到 seed，验收污染已清）
+- ✅ 工作树干净（临时脚本全删）
+
+**4 处偏离全部接受**：
+1. AssigneeSelect 重写（spec R7 假设错误，必要纠正）
+2. dev.db 重置方式（定位 PID + 停进程 + 重置）
+3. 真实 CLI 验收范围（claude stdin 问题属 S03 backend，S04 代码用确定性方式验证全通过）
+4. A1 修复范围扩展（三处终态全加条件，比只改 cancelled 更完整）
+
+**真实 CLI mention 闭环未完整跑通**：claude-code backend（S03）stdin 问题导致 leader 跑不完。**非 S04 代码缺陷**——S04 的 briefing 注入 + comment-trigger 派发两段逻辑已用 API + 脚本确定性验证全通过。S04 代码做了防御（trigger 解析不到 mention 就不排 worker）。留 S05 前置修 claude stdin。
