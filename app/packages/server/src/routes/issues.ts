@@ -5,7 +5,8 @@ import { db, sqlite } from '../db/client.js';
 import { issues, comments } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
-import { cancelActiveRunsForIssue, enqueueAgentRun } from '../orchestration/run-service.js';
+import { cancelActiveRunsForIssue, enqueueAgentRun, enqueueLeaderRun } from '../orchestration/run-service.js';
+import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 
 const WS_ID = 'ws-local';
@@ -153,7 +154,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // assignee 副作用（spec §6.1）：identity=(type,id) 变化才触发。
-    // 仅 label 变化不触发。→ cancelActiveRunsForIssue + 若 type=agent 则 enqueueAgentRun。
+    // 仅 label 变化不触发。→ cancelActiveRunsForIssue + 按 type 路由 enqueue。
+    // S04：squad 指派 → 解析 leader → enqueueLeaderRun（spec §5.1）
     if (input.assignee !== undefined) {
       const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
       const nextType = input.assignee?.type ?? null;
@@ -163,6 +165,11 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         cancelActiveRunsForIssue(id);
         if (nextType === 'agent' && nextId) {
           enqueueAgentRun(id, nextId);
+        } else if (nextType === 'squad' && nextId) {
+          const squad = loadSquadDetail(nextId);
+          if (squad?.leaderId) {
+            enqueueLeaderRun(id, squad.leaderId, squad.id);
+          }
         }
       }
     }

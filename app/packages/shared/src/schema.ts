@@ -48,6 +48,9 @@ export const AgentRun = z.object({
   error: z.string().nullable(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
+  // S04：squad-leader run 标记（照 multica 090/127 migration）
+  isLeader: z.boolean().default(false),
+  squadId: BusinessId.nullable(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -188,6 +191,23 @@ export const SquadSummary = z.object({
   name: z.string(),
 });
 export type SquadSummary = z.infer<typeof SquadSummary>;
+
+// S04：squad 详情契约（briefing 组装 + 前端小队详情用）
+export const SquadMember = z.object({
+  agentId: BusinessId,
+  name: z.string(),
+});
+export type SquadMember = z.infer<typeof SquadMember>;
+
+export const SquadDetail = z.object({
+  id: BusinessId,
+  name: z.string(),
+  leaderId: BusinessId,
+  operatingProtocol: z.string(),
+  missionDirective: z.string(),
+  members: z.array(SquadMember),
+});
+export type SquadDetail = z.infer<typeof SquadDetail>;
 
 // —— WS 事件 ——
 export const IssueCreatedEvent = z.object({

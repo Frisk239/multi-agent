@@ -627,6 +627,17 @@ body {
   color: var(--text-muted);
 }
 
+/* S04 B2：leader run 徽标，区分队长 run 与普通 run */
+.leader-badge {
+  display: inline-block;
+  margin-right: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-yellow);
+  background: color-mix(in srgb, var(--color-yellow) 14%, transparent);
+  border-radius: var(--radius-sm);
+}
+
 .run-status-bar[data-run-status="queued"] .run-status-pill {
   color: var(--text-muted);
 }

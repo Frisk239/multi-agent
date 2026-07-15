@@ -34,6 +34,9 @@ export function resolveAuthorLabel(
   type: 'member' | 'agent',
   id: string,
 ): string {
+  // A2 修复（审计）：熔断 system comment（authorId='system'）短路返回"系统"，
+  // 否则 users 表无此行，fallback 返回原始 id 'system'。
+  if (type === 'member' && id === 'system') return '系统';
   if (type === 'member') {
     const u = db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
     return u?.name ?? id;

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from './client.js';
-import { workspaces, users, agents, squads, skills, issues, comments } from './schema.js';
+import { workspaces, users, agents, squads, squadMembers, skills, issues, comments } from './schema.js';
 import type { IssueStatus, Priority, AssigneeType } from '@ma/shared';
 import { LOCAL_MEMBER } from '../local-member.js';
 
@@ -21,18 +21,39 @@ db.insert(users)
 
 db.insert(agents)
   .values([
-    { id: 'agt-lead', name: '产品·策划队长', category: '产品', runtime: 'claude-code', createdAt: NOW },
-    { id: 'agt-research', name: '产品·调研与洞察官', category: '产品', runtime: 'opencode', createdAt: NOW },
-    { id: 'agt-prd', name: '产品·需求与PRD官', category: '产品', runtime: 'cursor', createdAt: NOW },
-    { id: 'agt-proto', name: '产品·设计·原型官', category: '产品', runtime: 'claude-code', createdAt: NOW },
+    { id: 'agt-lead', name: '产品·策划队长', category: '产品', runtime: 'claude-code', concurrency: 6, createdAt: NOW },
+    { id: 'agt-research', name: '产品·调研与洞察官', category: '产品', runtime: 'opencode', concurrency: 4, createdAt: NOW },
+    { id: 'agt-prd', name: '产品·需求与PRD官', category: '产品', runtime: 'cursor', concurrency: 4, createdAt: NOW },
+    { id: 'agt-proto', name: '产品·设计·原型官', category: '产品', runtime: 'claude-code', concurrency: 6, createdAt: NOW },
   ])
   .run();
 
 db.insert(squads)
   .values([
-    { id: 'sqd-product', name: '产品小队', leaderId: 'agt-lead', createdAt: NOW },
-    { id: 'sqd-philosophy', name: '哲学与人文研究小队', leaderId: 'agt-lead', createdAt: NOW },
-    { id: 'sqd-eco', name: '生态研究团队', leaderId: 'agt-prd', createdAt: NOW },
+    {
+      id: 'sqd-product',
+      name: '产品小队',
+      leaderId: 'agt-lead',
+      operatingProtocol: '1. 队长接收 Issue briefing\n2. 按专精 @mention 委派\n3. 成员回帖交付物路径\n4. 队长汇总后请求 MVP 签核',
+      missionDirective: '基于 chanpin 真源产出 PRD + RTM + 可交互原型，Must 路径可点通。',
+      createdAt: NOW,
+    },
+    {
+      id: 'sqd-philosophy',
+      name: '哲学与人文研究小队',
+      leaderId: 'agt-lead',
+      operatingProtocol: '文献综述 → 论点提炼 → 答辩材料。',
+      missionDirective: '人文类课题调研与写作支持。',
+      createdAt: NOW,
+    },
+    {
+      id: 'sqd-eco',
+      name: '生态研究团队',
+      leaderId: 'agt-prd',
+      operatingProtocol: '数据采集 → 分析 → 可视化报告。',
+      missionDirective: '生态监测与数据分析 mock 小队。',
+      createdAt: NOW,
+    },
   ])
   .run();
 
@@ -43,6 +64,18 @@ db.insert(skills)
     { id: 'skl-research', name: 'extract-prototype-requirements', url: 'https://github.com/example/extract-prototype-requirements', createdAt: NOW },
     { id: 'skl-frontend', name: 'frontend-design', url: 'https://github.com/example/frontend-design', createdAt: NOW },
     { id: 'skl-design', name: 'design-system', url: 'https://github.com/example/design-system', createdAt: NOW },
+  ])
+  .run();
+
+// S04：squad_member 成员关系（照 seed.js memberIds）
+db.insert(squadMembers)
+  .values([
+    { squadId: 'sqd-product', agentId: 'agt-research' },
+    { squadId: 'sqd-product', agentId: 'agt-prd' },
+    { squadId: 'sqd-product', agentId: 'agt-proto' },
+    { squadId: 'sqd-philosophy', agentId: 'agt-research' },
+    { squadId: 'sqd-eco', agentId: 'agt-research' },
+    { squadId: 'sqd-eco', agentId: 'agt-proto' },
   ])
   .run();
 

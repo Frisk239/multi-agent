@@ -1,13 +1,17 @@
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, agents } from '../db/schema.js';
-import { toAgentRun } from '../db/reshape.js';
+import { agentRuns, agents, comments } from '../db/schema.js';
+import { toAgentRun, toComment } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { abortRun } from './run-control.js';
 import { wakeRunWorker } from './run-worker.js';
 import type { AgentRun } from '@ma/shared';
 
 const ACTIVE = ['queued', 'running'] as const;
+
+// 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
+// 15 给 3 倍余量，防住失控但不误杀正常多轮交互。
+const MAX_RUNS_PER_ISSUE = 15;
 
 // cancelActiveRunsForIssue —— 清空/改指派时取消该 issue 所有 active run（spec §6.1）。
 export function cancelActiveRunsForIssue(issueId: string): void {
@@ -45,16 +49,70 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
 }
 
 // enqueueAgentRun —— 指派 agent 时插入 queued run（spec §6.1）。
-// 同 issue 已有 active run 则不插（不变量：至多一条 active）。
+// S04：去重改 per-(issue,agent)（spec §6.1）——同一 agent 同一 issue 不重复排，
+//   不同 agent 可并存。熔断见 checkAndEnqueue（spec §7.4 R1）。
 export function enqueueAgentRun(issueId: string, agentId: string): AgentRun | null {
-  const active = db
+  return checkAndEnqueue(issueId, agentId);
+}
+
+// enqueueLeaderRun —— squad 指派时，解析 leader 排 leader run（spec §5.2）。
+// 复用 checkAndEnqueue 的去重 + 熔断逻辑，多设 is_leader=1 + squad_id。
+export function enqueueLeaderRun(
+  issueId: string,
+  leaderId: string,
+  squadId: string,
+): AgentRun | null {
+  return checkAndEnqueue(issueId, leaderId, { isLeader: true, squadId });
+}
+
+// checkAndEnqueue —— enqueueAgentRun / enqueueLeaderRun 的共用实现（排雷补充#3 DRY）。
+// 去重（per-(issue,agent)）+ 熔断（issue 总 run 数）+ insert + publish + wake。
+function checkAndEnqueue(
+  issueId: string,
+  agentId: string,
+  opts?: { isLeader?: boolean; squadId?: string },
+): AgentRun | null {
+  const isLeader = opts?.isLeader ?? false;
+  const squadId = opts?.squadId ?? null;
+
+  // per-(issue,agent) 去重（spec §6.1）
+  const activeForAgent = db
     .select()
     .from(agentRuns)
     .where(
-      and(eq(agentRuns.issueId, issueId), inArray(agentRuns.status, [...ACTIVE])),
+      and(
+        eq(agentRuns.issueId, issueId),
+        eq(agentRuns.agentId, agentId),
+        inArray(agentRuns.status, [...ACTIVE]),
+      ),
     )
     .get();
-  if (active) return null;
+  if (activeForAgent) return null;
+
+  // 乒乓熔断（spec §7.4 R1）：issue 总 run 数超限 → 拒绝 + system comment
+  const totalRow = db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(agentRuns)
+    .where(eq(agentRuns.issueId, issueId))
+    .get();
+  if ((totalRow?.cnt ?? 0) >= MAX_RUNS_PER_ISSUE) {
+    const cid = crypto.randomUUID();
+    db.insert(comments)
+      .values({
+        id: cid,
+        issueId,
+        type: 'comment',
+        authorType: 'member',
+        authorId: 'system',
+        body: `⚠️ 已达 issue run 上限（${MAX_RUNS_PER_ISSUE}），停止派发。`,
+        createdAt: Date.now(),
+      })
+      .run();
+    const cRow = db.select().from(comments).where(eq(comments.id, cid)).get();
+    if (cRow) eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+    return null;
+  }
+
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) return null;
   const id = crypto.randomUUID();
@@ -69,6 +127,8 @@ export function enqueueAgentRun(issueId: string, agentId: string): AgentRun | nu
       error: null,
       startedAt: null,
       finishedAt: null,
+      isLeader: isLeader ? 1 : 0,
+      squadId,
       createdAt,
     })
     .run();
