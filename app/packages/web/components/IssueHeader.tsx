@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
 import { useUpdateIssue } from '@/lib/api';
+import { AssigneeSelect } from './AssigneeSelect';
 
 const ALL_STATUS = IssueStatusEnum.options;
 
@@ -44,7 +45,15 @@ export function IssueHeader({ issue }: { issue: Issue }) {
       )}
       <div className="issue-meta">
         <span>优先级：{issue.priority}</span>
-        <span>指派：{issue.assignee?.label ?? '未指派'}</span>
+        <span>
+          指派：{issue.assignee?.label ?? '未指派'}
+        </span>
+        <AssigneeSelect
+          issueId={issue.id}
+          currentAgentId={
+            issue.assignee?.type === 'agent' ? issue.assignee.id : null
+          }
+        />
       </div>
     </header>
   );

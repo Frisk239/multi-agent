@@ -3,6 +3,8 @@ import { useIssue, useComments } from '@/lib/api';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
+import { RunStatusBar } from './RunStatusBar';
+import { RunTrace } from './RunTrace';
 
 export function IssueDetail({ id }: { id: string }) {
   const { data: issue, isLoading: il, error: ie } = useIssue(id);
@@ -14,6 +16,8 @@ export function IssueDetail({ id }: { id: string }) {
   return (
     <div className="issue-detail">
       <IssueHeader issue={issue} />
+      <RunStatusBar issueId={id} />
+      <RunTrace issueId={id} />
       <Timeline items={comments ?? []} />
       <CommentComposer issueId={id} />
     </div>
