@@ -186,6 +186,15 @@ export const AgentSummary = z.object({
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
+// S05：单 agent 详情契约（GET /api/agents/:id，agent 详情页用）
+// AgentSummary 扩展：含 category/concurrency（profile 展示）+ mcpServers（MCP Tab 回填）
+export const AgentDetail = AgentSummary.extend({
+  category: z.string().nullable(),
+  concurrency: z.number(),
+  mcpServers: z.string().nullable(),
+});
+export type AgentDetail = z.infer<typeof AgentDetail>;
+
 // S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
 // skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
 export const SkillInfo = z.object({
