@@ -170,7 +170,29 @@ getSquadLeaderId(sqd-eco) = agt-prd ✓
 
 ### impl-2 验收（2026-07-15 计划者复核）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap）
-- 结论：<待计划者填>
+**结论：✅ 通过，移交 impl-3（前端 + 端到端验收）。**
+
+复核项（逐文件核对）：
+- ✅ buildPrompt briefing 前置正确：leader run 时前置三段，roster 跳过 leader，普通调用无 briefing（spike 4 场景全验证）
+- ✅ comment-trigger 逻辑正确：R4 type 判断、S8 防自指（@agent 放行 / @squad leader 跳过）、parseMentions 正则 + 去重
+- ✅ checkAndEnqueue 抽象干净（排雷#3 DRY）：enqueueAgentRun/enqueueLeaderRun 各一行调用，熔断统一写 system comment（修正了 plan 的不一致）
+- ✅ RunWorker 并发改造（★核心重写）：删 busy → per-agent 槽 + fire-and-forget，无锁安全（排雷#5），buildPrompt 传 run context
+- ✅ 循环 import 处理正确（排雷#2）：comment-trigger → run-service → run-worker → comment-trigger，注释说明 live binding 安全
+- ✅ Task 2.4+2.5 合并执行（排雷#1）：循环 import 闭包必须同 commit，避免中间态 typecheck 失败
+- ✅ run-service.ts 补了 3 个 import（排雷#4）：sql + comments + toComment
+- ✅ typecheck 三包全绿
+- ✅ briefing spike 4 场景全通过（含 roster 三个 worker mention + 不含 leader + 前置）
+
+**3 处偏离全部接受**：Task 合并（排雷指引）、checkAndEnqueue 抽象（排雷指引 + 修正 plan 不一致）、dev.db 未重置（环境问题，临时 db 等价验证）。
+
+**审计发现待修（见 docs/audit/2026-07-15-cross-slice-audit.md）**：
+- A1 终态竞态仍存在（run-worker.ts:153 `|| signal.aborted` 可能把 completed 覆写成 cancelled）——**留 impl-3 或收尾修**
+- A2 system label（resolveAuthorLabel 对 'system' 返回原始 id）——impl-2 handoff 已提醒 impl-3 注意
+
+**给 impl-3 的计划者补充注意点（impl-2 handoff 之外）：**
+
+1. **dev.db 必须重置**（impl-1/impl-2 都因进程占用没重置）：impl-3 开工第一步——停所有 server 进程 → 删 `dev.db*` → `db:migrate` → `db:seed`。否则 briefing 拿到空 protocol、concurrency 全默认 1。
+2. **审计 A1（终态竞态）建议 impl-3 顺手修**：run-worker.ts:153 的 `if (result.exitReason === 'cancelled' || signal.aborted)` 改为终态 UPDATE 加 `WHERE status IN ('running','queued')` 条件，避免覆盖 completed。一行级修复。
+3. **审计 A2（system label）建议 impl-3 顺手修**：client.ts 的 resolveAuthorLabel 对 `id==='system'` 短路返回"系统"。
+4. **端到端闭环验证是 impl-3 核心验收**：指派 squad → leader run → leader 产出含 @mention 的 finalText → comment-trigger 派 worker → worker 并发执行 → 时间线呈现委派链。若 leader CLI 不产出 mention 格式，闭环不成立但不出错（trigger 解析不到就不排 worker）。
+5. **审计 B2（isLeader 前端无 UI）**：建议 RunStatusBar 加 isLeader 徽标，让用户能区分 leader run 与普通 run。可选，不阻塞验收。
