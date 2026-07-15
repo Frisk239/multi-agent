@@ -94,11 +94,19 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 
     // S05 MCP 注入（spec §7.2 R3）：mcpServers JSON → 写临时文件 → --mcp-config argv。
-    // claude-code 的 --mcp-config 接受 {"mcpServers": {...}} 格式文件。
+    // claude-code 的 --mcp-config 接受 {"mcpServers": {<name>: {...}}} 格式（object，spike 确认）。
+    // agent.mcpServers 存的是 array（spec §3.3，对用户/前端友好），
+    // 此处注入边界转换 array → object（以 name 为 key，补 type:stdio）。
     let mcpTmpPath: string | null = null;
     if (input.mcpServers) {
       try {
-        const config = JSON.stringify({ mcpServers: JSON.parse(input.mcpServers) });
+        const arr = JSON.parse(input.mcpServers) as Array<Record<string, unknown>>;
+        const obj: Record<string, Record<string, unknown>> = {};
+        for (const s of arr) {
+          const { name, ...rest } = s;
+          if (typeof name === 'string') obj[name] = { type: 'stdio', ...rest };
+        }
+        const config = JSON.stringify({ mcpServers: obj });
         mcpTmpPath = join(tmpdir(), `ma-mcp-${input.runId}.json`);
         writeFileSync(mcpTmpPath, config);
         args.push('--mcp-config', mcpTmpPath);
