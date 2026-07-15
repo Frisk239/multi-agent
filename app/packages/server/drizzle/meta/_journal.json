@@ -29,6 +29,13 @@
       "when": 1784096340377,
       "tag": "0003_chief_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784118432963,
+      "tag": "0004_skill_mcp",
+      "breakpoints": true
     }
   ]
 }
