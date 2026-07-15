@@ -50,6 +50,7 @@ function iso(ms: number | null): string | null {
 }
 
 // DB 扁平行 → API AgentRun（S03 执行层）
+// S04：映射 isLeader（integer 0/1 → boolean）+ squadId
 export function toAgentRun(row: RunRow): AgentRun {
   return {
     id: row.id,
@@ -60,6 +61,8 @@ export function toAgentRun(row: RunRow): AgentRun {
     error: row.error,
     startedAt: iso(row.startedAt),
     finishedAt: iso(row.finishedAt),
+    isLeader: row.isLeader === 1,
+    squadId: row.squadId,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }
