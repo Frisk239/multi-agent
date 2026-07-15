@@ -67,15 +67,17 @@ function parseAndStore(path: string, source: 'project' | 'user', out: Map<string
 }
 
 // 简单 frontmatter 解析（不引 yaml 依赖，只解析 name/description 两字段，spec §5.3）
+// 注意：正则用 \r?\n 兼容 CRLF（Windows）行尾——SKILL.md 可能是 CRLF 格式，
+// 纯 \n 匹配会导致 frontmatter 解析失败、R4 降级（所有 skill name 退化成 "SKILL"）。
 function parseFrontmatter(raw: string): { frontmatter: { name?: string; description?: string }; body: string } {
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const fmMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!fmMatch) {
     return { frontmatter: {}, body: raw };
   }
   const fmBlock = fmMatch[1];
   const body = fmMatch[2];
   const frontmatter: { name?: string; description?: string } = {};
-  for (const line of fmBlock.split('\n')) {
+  for (const line of fmBlock.split(/\r?\n/)) {
     const m = line.match(/^(\w+):\s*(.+)$/);
     if (m && (m[1] === 'name' || m[1] === 'description')) {
       frontmatter[m[1] as 'name' | 'description'] = m[2].trim().replace(/^["']|["']$/g, '');

@@ -9,6 +9,7 @@ import {
   useAgentMcp,
   useUpdateAgentMcp,
 } from '@/lib/api';
+import { Icon } from './Icon';
 
 // 照原型 renderAgentDetail（app.js:467）+ AGENT_TABS（app.js:48）：
 // 薄 profile（左）+ tab 栏（右）。Skills/MCP Tab 实现，其余 tab 占位 Phase 2。
@@ -38,7 +39,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
       <div className="agent-detail-layout">
         <aside className="agent-profile">
-          <div className="agent-profile-icon">🤖</div>
+          <div className="agent-profile-icon">
+            <Icon name="agent" size={24} />
+          </div>
           <div className="agent-profile-name">{agent.name}</div>
           <div className="agent-profile-cat">{agent.category || '—'}</div>
 
@@ -46,7 +49,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             <h4>属性</h4>
             <div className="prop-row">
               <span className="prop-label">运行时</span>
-              <span>{agent.runtime}</span>
+              <span><code>{agent.runtime}</code></span>
             </div>
             <div className="prop-row">
               <span className="prop-label">并发</span>
@@ -127,10 +130,12 @@ function SkillsTab({ agentId }: { agentId: string }) {
 }
 
 // —— MCP Tab：JSON 编辑器（spec §9.3）——
+// MCP 配置存 object 格式（对齐 claude-code --mcp-config 的 mcpServers 结构）：
+//   { "<server-name>": { "type": "stdio", "command": "...", "args": [...], "env": {...} } }
+// 前端编辑/存储/注入统一 object，注入边界不做转换。
 function McpTab({ agentId }: { agentId: string }) {
   const { data } = useAgentMcp(agentId);
   const update = useUpdateAgentMcp(agentId);
-  // textarea 本地编辑态：array 格式 JSON，null → 空串
   const [draft, setDraft] = useState<string>('');
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -148,11 +153,11 @@ function McpTab({ agentId }: { agentId: string }) {
       update.mutate(null);
       return;
     }
-    // 校验 JSON（array 格式）
+    // 校验 JSON（必须是 object）
     try {
       const parsed = JSON.parse(trimmed);
-      if (!Array.isArray(parsed)) {
-        setError('MCP 配置必须是 array 格式：[{name, command, args, env}]');
+      if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+        setError('MCP 配置必须是 object 格式：{ "<name>": { command, args, env } }');
         return;
       }
       update.mutate(trimmed);
@@ -169,15 +174,16 @@ function McpTab({ agentId }: { agentId: string }) {
 
   return (
     <div className="mcp-editor">
-      <p className="mcp-editor-hint">
-        MCP server 配置（array 格式）。每个 server 需含 name/command，可选 args/env。
+      <div className="mcp-editor-hint">
+        MCP server 配置（object 格式，对齐 claude <code>--mcp-config</code>）。每个 server 以 name 为 key，
+        含 <code>type</code> / <code>command</code>，可选 <code>args</code> / <code>env</code>。
         <br />
-        示例：<code>{'[{"name":"github","command":"npx","args":["-y","server-github"]}]'}</code>
-      </p>
+        示例：<code>{`{ "github": { "type": "stdio", "command": "npx", "args": ["server-github"] } }`}</code>
+      </div>
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder='[{"name":"github","command":"npx","args":["-y","@modelcontextprotocol/server-github"],"env":{"GITHUB_TOKEN":"..."}}]'
+        placeholder={`{\n  "oracle": {\n    "type": "stdio",\n    "command": "npx",\n    "args": ["mcp-oracle-db"],\n    "env": { "ORACLE_USER": "..." }\n  }\n}`}
         spellCheck={false}
       />
       {error && <div className="mcp-editor-error">{error}</div>}
