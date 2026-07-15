@@ -4,6 +4,7 @@ import websocket from '@fastify/websocket';
 import { issueRoutes } from './routes/issues.js';
 import { commentRoutes } from './routes/comments.js';
 import { rosterRoutes } from './routes/roster.js';
+import { skillRoutes } from './routes/skills.js';
 import { runRoutes } from './routes/runs.js';
 import { runtimeRoutes } from './routes/runtimes.js';
 import { wsRoutes } from './routes/ws.js';
@@ -24,6 +25,7 @@ export async function buildApp() {
   await app.register(issueRoutes);
   await app.register(commentRoutes);
   await app.register(rosterRoutes);
+  await app.register(skillRoutes);
   await app.register(runRoutes);
   await app.register(runtimeRoutes);
   await app.register(wsRoutes);
