@@ -225,3 +225,258 @@ body {
   color: var(--color-red, #ef4444);
 }
 
+/* S03 顶栏导航 */
+.topnav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.topnav a {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.topnav a:hover {
+  color: var(--accent-hover);
+}
+.topnav-sep {
+  color: var(--text-dim);
+}
+
+/* S03 详情页 — 指派/运行状态/轨迹 */
+.assignee-select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.run-status-hint {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin: var(--space-2) 0;
+}
+.run-status-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  margin: var(--space-2) 0;
+}
+.run-status-pill {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.run-status-bar[data-run-status="running"] .run-status-pill {
+  color: var(--color-yellow);
+}
+.run-status-bar[data-run-status="completed"] .run-status-pill {
+  color: var(--color-green);
+}
+.run-status-bar[data-run-status="failed"] .run-status-pill {
+  color: var(--color-red);
+}
+.run-status-bar[data-run-status="cancelled"] .run-status-pill {
+  color: var(--text-dim);
+}
+.btn-stop {
+  background: transparent;
+  border: 1px solid var(--color-red);
+  color: var(--color-red);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.btn-stop:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.run-trace {
+  margin: var(--space-4) 0;
+}
+.run-trace h3 {
+  font-size: var(--text-base);
+  margin: 0 0 var(--space-2);
+}
+.run-trace-empty {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+}
+.run-trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.run-trace-item {
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+  border-left: 2px solid var(--border);
+  word-break: break-word;
+}
+.run-trace-item code {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.run-trace-item strong {
+  color: var(--text-muted);
+}
+.run-trace-item[data-kind="tool_start"],
+.run-trace-item[data-kind="tool_end"] {
+  border-left-color: var(--color-purple);
+}
+.run-trace-item[data-kind="assistant"] {
+  border-left-color: var(--color-green);
+}
+.run-trace-body {
+  color: var(--text-muted);
+}
+
+/* S03 /runtimes 双栏 */
+.runtime-layout {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  min-height: calc(100vh - 80px);
+}
+.machine-list {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) 0;
+}
+.machine-list-header {
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.machine-item {
+  padding: var(--space-3) var(--space-4);
+  cursor: default;
+  position: relative;
+}
+.machine-item.active {
+  background: var(--bg-active);
+}
+.machine-item-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.machine-item-meta {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.machine-tag {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: var(--bg-hover);
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+.runtime-detail {
+  flex: 1;
+  min-width: 0;
+}
+.runtime-detail-header {
+  margin-bottom: var(--space-4);
+}
+.runtime-detail-title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.runtime-meta {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  margin: var(--space-1) 0 var(--space-2);
+}
+.runtime-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.btn-secondary {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 6px var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.status-dot-green {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-green);
+}
+.status-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-green);
+  font-size: var(--text-sm);
+}
+.status-offline {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+}
+.data-table-wrap {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: auto;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.data-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-dim);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+.data-table code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.runtime-path {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  word-break: break-all;
+}
+
