@@ -82,8 +82,9 @@ export function appendIndex(entry: { slug: string; title: string; identifier: st
 }
 
 // 追加 log（spec §3.3）：append-only，前缀可 grep
+// S07 扩展：从 if/else 改 switch，加 query/health/lint 分支（原 ingest/ingest-failed 行为不变）
 export function appendLog(entry: {
-  type: string; // 'ingest' | 'ingest-failed'
+  type: string; // 'ingest' | 'ingest-failed' | 'query' | 'health' | 'lint'
   identifier: string;
   issueId: string;
   slug?: string;
@@ -92,11 +93,24 @@ export function appendLog(entry: {
   const logPath = join(getWikiDir(), 'log.md');
   const date = new Date().toISOString().slice(0, 10);
   let block: string;
-  if (entry.type === 'ingest') {
-    block = `## [${date}] ingest | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Page: ${entry.slug}.md\n\n`;
-  } else {
-    // ingest-failed
-    block = `## [${date}] ingest-failed | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Error: ${entry.error ?? 'unknown'}\n\n`;
+  switch (entry.type) {
+    case 'ingest':
+      block = `## [${date}] ingest | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Page: ${entry.slug}.md\n\n`;
+      break;
+    case 'ingest-failed':
+      block = `## [${date}] ingest-failed | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Error: ${entry.error ?? 'unknown'}\n\n`;
+      break;
+    case 'query':
+      block = `## [${date}] query | ${entry.identifier}\n- Question stored: ${entry.slug}.md\n\n`;
+      break;
+    case 'health':
+      block = `## [${date}] health | 结构检查\n\n`;
+      break;
+    case 'lint':
+      block = `## [${date}] lint | 语义检查\n\n`;
+      break;
+    default:
+      block = `## [${date}] ${entry.type} | ${entry.identifier}\n\n`;
   }
   if (!existsSync(logPath)) {
     writeFileSync(logPath, '# Wiki Log\n', 'utf-8');
