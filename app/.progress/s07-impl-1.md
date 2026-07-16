@@ -96,7 +96,19 @@ stubs: [{test-a,86},{test-orphan,3}]  ← <100 字判定正确 ✓
 
 > 切片是否达标、能否合并、是否要点亮 FRI-11 路径的某一段。
 
-- [x] typecheck 通过（4 次全绿）
-- [ ] `pnpm dev` 能跑（impl-1 未碰路由/前端，server 能起；但端到端需 impl-2/3 完成）
-- [ ] 切片验收标准达成（见 roadmap）—— impl-1 只是数据层切片，整体验收依赖 impl-2/3
-- 结论：impl-1 范围内全部达标，可交接 impl-2。无返工项。
+- [x] typecheck 通过（4 次全绿）— 计划者复核 `pnpm -r typecheck` 确认全绿
+- [x] shared 契约完整（5 个 schema + type，schema.ts line 279-314 确认）
+- [x] store.ts 扩展正确（readIndex/readLog 新增；appendLog switch 重构，原 ingest/ingest-failed 行为不变）
+- [x] health.ts 三检查正确（孤儿页/断链/空短页，代码逐行核对）
+- [x] spike 验证充分（readIndex 正则匹配 + appendLog 5 种 type + health 三检查全跑通）
+- [ ] `pnpm dev` 端到端（impl-1 未碰路由/前端，由 impl-2 接线后验证）
+- [ ] 切片完整验收（impl-1 是数据层，整体验收在 impl-3 端到端）
+
+### 代码审查要点
+
+1. **health.ts 入链计数逻辑**（line 20-35）：扫每页的 `[text](target.md)` 链接，target 在 allSlugs 中则计数+1，不在且非 index/log/http 则记断链。逻辑正确。
+2. **health.ts 空短页判断**（line 41-49）：`content.replace(/^#\s+.+$/m, '').trim()` 去首行标题后取长度。正确——与 llm-wiki-agent health.py:52-66 一致。
+3. **appendLog switch 回归安全**（store.ts）：原 ingest block 文本 = `` `## [${date}] ingest | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Page: ${entry.slug}.md\n\n` ``，改 switch 后完全一致（执行者 spike 验证确认）。issues.ts 调用方不受影响。
+4. **readIndex 正则**（store.ts）：`/^-\s+\[([^\]]+)\]\(([^)]+)\)/gm` 匹配 appendIndex 写的 `- [标题](slug.md) — xxx`。spike 验证 3 条全解析正确。
+
+- 结论：**impl-1 验收通过**。数据层 + 零 LLM 检查就绪，可进 impl-2（query 管线 + lint 管线 + API 路由）。
