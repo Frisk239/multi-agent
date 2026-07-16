@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from './client.js';
-import { workspaces, users, agents, squads, squadMembers, skills, issues, comments } from './schema.js';
+import { workspaces, users, agents, squads, squadMembers, agentSkills, issues, comments } from './schema.js';
 import type { IssueStatus, Priority, AssigneeType } from '@ma/shared';
 import { LOCAL_MEMBER } from '../local-member.js';
 
@@ -57,13 +57,16 @@ db.insert(squads)
   ])
   .run();
 
-db.insert(skills)
+// S05：skill 分配关系（照 seed.js agent.skillIds，skill name 对应 .skills/ 目录名）
+// skill 本身不进 DB（文件系统真源 + 内存索引），这里只存分配关系
+db.insert(agentSkills)
   .values([
-    { id: 'skl-squads', name: 'multica-squads', url: 'https://github.com/example/multica-squads', createdAt: NOW },
-    { id: 'skl-prd', name: 'to-prd', url: 'https://github.com/example/to-prd', createdAt: NOW },
-    { id: 'skl-research', name: 'extract-prototype-requirements', url: 'https://github.com/example/extract-prototype-requirements', createdAt: NOW },
-    { id: 'skl-frontend', name: 'frontend-design', url: 'https://github.com/example/frontend-design', createdAt: NOW },
-    { id: 'skl-design', name: 'design-system', url: 'https://github.com/example/design-system', createdAt: NOW },
+    { agentId: 'agt-lead', skillId: 'multica-squads' },
+    { agentId: 'agt-research', skillId: 'extract-prototype-requirements' },
+    { agentId: 'agt-prd', skillId: 'prd-writer' },
+    { agentId: 'agt-prd', skillId: 'extract-prototype-requirements' },
+    { agentId: 'agt-proto', skillId: 'frontend-design' },
+    { agentId: 'agt-proto', skillId: 'design-system' },
   ])
   .run();
 

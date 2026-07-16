@@ -29,6 +29,7 @@ export function spawnLineProcess(
   signal: AbortSignal,
   onEvent: (e: AgentEvent) => void,
   onLine: LineHandler | null,
+  stdinInput?: string, // S05：stdin pipe 传 prompt（claude stdin 修复，spec §8 R2 结构扩展）
 ): Promise<ExecutionResult> {
   return new Promise((resolve) => {
     // Windows 上 .cmd/.bat 启动器需要 shell:true（cursor-agent.cmd 坑，
@@ -40,6 +41,16 @@ export function spawnLineProcess(
       windowsHide: true,
       env: process.env,
     });
+    // S05：stdin pipe 传 prompt。claude-code 的 -p 无 prompt 参数时从 stdin 读
+    // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose）。
+    // opencode/cursor 不传 stdinInput，保持 argv prompt 模式。
+    if (stdinInput !== undefined) {
+      child.stdin?.write(stdinInput);
+      child.stdin?.end();
+      child.stdin?.on('error', () => {
+        // stdin 写失败不致命（prompt 可能已部分传 / CLI 从别处读），不终止 run
+      });
+    }
     let buf = '';
     let stdoutAll = '';
     let stderrAll = '';
