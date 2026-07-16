@@ -34,6 +34,24 @@
 
 详见 [design/synthesis.md](design/synthesis.md)。
 
+## 决策原则：先查参考项目（最高优先级）
+
+**遇到路线选择或策略评审问题，第一反应是调研分析参考项目，而不是凭经验拍脑袋。** 本项目不是从零发明，12 个参考项目（multica / hermes / pi / openwiki …）的源码深读就在 `references/deep/` 和 `references/repos/` 里，先看成熟实现怎么解决这个问题，再决定自己的方案。
+
+优先级**高于**「拍脑袋给方案」和「直接问人」：
+
+1. **先查 `references/deep/`（带 file:line 索引的源码深读）** —— 找最贴近问题的那个项目的对应章节。这是最高质量的一手信息，已为你提炼好。
+2. **再查 `references/repos/`（12 个上游 clone，只读）** —— 深读没覆盖的细节，直接 grep 上游源码。`grep -rn` 搜关键词比通读快。
+3. **交叉验证** —— 同一个问题看 ≥2 个项目怎么解，异同点就是你做架构决策的依据（见下方「关键架构决策」每条都标了「学 multica / 学 hermes」就是这个套路）。
+4. **最后才下结论** —— 结论里注明「参考了 X 项目的 Y 做法 / 与 Z 项目的差异」。
+
+**典型场景：**
+- 选 A 方案还是 B 方案（如状态机用内存 mutex 还是 DB 行锁）→ 先看 multica 怎么做
+- 评估一个抽象是否合理（如要不要建「squad task」表）→ 先看 multica 的 squad 实现
+- 不确定某个模式叫什么、业界怎么做（如编译式 Wiki、可插拔记忆）→ 先看 `concepts/` + `references/` 摘要
+
+> 项目宪法里的「关键架构决策」就是**这套方法跑出来的产物**——每条都标了「学 multica / 学 hermes」。新决策也照这个标准：有参考、有出处。
+
 ## 关键架构决策（改动前必须知道）
 
 1. **不自造 Agent loop。** 执行层驱动用户本机已有的 CLI，每个 CLI 是一个 `RuntimeBackend`（学 multica 的 `pkg/agent/agent.go:16` Backend 接口）。Pi 是其中一个 backend（进程内 SDK），Claude Code/opencode 是子进程 backend。
