@@ -14,6 +14,7 @@ export interface ExecutionInput {
   issueId: string;
   agentId: string;
   runId: string;
+  mcpServers?: string | null; // S05：MCP 配置 JSON 字符串（agent.mcpServers）
 }
 
 export interface ExecutionResult {

@@ -19,6 +19,7 @@ export const users = sqliteTable('user', {
 
 // —— agent（spec §3.1，4 行静态，用于 assignee label）——
 // S04：加 concurrency（per-agent 并发槽上限，照 multica 001_init.up.sql:45 max_concurrent_tasks）
+// S05：加 mcpServers（MCP 配置 JSON 字符串，spec §3.3）
 export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -27,8 +28,25 @@ export const agents = sqliteTable('agent', {
     .notNull()
     .default('claude-code'),
   concurrency: integer('concurrency').notNull().default(1),
+  mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
   createdAt: integer('created_at').notNull(),
 });
+
+// —— agent_skill（S05：skill 分配关系，skill_id 是 skill name 非 FK，spec §3.2）——
+// skill 本身不进 DB（文件系统真源 + 内存索引），分配关系必须持久化
+export const agentSkills = sqliteTable(
+  'agent_skill',
+  {
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    skillId: text('skill_id').notNull(), // skill 的 name（文件系统真源）
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.skillId] }),
+    agentIdx: index('idx_agent_skill_agent').on(t.agentId),
+  }),
+);
 
 // —— squad（spec §3.1，3 行静态，用于 assignee label）——
 // S04：加 operating_protocol + mission_directive（briefing 三段的第一/第三段，spec §3.1）
@@ -41,13 +59,8 @@ export const squads = sqliteTable('squad', {
   createdAt: integer('created_at').notNull(),
 });
 
-// —— skill（spec §3.1，5 行静态，S01 不展示，纯预留）——
-export const skills = sqliteTable('skill', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  url: text('url'),
-  createdAt: integer('created_at').notNull(),
-});
+// S05（spec §3.2b / R6）：删 S01 的 skill 死表——skill 改文件系统真源 + 内存索引，
+// 不再进 DB。分配关系见上方 agentSkills。
 
 // —— issue（spec §3.2，照 multica 001_init.up.sql:52-72）——
 export const issues = sqliteTable(

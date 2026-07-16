@@ -82,11 +82,16 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   const prompt = buildPrompt(runRow.issueId, {
     isLeader: runRow.isLeader === 1,
     squadId: runRow.squadId,
+    agentId: runRow.agentId, // S05：查 agent_skill 分配 → skillBlock 拼接
   });
   if (!prompt) {
     await failRun(runRow.id, 'issue 不存在');
     return;
   }
+
+  // S05：claim 后查 agent.mcpServers，传进 ExecutionInput（claude-code 写临时文件 + --mcp-config）
+  const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
+  const mcpServers = agentRow?.mcpServers ?? null;
 
   const signal = registerRunAbort(runRow.id);
   let seq = 0;
@@ -143,6 +148,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
         issueId: runRow.issueId,
         agentId: runRow.agentId,
         runId: runRow.id,
+        mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
       },
       onEvent,
       signal,

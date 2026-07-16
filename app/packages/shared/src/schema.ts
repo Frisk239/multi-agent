@@ -186,6 +186,25 @@ export const AgentSummary = z.object({
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
+// S05：单 agent 详情契约（GET /api/agents/:id，agent 详情页用）
+// AgentSummary 扩展：含 category/concurrency（profile 展示）+ mcpServers（MCP Tab 回填）
+export const AgentDetail = AgentSummary.extend({
+  category: z.string().nullable(),
+  concurrency: z.number(),
+  mcpServers: z.string().nullable(),
+});
+export type AgentDetail = z.infer<typeof AgentDetail>;
+
+// S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
+// skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
+export const SkillInfo = z.object({
+  name: z.string(),
+  description: z.string(),
+  source: z.enum(['project', 'user']),
+  usedBy: z.array(AgentSummary),
+});
+export type SkillInfo = z.infer<typeof SkillInfo>;
+
 export const SquadSummary = z.object({
   id: BusinessId,
   name: z.string(),
@@ -230,6 +249,30 @@ export const CommentCreatedEvent = z.object({
 });
 export type CommentCreatedEvent = z.infer<typeof CommentCreatedEvent>;
 
+// —— S06：Wiki 契约 ——
+// Wiki 页（文件系统 markdown，spec §5）：slug 不含 .md，content 是完整 markdown
+export const WikiPage = z.object({
+  slug: z.string(),
+  title: z.string(),
+  content: z.string(),
+});
+export type WikiPage = z.infer<typeof WikiPage>;
+
+// Wiki 页摘要（列表用，spec §5）：GET /api/wiki/pages 返回元素
+export const WikiPageSummary = z.object({
+  slug: z.string(),
+  title: z.string(),
+});
+export type WikiPageSummary = z.infer<typeof WikiPageSummary>;
+
+// Wiki 页创建事件（WS 推前端，spec §5）：ingest 完成后由 eventBus 广播
+export const WikiPageCreatedEvent = z.object({
+  type: z.literal('wiki:page-created'),
+  slug: z.string(),
+  title: z.string(),
+});
+export type WikiPageCreatedEvent = z.infer<typeof WikiPageCreatedEvent>;
+
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({
   type: z.enum([
@@ -264,4 +307,5 @@ export type DomainEvent =
   | CommentCreatedEvent
   | RunLifecycleEvent
   | RunProgressEvent
-  | RunMessageEvent;
+  | RunMessageEvent
+  | WikiPageCreatedEvent;
