@@ -249,6 +249,30 @@ export const CommentCreatedEvent = z.object({
 });
 export type CommentCreatedEvent = z.infer<typeof CommentCreatedEvent>;
 
+// —— S06：Wiki 契约 ——
+// Wiki 页（文件系统 markdown，spec §5）：slug 不含 .md，content 是完整 markdown
+export const WikiPage = z.object({
+  slug: z.string(),
+  title: z.string(),
+  content: z.string(),
+});
+export type WikiPage = z.infer<typeof WikiPage>;
+
+// Wiki 页摘要（列表用，spec §5）：GET /api/wiki/pages 返回元素
+export const WikiPageSummary = z.object({
+  slug: z.string(),
+  title: z.string(),
+});
+export type WikiPageSummary = z.infer<typeof WikiPageSummary>;
+
+// Wiki 页创建事件（WS 推前端，spec §5）：ingest 完成后由 eventBus 广播
+export const WikiPageCreatedEvent = z.object({
+  type: z.literal('wiki:page-created'),
+  slug: z.string(),
+  title: z.string(),
+});
+export type WikiPageCreatedEvent = z.infer<typeof WikiPageCreatedEvent>;
+
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({
   type: z.enum([
@@ -283,4 +307,5 @@ export type DomainEvent =
   | CommentCreatedEvent
   | RunLifecycleEvent
   | RunProgressEvent
-  | RunMessageEvent;
+  | RunMessageEvent
+  | WikiPageCreatedEvent;
