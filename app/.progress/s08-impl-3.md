@@ -118,15 +118,15 @@ MA_WORKSPACE_CWD=<隔离 tmp-s08-e2e-ws>
 对照 spec §8：
 
 ### 8.1 工程
-- [x] `pnpm -r typecheck` 全绿
-- [x] server 可起（本会话 PORT=3012 验过）
+- [x] `pnpm -r typecheck` 全绿 — 计划者复核
+- [x] server 可起
 - [x] migration 0005 已在 impl-1 应用
 
 ### 8.2 队列 + DLQ
 - [x] done → job pending→…→dead（无 key）
-- [x] 有 key：`--sync` completed + 写页
+- [x] 有 key：`--sync` completed + 写页（DeepSeek 证据）
 - [x] POST retry dead → 再执行
-- [x] dedup（impl-2 已证；本会话 enqueue 路径保留）
+- [x] dedup（impl-2 已证）
 
 ### 8.3 AGENTS.md 桥梁
 - [x] 成功 ingest 后 BEGIN/END MA-WIKI
@@ -135,7 +135,7 @@ MA_WORKSPACE_CWD=<隔离 tmp-s08-e2e-ws>
 - [x] `buildPrompt` 含 wiki snapshot
 
 ### 8.4 CLI
-- [x] health json envelope + exit 0
+- [x] health json envelope + exit 0 — 计划者复测通过
 - [x] 非法参数 exit 5
 - [x] 不存在资源 exit 4
 - [x] ingest 入队；jobs 可见
@@ -144,4 +144,20 @@ MA_WORKSPACE_CWD=<隔离 tmp-s08-e2e-ws>
 - [x] 无 `void ingestIssue`
 - [x] S07 health API 200
 
-- 结论：**留给计划者勾选最终通过**；执行者侧证据已齐，可审 PR。
+### 偏离评估
+
+1. **CLI 不 wake worker** — 正确：独立进程 wake+exit 会卡 `running`；server tick / `--sync` 覆盖需求。HTTP 路径仍 wake。
+2. **Windows UV_HANDLE_CLOSING** — 已知噪音，envelope 内容正确；可后续优雅关库。
+
+### S08 切片总结（impl-1~3）
+
+| impl | 内容 | 结论 |
+|---|---|---|
+| 1 | shared + job 表 + agents-bridge | 通过 |
+| 2 | queue/worker + issues/prompt/jobs | 通过 |
+| 3 | ma wiki CLI + §8 端到端 | 通过 |
+
+**Phase 2 收尾代码层达标，可开 PR 审查合并。**  
+注意：分支基于 S07 衍生；若 main 尚未合 S07，PR 需说明合并顺序（S07→S08 或 mono PR）。
+
+- 结论：**达标可合并**
