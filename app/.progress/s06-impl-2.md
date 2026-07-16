@@ -142,12 +142,31 @@ export WIKI_LLM_MODEL=gpt-4o           # 或实际模型名
 
 > 切片是否达标、能否合并、是否要点亮 FRI-11 路径的某一段。
 
-- [x] typecheck 通过（Task 2.1-2.5 每次 + 最终全绿）
+- [x] typecheck 通过（Task 2.1-2.5 每次 + 最终全绿）— 计划者复核 `pnpm -r typecheck` 确认全绿
 - [x] slug.ts generateSlug 实现（文件名安全 + 保留中文 + 截断）
-- [x] ingest.ts 6 步管线完整（读 issue → raw → LLM → writePage → index/log → WS）
+- [x] ingest.ts 6 步管线完整（读 issue → raw → LLM → writePage → index/log → WS）— 代码逐行核对，顺序正确
 - [x] wiki.ts API 路由（GET pages 列表 + GET pages/:slug，curl 验证 200/404）
-- [x] app.ts + index.ts 接线（wikiRoutes 注册 + ensureWikiDir 启动调用，启动验证 wiki/ 创建）
-- [x] issues.ts PUT 触发（status→done fire-and-forget + catch + log，端到端验证触发链路）
+- [x] app.ts + index.ts 接线（wikiRoutes 注册 line 32 + ensureWikiDir 启动调用 line 12）
+- [x] issues.ts PUT 触发（status→done fire-and-forget + catch + log，line 179-193 确认，端到端验证触发链路）
 - [x] pnpm dev 能跑（server 启动 + wiki/ 创建 + API 响应）
 - [ ] 实际 LLM 生成 wiki 页（未配 key，跳过；impl-3 端到端验收时配 key 验证）
 - [ ] 切片验收标准达成（impl-2 是管线层，完整验收在 impl-3 前端 + 端到端）
+
+### 代码审查要点
+
+1. **ingest.ts comments 查询**（line 40-47）：`orderBy(desc(createdAt)).limit(K).all().reverse()` — 先取最近 K 条再反转为正序，逻辑正确。`toComment(r)` 拿 authorLabel/body/type，未用的 createdAt 也保留（无妨）。
+2. **saveRaw 在 createLlm 之前**（line 55 vs 58）：正确的防御性设计——raw 快照即使 LLM 失败也保存。执行者的 handoff 明确意识到了这一点。
+3. **issues.ts 触发条件**（line 181）：`statusChanged && input.status === 'done'` — 只在 status 真变且目标是 done 时触发。`statusChanged` 在 line 117 算好，`prev` 在 line 99 定义，作用域覆盖到 line 193 的 `prev.identifier`。正确。
+4. **catch 块的 appendLog**（line 186-191）：传 `type: 'ingest-failed'` + `error: String(err)`。store.ts 的 appendLog 对非 'ingest' 类型走 ingest-failed 分支。正确。
+
+### 偏离评估
+
+1. **wiki/ 生成位置（app/packages/server/wiki/ 或 app/wiki/）**：与 impl-1 handoff + 计划者补充注意点 #2 一致。运行时配置问题，非代码 bug。`MA_WORKSPACE_CWD` 配了就在项目根。impl-3 端到端验收时如需可配此变量。
+
+### 给 impl-3 的补充注意点
+
+1. **WS 广播路径已验证通**：`ingest.ts → eventBus.publish → app.ts line 24 eventBus.on(e => wsBroadcaster.broadcast(e)) → 前端 ws.ts`。impl-3 只需在 `ws.ts` 的 `onmessage` 加 `wiki:page-created` 分支。
+2. **用 invalidateQueries 而非 setQueryData**：执行者 handoff 正确指出了这一点——新页 content 要从文件系统 GET，前端无法凭 WS 事件的 slug+title 构造。
+3. **端到端验收需配 WIKI_LLM_* 环境变量**：否则 ingest 会在 createLlm() 抛错（已验证的失败路径）。impl-3 验收时需配 key 才能验证完整生成链路。
+
+- 结论：**impl-2 验收通过**。服务端管线层完整就绪，可进 impl-3（前端 Wiki 浏览器 + 端到端验收）。
