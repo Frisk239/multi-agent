@@ -8,8 +8,8 @@ import { eventBus } from '../orchestration/event-bus.js';
 import { cancelActiveRunsForIssue, enqueueAgentRun, enqueueLeaderRun } from '../orchestration/run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
-import { ingestIssue } from '../wiki/ingest.js';
-import { appendLog } from '../wiki/store.js';
+import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
+import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 
 const WS_ID = 'ws-local';
 
@@ -176,20 +176,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    // S06：Issue 完成（status→done）时触发 Wiki ingest（spec §4.1/§4.5）
-    // fire-and-forget 异步，不阻塞 PUT 响应；失败只 log，不影响 Issue 完成
+    // S08：Issue 完成 → 入队 wiki ingest（spec B9），不再 fire-and-forget 直调
     if (statusChanged && input.status === 'done') {
-      void ingestIssue(id).catch((err) => {
-        console.error('[wiki] ingest 失败:', err);
-        // spec §4.5：失败只记 log，不重试（DLQ 留 S08）
-        // identifier 从 prev 行读（此时 prev 还在作用域）
-        appendLog({
-          type: 'ingest-failed',
-          identifier: prev.identifier,
-          issueId: id,
-          error: String(err),
-        });
-      });
+      const jobId = enqueueWikiIngest(id);
+      if (jobId) wakeWikiIngestWorker();
     }
 
     return reply.send(issue);
