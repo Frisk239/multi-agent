@@ -118,8 +118,18 @@ export function updateAgentsMdBridge(): void; // listWikiPages + readLog → wri
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过
-- [ ] migration 0005 可应用
-- [ ] agents-bridge 导出齐全
-- [ ] 无 worker/CLI 越界
-- 结论：<待计划者填>
+- [x] typecheck 通过 — 计划者复核 `pnpm -r typecheck` 全绿
+- [x] migration 0005 可应用 — SQL + journal idx=5 + snapshot；无尾部空 breakpoint
+- [x] agents-bridge 导出齐全 — BEGIN/END、read/write/update、renderBridgeBody
+- [x] 无 worker/CLI 越界 — 仅契约/表/bridge
+- [x] 基线正确 — 从 `feat/s07-query-health-lint` 切出并写明（S07 未合 main）
+- [x] spike 验证 — 创建 / 不重复 marker / 保留用户前文
+
+### 代码审查要点
+
+1. **marker-pair** 三态（无文件 / 无 marker 追加 / 有 marker 替换）+ 半损坏 begin 无 end — 与 multica 精神一致。
+2. **updateAgentsMdBridge** 用 `listWikiPages` + `readLog`，不写正文 — 符合 B5。
+3. **表字段** status 五态 + fail_count/max_retries=3 + status_created 索引 — 满足 claim/DLQ。
+4. **测试 AGENTS.md** 须隔离 `MA_WORKSPACE_CWD` — handoff 已警告，impl-2 遵守。
+
+- 结论：**impl-1 验收通过**。可进 impl-2（queue/worker + issues/ingest/prompt 接线）。
