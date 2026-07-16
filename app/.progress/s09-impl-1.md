@@ -136,7 +136,18 @@ import { memoryManager } from '../memory/manager.js';
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap / spec §8；impl-1 仅数据层）
-- 结论：<达标合并 / 需返工 / 需追加切片>
+- [x] typecheck 通过 — 计划者复核全绿
+- [x] migration 0006 可应用 — journal idx=6 正确
+- [x] MemoryProvider + SqliteTextProvider(+addRaw) + MemoryManager 导出齐全
+- [x] spike：addCurated → search → prefetchForIssueSync 含 `# Memory Context`
+- [x] 无越界：未改 run-worker / prompt / routes
+- [x] 基线：origin/main（S08 PR #7）合理
+
+### 代码审查要点
+
+1. **prefetchForIssueSync** 失败只 log 返回 null（M7）。
+2. **syncRunCompleted** 先 guard `status==='completed'`，再 fire-and-forget。
+3. **addCurated** duck-type `addRaw`，避免 curated 被 User/Outcome 模板污染。
+4. **tokenize** ASCII + CJK bigram，与计划一致。
+
+- 结论：**impl-1 验收通过**。可进 impl-2（prompt + run-worker + API + 启动）。
