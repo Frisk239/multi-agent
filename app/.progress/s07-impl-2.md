@@ -139,10 +139,18 @@ index.md 含 `- [测试页](query-测试页.md) — query（2026-07-16）`
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过（3 次全绿）
-- [x] query.ts / lint.ts / wiki.ts 路由接线完成
-- [x] curl：health 空返回 / 存回 201 / query 无 key 500 不崩
+- [x] typecheck 通过（3 次全绿）— 计划者复核 `pnpm -r typecheck` 全绿
+- [x] query.ts / lint.ts / wiki.ts 路由接线完成 — 代码核对
+- [x] curl：health 空返回 / 存回 201 / query 无 key 500 不崩 — handoff 证据充分
+- [x] 计划伪代码修正合理：`.map((c) => readWikiPage(c.slug))`、lint 空 wiki 短路
 - [ ] `pnpm dev` 前端端到端（impl-2 未碰前端，由 impl-3 验证）
 - [ ] 切片完整验收（整体在 impl-3）
 
-- 结论：_待计划者填_
+### 代码审查要点
+
+1. **queryWiki Step 2/3**：`candidates` 为 `{slug,title}[]`，map 取 `c.slug` 正确；cap 15 + 截断 1500 与 spec 一致。
+2. **wiki.ts 四端点**：校验用 shared Zod；health 零 LLM；pages 存回 `generateSlug('query', title)` + WS `wiki:page-created`。
+3. **appendLog 约定**：query/health/lint/pages 四条与 impl-1 约定一致。
+4. **偏离**：空 lint 短路、curl 中文 Content-Length 均合理，无返工。
+
+- 结论：**impl-2 验收通过**。服务端 query/lint/API 就绪，可进 impl-3（前端对话框 + health/lint 面板 + 端到端）。
