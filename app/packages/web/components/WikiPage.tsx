@@ -2,13 +2,16 @@
 import { useState } from 'react';
 import { useWikiPages, useWikiPage } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
+import { WikiQueryDialog } from './WikiQueryDialog';
+import { WikiHealthPanel } from './WikiHealthPanel';
 
-// S06 Wiki 浏览器（spec §7.1）
+// S06 Wiki 浏览器（spec §7.1）+ S07 query/health/lint 入口
 // 左侧页面列表 + 右侧 markdown 渲染（复用 S02 MarkdownBody）
 // 照 concepts llm-wiki-pattern.md：Agent 写，人只读
 export function WikiPage() {
   const { data: pages, isFetching } = useWikiPages();
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [showQueryDialog, setShowQueryDialog] = useState(false);
   const { data: currentPage } = useWikiPage(selectedSlug);
 
   return (
@@ -20,7 +23,20 @@ export function WikiPage() {
           </div>
           <div className="page-desc">Issue 完成时自动生成的知识页（LLM 编译式 Wiki）。</div>
         </div>
+        <div className="page-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setShowQueryDialog(true)}
+          >
+            问答
+          </button>
+        </div>
       </div>
+
+      <WikiHealthPanel onSelectPage={setSelectedSlug} />
+
+      {showQueryDialog && <WikiQueryDialog onClose={() => setShowQueryDialog(false)} />}
 
       <div className="wiki-layout">
         {/* 左侧列表 */}
