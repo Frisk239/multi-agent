@@ -351,6 +351,30 @@ export const WikiCliErrorEnvelope = z.object({
 });
 export type WikiCliErrorEnvelope = z.infer<typeof WikiCliErrorEnvelope>;
 
+// —— S09：Memory ——
+export const MemoryItem = z.object({
+  id: BusinessId,
+  scope: z.string(),
+  issueId: BusinessId.nullable(),
+  agentId: BusinessId.nullable(),
+  runId: BusinessId.nullable(),
+  text: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type MemoryItem = z.infer<typeof MemoryItem>;
+
+export const CreateMemoryInput = z.object({
+  text: z.string().min(1),
+  issueId: BusinessId.optional(),
+});
+export type CreateMemoryInput = z.infer<typeof CreateMemoryInput>;
+
+export const MemoryStatus = z.object({
+  provider: z.string().nullable(),
+  available: z.boolean(),
+});
+export type MemoryStatus = z.infer<typeof MemoryStatus>;
+
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({
   type: z.enum([
