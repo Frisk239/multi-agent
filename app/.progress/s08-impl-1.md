@@ -23,7 +23,13 @@ impl-1 边界：**契约 + 表 + 桥梁纯函数**。无 worker、无 CLI、无 
   - `drizzle/meta/0005_snapshot.json` + `_journal.json` idx=5
 - **Task 1.3** `app/packages/server/src/wiki/agents-bridge.ts`（新建）：marker-pair 读写 + `updateAgentsMdBridge`
 
-3 个 commit：`c320931` / `6398ce7` / `21ded53`。
+4 个 commit：`c320931` / `6398ce7` / `21ded53` / `2d306dd`（含本 handoff）。
+
+**Push 状态：** 本地分支 `feat/s08-bridge-queue-cli` 已就绪；`git push origin feat/s08-bridge-queue-cli` **失败**——本机 `http(s).proxy=127.0.0.1:7890` 无服务监听，直连 github.com:443 超时，SSH 公钥未授权。需用户恢复代理/网络后执行：
+
+```bash
+git push -u origin feat/s08-bridge-queue-cli
+```
 
 ## 自测结果
 
