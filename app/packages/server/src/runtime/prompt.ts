@@ -4,6 +4,7 @@ import { issues, comments, agentSkills } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
+import { memoryManager } from '../memory/manager.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
@@ -14,8 +15,10 @@ const K = 20;
 // S04：leader run 时前置三段 briefing（spec §5，S9 决策——我们无 Instructions 层，
 //   briefing 是最高优先级角色指令，逻辑上应先于具体任务）。
 // S05：skill 前置于一切（spec §6.1）——skill 是"执行方法论"，逻辑上先于角色 briefing
-//   和具体任务。拼接顺序：skillBlock + briefing(if leader) + issueBody，
-//   统一用 parts.filter(Boolean).join('\n\n---\n\n')（borrow G-SKILL-INJECT + G-PROMPT-CACHE）。
+//   和具体任务。
+// S08：wiki bridge；S09：memory prefetch。
+// 拼接顺序：skillBlock → wikiBridgeBlock → memoryBlock → briefing(if leader) → issueBody，
+// 统一用 parts.filter(Boolean).join('\n\n---\n\n')（borrow G-SKILL-INJECT + G-PROMPT-CACHE）。
 interface PromptRunContext {
   isLeader: boolean;
   squadId: string | null;
@@ -59,7 +62,7 @@ export function buildPrompt(issueId: string, run?: PromptRunContext): string | n
     }
   }
 
-  // 拼接顺序（S05+S08）：skillBlock + wikiBridgeBlock + briefing(if leader) + issueBody。
+  // 拼接顺序（S05+S08+S09）：skill → wiki → memory → briefing → body。
   // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
@@ -69,6 +72,14 @@ export function buildPrompt(issueId: string, run?: PromptRunContext): string | n
   if (wikiBridge) {
     parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
   }
+
+  // S09：memory prefetch（spec M5）；无命中 / 失败 → null，不留空标题
+  const memoryBlock = memoryManager.prefetchForIssueSync({
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+  });
+  if (memoryBlock) parts.push(memoryBlock);
 
   // S04 briefing 前置（spec §5 S9）
   if (run?.isLeader && run?.squadId) {
