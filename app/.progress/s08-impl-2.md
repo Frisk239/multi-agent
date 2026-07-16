@@ -130,12 +130,22 @@ enqueue same issue twice → first=<uuid>, second=null
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过
-- [ ] 无 key：done → pending/retry → dead + lastError
-- [ ] POST retry：dead → pending 再执行
-- [ ] dedup：同 issue pending/running 不二次入队
-- [ ] issues 无 `void ingestIssue`
-- [ ] prompt 在 managed 存在时含 wiki snapshot
-- [ ] 无 CLI 越界
+- [x] typecheck 通过 — 计划者复核全绿
+- [x] 无 key：done → pending/retry → dead + lastError — handoff curl 证据
+- [x] POST retry：dead → pending 再执行 — 证据充分
+- [x] dedup：同 issue pending/running 不二次入队
+- [x] issues 无 `void ingestIssue` — 已改为 enqueue + wake
+- [x] prompt 在 managed 存在时含 wiki snapshot — skill 后注入
+- [x] 无 CLI 越界
+- [x] worker `busy` 闸 — 合理加强，仍单并发
+- [ ] 有 key completed 全链路 — 留给 impl-3 补
 
-- 结论：（计划者填）
+### 代码审查要点
+
+1. **issues.ts** enqueue + 条件 wake；无 fire-and-forget。
+2. **ingest.ts** 成功末尾 `updateAgentsMdBridge`；注释要求 throw。
+3. **ingest-worker** claim 1 + busy finally 释放；recover on start。
+4. **failWikiIngestJob** failCount 与 maxRetries=3 符合 B7/B8。
+5. **prompt** skill → wiki → briefing → body。
+
+- 结论：**impl-2 验收通过**。可进 impl-3（CLI + 端到端 §8）。
