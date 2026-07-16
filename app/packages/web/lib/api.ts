@@ -13,6 +13,8 @@ import type {
   AgentRun,
   RunMessage,
   RuntimesResponse,
+  WikiPage,
+  WikiPageSummary,
 } from '@ma/shared';
 
 const API = 'http://localhost:3001/api';
@@ -313,5 +315,32 @@ export function useUpdateAgentMcp(agentId: string) {
       qc.invalidateQueries({ queryKey: ['agent-mcp', agentId] });
       qc.invalidateQueries({ queryKey: ['agent', agentId] });
     },
+  });
+}
+
+// —— S06 Wiki hooks ——
+
+// GET /api/wiki/pages —— wiki 页列表（spec §6）
+export function useWikiPages() {
+  return useQuery<WikiPageSummary[]>({
+    queryKey: ['wiki-pages'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/wiki/pages`);
+      if (!res.ok) throw new Error('加载 wiki 失败');
+      return res.json();
+    },
+  });
+}
+
+// GET /api/wiki/pages/:slug —— 单页内容（spec §6）
+export function useWikiPage(slug: string | null) {
+  return useQuery<WikiPage>({
+    queryKey: ['wiki-page', slug],
+    queryFn: async () => {
+      const res = await fetch(`${API}/wiki/pages/${slug}`);
+      if (!res.ok) throw new Error('加载 wiki 页失败');
+      return res.json();
+    },
+    enabled: !!slug,
   });
 }
