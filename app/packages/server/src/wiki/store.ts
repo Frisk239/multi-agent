@@ -82,8 +82,9 @@ export function appendIndex(entry: { slug: string; title: string; identifier: st
 }
 
 // 追加 log（spec §3.3）：append-only，前缀可 grep
+// S07 扩展：从 if/else 改 switch，加 query/health/lint 分支（原 ingest/ingest-failed 行为不变）
 export function appendLog(entry: {
-  type: string; // 'ingest' | 'ingest-failed'
+  type: string; // 'ingest' | 'ingest-failed' | 'query' | 'health' | 'lint'
   identifier: string;
   issueId: string;
   slug?: string;
@@ -92,11 +93,24 @@ export function appendLog(entry: {
   const logPath = join(getWikiDir(), 'log.md');
   const date = new Date().toISOString().slice(0, 10);
   let block: string;
-  if (entry.type === 'ingest') {
-    block = `## [${date}] ingest | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Page: ${entry.slug}.md\n\n`;
-  } else {
-    // ingest-failed
-    block = `## [${date}] ingest-failed | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Error: ${entry.error ?? 'unknown'}\n\n`;
+  switch (entry.type) {
+    case 'ingest':
+      block = `## [${date}] ingest | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Page: ${entry.slug}.md\n\n`;
+      break;
+    case 'ingest-failed':
+      block = `## [${date}] ingest-failed | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Error: ${entry.error ?? 'unknown'}\n\n`;
+      break;
+    case 'query':
+      block = `## [${date}] query | ${entry.identifier}\n- Question stored: ${entry.slug}.md\n\n`;
+      break;
+    case 'health':
+      block = `## [${date}] health | 结构检查\n\n`;
+      break;
+    case 'lint':
+      block = `## [${date}] lint | 语义检查\n\n`;
+      break;
+    default:
+      block = `## [${date}] ${entry.type} | ${entry.identifier}\n\n`;
   }
   if (!existsSync(logPath)) {
     writeFileSync(logPath, '# Wiki Log\n', 'utf-8');
@@ -113,4 +127,28 @@ export function saveRaw(issueId: string, content: string): void {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const filePath = join(rawDir, `issue-${issueId}-${ts}.md`);
   writeFileSync(filePath, content, 'utf-8');
+}
+
+// S07：读 index.md，解析为 [{slug, title}]（spec §4.3）
+// index.md 条目格式（appendIndex 写入）：- [标题](slug.md) — identifier（date）
+export function readIndex(): { slug: string; title: string }[] {
+  const indexPath = join(getWikiDir(), 'index.md');
+  if (!existsSync(indexPath)) return [];
+  const content = readFileSync(indexPath, 'utf-8');
+  const entries: { slug: string; title: string }[] = [];
+  const re = /^-\s+\[([^\]]+)\]\(([^)]+)\)/gm;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    const title = match[1];
+    const slug = match[2].replace(/\.md$/, '');
+    entries.push({ slug, title });
+  }
+  return entries;
+}
+
+// S07：读 log.md 全文（spec §4.3）
+export function readLog(): string {
+  const logPath = join(getWikiDir(), 'log.md');
+  if (!existsSync(logPath)) return '';
+  return readFileSync(logPath, 'utf-8');
 }

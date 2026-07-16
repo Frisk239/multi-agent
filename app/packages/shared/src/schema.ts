@@ -273,6 +273,108 @@ export const WikiPageCreatedEvent = z.object({
 });
 export type WikiPageCreatedEvent = z.infer<typeof WikiPageCreatedEvent>;
 
+// —— S07：Wiki query / health / lint 契约 ——
+
+// query 结果（spec §5.1）
+export const WikiQueryResult = z.object({
+  answer: z.string(),
+  citations: z.array(z.object({
+    slug: z.string(),
+    title: z.string(),
+  })),
+});
+export type WikiQueryResult = z.infer<typeof WikiQueryResult>;
+
+export const WikiQueryInput = z.object({
+  question: z.string().min(1),
+});
+export type WikiQueryInput = z.infer<typeof WikiQueryInput>;
+
+// health 结构检查结果（spec §5.1）
+export const WikiHealthResult = z.object({
+  orphans: z.array(z.object({ slug: z.string(), title: z.string() })),
+  brokenLinks: z.array(z.object({ from: z.string(), to: z.string() })),
+  stubs: z.array(z.object({ slug: z.string(), title: z.string(), bodyChars: z.number() })),
+  total: z.number(),
+});
+export type WikiHealthResult = z.infer<typeof WikiHealthResult>;
+
+// lint 语义检查结果（spec §5.1）
+export const WikiLintResult = z.object({
+  report: z.string(),
+  checkedPages: z.array(z.object({ slug: z.string(), title: z.string() })),
+});
+export type WikiLintResult = z.infer<typeof WikiLintResult>;
+
+// 存回 wiki 页输入（spec §5.1）
+export const CreateWikiPageInput = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+});
+export type CreateWikiPageInput = z.infer<typeof CreateWikiPageInput>;
+
+// —— S08：Wiki ingest job + CLI envelope ——
+export const WikiIngestJobStatus = z.enum([
+  'pending', 'running', 'completed', 'failed', 'dead',
+]);
+export type WikiIngestJobStatus = z.infer<typeof WikiIngestJobStatus>;
+
+export const WikiIngestJob = z.object({
+  id: BusinessId,
+  issueId: BusinessId,
+  status: WikiIngestJobStatus,
+  failCount: z.number().int(),
+  maxRetries: z.number().int(),
+  lastError: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  startedAt: z.string().datetime().nullable(),
+  finishedAt: z.string().datetime().nullable(),
+});
+export type WikiIngestJob = z.infer<typeof WikiIngestJob>;
+
+export const WikiCliEnvelope = z.object({
+  ok: z.literal(true),
+  status: z.enum(['success', 'partial']).default('success'),
+  data: z.unknown().optional(),
+  meta: z.record(z.unknown()).optional(),
+});
+export type WikiCliEnvelope = z.infer<typeof WikiCliEnvelope>;
+
+export const WikiCliErrorEnvelope = z.object({
+  ok: z.literal(false),
+  error: z.object({
+    type: z.string(),
+    message: z.string(),
+    exit_code: z.number().int(),
+  }),
+});
+export type WikiCliErrorEnvelope = z.infer<typeof WikiCliErrorEnvelope>;
+
+// —— S09：Memory ——
+export const MemoryItem = z.object({
+  id: BusinessId,
+  scope: z.string(),
+  issueId: BusinessId.nullable(),
+  agentId: BusinessId.nullable(),
+  runId: BusinessId.nullable(),
+  text: z.string(),
+  createdAt: z.string().datetime(),
+});
+export type MemoryItem = z.infer<typeof MemoryItem>;
+
+export const CreateMemoryInput = z.object({
+  text: z.string().min(1),
+  issueId: BusinessId.optional(),
+});
+export type CreateMemoryInput = z.infer<typeof CreateMemoryInput>;
+
+export const MemoryStatus = z.object({
+  provider: z.string().nullable(),
+  available: z.boolean(),
+});
+export type MemoryStatus = z.infer<typeof MemoryStatus>;
+
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({
   type: z.enum([

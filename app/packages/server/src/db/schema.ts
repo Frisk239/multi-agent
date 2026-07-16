@@ -177,3 +177,44 @@ export const squadMembers = sqliteTable(
     squadIdx: index('idx_squad_member_squad').on(t.squadId),
   }),
 );
+
+// —— wiki_ingest_job（S08：ingest 队列 + DLQ，spec §4）——
+export const wikiIngestJobs = sqliteTable(
+  'wiki_ingest_job',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id').notNull(),
+    status: text('status', {
+      enum: ['pending', 'running', 'completed', 'failed', 'dead'],
+    }).notNull(),
+    failCount: integer('fail_count').notNull().default(0),
+    maxRetries: integer('max_retries').notNull().default(3),
+    lastError: text('last_error'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => ({
+    statusCreatedIdx: index('idx_wiki_ingest_job_status_created').on(t.status, t.createdAt),
+    issueIdx: index('idx_wiki_ingest_job_issue').on(t.issueId),
+  }),
+);
+
+// —— memory_item（S09：可插拔记忆文本存储）——
+export const memoryItems = sqliteTable(
+  'memory_item',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').notNull().default('workspace'),
+    issueId: text('issue_id'),
+    agentId: text('agent_id'),
+    runId: text('run_id'),
+    text: text('text').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    createdIdx: index('idx_memory_item_created').on(t.createdAt),
+    issueIdx: index('idx_memory_item_issue').on(t.issueId),
+  }),
+);

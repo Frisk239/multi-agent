@@ -15,6 +15,10 @@ import type {
   RuntimesResponse,
   WikiPage,
   WikiPageSummary,
+  WikiQueryResult,
+  WikiHealthResult,
+  WikiLintResult,
+  CreateWikiPageInput,
 } from '@ma/shared';
 
 const API = 'http://localhost:3001/api';
@@ -342,5 +346,65 @@ export function useWikiPage(slug: string | null) {
       return res.json();
     },
     enabled: !!slug,
+  });
+}
+
+// —— S07 Wiki query / health / lint / 存回 hooks ——
+
+// POST /api/wiki/query — 问答（spec §5.5）
+export function useWikiQuery() {
+  return useMutation({
+    mutationFn: async (question: string) => {
+      const res = await fetch(`${API}/wiki/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      if (!res.ok) throw new Error('查询失败');
+      return res.json() as Promise<WikiQueryResult>;
+    },
+  });
+}
+
+// GET /api/wiki/health — 结构检查（手动触发，spec §5.5）
+export function useWikiHealth() {
+  return useQuery<WikiHealthResult>({
+    queryKey: ['wiki-health'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/wiki/health`);
+      if (!res.ok) throw new Error('检查失败');
+      return res.json();
+    },
+    enabled: false, // 手动触发（refetch manually）
+  });
+}
+
+// POST /api/wiki/lint — 语义检查（spec §5.5）
+export function useWikiLint() {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API}/wiki/lint`, { method: 'POST' });
+      if (!res.ok) throw new Error('语义检查失败');
+      return res.json() as Promise<WikiLintResult>;
+    },
+  });
+}
+
+// POST /api/wiki/pages — 存回 wiki 页（spec §5.5）
+export function useCreateWikiPage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateWikiPageInput) => {
+      const res = await fetch(`${API}/wiki/pages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('保存失败');
+      return res.json() as Promise<{ slug: string; title: string }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+    },
   });
 }
