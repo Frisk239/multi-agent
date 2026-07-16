@@ -115,7 +115,22 @@ POST /api/wiki/lint 有页 → 500 无 key（不崩）
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap / spec §6）
-- 结论：<达标合并 / 需返工 / 需追加切片>
+- [x] typecheck 通过 — 计划者复核 `pnpm -r typecheck` 全绿
+- [x] `pnpm dev` 能跑 — handoff + Playwright 证据
+- [x] hooks 四件套正确（enabled:false health / invalidate pages）
+- [x] WikiPage 集成问答 + HealthPanel + onSelectPage 跳转
+- [x] 无 key 降级提示、不崩
+- [x] 偏离合理：btn-ghost、暗色 token、跳转回调
+- [ ] 配 key 后 query/lint 成功路径冒烟 — 答辩前建议补一次
+
+### S07 切片总结（impl-1~3）
+
+| impl | 内容 | 结论 |
+|---|---|---|
+| 1 | shared + store + health | 通过 |
+| 2 | query/lint + 4 API | 通过 |
+| 3 | 前端 dialog/panel + 验收 | 通过 |
+
+**代码层达标，可开 PR 审查合并。** 遗留仅 LLM 实配 key 冒烟（与 S06 同类）。
+
+- 结论：**达标可合并**（PR 审查后合 main）。
