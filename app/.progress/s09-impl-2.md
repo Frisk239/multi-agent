@@ -107,12 +107,30 @@ failRun / cancelled 分支无 memory 调用
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过 — impl-2 自测全绿
+- [x] typecheck 通过 — 计划者复核全绿
 - [x] POST memory → GET ?q= 能搜到
 - [x] 有记忆时 buildPrompt 含 `# Memory Context`
-- [x] `rg memoryManager run-worker` 仅 completed 一处
+- [x] `rg memoryManager run-worker` 仅 completed 一处 — 源码 line ~227
 - [x] failed/cancelled 零 memory 调用（脚本 + 源码）
 - [x] issues/wiki 路由仍注册（HTTP 200）
-- [ ] 计划者复核 / PR 审查（待）
+- [x] prompt 顺序 skill → wiki → memory → briefing → body
+- [x] index setExternal(SqliteTextProvider) + initialize
+- [ ] PR 审查（人/新会话）
 
-- 结论：**<待计划者填：达标合并 / 需返工>**
+### 代码审查要点
+
+1. **prompt.ts** 同步 `prefetchForIssueSync`；无命中不推空块。
+2. **run-worker** 在 `run:completed` 后 try/catch 调 sync；cancelled/failed 无引用。
+3. **routes/memory** status/list/POST；app 注册位置合理。
+4. **偏离** addCurated 201 body、curl UTF-8 文件体 — 合理。
+
+### S09 切片总结（impl-1~2）
+
+| impl | 内容 | 结论 |
+|---|---|---|
+| 1 | 契约 + 表 + Provider + Manager | 通过 |
+| 2 | prompt + run-worker + API + 启动 | 通过 |
+
+**Phase 3 第一刀代码层达标，可开 PR 审查合并。**
+
+- 结论：**达标可合并**
