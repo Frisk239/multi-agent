@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { issues, comments, agentSkills } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
+import { readManagedBlock } from '../wiki/agents-bridge.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
@@ -58,10 +59,16 @@ export function buildPrompt(issueId: string, run?: PromptRunContext): string | n
     }
   }
 
-  // 拼接顺序（S05）：skillBlock + briefing(if leader) + issueBody。
+  // 拼接顺序（S05+S08）：skillBlock + wikiBridgeBlock + briefing(if leader) + issueBody。
   // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
+
+  // S08：AGENTS.md managed 块注入（spec §3.5 B6）；空则跳过
+  const wikiBridge = readManagedBlock();
+  if (wikiBridge) {
+    parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
+  }
 
   // S04 briefing 前置（spec §5 S9）
   if (run?.isLeader && run?.squadId) {

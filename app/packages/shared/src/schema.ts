@@ -313,6 +313,44 @@ export const CreateWikiPageInput = z.object({
 });
 export type CreateWikiPageInput = z.infer<typeof CreateWikiPageInput>;
 
+// —— S08：Wiki ingest job + CLI envelope ——
+export const WikiIngestJobStatus = z.enum([
+  'pending', 'running', 'completed', 'failed', 'dead',
+]);
+export type WikiIngestJobStatus = z.infer<typeof WikiIngestJobStatus>;
+
+export const WikiIngestJob = z.object({
+  id: BusinessId,
+  issueId: BusinessId,
+  status: WikiIngestJobStatus,
+  failCount: z.number().int(),
+  maxRetries: z.number().int(),
+  lastError: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  startedAt: z.string().datetime().nullable(),
+  finishedAt: z.string().datetime().nullable(),
+});
+export type WikiIngestJob = z.infer<typeof WikiIngestJob>;
+
+export const WikiCliEnvelope = z.object({
+  ok: z.literal(true),
+  status: z.enum(['success', 'partial']).default('success'),
+  data: z.unknown().optional(),
+  meta: z.record(z.unknown()).optional(),
+});
+export type WikiCliEnvelope = z.infer<typeof WikiCliEnvelope>;
+
+export const WikiCliErrorEnvelope = z.object({
+  ok: z.literal(false),
+  error: z.object({
+    type: z.string(),
+    message: z.string(),
+    exit_code: z.number().int(),
+  }),
+});
+export type WikiCliErrorEnvelope = z.infer<typeof WikiCliErrorEnvelope>;
+
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({
   type: z.enum([
