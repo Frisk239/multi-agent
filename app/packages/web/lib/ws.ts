@@ -82,6 +82,14 @@ export function useWsEvents() {
       }
 
       // S03 run:progress：fire-and-forget，不进 DB 也不进 cache（刷新即丢失，正常）
+
+      // S06 wiki:page-created：invalidate wiki 列表 cache（spec §7.2）
+      // WS 事件由 server 的 ingest pipeline → eventBus → wsBroadcaster 自动广播到前端
+      // 用 invalidateQueries 而非 setQueryData：新页 content 要从文件系统 GET，
+      // 前端无法凭 WS 事件里的 slug+title 构造完整页
+      if (event.type === 'wiki:page-created') {
+        qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+      }
     };
 
     return () => {
