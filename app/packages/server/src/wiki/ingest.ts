@@ -1,6 +1,6 @@
-// S06 ingest 管线（spec §4.1-4.5）
-// Issue status→done 时触发：读 Issue 内容 → 存 raw → LLM 生成 wiki 页 → 写文件 → 更新 index/log → WS 通知
-// 异步 fire-and-forget，调用方负责 .catch()（spec W7/W8）
+// S06 ingest 管线（spec §4.1-4.5）+ S08 成功后 AGENTS.md 桥梁
+// Issue status→done 入队后由 worker 调用：读 Issue → raw → LLM → 写页 → index/log → WS → updateAgentsMdBridge
+// 失败必须 throw，由 worker catch → failWikiIngestJob 计 failCount（S08 B9/§4.6）
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { issues, comments } from '../db/schema.js';
@@ -9,6 +9,7 @@ import { eventBus } from '../orchestration/event-bus.js';
 import { saveRaw, writeWikiPage, appendIndex, appendLog } from './store.js';
 import { createLlm, buildIngestPrompt, generateWikiPage } from './llm.js';
 import { generateSlug } from './slug.js';
+import { updateAgentsMdBridge } from './agents-bridge.js';
 
 const K = 20; // 最近 K 条 comments（spec §4.4）
 
@@ -28,8 +29,8 @@ function formatSource(
   return parts.join('\n');
 }
 
-// 完整 ingest 管线（spec §4.2）
-// 调用方（issues.ts PUT handler）负责 void ingestIssue(id).catch(...)
+// 完整 ingest 管线（spec §4.2 + S08 §3.4）
+// 失败 throw；成功末尾 updateAgentsMdBridge。重试/状态由 ingest-worker 管。
 export async function ingestIssue(issueId: string): Promise<void> {
   // 1. 读 Issue 内容
   const issueRow = db.select().from(issues).where(eq(issues.id, issueId)).get();
@@ -73,4 +74,7 @@ export async function ingestIssue(issueId: string): Promise<void> {
     slug,
     title: issue.title,
   });
+
+  // 7. S08：更新 AGENTS.md managed 块（spec §3.4）
+  updateAgentsMdBridge();
 }
