@@ -3,6 +3,8 @@ import { startRunWorker } from './orchestration/run-worker.js';
 import { scanSkills } from './skill/scanner.js';
 import { ensureWikiDir } from './wiki/store.js';
 import { startWikiIngestWorker } from './wiki/ingest-worker.js';
+import { memoryManager } from './memory/manager.js';
+import { SqliteTextProvider } from './memory/sqlite-text-provider.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -11,6 +13,9 @@ async function main() {
   scanSkills();
   // S06：确保 wiki/ 目录 + 初始 index.md/log.md 存在（spec §3.7）
   ensureWikiDir();
+  // S09：MemoryProvider 注入（spec M6）
+  memoryManager.setExternal(new SqliteTextProvider());
+  await memoryManager.initialize();
   const app = await buildApp();
   // 启动 RunWorker 轮询（spec §6.2）：listen 前启动，enqueue 时 wake 立即触发
   startRunWorker();

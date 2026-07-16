@@ -1,12 +1,13 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, runMessages, comments, agents } from '../db/schema.js';
+import { agentRuns, runMessages, comments, agents, issues } from '../db/schema.js';
 import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
 import { getBackend } from '../runtime/registry.js';
 import { buildPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
+import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
 
 // RunWorker —— 主进程内的单线程 run 执行循环（spec §6.2，学 multica daemon）。
@@ -214,6 +215,33 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
     );
     eventBus.publish({ type: 'run:completed', run: r });
+
+    // S09：成功 run 才写记忆（失败/取消路径禁止调用）
+    try {
+      const issueRow = db
+        .select()
+        .from(issues)
+        .where(eq(issues.id, runRow.issueId))
+        .get();
+      if (issueRow) {
+        memoryManager.syncRunCompleted({
+          issue: {
+            id: issueRow.id,
+            identifier: issueRow.identifier,
+            title: issueRow.title,
+            description: issueRow.description,
+          },
+          run: {
+            id: runRow.id,
+            agentId: runRow.agentId,
+            status: 'completed',
+          },
+          assistantText: finalText,
+        });
+      }
+    } catch (e) {
+      console.error('[memory] syncRunCompleted 包装失败:', e);
+    }
   } catch (err) {
     clearRunAbort(runRow.id);
     await failRun(runRow.id, String(err));

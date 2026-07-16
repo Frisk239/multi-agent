@@ -200,3 +200,21 @@ export const wikiIngestJobs = sqliteTable(
     issueIdx: index('idx_wiki_ingest_job_issue').on(t.issueId),
   }),
 );
+
+// —— memory_item（S09：可插拔记忆文本存储）——
+export const memoryItems = sqliteTable(
+  'memory_item',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').notNull().default('workspace'),
+    issueId: text('issue_id'),
+    agentId: text('agent_id'),
+    runId: text('run_id'),
+    text: text('text').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    createdIdx: index('idx_memory_item_created').on(t.createdAt),
+    issueIdx: index('idx_memory_item_issue').on(t.issueId),
+  }),
+);
