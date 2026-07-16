@@ -114,3 +114,27 @@ export function saveRaw(issueId: string, content: string): void {
   const filePath = join(rawDir, `issue-${issueId}-${ts}.md`);
   writeFileSync(filePath, content, 'utf-8');
 }
+
+// S07：读 index.md，解析为 [{slug, title}]（spec §4.3）
+// index.md 条目格式（appendIndex 写入）：- [标题](slug.md) — identifier（date）
+export function readIndex(): { slug: string; title: string }[] {
+  const indexPath = join(getWikiDir(), 'index.md');
+  if (!existsSync(indexPath)) return [];
+  const content = readFileSync(indexPath, 'utf-8');
+  const entries: { slug: string; title: string }[] = [];
+  const re = /^-\s+\[([^\]]+)\]\(([^)]+)\)/gm;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    const title = match[1];
+    const slug = match[2].replace(/\.md$/, '');
+    entries.push({ slug, title });
+  }
+  return entries;
+}
+
+// S07：读 log.md 全文（spec §4.3）
+export function readLog(): string {
+  const logPath = join(getWikiDir(), 'log.md');
+  if (!existsSync(logPath)) return '';
+  return readFileSync(logPath, 'utf-8');
+}
