@@ -1479,3 +1479,55 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* ============================================================
+   S06 Wiki 浏览器
+   左列表 + 右渲染，复用 S02 .md-body。
+   变量名对齐 globals.css :root 实际定义（--border / --bg-hover / --bg-active 等）。
+   ============================================================ */
+
+.wiki-layout {
+  display: flex;
+  gap: var(--space-4);
+  min-height: 400px;
+}
+
+.wiki-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.wiki-list-item {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  transition: background 0.15s, color 0.15s;
+}
+
+.wiki-list-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.wiki-list-item.active {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.wiki-content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) 0;
+}
+
