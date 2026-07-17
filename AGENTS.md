@@ -88,12 +88,13 @@
 - ✅ **S06–S08** Wiki + ingest 队列 + AGENTS bridge
 - ✅ **S09–S11** MemoryProvider + pgvector + brain-first UI
 - ✅ **S12** 产品硬化（Chrome + progress + Squad 只读 + 合成 Inbox）
-- ⬅ **补充阶段（当前）** — 补1…补N：可靠性、真 Inbox、Agent/Squad 运营、quick-create、Settings、最小 Autopilot…按需加刀
+- ✅ **补1** 可靠性 + 真 Inbox（PR #12 合 main）— heartbeat/stale/orphan；`inbox_item` 落库；read/archive/角标
+- ⬅ **补充阶段（当前）** — 下一刀建议 **补2**（Agent/Squad 运营 C+D）；仍可按需加补3…；**不前推**后续能力主线
 - ⏸ **后续能力切片** — 补充阶段退出前不前推
 
 **补充阶段真源：** [`docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
 **切片/handoff 约定：** 分支 `feat/bu0N-…`，进度写 `app/.progress/bu0N-*.md`  
-**当前刀：** 补1 — 计划 [`docs/superpowers/plans/2026-07-17-bu01-reliability-inbox.md`](docs/superpowers/plans/2026-07-17-bu01-reliability-inbox.md)；kickoff [`app/.progress/bu01-planner-0.md`](app/.progress/bu01-planner-0.md)  
+**当前刀：** 补1 已合；待命开 **补2** 计划（人下令后再 writing-plans）  
 **计划者会话分工：** 只做计划 / handoff / 验收；**实现由用户另派执行会话**。
 
 ## 不可破坏的约束
