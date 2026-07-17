@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Issue, IssueLabel } from '@ma/shared';
 import { useCreateLabel, useDeleteLabel, useLabels, useSetIssueLabels } from '@/lib/api';
@@ -66,10 +67,18 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
           <span className="text-dim text-sm">未挂标签</span>
         ) : (
           (issue.labels ?? []).map((l) => (
-            <span key={l.id} className="issue-label-chip" style={{ ['--label-color' as string]: l.color }}>
+            <Link
+              key={l.id}
+              href={`/?label=${encodeURIComponent(l.id)}`}
+              className="issue-label-chip issue-label-chip--link"
+              style={{ ['--label-color' as string]: l.color }}
+              title={`看板筛选标签：${l.name}`}
+              data-testid="issue-label-board-link"
+              data-label-id={l.id}
+            >
               <span className="issue-label-dot" />
               {l.name}
-            </span>
+            </Link>
           ))
         )}
       </div>
@@ -89,6 +98,15 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
                 <span className="issue-label-dot" />
                 {l.name}
               </button>
+              <Link
+                href={`/?label=${encodeURIComponent(l.id)}`}
+                className="issue-label-board-btn"
+                title="看板筛选此标签"
+                data-testid="issue-label-catalog-board"
+                data-label-id={l.id}
+              >
+                看板
+              </Link>
               <button
                 type="button"
                 className="issue-label-archive-btn"

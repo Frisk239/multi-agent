@@ -143,15 +143,20 @@ export function IssueCard({
       {(issue.labels ?? []).length > 0 && (
         <div className="issue-card-labels">
           {(issue.labels ?? []).map((l) => (
-            <span
+            <Link
               key={l.id}
-              className="issue-label-chip issue-label-chip--sm"
+              href={`/?label=${encodeURIComponent(l.id)}`}
+              className="issue-label-chip issue-label-chip--sm issue-label-chip--link"
               style={{ ['--label-color' as string]: l.color }}
-              title={l.name}
+              title={`看板筛选：${l.name}`}
+              data-testid="issue-card-label-link"
+              data-label-id={l.id}
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
             >
               <span className="issue-label-dot" />
               {l.name}
-            </span>
+            </Link>
           ))}
         </div>
       )}

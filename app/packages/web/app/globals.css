@@ -4440,3 +4440,24 @@ a.skill-tag--link:hover {
   gap: 8px;
   justify-content: center;
 }
+
+a.issue-label-chip--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+a.issue-label-chip--link:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
+}
+.issue-label-board-btn {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  margin-left: 4px;
+}
+.issue-label-board-btn:hover {
+  text-decoration: underline;
+}
