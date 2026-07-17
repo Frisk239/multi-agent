@@ -222,8 +222,33 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
   };
 }
 
+/** 与 automation-dispatch.computeNextPlannedAt 同语义（避免 reshape↔dispatch 循环依赖） */
+function nextPlannedAtMs(row: AutomationRuleRow, now: number): number | null {
+  if (row.enabled !== 1) return null;
+  if (row.scheduleKind === 'interval_minutes') {
+    const n = row.intervalMinutes;
+    if (n == null || n <= 0) return null;
+    const grid = n * 60_000;
+    return Math.floor(now / grid) * grid + grid;
+  }
+  if (row.scheduleKind === 'daily_at') {
+    const daily = row.dailyTime;
+    if (!daily || !/^\d{2}:\d{2}$/.test(daily)) return null;
+    const [hh, mm] = daily.split(':').map(Number);
+    const d = new Date(now);
+    d.setHours(hh, mm, 0, 0);
+    const today = d.getTime();
+    if (now < today) return today;
+    d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  return null;
+}
+
 // bu05：DB automation_rule → API AutomationRule
+// automation-next-run：附带 nextPlannedAt（计算字段）
 export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
+  const nextMs = nextPlannedAtMs(row, Date.now());
   return {
     id: row.id,
     name: row.name,
@@ -236,6 +261,7 @@ export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
     titleTemplate: row.titleTemplate,
     bodyTemplate: row.bodyTemplate ?? '',
     lastPlannedAt: row.lastPlannedAt == null ? null : new Date(row.lastPlannedAt).toISOString(),
+    nextPlannedAt: nextMs == null ? null : new Date(nextMs).toISOString(),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };

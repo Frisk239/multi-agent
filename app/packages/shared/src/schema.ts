@@ -875,6 +875,8 @@ export const AutomationRule = z.object({
   titleTemplate: z.string(),
   bodyTemplate: z.string(),
   lastPlannedAt: z.string().datetime().nullable(),
+  // automation-next-run：下次计划时刻（只读计算字段；disabled → null）
+  nextPlannedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

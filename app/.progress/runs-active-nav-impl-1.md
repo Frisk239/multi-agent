@@ -34,7 +34,7 @@
 
 ## 偏离 / 债
 
-- 无
+- **push：** 本地已 commit `a3538f2`，`git push origin main` 因 GitHub 443 连接失败未上去（`main` ahead 1）。网络恢复后需 `git push origin main`。
 - 临时 seed run 已删；勿 commit `wiki/` / `*.db`
 
 ## 给下一 Owner

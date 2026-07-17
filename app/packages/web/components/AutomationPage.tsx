@@ -29,6 +29,19 @@ function scheduleLabel(rule: AutomationRule): string {
   return `每天 ${rule.dailyTime ?? '??:??'}`;
 }
 
+function formatPlanned(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '—';
+  return new Date(iso).toLocaleString();
+}
+
+function nextPlanTitle(rule: AutomationRule): string {
+  if (!rule.enabled) return '规则已停用，定时不会触发';
+  if (!rule.nextPlannedAt) return '无法计算下次计划（检查调度配置）';
+  return `下次计划 ${formatPlanned(rule.nextPlannedAt)}`;
+}
+
 function RuleRuns({ ruleId }: { ruleId: string }) {
   const { data: runs, isLoading, isError } = useAutomationRuns(ruleId, 8);
 
@@ -229,7 +242,7 @@ export function AutomationPage() {
             自动化 <span className="count">{rules.length}</span>
           </div>
           <div className="page-desc">
-            按间隔或每日时刻自动建 Issue 并指派；支持立即执行
+            按间隔或每日时刻自动建 Issue 并指派；列表展示下次计划时刻
           </div>
         </div>
         <div className="page-actions">
@@ -404,6 +417,7 @@ export function AutomationPage() {
                 <th>调度</th>
                 <th>指派</th>
                 <th>上次计划</th>
+                <th>下次计划</th>
                 <th />
               </tr>
             </thead>
@@ -411,7 +425,7 @@ export function AutomationPage() {
               const expanded = expandedId === rule.id;
               return (
                 <tbody key={rule.id} className="automation-rule-group">
-                  <tr>
+                  <tr data-testid={`automation-rule-row-${rule.id}`}>
                     <td>
                       <label
                         className="automation-toggle"
@@ -433,17 +447,36 @@ export function AutomationPage() {
                         {rule.titleTemplate}
                       </div>
                     </td>
-                    <td className="text-sm">{scheduleLabel(rule)}</td>
+                    <td
+                      className="text-sm"
+                      title={nextPlanTitle(rule)}
+                      data-testid="automation-schedule-label"
+                    >
+                      {scheduleLabel(rule)}
+                    </td>
                     <td className="text-sm">
                       <span className="automation-assignee-chip">
                         {rule.assigneeType === 'agent' ? '智能体' : '小队'} ·{' '}
                         {assigneeLabel(rule)}
                       </span>
                     </td>
-                    <td className="text-dim text-sm">
-                      {rule.lastPlannedAt
-                        ? new Date(rule.lastPlannedAt).toLocaleString()
-                        : '—'}
+                    <td
+                      className="text-dim text-sm"
+                      data-testid="automation-last-planned"
+                    >
+                      {formatPlanned(rule.lastPlannedAt)}
+                    </td>
+                    <td
+                      className="text-sm"
+                      data-testid="automation-next-planned"
+                      data-next={rule.nextPlannedAt ?? ''}
+                      title={nextPlanTitle(rule)}
+                    >
+                      {rule.enabled ? (
+                        formatPlanned(rule.nextPlannedAt)
+                      ) : (
+                        <span className="text-dim">停用</span>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button
@@ -473,7 +506,7 @@ export function AutomationPage() {
                   </tr>
                   {expanded ? (
                     <tr className="automation-runs-row">
-                      <td colSpan={6}>
+                      <td colSpan={7}>
                         <RuleRuns ruleId={rule.id} />
                       </td>
                     </tr>
@@ -487,7 +520,7 @@ export function AutomationPage() {
 
       <p className="automation-footer text-dim text-sm">
         <Icon name="automation" size={14} className="nav-icon-svg" />{' '}
-        停用后定时 tick 不再触发；「立即执行」仍可用。模板渲染后会附带来源页脚。
+        停用后定时 tick 不再触发，「下次计划」显示停用；「立即执行」仍可用。
       </p>
     </div>
   );

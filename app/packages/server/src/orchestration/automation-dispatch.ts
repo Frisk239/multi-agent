@@ -46,6 +46,46 @@ export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
   return null;
 }
 
+/**
+ * 可读「下次计划」：
+ * - disabled → null
+ * - interval：当前 grid 的下一拍（strictly after now）
+ * - daily_at：今日 HH:mm 若未到，否则明日同刻
+ */
+export function computeNextPlannedAt(
+  rule: {
+    enabled: number | boolean;
+    scheduleKind: 'interval_minutes' | 'daily_at';
+    intervalMinutes: number | null;
+    dailyTime: string | null;
+  },
+  now: number = Date.now(),
+): number | null {
+  const on = rule.enabled === true || rule.enabled === 1;
+  if (!on) return null;
+
+  if (rule.scheduleKind === 'interval_minutes') {
+    const n = rule.intervalMinutes;
+    if (n == null || n <= 0) return null;
+    const grid = n * 60_000;
+    return Math.floor(now / grid) * grid + grid;
+  }
+
+  if (rule.scheduleKind === 'daily_at') {
+    const daily = rule.dailyTime;
+    if (!daily || !/^\d{2}:\d{2}$/.test(daily)) return null;
+    const [hh, mm] = daily.split(':').map(Number);
+    const d = new Date(now);
+    d.setHours(hh, mm, 0, 0);
+    const today = d.getTime();
+    if (now < today) return today;
+    d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+
+  return null;
+}
+
 function isUniqueConflict(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string };
