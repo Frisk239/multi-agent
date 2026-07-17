@@ -279,6 +279,14 @@ export function AutomationPage() {
           </div>
         </div>
         <div className="page-actions">
+          <Link
+            href="/?origin=automation"
+            className="btn-secondary btn-sm"
+            data-testid="automation-to-board-origin"
+            title="看板筛选自动化创建的 Issue"
+          >
+            看板 · 自动化 Issue
+          </Link>
           <button
             type="button"
             className="btn-ghost btn-sm"

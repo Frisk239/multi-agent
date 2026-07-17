@@ -14,6 +14,7 @@
 | cwd 首跑防护 | ✅ | qc/issue gate + settings guide |
 | 小队 run 时间线 + Runs 筛选 | ✅ | squad-runs-timeline / runs-squad-filter |
 | mention / 指派导航 | ✅ | mention-nav / issue-assignee-nav |
+| Issue/看板来源可见与筛选 | ✅ | origin-badge / board+cmdk origin / automation 回链 |
 
 ## 仍弱（非完成态原因）
 
