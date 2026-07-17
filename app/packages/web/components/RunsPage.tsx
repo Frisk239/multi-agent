@@ -62,6 +62,7 @@ function RunActions({ run }: { run: AgentRun }) {
 export function RunsPage() {
   const [status, setStatus] = useState<StatusFilter>('failed');
   const [agentId, setAgentId] = useState('');
+  const [leaderOnly, setLeaderOnly] = useState(false);
   const { data: agents = [] } = useAgents();
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
@@ -75,16 +76,22 @@ export function RunsPage() {
     return m;
   }, [agents]);
 
+  const visibleRuns = useMemo(() => {
+    if (!runs) return runs;
+    if (!leaderOnly) return runs;
+    return runs.filter((r) => r.isLeader);
+  }, [runs, leaderOnly]);
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div>
           <div className="page-title">
             <Icon name="usage" size={18} /> 运行{' '}
-            <span className="count">{runs?.length ?? 0}</span>
+            <span className="count">{visibleRuns?.length ?? 0}</span>
           </div>
           <div className="page-desc">
-            工作区 active / 失败浏览；人工再执行（新 run 行）。学 Multica Rerun，本仓加 /runs 壳。
+            工作区 run 浏览；队长 run 可识别（对齐 Multica leader task 可见性）。
           </div>
         </div>
         <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
@@ -123,6 +130,15 @@ export function RunsPage() {
             ))}
           </select>
         </label>
+        <label className="runs-filter-check">
+          <input
+            type="checkbox"
+            checked={leaderOnly}
+            onChange={(e) => setLeaderOnly(e.target.checked)}
+            aria-label="仅队长 run"
+          />
+          仅队长 run
+        </label>
       </div>
 
       {isLoading ? (
@@ -132,14 +148,14 @@ export function RunsPage() {
           title="加载运行失败"
           description={error instanceof Error ? error.message : '未知错误'}
         />
-      ) : !runs || runs.length === 0 ? (
+      ) : !visibleRuns || visibleRuns.length === 0 ? (
         <EmptyState
           title="没有匹配的运行"
           description="换筛选条件，或先指派/快速派活产生 run。"
         />
       ) : (
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table" data-testid="runs-table">
             <thead>
               <tr>
                 <th>状态</th>
@@ -152,15 +168,27 @@ export function RunsPage() {
               </tr>
             </thead>
             <tbody>
-              {runs.map((r) => {
+              {visibleRuns.map((r) => {
                 const cls =
                   r.status === 'failed' || r.error
                     ? classifyRunFailure(r.error)
                     : null;
                 return (
-                  <tr key={r.id} data-run-status={r.status}>
+                  <tr
+                    key={r.id}
+                    data-run-status={r.status}
+                    data-is-leader={r.isLeader ? '1' : '0'}
+                    data-squad-id={r.squadId ?? ''}
+                  >
                     <td>
-                      <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
+                      <div className="runs-status-cell">
+                        <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
+                        {r.isLeader ? (
+                          <span className="leader-badge runs-leader-badge" title="小队 leader run">
+                            队长
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <Link href={`/agents/${r.agentId}`}>
@@ -168,7 +196,18 @@ export function RunsPage() {
                       </Link>
                     </td>
                     <td>
-                      <code>{r.kind}</code>
+                      <div className="runs-kind-cell">
+                        <code>{r.kind}</code>
+                        {r.squadId ? (
+                          <Link
+                            href={`/squads/${r.squadId}`}
+                            className="runs-squad-link"
+                            title="打开小队"
+                          >
+                            小队
+                          </Link>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       {r.issueId ? (
