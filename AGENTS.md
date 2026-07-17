@@ -89,7 +89,7 @@
 - ✅ 产品原型已验收（`chanpin/`，88 Must REQ 可交互）
 - ✅ **S01–S12** 编排 / 执行 / Wiki / 记忆 / 产品硬化
 - ✅ **补1–4** 可靠性+Inbox · Agent/Squad 运营 · Quick-create · Settings 诊断（PR #12–#15）
-- 🟢 **补5** 最小自动化 — 分支 `feat/bu05-automation`（计划者整刀验收通过，待合 PR）
+- ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ⏸ **后续能力主线** — 补充阶段退出前不前推
 
 **补充阶段进度表：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  

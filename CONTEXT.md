@@ -35,7 +35,8 @@
 ## 当前方位（2026-07-17）
 
 - **已合 main：** S01–S12；补1–4（可靠性/Inbox、运营 CRUD、quick-create、Settings 诊断）  
-- **进行中：** 补5 自动化（`feat/bu05-automation`，计划者已整刀验收，待 PR 合 main）  
+- **已合 main：** 补1–5（含最小自动化 PR #16）
+- **下一刀：** 可选补6 体验债 / Wiki·Memory 打磨，或宣布补充阶段收官  
 - **工作流：** 已弃 superpowers 默认路径；改用 `.zcode/skills` 的 Matt 工程流（见 `AGENTS.md` §工程模式）  
 - **工单：** `.scratch/<feature>/`；跨会话 `/handoff`；实现 `/implement`  
 

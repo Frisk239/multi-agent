@@ -4,8 +4,13 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [ ] PR 审查（建议新会话 `/code-review`）
 - [ ] 人合并 main
 - [ ] 进度表 / CONTEXT 更新补5 已合
+
+
+## Answer
+
+PR #16 已合 main（`a0d772b`）。进度见 phase4b。
