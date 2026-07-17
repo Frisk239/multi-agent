@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useMemoryStatus,
@@ -9,6 +9,13 @@ import {
   useCreateMemory,
   useSettingsStatus,
 } from '@/lib/api';
+
+function inferKind(text: string): 'curated' | 'ambient' | 'other' {
+  const t = text.trim();
+  if (t.startsWith('ambient:') || t.startsWith('[ambient]')) return 'ambient';
+  if (t.startsWith('User:') || t.startsWith('Outcome:')) return 'other';
+  return 'curated';
+}
 
 // S11 /memory + URL ?q= 可分享搜索（日常知识入口）
 function MemoryPageInner() {
@@ -24,6 +31,7 @@ function MemoryPageInner() {
   const create = useCreateMemory();
   const [draft, setDraft] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [copyId, setCopyId] = useState<string | null>(null);
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -43,15 +51,33 @@ function MemoryPageInner() {
     return () => window.clearTimeout(t);
   }, [qDraft, qFromUrl, pathname, router, searchParams]);
 
-  const available = status?.available ?? true;
   const statusLabel = status
     ? status.available
-      ? [status.provider, status.backend].filter(Boolean).join(' / ')
+      ? [status.provider, (status as { backend?: string }).backend]
+          .filter(Boolean)
+          .join(' / ')
       : `${status.provider ?? 'none'}（不可用）`
     : '…';
 
-  const embedOk = settings?.secrets.embeddingConfigured;
+  const embedOk = settings?.secrets?.embeddingConfigured;
   const showUnavailable = status != null && !status.available;
+  const hasQuery = qFromUrl.trim().length > 0;
+
+  const kindCounts = useMemo(() => {
+    const c = { curated: 0, ambient: 0, other: 0 };
+    for (const m of data ?? []) {
+      c[inferKind(m.text)] += 1;
+    }
+    return c;
+  }, [data]);
+
+  function clearSearch() {
+    setQDraft('');
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('q');
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   async function handleCreate() {
     const text = draft.trim();
@@ -68,16 +94,32 @@ function MemoryPageInner() {
     }
   }
 
+  async function copyMemoryId(id: string) {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopyId(id);
+      window.setTimeout(() => setCopyId((cur) => (cur === id ? null : cur)), 1500);
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
-    <div className="page-container">
+    <div className="page-container" data-testid="memory-page">
       <div className="page-header">
         <div>
           <div className="page-title">
             记忆 <span className="count">{data?.length ?? 0}</span>
           </div>
           <div className="page-desc">
-            工作区经验记忆（curated + ambient）。搜索同步 URL（?q=）。provider：{statusLabel}
+            工作区经验记忆（curated + ambient）。搜索同步 URL（?q=）。provider：
+            {statusLabel}
           </div>
+        </div>
+        <div className="page-actions">
+          <Link href="/settings" className="btn-secondary btn-sm">
+            环境诊断
+          </Link>
         </div>
       </div>
 
@@ -105,6 +147,7 @@ function MemoryPageInner() {
           onChange={(e) => setDraft(e.target.value)}
           disabled={create.isPending || showUnavailable}
           aria-label="新记忆内容"
+          data-testid="memory-create-input"
         />
         <div className="memory-create-actions">
           {formError && (
@@ -117,6 +160,7 @@ function MemoryPageInner() {
           <button
             type="button"
             className="btn btn-primary"
+            data-testid="memory-create-submit"
             onClick={() => void handleCreate()}
             disabled={create.isPending || !draft.trim() || showUnavailable}
           >
@@ -125,22 +169,51 @@ function MemoryPageInner() {
         </div>
       </div>
 
-      <div className="table-search">
-        <input
-          type="search"
-          placeholder="搜索记忆…"
-          value={qDraft}
-          onChange={(e) => setQDraft(e.target.value)}
-          disabled={showUnavailable}
-          aria-label="搜索记忆"
-          data-testid="memory-search"
-        />
+      <div className="memory-toolbar">
+        <div className="table-search memory-search-wrap">
+          <input
+            type="search"
+            placeholder="搜索记忆…（同步 ?q=）"
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
+            disabled={showUnavailable}
+            aria-label="搜索记忆"
+            data-testid="memory-search"
+          />
+          {hasQuery || qDraft.trim() ? (
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              data-testid="memory-search-clear"
+              onClick={clearSearch}
+            >
+              清除
+            </button>
+          ) : null}
+        </div>
+        {!showUnavailable && data ? (
+          <div className="memory-kind-summary" data-testid="memory-kind-summary">
+            <span className="memory-kind-chip memory-kind-chip--curated">
+              curated {kindCounts.curated}
+            </span>
+            <span className="memory-kind-chip memory-kind-chip--ambient">
+              ambient {kindCounts.ambient}
+            </span>
+            {kindCounts.other > 0 ? (
+              <span className="memory-kind-chip">other {kindCounts.other}</span>
+            ) : null}
+            {hasQuery ? (
+              <span className="text-dim text-sm">筛选「{qFromUrl.trim()}」</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="data-table-wrap">
         <table className="data-table" data-testid="memory-table">
           <thead>
             <tr>
+              <th>类型</th>
               <th>内容</th>
               <th>Issue</th>
               <th>时间</th>
@@ -150,7 +223,7 @@ function MemoryPageInner() {
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
                   {error instanceof Error ? error.message : '加载失败'}
                   {' · '}
                   <Link href="/settings">打开设置诊断</Link>
@@ -158,36 +231,55 @@ function MemoryPageInner() {
               </tr>
             )}
             {!isError &&
-              data?.map((m) => (
-                <tr key={m.id} data-memory-id={m.id}>
-                  <td>
-                    <div className="memory-text">{m.text}</div>
-                  </td>
-                  <td className="text-dim text-sm">
-                    {m.issueId ? (
-                      <Link href={`/issues/${m.issueId}`}>
-                        <code>{m.issueId.slice(0, 8)}…</code>
-                      </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="text-dim text-sm">
-                    {m.createdAt ? new Date(m.createdAt).toLocaleString() : '—'}
-                  </td>
-                  <td className="text-dim text-sm">
-                    <code title={m.id}>{m.id.slice(0, 8)}…</code>
-                  </td>
-                </tr>
-              ))}
+              data?.map((m) => {
+                const kind = inferKind(m.text);
+                return (
+                  <tr key={m.id} data-memory-id={m.id} data-memory-kind={kind}>
+                    <td>
+                      <span
+                        className={`memory-kind-chip memory-kind-chip--${kind}`}
+                        data-testid="memory-kind"
+                      >
+                        {kind}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="memory-text">{m.text}</div>
+                    </td>
+                    <td className="text-dim text-sm">
+                      {m.issueId ? (
+                        <Link href={`/issues/${m.issueId}`}>
+                          <code>{m.issueId.slice(0, 8)}…</code>
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="text-dim text-sm">
+                      {m.createdAt ? new Date(m.createdAt).toLocaleString() : '—'}
+                    </td>
+                    <td className="text-dim text-sm">
+                      <button
+                        type="button"
+                        className="memory-id-copy"
+                        title={m.id}
+                        data-testid="memory-copy-id"
+                        onClick={() => void copyMemoryId(m.id)}
+                      >
+                        <code>{copyId === m.id ? '已复制' : `${m.id.slice(0, 8)}…`}</code>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             {!isError && data && data.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
                   {isFetching
                     ? '加载中…'
                     : showUnavailable
                       ? '记忆不可用，无法列出条目'
-                      : qFromUrl.trim()
+                      : hasQuery
                         ? '没有匹配的记忆'
                         : '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'}
                 </td>
@@ -195,7 +287,7 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
                   加载中…
                 </td>
               </tr>

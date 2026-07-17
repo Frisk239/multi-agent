@@ -2692,6 +2692,78 @@ body {
   max-width: 52rem;
 }
 
+.memory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.memory-search-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  flex: 1 1 240px;
+}
+
+.memory-search-wrap input {
+  flex: 1 1 200px;
+}
+
+.memory-kind-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.memory-kind-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 1px 8px;
+  color: var(--text-muted);
+  background: var(--bg-elevated, transparent);
+  text-transform: lowercase;
+}
+
+.memory-kind-chip--curated {
+  color: #0f7b3a;
+  border-color: color-mix(in srgb, #22c55e 40%, transparent);
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+}
+
+.memory-kind-chip--ambient {
+  color: #1d4ed8;
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+}
+
+.memory-kind-chip--other {
+  color: var(--text-dim);
+}
+
+.memory-id-copy {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.memory-id-copy:hover code {
+  color: var(--accent);
+}
+
 
 /* —— S12 Chrome：toast / empty / cmdk / ws chip —— */
 

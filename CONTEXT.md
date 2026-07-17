@@ -69,10 +69,11 @@
 - **已推：** `agents-list-readiness`（`eb311e1`）  
 - **已推：** `issue-live-progress`（`fc87b9c`）  
 - **已推：** `settings-env-copy`（`5556177`）  
-- **本刀：** `board-live-trace-anchor` — 看板 live 卡锚到 #run-trace  
+- **已推：** `board-live-trace-anchor`（`cc3ebbe`）  
+- **本刀：** `memory-ops-deepen` — 记忆类型汇总/清除搜索/CmdK  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Memory 运营深化；Wiki 健康入口加强  
+- **再下一刀建议：** Wiki 健康入口加强；自动化规则可读性  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

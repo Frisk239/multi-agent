@@ -297,9 +297,14 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               router.push(`/wiki?slug=${encodeURIComponent(p.slug)}`),
           }));
 
-    // 记忆：有查询时提供「在记忆中搜索…」→ /memory?q=
-    const memoryCmds =
-      q.length >= 1
+    // 记忆：有查询时提供搜索；命中关键词时再给「打开记忆页」
+    const memoryKeyword =
+      q &&
+      ['记忆', 'memory', 'mem', '经验'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const memoryCmds = [
+      ...(q.length >= 1
         ? [
             {
               id: 'memory-search',
@@ -310,7 +315,19 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
                 router.push(`/memory?q=${encodeURIComponent(debouncedQ)}`),
             },
           ]
-        : [];
+        : []),
+      ...(memoryKeyword
+        ? [
+            {
+              id: 'memory-open',
+              label: '打开记忆',
+              hint: '/memory',
+              group: '记忆',
+              run: () => router.push('/memory'),
+            },
+          ]
+        : []),
+    ];
 
     // 诊断：关键词命中时置顶一条
     const diagHit =
