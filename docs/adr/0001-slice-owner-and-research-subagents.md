@@ -21,7 +21,7 @@
 2. **取消默认的计划者/执行者双角色**与「计划者禁止写业务代码」铁律。  
 3. **满血 grill 非默认：** 产品刀优先短对齐；grill-with-docs 留给领域/难逆决策。  
 4. **调研默认子代理：** 用户要求调研/对齐参考实现时，派子代理或 `/research` 读 `references/deep` 与 `references/repos`，Owner 只合并**短摘要 + 出处**；禁止为调研在 Owner 窗灌入大段上游源码。  
-5. **偏见隔离**改为：一切 `app/**` 经 PR + **新会话 code-review** 再合 main。  
+5. **偏见隔离**改为：一切 `app/**` 经 **`feat/*` push → CI + code-review（分支 diff）→ 人远程合并**；**不以开 PR 为流程中心**（见 [ADR 0002](./0002-push-triggered-review-remote-merge.md)）。  
 6. 多会话拆分仅因 **切片厚度 / 窗口**，不因角色名。
 
 ## Consequences
@@ -35,7 +35,7 @@
 ### Negative / Trade-offs
 
 - Owner 会话若既深 grill 又实现，仍可能糊；需纪律：**调研外包、grill 宜短**。  
-- 失去「计划者从不看自己写的代码」的弱保证——用 code-review 会话补。  
+- 失去「计划者从不看自己写的代码」的弱保证——用 **push 后分支 code-review + CI** 补。  
 - 历史 handoff / 文档仍出现计划者/执行者字样；以本 ADR + `AGENTS.md` 为准。
 
 ### 不改变
@@ -48,5 +48,5 @@
 | 方案 | 为何未选 |
 |---|---|
 | 保留双角色但缩短 grill | grill 深度由 skill 结构决定，难稳定压到「轻 brainstorm」 |
-| 一切片多会话但保留计划者验收 | 仍付角色切换税；与单人 PR review 重复 |
+| 一切片多会话但保留计划者验收 | 仍付角色切换税；与 push 后分支 review 重复 |
 | Owner 窗内联通读 upstream | 与「省上下文」目标相反 |

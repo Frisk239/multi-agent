@@ -35,13 +35,14 @@
 - 若还要对齐上游细节 → **派调研子代理**，Owner 只吃摘要。
 
 ```
-读 AGENTS.md + CONTEXT.md + ADR 0001
+读 AGENTS.md + CONTEXT.md + ADR 0001/0002 + docs/agents/merge.md
 + .scratch/run-observability/spec.md
 + issues/01…（frontier）
 → /implement
 → typecheck + smoke 证据
-→ push feat/run-observability
-→ 人开 PR → 新会话 /code-review
+→ git push -u origin HEAD   # feat/run-observability；不要停在「请开 PR」
+→ 自动 CI + /code-review（origin/main...HEAD）
+→ 人：远程合并进 main
 ```
 
 ## 注意点

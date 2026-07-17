@@ -1,7 +1,7 @@
 # Issue tracker: Local Markdown（本仓）
 
 Issues 与 specs（PRD）以 markdown 落在仓库 `.scratch/` 下。  
-**GitHub** 仍只用于 **PR 审查与合并**（`feat/*` → `main`），不当作日常工单真源——避免 `gh` 鉴权/代理阻断阻塞 AFK 执行。
+**GitHub** 用于 **分支托管 · CI · 远程合并**（`feat/*` push → 检查 → 人合 `main`），**不是**日常工单真源，也**不以开 PR 为必做步骤**——见 [merge.md](./merge.md)。
 
 ## 约定
 
@@ -38,6 +38,8 @@ Issues 与 specs（PRD）以 markdown 落在仓库 `.scratch/` 下。
 | `docs/superpowers/plans/*.md` | 由 **tickets + implement** 替代；旧 plan 仅参考 |
 | `app/.progress/*-impl-*.md` | 可选会话笔记；**不**再作为工单真源。跨会话优先 ticket 正文 + `/handoff` |
 
-## PR 作为请求面
+## 远程合并 vs 工单
 
-**关闭**（默认 off）。外部 PR 不进入 triage 队列。
+- 工单真源：始终 `.scratch/`。  
+- 合码：见 [merge.md](./merge.md)（push 触发审查，人远程合并）。  
+- 外部/陌生人 PR 请求面：**关闭**（默认 off），不进 triage 队列。
