@@ -7,6 +7,7 @@ import {
   useArchiveInbox,
   useInbox,
   useMarkInboxRead,
+  useRetryRun,
 } from '@/lib/api';
 import type { InboxItem } from '@ma/shared';
 import { EmptyState } from './EmptyState';
@@ -94,6 +95,42 @@ function primaryHrefForItem(item: InboxItem): string | null {
 // 兼容旧名
 function hrefForItem(item: InboxItem): string | null {
   return primaryHrefForItem(item);
+}
+
+function isFailItem(item: InboxItem): boolean {
+  return item.kind === 'run_failed' || item.type === 'run_failed';
+}
+
+function isCwdFailBody(text: string | null | undefined): boolean {
+  const e = (text ?? '').toLowerCase();
+  return e.includes('cwd') || e.includes('ma_workspace_cwd') || e.includes('工作目录');
+}
+
+function InboxRetryButton({
+  item,
+  onDone,
+}: {
+  item: InboxItem;
+  onDone?: () => void;
+}) {
+  const retry = useRetryRun();
+  if (!item.runId || !isFailItem(item)) return null;
+  return (
+    <button
+      type="button"
+      className="inbox-action-btn inbox-action-btn--primary"
+      data-testid="inbox-retry-run"
+      data-run-id={item.runId}
+      disabled={retry.isPending}
+      onClick={() => {
+        retry.mutate(item.runId!, {
+          onSuccess: () => onDone?.(),
+        });
+      }}
+    >
+      {retry.isPending ? '排队中…' : '再执行'}
+    </button>
+  );
 }
 
 // bu01 + inbox-filter-url：真 Inbox + 未读/类型 URL 可分享
@@ -233,6 +270,14 @@ function InboxPageInner() {
             >
               失败运行
             </Link>
+            <Link
+              href="/settings"
+              className="inbox-action-btn inbox-action-link"
+              data-testid="inbox-fail-settings-strip"
+              title="常见原因：MA_WORKSPACE_CWD"
+            >
+              环境
+            </Link>
           </div>
         </div>
       ) : null}
@@ -343,6 +388,27 @@ function InboxPageInner() {
                   </time>
                 </button>
                 <div className="inbox-actions">
+                  {isFailItem(item) && item.runId ? (
+                    <InboxRetryButton
+                      item={item}
+                      onDone={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    />
+                  ) : null}
+                  {isFailItem(item) && isCwdFailBody(item.body ?? item.summary) ? (
+                    <Link
+                      href="/settings"
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-fail-settings"
+                      title="失败信息像 cwd 问题"
+                      onClick={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    >
+                      环境
+                    </Link>
+                  ) : null}
                   {!item.read && (
                     <button
                       type="button"
