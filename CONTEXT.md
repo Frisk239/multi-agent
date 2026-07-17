@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `wiki-jobs-url-filter`（`09090d3`）  
-- **本刀：** `wiki-dead-entry` — dead job 入口 + 标签 toast 看板  
+- **已推：** `wiki-dead-entry`（`375e53c`）  
+- **本刀：** `sidebar-wiki-dead-badge` — 侧栏 Wiki dead 角标  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  

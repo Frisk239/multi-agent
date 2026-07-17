@@ -8,6 +8,7 @@ import {
   useInboxUnreadCount,
   useIssues,
   useRunsActiveCount,
+  useWikiJobs,
 } from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
@@ -62,12 +63,16 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
             ? 'nav-inbox-badge'
             : isRuns
               ? 'nav-runs-badge'
-              : undefined
+              : item.id === 'wiki'
+                ? 'nav-wiki-badge'
+                : undefined
         }
         data-fail={hasFail ? String(item.failBadge) : '0'}
         aria-label={
           isRuns
             ? `${item.badge} 个在途运行`
+            : item.id === 'wiki'
+              ? `${item.badge} 个 dead Wiki 编译任务`
             : hasFail
               ? `${item.badge} 未读，其中 ${item.failBadge} 条失败`
               : `${item.badge} 未读`
@@ -75,6 +80,8 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         title={
           isRuns
             ? 'queued + running'
+            : item.id === 'wiki'
+              ? 'Wiki dead 编译任务'
             : hasFail
               ? `含 ${item.failBadge} 条未读失败`
               : undefined
@@ -148,6 +155,7 @@ export function Sidebar() {
   // 轻量：列表里数未读失败，驱动侧栏角标强调（与 Inbox strip 同源数据）
   const { data: inboxData } = useInbox();
   const { data: activeRuns } = useRunsActiveCount();
+  const { data: wikiDeadJobs = [] } = useWikiJobs('dead');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
@@ -188,9 +196,18 @@ export function Sidebar() {
           href: activeCount > 0 ? '/runs?status=active' : '/runs',
         };
       }
+      if (item.id === 'wiki') {
+        const dead = wikiDeadJobs.length;
+        return {
+          ...item,
+          badge: dead,
+          failBadge: dead > 0 ? dead : undefined,
+          href: dead > 0 ? '/wiki?jobStatus=dead' : '/wiki',
+        };
+      }
       return item;
     });
-  }, [inboxUnread?.count, unreadFailCount, activeRuns?.count]);
+  }, [inboxUnread?.count, unreadFailCount, activeRuns?.count, wikiDeadJobs.length]);
 
   const sections = [
     {

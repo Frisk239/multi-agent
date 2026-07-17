@@ -178,6 +178,7 @@ export function useWsEvents() {
       // 前端无法凭 WS 事件里的 slug+title 构造完整页
       if (event.type === 'wiki:page-created') {
         qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+        qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
       }
     };
 
