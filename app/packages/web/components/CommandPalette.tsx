@@ -252,25 +252,34 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       return status;
     };
 
-    const agentCmds = !q
+    const matchedAgents = !q
       ? []
       : agents
           .filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
-          .slice(0, 6)
-          .map((a) => {
-            const rd = readinessMap[a.id];
-            const st = readinessLabel(rd?.status);
-            return {
-              id: `agent-${a.id}`,
-              label: a.name,
-              hint: `${st} · ${a.runtime}`,
-              group: '智能体',
-              run: () => router.push(`/agents/${a.id}`),
-            };
-          });
+          .slice(0, 6);
+    const agentCmds = matchedAgents.flatMap((a) => {
+      const rd = readinessMap[a.id];
+      const st = readinessLabel(rd?.status);
+      return [
+        {
+          id: `agent-${a.id}`,
+          label: a.name,
+          hint: `${st} · ${a.runtime}`,
+          group: '智能体',
+          run: () => router.push(`/agents/${a.id}`),
+        },
+        {
+          id: `agent-board-${a.id}`,
+          label: `看板：${a.name}`,
+          hint: `/?assignee=agent:${a.id}`,
+          group: '看板',
+          run: () => router.push(`/?assignee=agent:${encodeURIComponent(a.id)}`),
+        },
+      ];
+    });
 
     // 小队：名/id 匹配 → /squads/:id
-    const squadCmds = !q
+    const matchedSquads = !q
       ? []
       : squads
           .filter(
@@ -280,14 +289,23 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               q === 'squad' ||
               q === '小队',
           )
-          .slice(0, 6)
-          .map((s) => ({
-            id: `squad-${s.id}`,
-            label: s.name,
-            hint: `/squads/${s.id}`,
-            group: '小队',
-            run: () => router.push(`/squads/${s.id}`),
-          }));
+          .slice(0, 6);
+    const squadCmds = matchedSquads.flatMap((s) => [
+      {
+        id: `squad-${s.id}`,
+        label: s.name,
+        hint: `/squads/${s.id}`,
+        group: '小队',
+        run: () => router.push(`/squads/${s.id}`),
+      },
+      {
+        id: `squad-board-${s.id}`,
+        label: `看板：${s.name}`,
+        hint: `/?assignee=squad:${s.id}`,
+        group: '看板',
+        run: () => router.push(`/?assignee=squad:${encodeURIComponent(s.id)}`),
+      },
+    ]);
 
     // Wiki：标题/slug 匹配 → /wiki?slug=
     const wikiCmds = !q
