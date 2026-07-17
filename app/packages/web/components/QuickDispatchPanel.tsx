@@ -10,6 +10,8 @@ const API = 'http://localhost:3001/api';
 type QuickDispatchPanelProps = {
   open: boolean;
   onClose: () => void;
+  /** wiki-memory-ops D1：从 /runs 失败 QC 预填 */
+  initialPrompt?: string;
 };
 
 async function pollRunUntilIssueId(
@@ -34,7 +36,11 @@ async function pollRunUntilIssueId(
 }
 
 // bu03：快速派活 — prompt + agent|squad，无标题；侧栏 / Ctrl+K 共用
-export function QuickDispatchPanel({ open, onClose }: QuickDispatchPanelProps) {
+export function QuickDispatchPanel({
+  open,
+  onClose,
+  initialPrompt,
+}: QuickDispatchPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [assigneeValue, setAssigneeValue] = useState('');
   const { data: agents = [] } = useAgents();
@@ -57,8 +63,12 @@ export function QuickDispatchPanel({ open, onClose }: QuickDispatchPanelProps) {
     if (!open) {
       setPrompt('');
       setAssigneeValue('');
+      return;
     }
-  }, [open]);
+    if (initialPrompt?.trim()) {
+      setPrompt(initialPrompt.trim());
+    }
+  }, [open, initialPrompt]);
 
   if (!open) return null;
 

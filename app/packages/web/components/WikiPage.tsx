@@ -4,8 +4,9 @@ import { useWikiPages, useWikiPage } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 import { WikiQueryDialog } from './WikiQueryDialog';
 import { WikiHealthPanel } from './WikiHealthPanel';
+import { WikiJobsPanel } from './WikiJobsPanel';
 
-// S06 Wiki 浏览器（spec §7.1）+ S07 query/health/lint 入口
+// S06 Wiki 浏览器 + S07 query/health/lint + wiki-memory-ops jobs/DLQ
 // 左侧页面列表 + 右侧 markdown 渲染（复用 S02 MarkdownBody）
 // 照 concepts llm-wiki-pattern.md：Agent 写，人只读
 export function WikiPage() {
@@ -21,7 +22,9 @@ export function WikiPage() {
           <div className="page-title">
             Wiki <span className="count">{pages?.length ?? 0}</span>
           </div>
-          <div className="page-desc">Issue 完成时自动生成的知识页（LLM 编译式 Wiki）。</div>
+          <div className="page-desc">
+            Issue 完成时自动生成的知识页（LLM 编译式 Wiki）。失败任务可在下方重试。
+          </div>
         </div>
         <div className="page-actions">
           <button
@@ -34,6 +37,8 @@ export function WikiPage() {
         </div>
       </div>
 
+      <WikiJobsPanel />
+
       <WikiHealthPanel onSelectPage={setSelectedSlug} />
 
       {showQueryDialog && <WikiQueryDialog onClose={() => setShowQueryDialog(false)} />}
@@ -43,7 +48,10 @@ export function WikiPage() {
         <div className="wiki-sidebar">
           {isFetching && !pages && <div className="text-dim">加载中…</div>}
           {pages && pages.length === 0 && (
-            <div className="text-dim">还没有 Wiki 页。完成一个 Issue（拖到 Done）试试。</div>
+            <div className="text-dim">
+              还没有 Wiki 页。完成一个 Issue（拖到 Done）试试。若一直为空，检查上方编译任务是否
+              dead，以及设置页 Wiki LLM 是否就绪。
+            </div>
           )}
           {pages?.map((p) => (
             <button

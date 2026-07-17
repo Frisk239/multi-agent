@@ -39,8 +39,9 @@
 - **已合 main：** S01–S12；补1–5（可靠性/Inbox · 运营 CRUD · quick-create · Settings · 最小自动化 PR #16）  
 - **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
-- **上一刀：** `run-observability`（实现已 push `feat/run-observability`；**人远程合并**）— 交接：`.scratch/run-observability/`、`app/.progress/run-observability-impl-1.md`  
-- **下一刀：** 待人点名；**新 Slice Owner 须先 intake 验收上一刀，再 brainstorm 下一刀**（见 [slice-handoff.md](docs/agents/slice-handoff.md)）  
+- **上一刀 intake：** `run-observability` **有条件通过**（已合 main PR #17）— `app/.progress/run-observability-intake.md`  
+- **本刀进行中：** `wiki-memory-ops`（Wiki/Memory 失败可操作 + D1 轻债）— `.scratch/wiki-memory-ops/`、`app/.progress/wiki-memory-ops-impl-1.md`、`feat/wiki-memory-ops`  
+- **再下一刀：** 待人点名；新 Owner 先 intake 本刀 closeout 再短对齐（见 [slice-handoff.md](docs/agents/slice-handoff.md)）  
 - **工作流：** Slice Owner × 验上一刀 × 调研子代理；合码 push→CI+review→人远程合并。`AGENTS.md` · [workflow](docs/agents/workflow.md) · [merge](docs/agents/merge.md) · ADR 0001/0002  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

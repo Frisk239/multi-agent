@@ -10,15 +10,15 @@
 
 ## Acceptance
 
-- [ ] Sidebar 工作区 + Command palette 可进入 `/runs`  
-- [ ] `/runs` 展示 run 列表：status、agent、issue 链接、kind、error/分类 hint、时间  
-- [ ] 有 `issueId` 的 failed/cancelled：可「再执行」→ 调 retry/rerun API，toast 结果  
-- [ ] 无 `issueId` 的 QC 失败：不显示假 rerun，引导快速派活（可预填 prompt）  
-- [ ] Issue 详情：失败时完整 error + 分类 + 打开 Settings/复制 + Issue 再执行  
-- [ ] Inbox `run_failed`：点击进入 issue（或无 issue 时可读说明）  
-- [ ] Agent 详情 Runs：失败可读；有 issue 可再执行  
-- [ ] typecheck 绿；手验或 playwright-cli 要点写 Comments  
-- [ ] 不改 dispatch/automation 语义；不 push main
+- [x] Sidebar 工作区 + Command palette 可进入 `/runs`  
+- [x] `/runs` 展示 run 列表：status、agent、issue 链接、kind、error/分类 hint、时间  
+- [x] 有 `issueId` 的 failed/cancelled：可「再执行」→ 调 retry/rerun API，toast 结果  
+- [x] 无 `issueId` 的 QC 失败：不显示假 rerun，引导快速派活（可预填 prompt）  
+- [x] Issue 详情：失败时完整 error + 分类 + 打开 Settings/复制 + Issue 再执行  
+- [x] Inbox `run_failed`：点击进入 issue（或无 issue 时可读说明）  
+- [x] Agent 详情 Runs：失败可读；有 issue 可再执行  
+- [x] typecheck 绿；手验或 playwright-cli 要点写 Comments  
+- [x] 不改 dispatch/automation 语义；不 push main
 
 ## Implementation notes
 

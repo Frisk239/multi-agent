@@ -26,6 +26,7 @@ import type {
   WikiQueryResult,
   WikiHealthResult,
   WikiLintResult,
+  WikiIngestJob,
   CreateWikiPageInput,
   CreateQuickRunInput,
   SettingsStatusResponse,
@@ -716,6 +717,42 @@ export function useWikiLint() {
       if (!res.ok) throw new Error('语义检查失败');
       return res.json() as Promise<WikiLintResult>;
     },
+  });
+}
+
+// GET /api/wiki/jobs — ingest job 列表（wiki-memory-ops）
+export function useWikiJobs(status?: string) {
+  return useQuery<WikiIngestJob[]>({
+    queryKey: ['wiki-jobs', status ?? ''],
+    queryFn: async () => {
+      const sp = new URLSearchParams();
+      if (status) sp.set('status', status);
+      const qs = sp.toString();
+      const res = await fetch(`${API}/wiki/jobs${qs ? `?${qs}` : ''}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载 wiki jobs 失败'));
+      return res.json();
+    },
+    refetchInterval: 8_000,
+  });
+}
+
+// POST /api/wiki/jobs/:id/retry — dead → pending
+export function useRetryWikiJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      const res = await fetch(`${API}/wiki/jobs/${encodeURIComponent(jobId)}/retry`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(await apiError(res, '重试 job 失败'));
+      return res.json() as Promise<WikiIngestJob>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
+      qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+      toastSuccess('已重新排队 Wiki 编译');
+    },
+    onError: (err) => toastError(errMessage(err, '重试 job 失败')),
   });
 }
 

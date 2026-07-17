@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
 import { Sidebar } from '@/components/Sidebar';
 
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers>
           <div className="app-shell">
-            <Sidebar />
+            <Suspense fallback={<aside className="sidebar" aria-label="主导航" />}>
+              <Sidebar />
+            </Suspense>
             <div className="main-column">
               <main className="main-content">{children}</main>
             </div>
