@@ -3870,6 +3870,30 @@ body {
   margin: 0 0 var(--space-2);
 }
 
+.automation-template-preview {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--bg-elevated, #111) 80%, transparent);
+}
+
+.automation-template-preview-label {
+  margin-bottom: 6px;
+}
+
+.automation-template-preview-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.automation-template-preview-body {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text-dim);
+  font-family: inherit;
+}
+
 .automation-template-hint code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type {
-  AutomationRule,
-  AutomationScheduleKind,
-  CreateAutomationRuleInput,
+import {
+  renderAutomationTemplate,
+  type AutomationRule,
+  type AutomationScheduleKind,
+  type CreateAutomationRuleInput,
 } from '@ma/shared';
 import {
   useAgents,
@@ -371,6 +372,26 @@ export function AutomationPage() {
             <code>{'{{iso_time}}'}</code> <code>{'{{rule_name}}'}</code>
             （大小写敏感）
           </p>
+          <div
+            className="automation-template-preview"
+            data-testid="automation-template-preview"
+          >
+            <div className="automation-template-preview-label text-dim text-sm">
+              预览（以当前时刻、规则名渲染）
+            </div>
+            <div className="automation-template-preview-title">
+              {renderAutomationTemplate(titleTemplate || '（空标题）', {
+                plannedAt: Date.now(),
+                ruleName: name.trim() || '新规则',
+              })}
+            </div>
+            <pre className="automation-template-preview-body text-sm">
+              {renderAutomationTemplate(bodyTemplate || '（空描述）', {
+                plannedAt: Date.now(),
+                ruleName: name.trim() || '新规则',
+              })}
+            </pre>
+          </div>
           <div className="ops-form-actions">
             <button
               type="submit"

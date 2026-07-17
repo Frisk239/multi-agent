@@ -1,5 +1,9 @@
 import { and, eq } from 'drizzle-orm';
-import type { AutomationRun, AutomationRunSource } from '@ma/shared';
+import {
+  renderAutomationTemplate,
+  type AutomationRun,
+  type AutomationRunSource,
+} from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents, automationRules, automationRuns, squads } from '../db/schema.js';
 import { toAutomationRun } from '../db/reshape.js';
@@ -8,19 +12,12 @@ import { createIssueCore } from './issue-create.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
+/** @deprecated 请用 @ma/shared renderAutomationTemplate；保留 re-export 兼容 */
 export function renderTemplate(
   tpl: string,
   ctx: { plannedAt: number; ruleName: string },
 ): string {
-  const d = new Date(ctx.plannedAt);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return tpl
-    .replaceAll('{{iso_time}}', d.toISOString())
-    .replaceAll('{{date}}', date)
-    .replaceAll('{{time}}', time)
-    .replaceAll('{{rule_name}}', ctx.ruleName);
+  return renderAutomationTemplate(tpl, ctx);
 }
 
 /** latest_only：interval 对齐当前 grid；daily_at 取今日 HH:mm（本地时区）。 */
@@ -187,11 +184,11 @@ export function dispatchAutomationRule(
     return insertFailedRun(ruleId, plannedAt, source, assigneeErr);
   }
 
-  const title = renderTemplate(rule.titleTemplate, {
+  const title = renderAutomationTemplate(rule.titleTemplate, {
     plannedAt,
     ruleName: rule.name,
   });
-  const bodyBase = renderTemplate(rule.bodyTemplate ?? '', {
+  const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
     plannedAt,
     ruleName: rule.name,
   });
