@@ -4279,3 +4279,13 @@ a.issue-card-origin:hover {
   align-items: stretch;
   gap: 8px;
 }
+
+.kanban-empty-filter {
+  margin: 0 0 var(--space-3);
+}
+.kanban-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}

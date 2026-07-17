@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `roster-board-links`（`d64afbb`）  
-- **本刀：** `cmdk-assignee-board` — CmdK 打开指派看板  
+- **已推：** `cmdk-assignee-board`（`3bdf7d0`）  
+- **本刀：** `board-empty-filter` — 看板筛选空结果 CTA  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  

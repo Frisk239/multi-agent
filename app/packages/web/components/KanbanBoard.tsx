@@ -15,6 +15,7 @@ import {
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
+import { EmptyState } from './EmptyState';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -240,6 +241,14 @@ function KanbanBoardInner() {
   const selectValue = assigneeFromUrl || '';
   const failedCount = failedIssueIds.size;
   const visibleCount = visible.length;
+  const hasActiveFilters = Boolean(
+    qFromUrl.trim() ||
+      labelFilter ||
+      assigneeFromUrl ||
+      priorityQuery ||
+      originQuery ||
+      failedOnly,
+  );
 
   return (
     <div
@@ -364,6 +373,36 @@ function KanbanBoardInner() {
           ))}
         </div>
       </div>
+      {visibleCount === 0 && hasActiveFilters ? (
+        <div className="kanban-empty-filter" data-testid="kanban-empty-filter">
+          <EmptyState
+            title="没有符合筛选的 Issue"
+            description="试试清除筛选，或换到来源 / 指派 / 失败条件。"
+            action={
+              <div className="kanban-empty-actions">
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  data-testid="kanban-clear-filters"
+                  onClick={() => router.replace(pathname, { scroll: false })}
+                >
+                  清除全部筛选
+                </button>
+                {originQuery === 'automation' ? (
+                  <Link href="/automation" className="btn-secondary btn-sm">
+                    打开自动化
+                  </Link>
+                ) : null}
+                {failedOnly ? (
+                  <Link href="/runs?status=failed" className="btn-secondary btn-sm">
+                    失败运行
+                  </Link>
+                ) : null}
+              </div>
+            }
+          />
+        </div>
+      ) : null}
       <div className="kanban-columns">
         {COLUMNS.map((col) => (
           <KanbanColumn
