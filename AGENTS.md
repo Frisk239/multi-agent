@@ -125,7 +125,8 @@ Single-context：`CONTEXT.md` + `docs/adr/`。见 [`docs/agents/domain.md`](docs
 
 ### 工作流路由
 
-idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/workflow.md)。不确定用哪个 skill → **`/ask-matt`**。
+idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/workflow.md)。  
+跨刀 / 产品演进默认用项目 skill **`slice-owner`**（[`.agents/skills/slice-owner`](.agents/skills/slice-owner/SKILL.md)）：先 intake 上一刀再短对齐下一刀。不确定用哪个 Matt skill → **`/ask-matt`**。
 
 ## 工程模式（最高优先级，所有 `app/` 会话必读）
 
