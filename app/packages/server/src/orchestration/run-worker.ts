@@ -1,10 +1,11 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages, comments, agents, issues } from '../db/schema.js';
-import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
+import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
 import { touchRunHeartbeat } from './stale-runs.js';
+import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
 import { buildPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
@@ -220,10 +221,21 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     eventBus.publish({ type: 'comment:created', comment });
     // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
     triggerFromComment(comment);
+    // bu01：agent 终态 comment 也进真 Inbox
+    const issueForComment = db
+      .select()
+      .from(issues)
+      .where(eq(issues.id, runRow.issueId))
+      .get();
+    if (issueForComment) {
+      notifyCommentCreated(comment, toIssue(issueForComment));
+    }
     const r = toAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
     );
     eventBus.publish({ type: 'run:completed', run: r });
+    // bu01：run 终态 → inbox（completed | failed；cancelled 不写）
+    notifyRunTerminal(r);
 
     // S09：成功 run 才写记忆（失败/取消路径禁止调用）
     try {
@@ -277,5 +289,7 @@ async function failRun(runId: string, error: string): Promise<void> {
       db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!,
     );
     eventBus.publish({ type: 'run:failed', run: r });
+    // bu01：失败终态 → inbox
+    notifyRunTerminal(r);
   }
 }

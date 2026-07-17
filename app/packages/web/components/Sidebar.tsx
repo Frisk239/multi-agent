@@ -3,13 +3,20 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { useIssues } from '@/lib/api';
+import { useInboxUnreadCount, useIssues } from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { CommandPalette } from './CommandPalette';
 
-type NavItem = { id: string; label: string; icon: IconName; section: string; href?: string };
+type NavItem = {
+  id: string;
+  label: string;
+  icon: IconName;
+  section: string;
+  href?: string;
+  badge?: number;
+};
 
 // S12：只保留已实现路由（Inbox/Squads 本棒激活）
 const NAV_ITEMS: NavItem[] = [
@@ -24,10 +31,18 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
+  const badge =
+    item.badge != null && item.badge > 0 ? (
+      <span className="nav-badge" aria-label={`${item.badge} 未读`}>
+        {item.badge > 99 ? '99+' : item.badge}
+      </span>
+    ) : null;
+
   const content = (
     <>
       <Icon name={item.icon} size={15} className="nav-icon-svg" />
-      {item.label}
+      <span className="nav-item-label">{item.label}</span>
+      {badge}
     </>
   );
 
@@ -60,6 +75,7 @@ export function Sidebar() {
   const router = useRouter();
   const wsStatus = useWsStore((s) => s.status);
   const { data: issues = [] } = useIssues();
+  const { data: inboxUnread } = useInboxUnreadCount();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   const workingCount = useMemo(
@@ -68,9 +84,24 @@ export function Sidebar() {
     [issues],
   );
 
+  const navItems = useMemo(() => {
+    const unread = inboxUnread?.count ?? 0;
+    return NAV_ITEMS.map((item) =>
+      item.id === 'inbox' ? { ...item, badge: unread } : item,
+    );
+  }, [inboxUnread?.count]);
+
   const sections = [
-    { key: 'workspace', label: '工作区', items: NAV_ITEMS.filter((n) => n.section === 'workspace') },
-    { key: 'config', label: '配置', items: NAV_ITEMS.filter((n) => n.section === 'config') },
+    {
+      key: 'workspace',
+      label: '工作区',
+      items: navItems.filter((n) => n.section === 'workspace'),
+    },
+    {
+      key: 'config',
+      label: '配置',
+      items: navItems.filter((n) => n.section === 'config'),
+    },
   ];
 
   return (

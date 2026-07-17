@@ -103,6 +103,17 @@ export function useWsEvents() {
         ) {
           clearProgress(run.id);
         }
+        // bu01：run 终态可能伴随 inbox 写入，invalidate 角标/列表
+        if (event.type === 'run:completed' || event.type === 'run:failed') {
+          qc.invalidateQueries({ queryKey: ['inbox'] });
+          qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+        }
+      }
+
+      // bu01：真 Inbox 新通知
+      if (event.type === 'inbox:item') {
+        qc.invalidateQueries({ queryKey: ['inbox'] });
+        qc.invalidateQueries({ queryKey: ['inbox-unread'] });
       }
 
       // S03 run:message：按 id 幂等插入 ['run-messages', runId]（spec D12 禁止乐观插，等 WS）

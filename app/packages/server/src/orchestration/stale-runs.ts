@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { agentRuns } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
+import { notifyRunTerminal } from './inbox-writer.js';
 import { hasRunAbort } from './run-control.js';
 
 // bu01 常量（plan 锁定）：2 分钟无 heartbeat → fail；15s 扫一次
@@ -42,7 +43,9 @@ export function failStaleRunningRuns(now = Date.now()): number {
       .run();
     const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
     if (next?.status === 'failed') {
-      eventBus.publish({ type: 'run:failed', run: toAgentRun(next) });
+      const run = toAgentRun(next);
+      eventBus.publish({ type: 'run:failed', run });
+      notifyRunTerminal(run);
       n++;
     }
   }
@@ -69,7 +72,9 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
       .run();
     const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
     if (next?.status === 'failed') {
-      eventBus.publish({ type: 'run:failed', run: toAgentRun(next) });
+      const run = toAgentRun(next);
+      eventBus.publish({ type: 'run:failed', run });
+      notifyRunTerminal(run);
       n++;
     }
   }
