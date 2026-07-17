@@ -103,7 +103,17 @@ packages/server typecheck: Done
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过
-- [ ] `pnpm dev` 能跑（本棒未启 web）
-- [x] 片段 A 后端验收（cite + ambient API）达成
-- 结论：片段 A 可交接 impl-2；切片合并待片段 B 完成
+- [x] typecheck 通过 — 计划者在 worktree 复核全绿
+- [ ] `pnpm dev` 全栈 UI — 留给 impl-2
+- [x] 片段 A 后端：cite `[id=…]` + ambient comment/done + status_change 不写 + wiki enqueue 仍在
+- [x] 边界：无前端（符合片段 A）
+
+### 代码审查要点
+
+1. **formatMemoryContextBlock** 导出；async/sync prefetch 共用；有 id 则 `- [id=…]`。
+2. **ambientCapture** fire-and-forget + addRaw；失败不抛。
+3. **comments**：仅 `type=comment && authorType=member`。
+4. **issues done**：wiki enqueue 与 ambient **并列**。
+5. **偏离**：1.1+1.2 合 commit、done 带 description≤500 — 合理。
+
+- 结论：**impl-1 验收通过**。可进 impl-2（/memory UI + 侧栏 + 端到端）。
