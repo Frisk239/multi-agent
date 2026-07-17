@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import type { Issue, Comment, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
+import { classifyRunFailure } from '@ma/shared';
+import { toastError, toastSuccess } from './toast';
 
 // spec §7.4：Zustand 管 WS 连接状态
 interface WsState {
@@ -115,6 +117,37 @@ export function useWsEvents() {
         if (event.type === 'run:completed' || event.type === 'run:failed') {
           qc.invalidateQueries({ queryKey: ['inbox'] });
           qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+        }
+        // live-run-toast：终态轻提示 + 深链
+        if (event.type === 'run:failed') {
+          const cls = classifyRunFailure(run.error);
+          toastError(
+            cls.title + (run.error ? ` · ${run.error.slice(0, 80)}` : ''),
+            {
+              action: cls.settingsHref
+                ? { label: '去处理', href: cls.settingsHref }
+                : run.issueId
+                  ? {
+                      label: '打开 Issue',
+                      href: `/issues/${run.issueId}#run-trace`,
+                    }
+                  : {
+                      label: '运行列表',
+                      href: `/runs?run=${encodeURIComponent(run.id)}&status=failed`,
+                    },
+              durationMs: 8000,
+            },
+          );
+        } else if (event.type === 'run:completed') {
+          toastSuccess(`运行完成 · ${run.id.slice(0, 8)}…`, {
+            action: run.issueId
+              ? { label: '打开 Issue', href: `/issues/${run.issueId}` }
+              : {
+                  label: '查看运行',
+                  href: `/runs?run=${encodeURIComponent(run.id)}&status=completed`,
+                },
+            durationMs: 5000,
+          });
         }
       }
 

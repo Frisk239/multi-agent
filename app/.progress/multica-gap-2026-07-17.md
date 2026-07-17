@@ -19,6 +19,7 @@
 | 指派/名单回链看板 | ✅ | assignee/roster/cmdk board links |
 | 记忆 kind URL 筛选 | ✅ | memory-kind-filter + cmdk |
 | 操作成功 toast 深链 | ✅ | qc/ops/retry toast nav |
+| WS 终态 toast 深链 | ✅ | live-run-toast |
 
 ## 仍弱（非完成态原因）
 
