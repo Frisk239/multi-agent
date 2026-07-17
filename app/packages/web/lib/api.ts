@@ -599,7 +599,13 @@ export function useCancelRun() {
       qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       qc.invalidateQueries({ queryKey: ['runs-active-count'] });
-      toastSuccess('已请求停止运行');
+      toastSuccess('已请求停止运行', {
+        action: {
+          label: '查看运行',
+          href: `/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status || 'cancelled')}`,
+        },
+        durationMs: 7000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '取消失败')),
   });
@@ -664,7 +670,10 @@ export function useCreateAgent() {
     onSuccess: (agent) => {
       qc.invalidateQueries({ queryKey: ['agents'] });
       qc.setQueryData(['agent', agent.id], agent);
-      toastSuccess(`已创建 ${agent.name}`);
+      toastSuccess(`已创建 ${agent.name}`, {
+        action: { label: '打开', href: `/agents/${agent.id}` },
+        durationMs: 6000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '创建智能体失败')),
   });
@@ -778,7 +787,10 @@ export function useCreateSquad() {
     onSuccess: (squad) => {
       qc.invalidateQueries({ queryKey: ['squads'] });
       qc.setQueryData(['squad', squad.id], squad);
-      toastSuccess(`已创建 ${squad.name}`);
+      toastSuccess(`已创建 ${squad.name}`, {
+        action: { label: '打开', href: `/squads/${squad.id}` },
+        durationMs: 6000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '创建小队失败')),
   });
