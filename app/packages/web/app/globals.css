@@ -251,6 +251,15 @@ body {
   text-align: center;
 }
 
+.nav-badge--fail {
+  background: color-mix(in srgb, #ef4444 92%, #7f1d1d);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ef4444 50%, transparent);
+}
+
+.nav-item--has-fail .nav-item-label {
+  color: color-mix(in srgb, #ef4444 55%, var(--text));
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: var(--space-3);

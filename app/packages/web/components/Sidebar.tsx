@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { useInboxUnreadCount, useIssues } from '@/lib/api';
+import { useInbox, useInboxUnreadCount, useIssues } from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
@@ -17,6 +17,8 @@ type NavItem = {
   section: string;
   href?: string;
   badge?: number;
+  /** 未读失败数：角标强调色 */
+  failBadge?: number;
 };
 
 // S12：已实现路由；run-observability 增加「运行」
@@ -43,9 +45,22 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
+  const hasFail = (item.failBadge ?? 0) > 0;
   const badge =
     item.badge != null && item.badge > 0 ? (
-      <span className="nav-badge" aria-label={`${item.badge} 未读`}>
+      <span
+        className={`nav-badge${hasFail ? ' nav-badge--fail' : ''}`}
+        data-testid={item.id === 'inbox' ? 'nav-inbox-badge' : undefined}
+        data-fail={hasFail ? String(item.failBadge) : '0'}
+        aria-label={
+          hasFail
+            ? `${item.badge} 未读，其中 ${item.failBadge} 条失败`
+            : `${item.badge} 未读`
+        }
+        title={
+          hasFail ? `含 ${item.failBadge} 条未读失败` : undefined
+        }
+      >
         {item.badge > 99 ? '99+' : item.badge}
       </span>
     ) : null;
@@ -62,8 +77,9 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
     return (
       <Link
         href={item.href}
-        className={`nav-item${active ? ' active' : ''}`}
+        className={`nav-item${active ? ' active' : ''}${hasFail ? ' nav-item--has-fail' : ''}`}
         aria-current={active ? 'page' : undefined}
+        data-testid={item.id === 'inbox' ? 'nav-inbox' : undefined}
       >
         {content}
       </Link>
@@ -107,6 +123,8 @@ export function Sidebar() {
   const wsStatus = useWsStore((s) => s.status);
   const { data: issues = [] } = useIssues();
   const { data: inboxUnread } = useInboxUnreadCount();
+  // 轻量：列表里数未读失败，驱动侧栏角标强调（与 Inbox strip 同源数据）
+  const { data: inboxData } = useInbox();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
@@ -126,12 +144,21 @@ export function Sidebar() {
     [issues],
   );
 
+  const unreadFailCount = useMemo(() => {
+    const items = inboxData?.items ?? [];
+    return items.filter(
+      (i) => !i.read && (i.kind === 'run_failed' || i.type === 'run_failed'),
+    ).length;
+  }, [inboxData?.items]);
+
   const navItems = useMemo(() => {
     const unread = inboxUnread?.count ?? 0;
     return NAV_ITEMS.map((item) =>
-      item.id === 'inbox' ? { ...item, badge: unread } : item,
+      item.id === 'inbox'
+        ? { ...item, badge: unread, failBadge: unreadFailCount }
+        : item,
     );
-  }, [inboxUnread?.count]);
+  }, [inboxUnread?.count, unreadFailCount]);
 
   const sections = [
     {

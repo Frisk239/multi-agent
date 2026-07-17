@@ -60,10 +60,11 @@
 - **已推：** `squad-readiness-summary`（`cbbcaeb`）  
 - **已推：** `cmdk-failed-board`（`beb3b83`）  
 - **已推：** `assign-squad-member-readiness`（`6a58b85`）  
-- **本刀：** `inbox-fail-strip` — Inbox 未读失败聚合条  
+- **已推：** `inbox-fail-strip`（`eee76ed`）  
+- **本刀：** `sidebar-inbox-fail-cue` — 侧栏 Inbox 失败角标强调  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 侧栏 Inbox 失败提示；Wiki 最近失败引用  
+- **再下一刀建议：** cwd 缺失全局轻提示；Runs 页与看板失败队列互链加强  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
