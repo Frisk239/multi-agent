@@ -114,7 +114,19 @@ spike ok
 
 ## 验收结论（仅计划者填）
 
-- [ ] typecheck 通过  
-- [ ] `pnpm dev` 能跑  
-- [ ] 切片验收标准达成（见 roadmap / spec §11）  
-- 结论：<达标合并 / 需返工 / 需追加切片>
+- [x] typecheck 通过 — 计划者复核全绿
+- [x] docker-compose + pool + embedder + PgvectorProvider 落地
+- [x] R1–R6 / R11 代码自审 + 假向量 cosine self-retrieve 证据
+- [x] Manager `await Promise.resolve(addRaw)`（R6）
+- [x] 边界：未改 prompt/worker/index/routes
+- [ ] 真实 EMBEDDING_* spike — 环境无 key，允许；impl-2 路径 B 补
+- [ ] 全切片 §11 — 待 impl-2
+
+### 代码审查要点
+
+1. **DDL** `vector(${dims})` 拼字符串；dims 整数校验。
+2. **isAvailable** 需 ready + URL + apiKey；无 key 不会半残写入。
+3. **HNSW** try/catch warn — 符合 R3。
+4. **未接线** index 仍 Sqlite — 预期；impl-2 必须做选择逻辑。
+
+- 结论：**impl-1 验收通过**。可进 impl-2（async prompt + 回退 + API 统一）。
