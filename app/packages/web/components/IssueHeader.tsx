@@ -216,7 +216,32 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             ))}
           </select>
         </label>
-        <span>指派：{issue.assignee?.label ?? '未指派'}</span>
+        <span className="issue-assignee-label">
+          指派：
+          {issue.assignee?.type === 'agent' ? (
+            <Link
+              href={`/agents/${issue.assignee.id}`}
+              className="issue-assignee-link"
+              data-testid="issue-assignee-link"
+              data-assignee-type="agent"
+              data-assignee-id={issue.assignee.id}
+            >
+              {issue.assignee.label}
+            </Link>
+          ) : issue.assignee?.type === 'squad' ? (
+            <Link
+              href={`/squads/${issue.assignee.id}`}
+              className="issue-assignee-link"
+              data-testid="issue-assignee-link"
+              data-assignee-type="squad"
+              data-assignee-id={issue.assignee.id}
+            >
+              {issue.assignee.label}
+            </Link>
+          ) : (
+            <span data-testid="issue-assignee-none">{issue.assignee?.label ?? '未指派'}</span>
+          )}
+        </span>
         <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
       </div>
       <IssueLabelsEditor issue={issue} />

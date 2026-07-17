@@ -752,6 +752,19 @@ body {
   font-size: var(--text-xs);
 }
 
+.issue-card-assignee-link,
+.issue-assignee-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.issue-card-assignee-link:hover,
+.issue-assignee-link:hover {
+  color: var(--accent, #3b82f6);
+  text-decoration: underline;
+}
+
 .issue-card-labels {
   display: flex;
   flex-wrap: wrap;

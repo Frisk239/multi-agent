@@ -146,7 +146,35 @@ export function IssueCard({
             aria-label={readinessTitle(readiness)}
           />
         ) : null}
-        <span>{issue.assignee ? issue.assignee.label : '未指派'}</span>
+        {issue.assignee?.type === 'agent' ? (
+          <Link
+            href={`/agents/${issue.assignee.id}`}
+            className="issue-card-assignee-link"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+            data-testid="issue-card-assignee-link"
+            data-assignee-type="agent"
+            data-assignee-id={issue.assignee.id}
+            title="打开智能体"
+          >
+            {issue.assignee.label}
+          </Link>
+        ) : issue.assignee?.type === 'squad' ? (
+          <Link
+            href={`/squads/${issue.assignee.id}`}
+            className="issue-card-assignee-link"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+            data-testid="issue-card-assignee-link"
+            data-assignee-type="squad"
+            data-assignee-id={issue.assignee.id}
+            title="打开小队"
+          >
+            {issue.assignee.label}
+          </Link>
+        ) : (
+          <span>{issue.assignee ? issue.assignee.label : '未指派'}</span>
+        )}
         {runActive ? (
           <Link
             href={`/issues/${issue.id}#run-trace`}
