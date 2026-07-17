@@ -1,10 +1,11 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { issues, comments, agentSkills, agents } from '../db/schema.js';
+import { issues, comments, agentSkills, agents, agentRuns } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
 import { memoryManager } from '../memory/manager.js';
+import { buildQuickCreatePrompt } from './quick-create-prompt.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
@@ -24,6 +25,44 @@ interface PromptRunContext {
   isLeader: boolean;
   squadId: string | null;
   agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
+}
+
+function serverUrlFromEnv(): string {
+  const fromEnv = process.env.MA_SERVER_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  const port = process.env.PORT ?? '3001';
+  return `http://127.0.0.1:${port}`;
+}
+
+// bu03：按 run.kind 选择 prompt；QC 不走 issue buildPrompt
+export async function resolveRunPrompt(
+  runRow: typeof agentRuns.$inferSelect,
+): Promise<string | null> {
+  const kind = (runRow.kind as 'issue' | 'quick_create') ?? 'issue';
+  if (kind === 'quick_create') {
+    const prompt = runRow.quickPrompt?.trim();
+    if (!prompt) return null;
+    const assigneeType: 'agent' | 'squad' =
+      runRow.isLeader === 1 && runRow.squadId ? 'squad' : 'agent';
+    const assigneeId =
+      assigneeType === 'squad' && runRow.squadId ? runRow.squadId : runRow.agentId;
+    return buildQuickCreatePrompt({
+      prompt,
+      runId: runRow.id,
+      agentId: runRow.agentId,
+      assigneeType,
+      assigneeId,
+      isLeader: runRow.isLeader === 1,
+      squadId: runRow.squadId,
+      serverUrl: serverUrlFromEnv(),
+    });
+  }
+  if (!runRow.issueId) return null;
+  return buildPrompt(runRow.issueId, {
+    isLeader: runRow.isLeader === 1,
+    squadId: runRow.squadId,
+    agentId: runRow.agentId,
+  });
 }
 
 // S10：async buildPrompt，await memory prefetch（pgvector 需 embed）

@@ -8,6 +8,7 @@ import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { CommandPalette } from './CommandPalette';
+import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 type NavItem = {
   id: string;
@@ -78,6 +79,7 @@ export function Sidebar() {
   const { data: issues = [] } = useIssues();
   const { data: inboxUnread } = useInboxUnreadCount();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
 
   const workingCount = useMemo(
     () =>
@@ -156,10 +158,19 @@ export function Sidebar() {
         <button
           type="button"
           className="sidebar-new-issue"
-          onClick={() => router.push('/?new=1')}
+          onClick={() => setQuickDispatchOpen(true)}
         >
           <Icon name="plus" size={14} className="nav-icon-svg" />
-          新建 issue
+          快速派活
+          <span className="kbd-hint">Q</span>
+        </button>
+        <button
+          type="button"
+          className="sidebar-new-issue"
+          onClick={() => router.push('/?new=1')}
+        >
+          <Icon name="issues" size={14} className="nav-icon-svg" />
+          新建 Issue
           <span className="kbd-hint">C</span>
         </button>
       </div>
@@ -189,6 +200,10 @@ export function Sidebar() {
         </button>
       </div>
       <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
+      <QuickDispatchPanel
+        open={quickDispatchOpen}
+        onClose={() => setQuickDispatchOpen(false)}
+      />
     </aside>
   );
 }

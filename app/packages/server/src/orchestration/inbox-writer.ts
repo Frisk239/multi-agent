@@ -119,22 +119,43 @@ export function notifyCommentCreated(comment: Comment, issue: Issue): void {
 
 export function notifyRunTerminal(run: AgentRun): void {
   if (run.status !== 'completed' && run.status !== 'failed') return;
-  const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
-  if (!issue) return;
-  ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'run_watcher');
   const failed = run.status === 'failed';
-  notifyInbox({
-    type: failed ? 'run_failed' : 'run_completed',
-    severity: failed ? 'action_required' : 'info',
-    title: failed
-      ? `Run 失败 · ${issue.identifier}`
-      : `Run 完成 · ${issue.identifier}`,
-    body: run.error ?? null,
-    issueId: issue.id,
-    actorType: 'agent',
-    actorId: run.agentId,
-    dedupeKey: `run:${run.id}:${run.status}`,
-  });
+  // bu03：quick_create 可能尚无 issue（或已 Link）；有 issue 走旧文案，无 issue 走快速派活文案
+  if (run.issueId) {
+    const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
+    if (!issue) return;
+    ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'run_watcher');
+    const isQc = run.kind === 'quick_create';
+    notifyInbox({
+      type: failed ? 'run_failed' : 'run_completed',
+      severity: failed ? 'action_required' : 'info',
+      title: failed
+        ? isQc
+          ? `Run 失败 · 快速派活 · ${issue.identifier}`
+          : `Run 失败 · ${issue.identifier}`
+        : isQc
+          ? `Run 完成 · 快速派活 · ${issue.identifier}`
+          : `Run 完成 · ${issue.identifier}`,
+      body: run.error ?? null,
+      issueId: issue.id,
+      actorType: 'agent',
+      actorId: run.agentId,
+      dedupeKey: `run:${run.id}:${run.status}`,
+    });
+    return;
+  }
+  if (run.kind === 'quick_create') {
+    notifyInbox({
+      type: failed ? 'run_failed' : 'run_completed',
+      severity: failed ? 'action_required' : 'info',
+      title: failed ? 'Run 失败 · 快速派活' : 'Run 完成 · 快速派活',
+      body: run.error ?? null,
+      issueId: null,
+      actorType: 'agent',
+      actorId: run.agentId,
+      dedupeKey: `run:${run.id}:${run.status}`,
+    });
+  }
 }
 
 export function notifyAssigned(issue: Issue): void {

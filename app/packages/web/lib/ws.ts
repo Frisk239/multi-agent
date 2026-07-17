@@ -86,16 +86,21 @@ export function useWsEvents() {
         event.type === 'run:cancelled'
       ) {
         const run: AgentRun = event.run;
-        qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
-          if (!old) return [run];
-          const i = old.findIndex((r) => r.id === run.id);
-          if (i >= 0) {
-            const next = old.slice();
-            next[i] = run;
-            return next;
-          }
-          return [run, ...old];
-        });
+        // bu03：quick_create 可无 issueId，跳过 issue-scoped runs cache
+        if (run.issueId) {
+          qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
+            if (!old) return [run];
+            const i = old.findIndex((r) => r.id === run.id);
+            if (i >= 0) {
+              const next = old.slice();
+              next[i] = run;
+              return next;
+            }
+            return [run, ...old];
+          });
+        }
+        // agent Runs Tab（补2）
+        qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
         if (
           event.type === 'run:completed' ||
           event.type === 'run:failed' ||
