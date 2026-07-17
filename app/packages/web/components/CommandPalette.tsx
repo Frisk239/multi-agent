@@ -305,7 +305,38 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         group: '看板',
         run: () => router.push(`/?assignee=squad:${encodeURIComponent(s.id)}`),
       },
+      {
+        id: `squad-runs-${s.id}`,
+        label: `运行：${s.name}`,
+        hint: `/runs?squad=${s.id}`,
+        group: '运行',
+        run: () => router.push(`/runs?squad=${encodeURIComponent(s.id)}`),
+      },
     ]);
+
+    const squadOpsHit =
+      !q ||
+      ['squad', '小队', '队长', 'leader', '就绪', 'cwd', 'blocked'].some((k) =>
+        q.includes(k.toLowerCase()),
+      );
+    const squadOpsCmds = squadOpsHit
+      ? [
+          {
+            id: 'squads-ready-cwd',
+            label: '小队：队长 cwd 未配置',
+            hint: '/squads?ready=cwd_missing',
+            group: '小队',
+            run: () => router.push('/squads?ready=cwd_missing'),
+          },
+          {
+            id: 'squads-ready-blocked',
+            label: '小队：队长不可用',
+            hint: '/squads?ready=blocked',
+            group: '小队',
+            run: () => router.push('/squads?ready=blocked'),
+          },
+        ]
+      : [];
 
     // Wiki：标题/slug 匹配 → /wiki?slug=
     const wikiCmds = !q
@@ -597,6 +628,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...originCmds,
         ...automationCmds,
         ...issueCmds,
+        ...squadOpsCmds,
         ...squadCmds,
         ...wikiOpsCmds,
         ...wikiCmds,
