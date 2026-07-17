@@ -53,10 +53,11 @@
 - **已推：** `wiki-slug-url`（`d7bbe02`）  
 - **已推：** `cmdk-wiki-memory`（`0b58387`）  
 - **已推：** `cmdk-squad-settings`（`c073750`）  
-- **本刀：** `cmdk-agent-readiness` — CmdK 智能体 readiness + 运行时探测  
+- **已推：** `cmdk-agent-readiness`（`6e8dea8`）  
+- **本刀：** `assign-readiness-fail-diag` — 指派 readiness 提示 + 失败跳诊断/runs  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 指派前 readiness 提示；或 run 失败一键跳诊断  
+- **再下一刀建议：** 看板卡片上轻量就绪；或 Squad 指派 leader 就绪汇总  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

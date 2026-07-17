@@ -74,10 +74,29 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
             {active.error ? <pre className="run-error-pre">{active.error}</pre> : null}
             <div className="run-failure-actions">
               {failure.settingsHref ? (
-                <Link href={failure.settingsHref} className="btn-secondary btn-sm">
+                <Link
+                  href={failure.settingsHref}
+                  className="btn-secondary btn-sm"
+                  data-testid="run-fail-open-diag"
+                >
+                  {failure.settingsHref === '/runtimes' ? '打开运行时' : '打开诊断'}
+                </Link>
+              ) : (
+                <Link
+                  href="/settings"
+                  className="btn-secondary btn-sm"
+                  data-testid="run-fail-open-diag"
+                >
                   打开诊断
                 </Link>
-              ) : null}
+              )}
+              <Link
+                href={`/runs?run=${encodeURIComponent(active.id)}&status=${encodeURIComponent(active.status)}`}
+                className="btn-secondary btn-sm"
+                data-testid="run-fail-open-runs"
+              >
+                在运行列表中查看
+              </Link>
               <button
                 type="button"
                 className="btn-secondary btn-sm"

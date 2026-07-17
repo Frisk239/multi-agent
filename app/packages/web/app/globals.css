@@ -959,6 +959,13 @@ body {
   flex-wrap: wrap;
 }
 
+.assignee-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 12rem;
+}
+
 .assignee-select {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -973,6 +980,29 @@ body {
 
 .assignee-select:focus {
   border-color: var(--accent);
+}
+
+.assignee-readiness-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-orange) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-orange) 30%, transparent);
+}
+
+.assignee-readiness-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.assignee-readiness-links a:hover {
+  text-decoration: underline;
 }
 
 /* —— 运行状态栏 —— */
