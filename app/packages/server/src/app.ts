@@ -10,6 +10,7 @@ import { runtimeRoutes } from './routes/runtimes.js';
 import { wsRoutes } from './routes/ws.js';
 import { wikiRoutes } from './routes/wiki.js';
 import { memoryRoutes } from './routes/memory.js';
+import { inboxRoutes } from './routes/inbox.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 
@@ -32,6 +33,7 @@ export async function buildApp() {
   await app.register(runtimeRoutes);
   await app.register(wikiRoutes);
   await app.register(memoryRoutes);
+  await app.register(inboxRoutes);
   await app.register(wsRoutes);
 
   return app;

@@ -351,6 +351,21 @@ export const WikiCliErrorEnvelope = z.object({
 });
 export type WikiCliErrorEnvelope = z.infer<typeof WikiCliErrorEnvelope>;
 
+// —— S12：Inbox 合成条目（不落库；impl-2 路由消费）——
+export const InboxItemKind = z.enum(['comment', 'run_completed', 'run_failed']);
+export type InboxItemKind = z.infer<typeof InboxItemKind>;
+
+export const InboxItem = z.object({
+  id: z.string(),
+  kind: InboxItemKind,
+  createdAt: z.string().datetime(),
+  issueId: BusinessId,
+  issueIdentifier: z.string().optional(),
+  issueTitle: z.string().optional(),
+  summary: z.string(),
+});
+export type InboxItem = z.infer<typeof InboxItem>;
+
 // —— S09：Memory ——
 export const MemoryItem = z.object({
   id: BusinessId,

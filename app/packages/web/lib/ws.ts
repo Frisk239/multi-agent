@@ -14,10 +14,34 @@ export const useWsStore = create<WsState>((set) => ({
   setStatus: (s) => set({ status: s }),
 }));
 
+// S12：run:progress 短时状态（仅最后一条 / runId，不进 RQ）
+interface RunProgressState {
+  byRunId: Record<string, string>;
+  setProgress: (runId: string, text: string) => void;
+  clearProgress: (runId: string) => void;
+}
+
+export const useRunProgressStore = create<RunProgressState>((set) => ({
+  byRunId: {},
+  setProgress: (runId, text) =>
+    set((s) => ({
+      byRunId: { ...s.byRunId, [runId]: text.slice(0, 200) },
+    })),
+  clearProgress: (runId) =>
+    set((s) => {
+      if (!(runId in s.byRunId)) return s;
+      const next = { ...s.byRunId };
+      delete next[runId];
+      return { byRunId: next };
+    }),
+}));
+
 // S02：issue 列表 + 单条 issue + comments 幂等更新
 export function useWsEvents() {
   const qc = useQueryClient();
   const setStatus = useWsStore((s) => s.setStatus);
+  const setProgress = useRunProgressStore((s) => s.setProgress);
+  const clearProgress = useRunProgressStore((s) => s.clearProgress);
 
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:3001/ws');
@@ -38,7 +62,10 @@ export function useWsEvents() {
           }
           return old.map((i) => (i.id === event.issue.id ? event.issue : i));
         });
-        qc.setQueryData<Issue>(['issue', event.issue.id], event.issue);
+        // B4：issue:created 不预填 ['issue', id]（避免详情半残 cache）；updated 仍同步单条
+        if (event.type === 'issue:updated') {
+          qc.setQueryData<Issue>(['issue', event.issue.id], event.issue);
+        }
       }
 
       if (event.type === 'comment:created') {
@@ -69,6 +96,13 @@ export function useWsEvents() {
           }
           return [run, ...old];
         });
+        if (
+          event.type === 'run:completed' ||
+          event.type === 'run:failed' ||
+          event.type === 'run:cancelled'
+        ) {
+          clearProgress(run.id);
+        }
       }
 
       // S03 run:message：按 id 幂等插入 ['run-messages', runId]（spec D12 禁止乐观插，等 WS）
@@ -81,7 +115,10 @@ export function useWsEvents() {
         });
       }
 
-      // S03 run:progress：fire-and-forget，不进 DB 也不进 cache（刷新即丢失，正常）
+      // S12 run:progress：仅前端短时 map，截断 200
+      if (event.type === 'run:progress') {
+        setProgress(event.runId, event.text);
+      }
 
       // S06 wiki:page-created：invalidate wiki 列表 cache（spec §7.2）
       // WS 事件由 server 的 ingest pipeline → eventBus → wsBroadcaster 自动广播到前端
@@ -96,5 +133,5 @@ export function useWsEvents() {
       mounted = false;
       ws.close();
     };
-  }, [qc, setStatus]);
+  }, [qc, setStatus, setProgress, clearProgress]);
 }

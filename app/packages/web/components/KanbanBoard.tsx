@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import type { Issue, IssueStatus } from '@ma/shared';
+import { Suspense, useState } from 'react';
+import type { IssueStatus } from '@ma/shared';
 import { useIssues, useUpdateIssue } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
@@ -39,7 +39,9 @@ export function KanbanBoard() {
 
   return (
     <div className="kanban-board">
-      <NewIssueForm />
+      <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
+        <NewIssueForm />
+      </Suspense>
       <div className="kanban-columns">
         {COLUMNS.map((col) => (
           <KanbanColumn

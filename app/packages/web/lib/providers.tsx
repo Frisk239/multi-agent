@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { useWsEvents } from './ws';
+import { ToastProvider } from './toast';
 
 function WsMount() {
   useWsEvents(); // 挂载时建立 WS 连接 + 监听
@@ -19,8 +20,10 @@ export function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={qc}>
-      <WsMount />
-      {children}
+      <ToastProvider>
+        <WsMount />
+        {children}
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

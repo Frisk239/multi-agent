@@ -1,5 +1,6 @@
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueCard } from './IssueCard';
+import { EmptyState } from './EmptyState';
 
 interface Props {
   title: string;
@@ -25,9 +26,13 @@ export function KanbanColumn({ title, color, issues, onDragStart, onDrop, status
         <strong>{title}</strong>
         <span className="kanban-column-count">{issues.length}</span>
       </header>
-      {issues.map((iss) => (
-        <IssueCard key={iss.id} issue={iss} onDragStart={onDragStart} />
-      ))}
+      {issues.length === 0 ? (
+        <EmptyState title="暂无 issue" description="拖入或新建" className="empty-state--column" />
+      ) : (
+        issues.map((iss) => (
+          <IssueCard key={iss.id} issue={iss} onDragStart={onDragStart} />
+        ))
+      )}
     </section>
   );
 }

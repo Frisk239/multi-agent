@@ -1,26 +1,26 @@
 'use client';
+
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { useIssues } from '@/lib/api';
+import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
+import { CommandPalette } from './CommandPalette';
 
 type NavItem = { id: string; label: string; icon: IconName; section: string; href?: string };
 
-// 照原型 NAV_ITEMS（app.js:16-29）；S03 只激活 issues/runtime，其余展示但不可点
+// S12：只保留已实现路由（Inbox/Squads 本棒激活）
 const NAV_ITEMS: NavItem[] = [
-  { id: 'inbox', label: '收件箱', icon: 'inbox', section: 'personal' },
-  { id: 'my-issues', label: '我的 issue', icon: 'user', section: 'personal' },
   { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
-  { id: 'projects', label: '项目', icon: 'project', section: 'workspace' },
-  { id: 'automation', label: '自动化', icon: 'automation', section: 'workspace' },
+  { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
+  { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
-  { id: 'squads', label: '小队', icon: 'squad', section: 'workspace' },
-  { id: 'usage', label: '用量', icon: 'usage', section: 'workspace' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },
   { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },
   { id: 'runtime', label: '运行时', icon: 'runtime', section: 'config', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
-  { id: 'settings', label: '设置', icon: 'settings', section: 'config' },
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
@@ -42,7 +42,6 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
       </Link>
     );
   }
-  // 未实现页面：展示但不可点
   return (
     <span className="nav-item nav-item--disabled" aria-disabled="true">
       {content}
@@ -50,10 +49,26 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
+function wsLabel(status: 'connecting' | 'open' | 'closed') {
+  if (status === 'open') return '已连接';
+  if (status === 'connecting') return '连接中';
+  return '已断开';
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const wsStatus = useWsStore((s) => s.status);
+  const { data: issues = [] } = useIssues();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const workingCount = useMemo(
+    () =>
+      issues.filter((i) => i.status === 'in_progress' || i.status === 'in_review').length,
+    [issues],
+  );
+
   const sections = [
-    { key: 'personal', items: NAV_ITEMS.filter((n) => n.section === 'personal') },
     { key: 'workspace', label: '工作区', items: NAV_ITEMS.filter((n) => n.section === 'workspace') },
     { key: 'config', label: '配置', items: NAV_ITEMS.filter((n) => n.section === 'config') },
   ];
@@ -82,13 +97,35 @@ export function Sidebar() {
         </svg>
         <span>Multi-Agent</span>
       </div>
+
+      <div className="sidebar-status-row">
+        <span
+          className={`ws-chip ws-chip--${wsStatus}`}
+          title={`WebSocket ${wsLabel(wsStatus)}`}
+        >
+          <span className="ws-chip-dot" aria-hidden="true" />
+          {wsLabel(wsStatus)}
+        </span>
+        <span className="working-count" title="In Progress / In Review">
+          工作中 {workingCount}
+        </span>
+      </div>
+
       <div className="sidebar-actions">
-        <button type="button" className="sidebar-search" disabled>
+        <button
+          type="button"
+          className="sidebar-search"
+          onClick={() => setPaletteOpen(true)}
+        >
           <Icon name="search" size={14} className="nav-icon-svg" />
           搜索...
           <span className="kbd-hint">Ctrl+K</span>
         </button>
-        <button type="button" className="sidebar-new-issue" disabled>
+        <button
+          type="button"
+          className="sidebar-new-issue"
+          onClick={() => router.push('/?new=1')}
+        >
           <Icon name="plus" size={14} className="nav-icon-svg" />
           新建 issue
           <span className="kbd-hint">C</span>
@@ -119,6 +156,7 @@ export function Sidebar() {
           <Icon name="help" size={16} />
         </button>
       </div>
+      <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
     </aside>
   );
 }

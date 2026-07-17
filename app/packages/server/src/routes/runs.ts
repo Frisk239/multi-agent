@@ -7,10 +7,12 @@ import { cancelRunById } from '../orchestration/run-service.js';
 
 // runs CRUD + cancel（spec §5）。
 export async function runRoutes(app: FastifyInstance) {
-  // GET /api/runs?issueId= —— 列表新→旧
-  app.get('/api/runs', async (req) => {
+  // GET /api/runs?issueId= —— 列表新→旧（B5：无 issueId → 400，禁止全表）
+  app.get('/api/runs', async (req, reply) => {
     const q = req.query as { issueId?: string };
-    if (!q.issueId) return [];
+    if (!q.issueId) {
+      return reply.status(400).send({ error: 'issueId required' });
+    }
     const rows = db
       .select()
       .from(agentRuns)
