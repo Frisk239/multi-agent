@@ -238,7 +238,15 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
             </div>
           </div>
 
-          <div className="profile-section">
+          <div className="profile-section profile-actions-stack">
+            <Link
+              href={`/?assignee=squad:${encodeURIComponent(squadId)}`}
+              className="btn btn-secondary btn-sm"
+              data-testid="squad-to-board-assignee"
+              title="看板筛选指派给本小队的 Issue"
+            >
+              看板 · 本小队 Issue
+            </Link>
             <button
               type="button"
               className="btn btn-ghost btn-sm"

@@ -4272,3 +4272,10 @@ a.issue-card-origin:hover {
   filter: brightness(1.08);
   text-decoration: underline;
 }
+
+.profile-actions-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}

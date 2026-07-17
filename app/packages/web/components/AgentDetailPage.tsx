@@ -162,7 +162,15 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             </div>
           </form>
 
-          <div className="profile-section">
+          <div className="profile-section profile-actions-stack">
+            <Link
+              href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
+              className="btn btn-secondary btn-sm"
+              data-testid="agent-to-board-assignee"
+              title="看板筛选指派给本智能体的 Issue"
+            >
+              看板 · 本智能体 Issue
+            </Link>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
