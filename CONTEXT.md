@@ -77,12 +77,12 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `settings-cwd-guide`（`28aa661`）  
-- **本刀：** `squad-runs-timeline` — 小队详情运行时间线  
+- **已推：** `squad-runs-timeline`（`7858901`）  
+- **本刀：** `automation-fail-counts` — 规则失败次数列  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** automation 规则失败计数；周期再刷差距表  
+- **再下一刀建议：** 刷新 Multica 差距表；Squad 时间线深链 /runs?squad=  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

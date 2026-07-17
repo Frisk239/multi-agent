@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
+import type { AutomationRun } from '@ma/shared';
 import {
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
@@ -33,6 +34,30 @@ function normalizeScheduleFields(input: {
   };
 }
 
+
+function loadRuleStats(ruleId: string): { failCount: number; lastRunStatus: AutomationRun['status'] | null } {
+  const fails = db
+    .select()
+    .from(automationRuns)
+    .where(and(eq(automationRuns.ruleId, ruleId), eq(automationRuns.status, 'failed')))
+    .all();
+  const last = db
+    .select()
+    .from(automationRuns)
+    .where(eq(automationRuns.ruleId, ruleId))
+    .orderBy(desc(automationRuns.createdAt))
+    .limit(1)
+    .all()[0];
+  return {
+    failCount: fails.length,
+    lastRunStatus: last ? (last.status as AutomationRun['status']) : null,
+  };
+}
+
+function ruleWithStats(row: typeof automationRules.$inferSelect) {
+  return toAutomationRule(row, loadRuleStats(row.id));
+}
+
 export async function automationRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/automation/rules
   app.get('/api/automation/rules', async () => {
@@ -41,7 +66,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
       .from(automationRules)
       .orderBy(desc(automationRules.createdAt))
       .all();
-    return rows.map(toAutomationRule);
+    return rows.map(ruleWithStats);
   });
 
   // POST /api/automation/rules
@@ -74,7 +99,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
       .run();
 
     const row = db.select().from(automationRules).where(eq(automationRules.id, id)).get()!;
-    return reply.status(201).send(toAutomationRule(row));
+    return reply.status(201).send(ruleWithStats(row));
   });
 
   // GET /api/automation/rules/:id
@@ -82,7 +107,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
     if (!row) return reply.status(404).send({ error: 'automation rule 不存在' });
-    return toAutomationRule(row);
+    return ruleWithStats(row);
   });
 
   // PATCH /api/automation/rules/:id
@@ -140,7 +165,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
 
     db.update(automationRules).set(updates).where(eq(automationRules.id, id)).run();
     const row = db.select().from(automationRules).where(eq(automationRules.id, id)).get()!;
-    return toAutomationRule(row);
+    return ruleWithStats(row);
   });
 
   // DELETE /api/automation/rules/:id

@@ -879,6 +879,9 @@ export const AutomationRule = z.object({
   lastPlannedAt: z.string().datetime().nullable(),
   // automation-next-run：下次计划时刻（只读计算字段；disabled → null）
   nextPlannedAt: z.string().datetime().nullable(),
+  // automation-fail-counts：执行记录聚合（list/get 附带；无记录为 0/null）
+  failCount: z.number().int().nonnegative().default(0),
+  lastRunStatus: AutomationRunStatus.nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

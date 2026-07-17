@@ -471,6 +471,7 @@ export function AutomationPage() {
                 <th>指派</th>
                 <th>上次计划</th>
                 <th>下次计划</th>
+                <th>执行</th>
                 <th />
               </tr>
             </thead>
@@ -531,6 +532,22 @@ export function AutomationPage() {
                         <span className="text-dim">停用</span>
                       )}
                     </td>
+                    <td className="text-sm" data-testid="automation-run-stats">
+                      {(rule.failCount ?? 0) > 0 ? (
+                        <span
+                          className="automation-fail-count"
+                          data-testid="automation-fail-count"
+                          data-count={String(rule.failCount ?? 0)}
+                          title={`失败 ${rule.failCount} 次 · 最近 ${rule.lastRunStatus ?? '—'}`}
+                        >
+                          失败 {rule.failCount}
+                        </span>
+                      ) : (
+                        <span className="text-dim" data-testid="automation-fail-count" data-count="0">
+                          {rule.lastRunStatus ? `最近 ${rule.lastRunStatus}` : '—'}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button
                         type="button"
@@ -572,7 +589,7 @@ export function AutomationPage() {
                   </tr>
                   {editingId === rule.id ? (
                     <tr className="automation-edit-row">
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div
                           className="automation-edit-panel"
                           data-testid="automation-edit-panel"
@@ -641,7 +658,7 @@ export function AutomationPage() {
                   ) : null}
                   {expanded ? (
                     <tr className="automation-runs-row">
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <RuleRuns ruleId={rule.id} />
                       </td>
                     </tr>

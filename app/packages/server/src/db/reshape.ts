@@ -246,8 +246,11 @@ function nextPlannedAtMs(row: AutomationRuleRow, now: number): number | null {
 }
 
 // bu05：DB automation_rule → API AutomationRule
-// automation-next-run：附带 nextPlannedAt（计算字段）
-export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
+// automation-next-run：附带 nextPlannedAt；automation-fail-counts 由路由层填 fail 聚合
+export function toAutomationRule(
+  row: AutomationRuleRow,
+  stats?: { failCount?: number; lastRunStatus?: AutomationRule['lastRunStatus'] },
+): AutomationRule {
   const nextMs = nextPlannedAtMs(row, Date.now());
   return {
     id: row.id,
@@ -262,6 +265,8 @@ export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
     bodyTemplate: row.bodyTemplate ?? '',
     lastPlannedAt: row.lastPlannedAt == null ? null : new Date(row.lastPlannedAt).toISOString(),
     nextPlannedAt: nextMs == null ? null : new Date(nextMs).toISOString(),
+    failCount: stats?.failCount ?? 0,
+    lastRunStatus: stats?.lastRunStatus ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
