@@ -1,6 +1,6 @@
 # 补5 设计 — 最小自动化（cron + 立即执行）
 
-> 状态：**待用户审阅 spec** · 日期：2026-07-17  
+> 状态：**已批准**（用户同意评估+方案1） · 日期：2026-07-17  
 > 切片：补充阶段 **补5** / `bu05` · 建议分支：`feat/bu05-automation`  
 > 前置：main 含补1–4（可靠性、Inbox、Agent/Squad、quick-create、Settings）  
 > 依据：补充阶段包 **F**；Multica Autopilot（`create_issue` + 幂等 + 指派复用）；用户锁定 **B**（cron + 手动立即跑）+ **方案 1**（简化 schedule，非 crontab）  
