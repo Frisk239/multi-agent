@@ -4,6 +4,7 @@ import {
   recoverOrphanedRunningRuns,
   startStaleRunSweeper,
 } from './orchestration/stale-runs.js';
+import { startAutomationWorker } from './orchestration/automation-worker.js';
 import { scanSkills } from './skill/scanner.js';
 import { ensureWikiDir } from './wiki/store.js';
 import { startWikiIngestWorker } from './wiki/ingest-worker.js';
@@ -48,6 +49,8 @@ async function main() {
   // 启动 RunWorker 轮询（spec §6.2）：listen 前启动，enqueue 时 wake 立即触发
   startRunWorker();
   startStaleRunSweeper();
+  // bu05：自动化 schedule tick（30s）
+  startAutomationWorker();
   // S08：Wiki ingest 队列 worker（spec §4.4）
   startWikiIngestWorker();
   try {
