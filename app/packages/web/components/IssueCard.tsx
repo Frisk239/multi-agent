@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import type { Issue, IssueStatus } from '@ma/shared';
+import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 
 const STATUS_COLORS: Record<IssueStatus, string> = {
   backlog: 'var(--status-backlog)',
@@ -27,31 +29,72 @@ const PRIORITY_COLOR: Record<string, string> = {
   none: 'transparent',
 };
 
+function readinessTone(
+  rd: AgentReadiness | null | undefined,
+): 'ok' | 'warn' | 'bad' | 'idle' {
+  if (!rd) return 'idle';
+  if (rd.status === 'ready') return 'ok';
+  if (rd.status === 'busy') return 'warn';
+  return 'bad';
+}
+
+function readinessTitle(rd: AgentReadiness | null | undefined): string {
+  if (!rd) return '就绪未知';
+  if (rd.status === 'ready') return '就绪';
+  if (rd.status === 'busy') return rd.detail ?? '忙碌';
+  if (rd.status === 'cwd_missing') return rd.detail ?? 'cwd 未配置';
+  if (rd.status === 'runtime_missing') return rd.detail ?? 'runtime 缺失';
+  return rd.detail ?? rd.status;
+}
+
 interface Props {
   issue: Issue;
   onDragStart: (id: string) => void;
+  /** 指派 agent（或 squad leader）的 readiness */
+  readiness?: AgentReadiness | null;
+  /** 最近一条 run 是否失败 */
+  lastRunFailed?: boolean;
 }
 
-export function IssueCard({ issue, onDragStart }: Props) {
+export function IssueCard({
+  issue,
+  onDragStart,
+  readiness,
+  lastRunFailed,
+}: Props) {
+  const tone = readinessTone(readiness);
+  const showReadyDot = Boolean(issue.assignee?.type === 'agent' || issue.assignee?.type === 'squad');
+
   return (
     <article
       draggable
       onDragStart={() => onDragStart(issue.id)}
-      className="issue-card"
+      className={`issue-card${lastRunFailed ? ' issue-card--run-failed' : ''}`}
+      data-testid="issue-card"
+      data-issue-id={issue.id}
+      data-readiness={showReadyDot ? tone : 'none'}
+      data-run-failed={lastRunFailed ? '1' : '0'}
     >
       <div className="issue-card-top">
         <span className="issue-card-id" style={{ color: STATUS_COLORS[issue.status] }}>
           {issue.identifier}
         </span>
-        {issue.priority !== 'none' && (
-          <span className="issue-card-priority">
-            <span
-              className="priority-dot"
-              style={{ background: PRIORITY_COLOR[issue.priority] }}
-            />
-            {PRIORITY_LABEL[issue.priority]}
-          </span>
-        )}
+        <span className="issue-card-top-right">
+          {lastRunFailed ? (
+            <span className="issue-card-run-fail" title="最近一次运行失败">
+              失败
+            </span>
+          ) : null}
+          {issue.priority !== 'none' && (
+            <span className="issue-card-priority">
+              <span
+                className="priority-dot"
+                style={{ background: PRIORITY_COLOR[issue.priority] }}
+              />
+              {PRIORITY_LABEL[issue.priority]}
+            </span>
+          )}
+        </span>
       </div>
       <div className="issue-card-title">
         <Link href={`/issues/${issue.id}`} onClick={(e) => e.stopPropagation()} draggable={false}>
@@ -74,7 +117,26 @@ export function IssueCard({ issue, onDragStart }: Props) {
         </div>
       )}
       <div className="issue-card-assignee">
-        {issue.assignee ? issue.assignee.label : '未指派'}
+        {showReadyDot ? (
+          <span
+            className={`issue-card-ready issue-card-ready--${tone}`}
+            title={readinessTitle(readiness)}
+            data-testid="issue-card-ready"
+            aria-label={readinessTitle(readiness)}
+          />
+        ) : null}
+        <span>{issue.assignee ? issue.assignee.label : '未指派'}</span>
+        {lastRunFailed ? (
+          <Link
+            href={`/issues/${issue.id}`}
+            className="issue-card-fail-link"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+            title="打开详情查看失败诊断与再执行"
+          >
+            诊断
+          </Link>
+        ) : null}
       </div>
     </article>
   );

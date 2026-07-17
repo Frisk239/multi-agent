@@ -97,6 +97,18 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
               >
                 在运行列表中查看
               </Link>
+              {canRerun ? (
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  data-testid="run-fail-rerun"
+                  disabled={rerunIssue.isPending}
+                  onClick={() => rerunIssue.mutate({})}
+                  title="按当前 Issue 指派再排队"
+                >
+                  {rerunIssue.isPending ? '排队中…' : '再执行'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn-secondary btn-sm"

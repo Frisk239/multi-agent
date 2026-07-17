@@ -5,10 +5,12 @@ import type { IssueStatus, Priority } from '@ma/shared';
 import { Priority as PriorityEnum } from '@ma/shared';
 import {
   useAgents,
+  useAgentsReadinessMap,
   useIssues,
   useLabels,
   useSquads,
   useUpdateIssue,
+  useWorkspaceRuns,
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
@@ -65,6 +67,10 @@ function KanbanBoardInner() {
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
+  const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+  // 轻量：最近失败 run，用于卡片「失败」标记（limit 内即可）
+  const { data: failedRuns = [] } = useWorkspaceRuns({ status: 'failed', limit: 80 });
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -137,6 +143,33 @@ function KanbanBoardInner() {
   const { data: labels } = useLabels();
   const update = useUpdateIssue();
   const [dragId, setDragId] = useState<string | null>(null);
+
+  const squadLeaderById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of squads) {
+      if (s.leaderId) m.set(s.id, s.leaderId);
+    }
+    return m;
+  }, [squads]);
+
+  const assigneeAgentByIssueId = useMemo(() => {
+    const out: Record<string, string | undefined> = {};
+    for (const iss of issues ?? []) {
+      if (iss.assignee?.type === 'agent') out[iss.id] = iss.assignee.id;
+      else if (iss.assignee?.type === 'squad') {
+        out[iss.id] = squadLeaderById.get(iss.assignee.id);
+      }
+    }
+    return out;
+  }, [issues, squadLeaderById]);
+
+  const failedIssueIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of failedRuns) {
+      if (r.issueId) s.add(r.issueId);
+    }
+    return s;
+  }, [failedRuns]);
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
@@ -239,6 +272,9 @@ function KanbanBoardInner() {
             issues={visible.filter((i) => i.status === col.status)}
             onDragStart={setDragId}
             onDrop={handleDrop}
+            readinessByAgentId={readinessMap}
+            failedIssueIds={failedIssueIds}
+            assigneeAgentByIssueId={assigneeAgentByIssueId}
           />
         ))}
       </div>
