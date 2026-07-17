@@ -44,6 +44,7 @@ export function notifyInbox(opts: {
   title: string;
   body?: string | null;
   issueId: string | null;
+  runId?: string | null;
   actorType?: string | null;
   actorId?: string | null;
   dedupeKey: string;
@@ -79,6 +80,7 @@ export function notifyInbox(opts: {
       type: opts.type,
       severity: opts.severity,
       issueId: opts.issueId,
+      runId: opts.runId ?? null,
       title: opts.title,
       body: opts.body ?? null,
       actorType: opts.actorType ?? null,
@@ -138,6 +140,7 @@ export function notifyRunTerminal(run: AgentRun): void {
           : `Run 完成 · ${issue.identifier}`,
       body: run.error ?? null,
       issueId: issue.id,
+      runId: run.id,
       actorType: 'agent',
       actorId: run.agentId,
       dedupeKey: `run:${run.id}:${run.status}`,
@@ -151,6 +154,7 @@ export function notifyRunTerminal(run: AgentRun): void {
       title: failed ? 'Run 失败 · 快速派活' : 'Run 完成 · 快速派活',
       body: run.error ?? null,
       issueId: null,
+      runId: run.id,
       actorType: 'agent',
       actorId: run.agentId,
       dedupeKey: `run:${run.id}:${run.status}`,

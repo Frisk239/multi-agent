@@ -295,6 +295,8 @@ export const inboxItems = sqliteTable(
       .notNull()
       .default('info'),
     issueId: text('issue_id'),
+    // run 终态 → Inbox→/runs?run=
+    runId: text('run_id'),
     title: text('title').notNull(),
     body: text('body'),
     actorType: text('actor_type'),

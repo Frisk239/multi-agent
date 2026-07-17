@@ -721,6 +721,8 @@ export const InboxItem = z.object({
   body: z.string().nullable(),
   summary: z.string(), // title 或 title+body 截断，列表一行文案
   issueId: BusinessId.nullable(),
+  /** run 终态通知可带；打开 Inbox → /runs?run= */
+  runId: BusinessId.nullable().optional(),
   issueIdentifier: z.string().optional(),
   issueTitle: z.string().optional(),
   read: z.boolean(),

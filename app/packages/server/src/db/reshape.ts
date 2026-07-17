@@ -179,6 +179,7 @@ export function toInboxItem(
     body,
     summary,
     issueId: row.issueId,
+    runId: row.runId ?? null,
     issueIdentifier: issueMeta?.identifier,
     issueTitle: issueMeta?.title,
     read: row.read === 1,

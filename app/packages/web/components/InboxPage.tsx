@@ -62,6 +62,22 @@ export function InboxPage() {
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
+  function hrefForItem(item: InboxItem): string | null {
+    // Multica 式：run 终态优先落到具体 run 行
+    if (item.runId) {
+      const sp = new URLSearchParams();
+      sp.set('run', item.runId);
+      if (item.kind === 'run_failed' || item.type === 'run_failed') sp.set('status', 'failed');
+      if (item.kind === 'run_completed' || item.type === 'run_completed') {
+        sp.set('status', 'completed');
+      }
+      return `/runs?${sp.toString()}`;
+    }
+    if (item.issueId) return `/issues/${item.issueId}`;
+    if (item.kind === 'run_failed' || item.type === 'run_failed') return '/runs?status=failed';
+    return null;
+  }
+
   async function openItem(item: InboxItem) {
     if (!item.read) {
       try {
@@ -70,14 +86,8 @@ export function InboxPage() {
         // mutation 已 toast；仍允许跳转
       }
     }
-    if (item.issueId) {
-      router.push(`/issues/${item.issueId}`);
-      return;
-    }
-    // run_failed 无 issue（典型 QC）：去运行页看全局失败
-    if (item.kind === 'run_failed' || item.type === 'run_failed') {
-      router.push('/runs');
-    }
+    const href = hrefForItem(item);
+    if (href) router.push(href);
   }
 
   return (
@@ -92,7 +102,9 @@ export function InboxPage() {
               </span>
             )}
           </div>
-          <div className="page-desc">通知落库；可标记已读与归档</div>
+          <div className="page-desc">
+            通知落库；Run 终态可跳到 /runs?run=（对齐 Multica 从 Inbox 进执行）
+          </div>
         </div>
       </div>
 
@@ -145,15 +157,16 @@ export function InboxPage() {
                   >
                     归档
                   </button>
-                  {item.issueId && (
+                  {hrefForItem(item) && (
                     <Link
-                      href={`/issues/${item.issueId}`}
+                      href={hrefForItem(item)!}
                       className="inbox-action-btn inbox-action-link"
+                      data-testid={item.runId ? 'inbox-open-run' : 'inbox-open-issue'}
                       onClick={() => {
                         if (!item.read) markRead.mutate(item.id);
                       }}
                     >
-                      打开
+                      {item.runId ? '运行' : '打开'}
                     </Link>
                   )}
                 </div>
