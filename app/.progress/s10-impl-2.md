@@ -136,6 +136,24 @@ export EMBEDDING_API_KEY=...
 
 ## 验收结论（仅计划者填）
 
-- [ ] 片段 B 代码审查
-- [ ] §11 勾选确认（真实 embed 是否阻塞合并由计划者定）
-- [ ] 开 PR / 合并
+- [x] 片段 B 代码审查 — typecheck 全绿；async prompt/worker；index 回退；API 无直读 SQLite
+- [x] §11 工程/回退/回归达标；pgvector 真 embed 端到端标「需 key」（同 S09 LLM 政策，不阻塞合并）
+- [ ] 开 PR / 合并（人）
+
+### 代码审查要点
+
+1. `export async function buildPrompt` + worker `await`；全仓仅一处。
+2. `initMemoryProvider` 先 initialize 再 isAvailable；失败 sqlite。
+3. `GET /api/memory` 一律 `search`；status 含 backend。
+4. 真实 embed 未测不挡：假 key 500 不崩、DDL 1536、dummy key 可选 provider=pgvector 已证。
+
+### S10 切片总结（impl-1~2）
+
+| impl | 内容 | 结论 |
+|---|---|---|
+| 1 | compose/pg/embedder/PgvectorProvider | 通过 |
+| 2 | async prompt + 选择回退 + API | 通过 |
+
+**Phase 3 第二刀代码层达标，可开 PR 合并。** 建议有 key 时补路径 B 冒烟。
+
+- 结论：**达标可合并**
