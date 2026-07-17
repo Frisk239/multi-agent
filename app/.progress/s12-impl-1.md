@@ -95,7 +95,18 @@ no issueId 400 {"error":"issueId required"}
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过（impl-1 自测）
-- [ ] `pnpm dev` 人评 / impl-2 联调
-- [ ] 切片验收标准达成（需 impl-2 + 计划者）
-- 结论：片段 A 代码交付完毕，待 push 后 impl-2 接力。
+- [x] typecheck 通过 — 计划者 worktree 复核 shared/server/web 全绿
+- [x] InboxItem 契约 + B5 `issueId required` 代码在位
+- [x] Toast / EmptyState / NewIssue 指派 / `/?new=1` / Ctrl+K / 诚实导航 / WS+工作中
+- [x] run:progress 前端 map + RunStatusBar；B4 created 不预填详情 cache
+- [x] error.tsx；边界：无 Squads/Inbox 路由（留给 impl-2）
+- [ ] 全切片验收 — 待 impl-2
+
+### 代码审查要点
+
+1. **NewIssueForm** agent:/squad: 前缀 + Create enqueue（issues POST）
+2. **ws B4** 仅 issue:updated 写 `['issue',id]`；progress 截断存 store
+3. **侧栏** 去掉假入口；Inbox/Squads 故意未加 — impl-2 加 href
+4. **偏离** 自研 toast、CommandPalette 挂 Sidebar — 可接受
+
+- 结论：**impl-1 验收通过**。可进 impl-2（Squads + Inbox + 联调）。
