@@ -4,11 +4,15 @@ import { agentRuns, runMessages, comments, agents, issues } from '../db/schema.j
 import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
+import { touchRunHeartbeat } from './stale-runs.js';
 import { getBackend } from '../runtime/registry.js';
 import { buildPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
+
+// bu01：执行中 heartbeat 间隔（plan 锁定）
+const HEARTBEAT_INTERVAL_MS = 5_000;
 
 // RunWorker —— 主进程内的单线程 run 执行循环（spec §6.2，学 multica daemon）。
 // S04 并发模型改造（★核心重写，spec §6.2 R3）：
@@ -56,10 +60,10 @@ async function tick(): Promise<void> {
       .get();
     if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
 
-    // claim（条件 UPDATE queued→running）
+    // claim（条件 UPDATE queued→running）；bu01：同步写 lastHeartbeatAt
     const now = Date.now();
     db.update(agentRuns)
-      .set({ status: 'running', startedAt: now })
+      .set({ status: 'running', startedAt: now, lastHeartbeatAt: now })
       .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
       .run();
     const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
@@ -96,6 +100,10 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   const mcpServers = agentRow?.mcpServers ?? null;
 
   const signal = registerRunAbort(runRow.id);
+  // bu01：执行中每 5s touch heartbeat；finally 必清
+  const hb = setInterval(() => {
+    touchRunHeartbeat(runRow.id);
+  }, HEARTBEAT_INTERVAL_MS);
   let seq = 0;
   const nextSeq = () => ++seq;
 
@@ -246,6 +254,8 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   } catch (err) {
     clearRunAbort(runRow.id);
     await failRun(runRow.id, String(err));
+  } finally {
+    clearInterval(hb);
   }
 }
 
