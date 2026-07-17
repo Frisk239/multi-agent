@@ -103,24 +103,22 @@ export function IssueCard({
               失败
             </span>
           ) : null}
-          {issue.originType === 'automation' ? (
-            <span
+          {issue.originType === 'automation' || issue.originType === 'quick_create' ? (
+            <Link
+              href={`/issues/${issue.id}`}
               className="issue-card-origin"
               data-testid="issue-card-origin"
-              data-origin="automation"
-              title="自动化创建"
+              data-origin={issue.originType}
+              title={
+                issue.originType === 'automation'
+                  ? '自动化创建 · 打开详情'
+                  : '快速派活创建 · 打开详情'
+              }
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
             >
-              自动
-            </span>
-          ) : issue.originType === 'quick_create' ? (
-            <span
-              className="issue-card-origin"
-              data-testid="issue-card-origin"
-              data-origin="quick_create"
-              title="快速派活创建"
-            >
-              QC
-            </span>
+              {issue.originType === 'automation' ? '自动' : 'QC'}
+            </Link>
           ) : null}
           {issue.priority !== 'none' && (
             <span className="issue-card-priority">

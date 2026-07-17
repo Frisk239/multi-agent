@@ -411,13 +411,6 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             group: '自动化',
             run: () => router.push('/automation'),
           },
-          {
-            id: 'board-origin-automation',
-            label: '看板：仅自动化 Issue',
-            hint: '/?origin=automation',
-            group: '看板',
-            run: () => router.push('/?origin=automation'),
-          },
         ]
       : [];
 

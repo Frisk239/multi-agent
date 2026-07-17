@@ -4251,6 +4251,7 @@ a.issue-origin-badge:hover {
   text-decoration: underline;
 }
 
+a.issue-card-origin,
 .issue-card-origin {
   font-size: 10px;
   font-weight: 700;
@@ -4262,4 +4263,12 @@ a.issue-origin-badge:hover {
 }
 .kanban-origin-select {
   /* match other toolbar selects */
+}
+
+a.issue-card-origin {
+  text-decoration: none;
+}
+a.issue-card-origin:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
 }
