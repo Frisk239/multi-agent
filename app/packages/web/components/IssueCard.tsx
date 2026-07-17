@@ -58,6 +58,21 @@ export function IssueCard({ issue, onDragStart }: Props) {
           {issue.title}
         </Link>
       </div>
+      {(issue.labels ?? []).length > 0 && (
+        <div className="issue-card-labels">
+          {(issue.labels ?? []).map((l) => (
+            <span
+              key={l.id}
+              className="issue-label-chip issue-label-chip--sm"
+              style={{ ['--label-color' as string]: l.color }}
+              title={l.name}
+            >
+              <span className="issue-label-dot" />
+              {l.name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="issue-card-assignee">
         {issue.assignee ? issue.assignee.label : '未指派'}
       </div>

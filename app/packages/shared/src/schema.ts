@@ -227,6 +227,47 @@ export const Assignee = z
   .nullable();
 export type Assignee = z.infer<typeof Assignee>;
 
+// —— IssueLabel（issue-labels：工作区标签目录）——
+export const LabelColor = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'color 须为 #RRGGBB')
+  .default('#6b7280');
+export type LabelColor = z.infer<typeof LabelColor>;
+
+export const IssueLabel = z.object({
+  id: BusinessId,
+  workspaceId: BusinessId,
+  name: z.string().min(1).max(40),
+  color: z.string(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type IssueLabel = z.infer<typeof IssueLabel>;
+
+export const CreateIssueLabelInput = z.object({
+  name: z.string().min(1).max(40),
+  color: LabelColor.optional(),
+});
+export type CreateIssueLabelInput = z.infer<typeof CreateIssueLabelInput>;
+
+export const UpdateIssueLabelInput = z
+  .object({
+    name: z.string().min(1).max(40).optional(),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, 'color 须为 #RRGGBB')
+      .optional(),
+  })
+  .refine((o) => o.name !== undefined || o.color !== undefined, {
+    message: '至少传一个字段',
+  });
+export type UpdateIssueLabelInput = z.infer<typeof UpdateIssueLabelInput>;
+
+export const SetIssueLabelsInput = z.object({
+  labelIds: z.array(BusinessId),
+});
+export type SetIssueLabelsInput = z.infer<typeof SetIssueLabelsInput>;
+
 // —— Issue ——
 export const Issue = z.object({
   id: BusinessId,
@@ -244,6 +285,8 @@ export const Issue = z.object({
   originType: z.enum(['quick_create', 'automation']).nullable().optional(),
   originRunId: BusinessId.nullable().optional(),
   originRuleId: BusinessId.nullable().optional(),
+  // issue-labels：list/detail 始终带数组（可空）
+  labels: z.array(IssueLabel).default([]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

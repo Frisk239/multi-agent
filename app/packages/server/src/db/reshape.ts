@@ -1,5 +1,6 @@
 import type {
   Issue,
+  IssueLabel,
   Assignee,
   Comment,
   AgentRun,
@@ -10,6 +11,8 @@ import type {
   AutomationRule,
   AutomationRun,
 } from '@ma/shared';
+import { inArray } from 'drizzle-orm';
+import { db } from './client.js';
 import {
   issues,
   comments,
@@ -19,10 +22,13 @@ import {
   agents,
   automationRules,
   automationRuns,
+  issueLabels,
+  issueToLabels,
 } from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 
 type IssueRow = typeof issues.$inferSelect;
+type LabelRow = typeof issueLabels.$inferSelect;
 type CommentRow = typeof comments.$inferSelect;
 type RunRow = typeof agentRuns.$inferSelect;
 type MsgRow = typeof runMessages.$inferSelect;
@@ -31,8 +37,51 @@ type AgentRow = typeof agents.$inferSelect;
 type AutomationRuleRow = typeof automationRules.$inferSelect;
 type AutomationRunRow = typeof automationRuns.$inferSelect;
 
+export function toIssueLabel(row: LabelRow): IssueLabel {
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    name: row.name,
+    color: row.color,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+/** 批量装载 issue → labels，避免 N+1 */
+export function loadLabelsByIssueIds(issueIds: string[]): Map<string, IssueLabel[]> {
+  const map = new Map<string, IssueLabel[]>();
+  for (const id of issueIds) map.set(id, []);
+  if (issueIds.length === 0) return map;
+
+  const junctions = db
+    .select()
+    .from(issueToLabels)
+    .where(inArray(issueToLabels.issueId, issueIds))
+    .all();
+  if (junctions.length === 0) return map;
+
+  const labelIds = [...new Set(junctions.map((j) => j.labelId))];
+  const labelRows = db
+    .select()
+    .from(issueLabels)
+    .where(inArray(issueLabels.id, labelIds))
+    .all();
+  const byId = new Map(labelRows.map((r) => [r.id, toIssueLabel(r)]));
+
+  for (const j of junctions) {
+    const lab = byId.get(j.labelId);
+    if (!lab) continue;
+    map.get(j.issueId)!.push(lab);
+  }
+  for (const [, list] of map) {
+    list.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+  }
+  return map;
+}
+
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
-export function toIssue(row: IssueRow): Issue {
+export function toIssue(row: IssueRow, labels: IssueLabel[] = []): Issue {
   let assignee: Assignee = null;
   if (row.assigneeType && row.assigneeId) {
     const label = resolveAssigneeLabel(row.assigneeType, row.assigneeId);
@@ -57,6 +106,7 @@ export function toIssue(row: IssueRow): Issue {
     originType,
     originRunId: row.originRunId ?? null,
     originRuleId: row.originRuleId ?? null,
+    labels,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };

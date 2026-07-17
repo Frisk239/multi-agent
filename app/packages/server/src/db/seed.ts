@@ -1,6 +1,17 @@
 import { eq } from 'drizzle-orm';
 import { db } from './client.js';
-import { workspaces, users, agents, squads, squadMembers, agentSkills, issues, comments } from './schema.js';
+import {
+  workspaces,
+  users,
+  agents,
+  squads,
+  squadMembers,
+  agentSkills,
+  issues,
+  comments,
+  issueLabels,
+  issueToLabels,
+} from './schema.js';
 import type { IssueStatus, Priority, AssigneeType } from '@ma/shared';
 import { LOCAL_MEMBER } from '../local-member.js';
 
@@ -206,5 +217,45 @@ for (const c of seedComments) {
   commentCount++;
 }
 
-console.log(`✓ seed 完成：${seedIssues.length} 条 issue，${commentCount} 条 comment`);
+// issue-labels：预置目录 + 挂样例
+const seedLabelDefs: { id: string; name: string; color: string }[] = [
+  { id: 'lbl-bug', name: 'bug', color: '#ef4444' },
+  { id: 'lbl-docs', name: '文档', color: '#3b82f6' },
+  { id: 'lbl-product', name: '产品', color: '#8b5cf6' },
+];
+const labelNow = Date.now();
+for (const lab of seedLabelDefs) {
+  db.insert(issueLabels)
+    .values({
+      id: lab.id,
+      workspaceId: WS_ID,
+      name: lab.name,
+      color: lab.color,
+      createdAt: labelNow,
+      updatedAt: labelNow,
+    })
+    .run();
+}
+
+const fri11 = db.select().from(issues).where(eq(issues.identifier, 'FRI-11')).get();
+const fri09 = db.select().from(issues).where(eq(issues.identifier, 'FRI-09')).get();
+const fri08 = db.select().from(issues).where(eq(issues.identifier, 'FRI-08')).get();
+if (fri11) {
+  db.insert(issueToLabels)
+    .values([
+      { issueId: fri11.id, labelId: 'lbl-product' },
+      { issueId: fri11.id, labelId: 'lbl-docs' },
+    ])
+    .run();
+}
+if (fri09) {
+  db.insert(issueToLabels).values({ issueId: fri09.id, labelId: 'lbl-product' }).run();
+}
+if (fri08) {
+  db.insert(issueToLabels).values({ issueId: fri08.id, labelId: 'lbl-docs' }).run();
+}
+
+console.log(
+  `✓ seed 完成：${seedIssues.length} 条 issue，${commentCount} 条 comment，${seedLabelDefs.length} 条 label`,
+);
 

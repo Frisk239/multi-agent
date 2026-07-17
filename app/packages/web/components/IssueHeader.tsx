@@ -4,6 +4,7 @@ import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
 import { useUpdateIssue } from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
+import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { Icon } from './Icon';
 
 const ALL_STATUS = IssueStatusEnum.options;
@@ -56,6 +57,7 @@ export function IssueHeader({ issue }: { issue: Issue }) {
           currentAssignee={issue.assignee}
         />
       </div>
+      <IssueLabelsEditor issue={issue} />
     </header>
   );
 }

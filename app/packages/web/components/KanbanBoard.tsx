@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useState } from 'react';
 import type { IssueStatus } from '@ma/shared';
-import { useIssues, useUpdateIssue } from '@/lib/api';
+import { useIssues, useLabels, useUpdateIssue } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
 
@@ -17,13 +17,19 @@ const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
 
 export function KanbanBoard() {
   const { data: issues, isLoading } = useIssues();
+  const { data: labels } = useLabels();
   const update = useUpdateIssue();
   const [dragId, setDragId] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string>('');
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
   // spec §7.5 R5：cancelled 的 issue 不渲染到任何列
-  const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
+  const visible = (issues ?? []).filter((i) => {
+    if (i.status === 'cancelled') return false;
+    if (!labelFilter) return true;
+    return (i.labels ?? []).some((l) => l.id === labelFilter);
+  });
 
   function handleDrop(targetStatus: IssueStatus) {
     if (!dragId) return;
@@ -39,9 +45,33 @@ export function KanbanBoard() {
 
   return (
     <div className="kanban-board">
-      <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
-        <NewIssueForm />
-      </Suspense>
+      <div className="kanban-toolbar">
+        <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
+          <NewIssueForm />
+        </Suspense>
+        <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
+          <button
+            type="button"
+            className={`kanban-filter-pill${labelFilter === '' ? ' active' : ''}`}
+            onClick={() => setLabelFilter('')}
+          >
+            全部
+          </button>
+          {(labels ?? []).map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className={`kanban-filter-pill${labelFilter === l.id ? ' active' : ''}`}
+              style={{ ['--label-color' as string]: l.color }}
+              onClick={() => setLabelFilter(l.id)}
+              title={l.name}
+            >
+              <span className="issue-label-dot" />
+              {l.name}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="kanban-columns">
         {COLUMNS.map((col) => (
           <KanbanColumn

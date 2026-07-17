@@ -14,6 +14,7 @@ import { inboxRoutes } from './routes/inbox.js';
 import { quickRunRoutes } from './routes/quick-runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { automationRoutes } from './routes/automation.js';
+import { labelRoutes } from './routes/labels.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 
@@ -29,6 +30,7 @@ export async function buildApp() {
   eventBus.on((e) => wsBroadcaster.broadcast(e));
 
   await app.register(issueRoutes);
+  await app.register(labelRoutes);
   await app.register(commentRoutes);
   await app.register(rosterRoutes);
   await app.register(skillRoutes);

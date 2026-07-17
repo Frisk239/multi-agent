@@ -109,6 +109,41 @@ export const issues = sqliteTable(
   }),
 );
 
+// —— issue_label / issue_to_label（issue-labels：学 multica 001 简化，仅 Issue）——
+export const issueLabels = sqliteTable(
+  'issue_label',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('#6b7280'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => ({
+    workspaceNameUq: uniqueIndex('uq_issue_label_workspace_name').on(t.workspaceId, t.name),
+    workspaceIdx: index('idx_issue_label_workspace').on(t.workspaceId),
+  }),
+);
+
+export const issueToLabels = sqliteTable(
+  'issue_to_label',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    labelId: text('label_id')
+      .notNull()
+      .references(() => issueLabels.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.issueId, t.labelId] }),
+    labelIdx: index('idx_issue_to_label_label').on(t.labelId),
+  }),
+);
+
 // —— comment（S02 时间线真源）——
 export const comments = sqliteTable(
   'comment',

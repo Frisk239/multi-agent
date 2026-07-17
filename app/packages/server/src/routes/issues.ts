@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   CreateIssueInput,
   UpdateIssueInput,
   RerunIssueInput,
+  SetIssueLabelsInput,
   validateUpdateIssue,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
-import { issues, comments } from '../db/schema.js';
-import { toIssue, toComment } from '../db/reshape.js';
+import { issues, comments, issueLabels, issueToLabels } from '../db/schema.js';
+import { toIssue, toComment, loadLabelsByIssueIds } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import {
   cancelActiveRunsForIssue,
@@ -29,6 +30,11 @@ import { createIssueCore } from '../orchestration/issue-create.js';
 
 const WS_ID = 'ws-local';
 
+function issueWithLabels(row: typeof issues.$inferSelect) {
+  const labels = loadLabelsByIssueIds([row.id]).get(row.id) ?? [];
+  return toIssue(row, labels);
+}
+
 export async function issueRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/issues —— spec §5.1，扁平数组，按 position ASC, created_at DESC
   app.get('/api/issues', async () => {
@@ -38,7 +44,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(issues.workspaceId, WS_ID))
       .orderBy(issues.position, sql`created_at DESC`)
       .all();
-    return rows.map(toIssue);
+    const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));
+    return rows.map((r) => toIssue(r, labelMap.get(r.id) ?? []));
   });
 
   // GET /api/issues/:id —— 与 list 共用 toIssue（R6）
@@ -46,7 +53,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     if (!row) return reply.status(404).send({ error: 'issue 不存在' });
-    return toIssue(row);
+    return issueWithLabels(row);
   });
 
   // POST /api/issues —— spec §5.2；bu03/bu05：createIssueCore（origin + enqueue）
@@ -131,7 +138,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const statusCommentId = run();
 
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    const issue = toIssue(row!);
+    const issue = issueWithLabels(row!);
     eventBus.publish({
       type: 'issue:updated',
       issue,
@@ -187,6 +194,49 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    return reply.send(issue);
+  });
+
+  // PUT /api/issues/:id/labels —— 全量替换标签集合
+  app.put('/api/issues/:id/labels', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = SetIssueLabelsInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const issueRow = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!issueRow) return reply.status(404).send({ error: 'issue 不存在' });
+
+    const uniqueIds = [...new Set(parsed.data.labelIds)];
+    if (uniqueIds.length > 0) {
+      const found = db
+        .select()
+        .from(issueLabels)
+        .where(
+          and(eq(issueLabels.workspaceId, WS_ID), inArray(issueLabels.id, uniqueIds)),
+        )
+        .all();
+      if (found.length !== uniqueIds.length) {
+        return reply.status(400).send({ error: '存在无效或不属于本工作区的 labelId' });
+      }
+    }
+
+    sqlite.transaction(() => {
+      db.delete(issueToLabels).where(eq(issueToLabels.issueId, id)).run();
+      for (const labelId of uniqueIds) {
+        db.insert(issueToLabels).values({ issueId: id, labelId }).run();
+      }
+      db.update(issues).set({ updatedAt: Date.now() }).where(eq(issues.id, id)).run();
+    })();
+
+    const row = db.select().from(issues).where(eq(issues.id, id)).get();
+    const issue = issueWithLabels(row!);
+    eventBus.publish({
+      type: 'issue:updated',
+      issue,
+      statusChanged: false,
+      prevStatus: null,
+    });
     return reply.send(issue);
   });
 
