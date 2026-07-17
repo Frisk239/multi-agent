@@ -84,6 +84,17 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     const issue = toIssue(row!);
     eventBus.publish({ type: 'issue:created', issue });
+
+    // S12 N2：Create 带 assignee 与 PUT 指派一致，立即 enqueue
+    if (input.assignee?.type === 'agent' && input.assignee.id) {
+      enqueueAgentRun(id, input.assignee.id);
+    } else if (input.assignee?.type === 'squad' && input.assignee.id) {
+      const squad = loadSquadDetail(input.assignee.id);
+      if (squad?.leaderId) {
+        enqueueLeaderRun(id, squad.leaderId, squad.id);
+      }
+    }
+
     return reply.status(201).send(issue);
   });
 
