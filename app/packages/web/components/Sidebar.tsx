@@ -11,9 +11,11 @@ import { CommandPalette } from './CommandPalette';
 
 type NavItem = { id: string; label: string; icon: IconName; section: string; href?: string };
 
-// S12 P6：只保留已实现路由；Inbox/Squads 留给 impl-2 接 href
+// S12：只保留已实现路由（Inbox/Squads 本棒激活）
 const NAV_ITEMS: NavItem[] = [
   { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
+  { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
+  { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },
   { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },

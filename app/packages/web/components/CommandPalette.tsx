@@ -61,6 +61,18 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push('/'),
       },
       {
+        id: 'nav-inbox',
+        label: 'Inbox',
+        hint: '/inbox',
+        run: () => router.push('/inbox'),
+      },
+      {
+        id: 'nav-squads',
+        label: '小队',
+        hint: '/squads',
+        run: () => router.push('/squads'),
+      },
+      {
         id: 'nav-agents',
         label: '智能体',
         hint: '/agents',
