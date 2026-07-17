@@ -516,6 +516,41 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             group: '自动化',
             run: () => router.push('/automation'),
           },
+          {
+            id: 'automation-enabled-on',
+            label: '自动化：仅已启用',
+            hint: '/automation?enabled=on',
+            group: '自动化',
+            run: () => router.push('/automation?enabled=on'),
+          },
+          {
+            id: 'automation-enabled-off',
+            label: '自动化：仅已停用',
+            hint: '/automation?enabled=off',
+            group: '自动化',
+            run: () => router.push('/automation?enabled=off'),
+          },
+          {
+            id: 'automation-failed',
+            label: '自动化：仅失败规则',
+            hint: '/automation?failed=1',
+            group: '自动化',
+            run: () => router.push('/automation?failed=1'),
+          },
+          {
+            id: 'automation-schedule-interval',
+            label: '自动化：间隔调度',
+            hint: '/automation?schedule=interval_minutes',
+            group: '自动化',
+            run: () => router.push('/automation?schedule=interval_minutes'),
+          },
+          {
+            id: 'automation-schedule-daily',
+            label: '自动化：每日调度',
+            hint: '/automation?schedule=daily_at',
+            group: '自动化',
+            run: () => router.push('/automation?schedule=daily_at'),
+          },
         ]
       : [];
 

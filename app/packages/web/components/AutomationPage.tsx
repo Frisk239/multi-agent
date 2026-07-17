@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   renderAutomationTemplate,
   type AutomationRule,
@@ -22,6 +23,19 @@ import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
+
+type EnabledFilter = '' | 'on' | 'off';
+type ScheduleFilter = '' | 'interval_minutes' | 'daily_at';
+
+function parseEnabled(raw: string | null): EnabledFilter {
+  if (raw === 'on' || raw === 'off') return raw;
+  return '';
+}
+
+function parseSchedule(raw: string | null): ScheduleFilter {
+  if (raw === 'interval_minutes' || raw === 'daily_at') return raw;
+  return '';
+}
 
 function scheduleLabel(rule: AutomationRule): string {
   if (rule.scheduleKind === 'interval_minutes') {
@@ -100,8 +114,11 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
   );
 }
 
-// bu05：/automation 列表 + 新建 + enabled 开关 + 立即执行 + 可选 runs
-export function AutomationPage() {
+// bu05：/automation 列表 + 新建 + enabled 开关 + 立即执行 + URL 可分享筛选
+function AutomationPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data, isLoading, isError, error, refetch, isFetching } = useAutomationRules();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -126,6 +143,36 @@ export function AutomationPage() {
   const [titleTemplate, setTitleTemplate] = useState('巡检 {{date}} {{time}}');
   const [bodyTemplate, setBodyTemplate] = useState('自动创建');
 
+  const qFromUrl = searchParams.get('q') ?? '';
+  const enabledFromUrl = parseEnabled(searchParams.get('enabled'));
+  const scheduleFromUrl = parseSchedule(searchParams.get('schedule'));
+  const failedOnly = searchParams.get('failed') === '1';
+  const [qDraft, setQDraft] = useState(qFromUrl);
+
+  useEffect(() => {
+    setQDraft(qFromUrl);
+  }, [qFromUrl]);
+
+  function replaceParams(patch: Record<string, string | null>) {
+    const sp = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(patch)) {
+      if (v == null || v === '') sp.delete(k);
+      else sp.set(k, v);
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = qDraft.trim();
+      if (next === qFromUrl.trim()) return;
+      replaceParams({ q: next || null });
+    }, 250);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qDraft]);
+
   const agentNameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of agents) m.set(a.id, a.name);
@@ -142,6 +189,11 @@ export function AutomationPage() {
       return agentNameById.get(rule.assigneeId) ?? rule.assigneeId.slice(0, 8);
     }
     return squadNameById.get(rule.assigneeId) ?? rule.assigneeId.slice(0, 8);
+  }
+
+  function clearAllFilters() {
+    setQDraft('');
+    router.replace(pathname, { scroll: false });
   }
 
   function resetForm() {
@@ -235,6 +287,38 @@ export function AutomationPage() {
     });
   }
 
+  const rules = data ?? [];
+  const hasActiveFilters = Boolean(
+    qFromUrl.trim() || enabledFromUrl || scheduleFromUrl || failedOnly,
+  );
+
+  const visible = useMemo(() => {
+    const q = qFromUrl.trim().toLowerCase();
+    return rules.filter((rule) => {
+      if (enabledFromUrl === 'on' && !rule.enabled) return false;
+      if (enabledFromUrl === 'off' && rule.enabled) return false;
+      if (scheduleFromUrl && rule.scheduleKind !== scheduleFromUrl) return false;
+      if (failedOnly && (rule.failCount ?? 0) <= 0) return false;
+      if (q) {
+        const asgName =
+          rule.assigneeType === 'agent'
+            ? (agentNameById.get(rule.assigneeId) ?? rule.assigneeId)
+            : (squadNameById.get(rule.assigneeId) ?? rule.assigneeId);
+        const hay = `${rule.name} ${rule.titleTemplate} ${rule.bodyTemplate ?? ''} ${asgName}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [
+    rules,
+    qFromUrl,
+    enabledFromUrl,
+    scheduleFromUrl,
+    failedOnly,
+    agentNameById,
+    squadNameById,
+  ]);
+
   if (isLoading) {
     return (
       <div className="page-container">
@@ -265,14 +349,15 @@ export function AutomationPage() {
     );
   }
 
-  const rules = data ?? [];
-
   return (
-    <div className="page-container automation-page">
+    <div className="page-container automation-page" data-testid="automation-page">
       <div className="page-header">
         <div>
           <div className="page-title">
-            自动化 <span className="count">{rules.length}</span>
+            自动化{' '}
+            <span className="count" data-testid="automation-visible-count">
+              {hasActiveFilters ? `${visible.length}/${rules.length}` : rules.length}
+            </span>
           </div>
           <div className="page-desc">
             按间隔或每日时刻自动建 Issue 并指派；列表展示下次计划时刻
@@ -478,8 +563,134 @@ export function AutomationPage() {
           }
         />
       ) : (
-        <div className="data-table-wrap">
-          <table className="data-table">
+        <>
+          <div className="agents-filters" data-testid="automation-filters">
+            <div className="table-search memory-search-wrap">
+              <input
+                type="search"
+                placeholder="搜索规则名 / 模板 / 指派…"
+                value={qDraft}
+                onChange={(e) => setQDraft(e.target.value)}
+                data-testid="automation-search"
+                aria-label="搜索自动化规则"
+              />
+              {qFromUrl.trim() ? (
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  data-testid="automation-search-clear"
+                  onClick={() => {
+                    setQDraft('');
+                    replaceParams({ q: null });
+                  }}
+                >
+                  清除
+                </button>
+              ) : null}
+            </div>
+            <label className="agents-filter-field">
+              启用
+              <select
+                value={enabledFromUrl}
+                data-testid="automation-enabled-filter"
+                onChange={(e) => replaceParams({ enabled: e.target.value || null })}
+                aria-label="按启用状态筛选"
+              >
+                <option value="">全部</option>
+                <option value="on">已启用</option>
+                <option value="off">已停用</option>
+              </select>
+            </label>
+            <label className="agents-filter-field">
+              调度
+              <select
+                value={scheduleFromUrl}
+                data-testid="automation-schedule-filter"
+                onChange={(e) => replaceParams({ schedule: e.target.value || null })}
+                aria-label="按调度类型筛选"
+              >
+                <option value="">全部</option>
+                <option value="interval_minutes">间隔</option>
+                <option value="daily_at">每日</option>
+              </select>
+            </label>
+            <label className="agents-filter-field agents-filter-check">
+              <span className="sr-only">仅失败</span>
+              <span className="runs-filter-check" style={{ marginTop: 18 }}>
+                <input
+                  type="checkbox"
+                  checked={failedOnly}
+                  data-testid="automation-failed-only"
+                  onChange={(e) => replaceParams({ failed: e.target.checked ? '1' : null })}
+                  aria-label="仅显示有失败记录的规则"
+                />
+                仅失败
+              </span>
+            </label>
+          </div>
+
+          {hasActiveFilters ? (
+            <div
+              className="agents-active-filters"
+              data-testid="automation-active-filters"
+              aria-label="当前筛选"
+            >
+              {qFromUrl.trim() ? (
+                <button
+                  type="button"
+                  className="kanban-active-chip"
+                  data-testid="automation-chip-q"
+                  onClick={() => {
+                    setQDraft('');
+                    replaceParams({ q: null });
+                  }}
+                >
+                  搜索「{qFromUrl.trim()}」 ×
+                </button>
+              ) : null}
+              {enabledFromUrl ? (
+                <button
+                  type="button"
+                  className="kanban-active-chip"
+                  data-testid="automation-chip-enabled"
+                  onClick={() => replaceParams({ enabled: null })}
+                >
+                  {enabledFromUrl === 'on' ? '已启用' : '已停用'} ×
+                </button>
+              ) : null}
+              {scheduleFromUrl ? (
+                <button
+                  type="button"
+                  className="kanban-active-chip"
+                  data-testid="automation-chip-schedule"
+                  onClick={() => replaceParams({ schedule: null })}
+                >
+                  调度 · {scheduleFromUrl === 'interval_minutes' ? '间隔' : '每日'} ×
+                </button>
+              ) : null}
+              {failedOnly ? (
+                <button
+                  type="button"
+                  className="kanban-active-chip"
+                  data-testid="automation-chip-failed"
+                  onClick={() => replaceParams({ failed: null })}
+                >
+                  仅失败 ×
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="kanban-active-chip kanban-active-chip--clear"
+                data-testid="automation-chip-clear-all"
+                onClick={clearAllFilters}
+              >
+                清除全部
+              </button>
+            </div>
+          ) : null}
+
+          <div className="data-table-wrap">
+          <table className="data-table" data-testid="automation-table">
             <thead>
               <tr>
                 <th>启用</th>
@@ -492,11 +703,32 @@ export function AutomationPage() {
                 <th />
               </tr>
             </thead>
-            {rules.map((rule) => {
+            {visible.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={8} className="text-dim" style={{ textAlign: 'center' }}>
+                    <div data-testid="automation-empty-filter">
+                      <div>没有匹配的规则</div>
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          data-testid="automation-clear-filter"
+                          onClick={clearAllFilters}
+                        >
+                          清除筛选
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            ) : null}
+            {visible.map((rule) => {
               const expanded = expandedId === rule.id;
               return (
                 <tbody key={rule.id} className="automation-rule-group">
-                  <tr data-testid={`automation-rule-row-${rule.id}`}>
+                  <tr data-testid={`automation-rule-row-${rule.id}`} data-rule-id={rule.id}>
                     <td>
                       <label
                         className="automation-toggle"
@@ -523,7 +755,13 @@ export function AutomationPage() {
                       title={nextPlanTitle(rule)}
                       data-testid="automation-schedule-label"
                     >
-                      {scheduleLabel(rule)}
+                      <Link
+                        href={`/automation?schedule=${encodeURIComponent(rule.scheduleKind)}`}
+                        className="automation-schedule-link"
+                        title="筛选同调度类型"
+                      >
+                        {scheduleLabel(rule)}
+                      </Link>
                     </td>
                     <td className="text-sm">
                       <span className="automation-assignee-chip">
@@ -685,6 +923,7 @@ export function AutomationPage() {
             })}
           </table>
         </div>
+        </>
       )}
 
       <p className="automation-footer text-dim text-sm">
@@ -692,5 +931,13 @@ export function AutomationPage() {
         停用后定时 tick 不再触发，「下次计划」显示停用；「立即执行」仍可用。
       </p>
     </div>
+  );
+}
+
+export function AutomationPage() {
+  return (
+    <Suspense fallback={<div className="page-container">加载中…</div>}>
+      <AutomationPageInner />
+    </Suspense>
   );
 }
