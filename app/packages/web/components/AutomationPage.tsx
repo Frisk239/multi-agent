@@ -112,6 +112,9 @@ export function AutomationPage() {
 
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
 
   const [name, setName] = useState('');
   const [scheduleKind, setScheduleKind] =
@@ -190,6 +193,35 @@ export function AutomationPage() {
       id: rule.id,
       input: { enabled: !rule.enabled },
     });
+  }
+
+  function startEdit(rule: AutomationRule) {
+    setEditingId(rule.id);
+    setEditTitle(rule.titleTemplate);
+    setEditBody(rule.bodyTemplate ?? '');
+    setExpandedId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle('');
+    setEditBody('');
+  }
+
+  function saveEdit(rule: AutomationRule) {
+    if (!editTitle.trim()) return;
+    update.mutate(
+      {
+        id: rule.id,
+        input: {
+          titleTemplate: editTitle.trim(),
+          bodyTemplate: editBody,
+        },
+      },
+      {
+        onSuccess: () => cancelEdit(),
+      },
+    );
   }
 
   function handleDelete(rule: AutomationRule) {
@@ -511,7 +543,20 @@ export function AutomationPage() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
-                        onClick={() => setExpandedId(expanded ? null : rule.id)}
+                        data-testid="automation-edit-template"
+                        onClick={() =>
+                          editingId === rule.id ? cancelEdit() : startEdit(rule)
+                        }
+                      >
+                        {editingId === rule.id ? '取消编辑' : '编辑模板'}
+                      </button>{' '}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          setEditingId(null);
+                          setExpandedId(expanded ? null : rule.id);
+                        }}
                       >
                         {expanded ? '收起记录' : '最近执行'}
                       </button>{' '}
@@ -525,6 +570,75 @@ export function AutomationPage() {
                       </button>
                     </td>
                   </tr>
+                  {editingId === rule.id ? (
+                    <tr className="automation-edit-row">
+                      <td colSpan={7}>
+                        <div
+                          className="automation-edit-panel"
+                          data-testid="automation-edit-panel"
+                          data-rule-id={rule.id}
+                        >
+                          <label className="ops-field">
+                            <span>标题模板</span>
+                            <input
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              maxLength={200}
+                              data-testid="automation-edit-title"
+                            />
+                          </label>
+                          <label className="ops-field">
+                            <span>描述模板</span>
+                            <textarea
+                              className="ops-textarea"
+                              rows={3}
+                              value={editBody}
+                              onChange={(e) => setEditBody(e.target.value)}
+                              data-testid="automation-edit-body"
+                            />
+                          </label>
+                          <div
+                            className="automation-template-preview"
+                            data-testid="automation-edit-preview"
+                          >
+                            <div className="automation-template-preview-label text-dim text-sm">
+                              预览（当前时刻 · {rule.name}）
+                            </div>
+                            <div className="automation-template-preview-title">
+                              {renderAutomationTemplate(editTitle || '（空标题）', {
+                                plannedAt: Date.now(),
+                                ruleName: rule.name,
+                              })}
+                            </div>
+                            <pre className="automation-template-preview-body text-sm">
+                              {renderAutomationTemplate(editBody || '（空描述）', {
+                                plannedAt: Date.now(),
+                                ruleName: rule.name,
+                              })}
+                            </pre>
+                          </div>
+                          <div className="ops-form-actions">
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              data-testid="automation-edit-save"
+                              disabled={update.isPending || !editTitle.trim()}
+                              onClick={() => saveEdit(rule)}
+                            >
+                              {update.isPending ? '保存中…' : '保存模板'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={cancelEdit}
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
                   {expanded ? (
                     <tr className="automation-runs-row">
                       <td colSpan={7}>
