@@ -1,26 +1,33 @@
 'use client';
+import Link from 'next/link';
 import { useState } from 'react';
 import {
   useMemoryStatus,
   useMemoryList,
   useCreateMemory,
+  useSettingsStatus,
 } from '@/lib/api';
 
-// S11 /memory 浏览器（spec §5）：页头 status + 搜索列表 + 新建
+// S11 /memory 浏览器 + wiki-memory-ops 可行动空态/失败
 // 布局对齐 SkillsPage（page-header / table-search / data-table）
 export function MemoryPage() {
   const { data: status } = useMemoryStatus();
+  const { data: settings } = useSettingsStatus();
   const [q, setQ] = useState('');
   const { data, isFetching, isError, error } = useMemoryList(q);
   const create = useCreateMemory();
   const [draft, setDraft] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
+  const available = status?.available ?? true;
   const statusLabel = status
     ? status.available
       ? [status.provider, status.backend].filter(Boolean).join(' / ')
       : `${status.provider ?? 'none'}（不可用）`
     : '…';
+
+  const embedOk = settings?.secrets.embeddingConfigured;
+  const showUnavailable = status != null && !status.available;
 
   async function handleCreate() {
     const text = draft.trim();
@@ -50,6 +57,21 @@ export function MemoryPage() {
         </div>
       </div>
 
+      {showUnavailable ? (
+        <div className="wiki-ops-banner" role="status">
+          <div className="wiki-ops-banner-main">
+            <strong>记忆 provider 不可用</strong>
+            <p className="text-sm">
+              当前无法检索或写入记忆。请到设置页查看 memory / embedding 诊断
+              {embedOk === false ? '（embedding 可能未配置）' : ''}。
+            </p>
+          </div>
+          <Link href="/settings" className="btn-secondary btn-sm">
+            打开设置
+          </Link>
+        </div>
+      ) : null}
+
       <div className="memory-create">
         <textarea
           className="memory-textarea"
@@ -57,15 +79,21 @@ export function MemoryPage() {
           placeholder="写入一条记忆…"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          disabled={create.isPending}
+          disabled={create.isPending || showUnavailable}
         />
         <div className="memory-create-actions">
-          {formError && <span className="text-dim text-sm">{formError}</span>}
+          {formError && (
+            <span className="text-sm" style={{ color: 'var(--color-red)' }}>
+              {formError}
+              {' · '}
+              <Link href="/settings">去设置</Link>
+            </span>
+          )}
           <button
             type="button"
             className="btn btn-primary"
             onClick={() => void handleCreate()}
-            disabled={create.isPending || !draft.trim()}
+            disabled={create.isPending || !draft.trim() || showUnavailable}
           >
             {create.isPending ? '写入中…' : '写入记忆'}
           </button>
@@ -78,6 +106,7 @@ export function MemoryPage() {
           placeholder="搜索记忆…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          disabled={showUnavailable}
         />
       </div>
 
@@ -96,6 +125,8 @@ export function MemoryPage() {
               <tr>
                 <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
                   {error instanceof Error ? error.message : '加载失败'}
+                  {' · '}
+                  <Link href="/settings">打开设置诊断</Link>
                 </td>
               </tr>
             )}
@@ -121,7 +152,13 @@ export function MemoryPage() {
             {!isError && data && data.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
-                  {isFetching ? '加载中…' : '没有匹配的记忆'}
+                  {isFetching
+                    ? '加载中…'
+                    : showUnavailable
+                      ? '记忆不可用，无法列出条目'
+                      : q.trim()
+                        ? '没有匹配的记忆'
+                        : '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'}
                 </td>
               </tr>
             )}

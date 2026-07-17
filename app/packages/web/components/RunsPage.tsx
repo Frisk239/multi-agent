@@ -33,8 +33,15 @@ function RunActions({ run }: { run: AgentRun }) {
   if (!canRetry) return <span className="text-dim">—</span>;
 
   if (!run.issueId) {
+    const qp = run.quickPrompt?.trim()
+      ? `?quickPrompt=${encodeURIComponent(run.quickPrompt.trim())}`
+      : '';
     return (
-      <Link href="/" className="btn-secondary btn-sm" title="无 Issue 的快速派活失败，请重新派活">
+      <Link
+        href={`/${qp}`}
+        className="btn-secondary btn-sm"
+        title="无 Issue 的快速派活失败，请重新派活"
+      >
         去快速派活
       </Link>
     );

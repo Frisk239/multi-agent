@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { useInboxUnreadCount, useIssues } from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
@@ -77,11 +77,22 @@ function wsLabel(status: 'connecting' | 'open' | 'closed') {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const wsStatus = useWsStore((s) => s.status);
   const { data: issues = [] } = useIssues();
   const { data: inboxUnread } = useInboxUnreadCount();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
+  const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
+
+  // wiki-memory-ops D1：/runs「去快速派活」带 ?quickPrompt=
+  useEffect(() => {
+    const raw = searchParams.get('quickPrompt');
+    if (!raw) return;
+    setQuickPrefill(raw);
+    setQuickDispatchOpen(true);
+    router.replace(pathname || '/', { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const workingCount = useMemo(
     () =>
@@ -160,7 +171,10 @@ export function Sidebar() {
         <button
           type="button"
           className="sidebar-new-issue"
-          onClick={() => setQuickDispatchOpen(true)}
+          onClick={() => {
+            setQuickPrefill(undefined);
+            setQuickDispatchOpen(true);
+          }}
         >
           <Icon name="plus" size={14} className="nav-icon-svg" />
           快速派活
@@ -204,7 +218,11 @@ export function Sidebar() {
       <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
       <QuickDispatchPanel
         open={quickDispatchOpen}
-        onClose={() => setQuickDispatchOpen(false)}
+        onClose={() => {
+          setQuickDispatchOpen(false);
+          setQuickPrefill(undefined);
+        }}
+        initialPrompt={quickPrefill}
       />
     </aside>
   );

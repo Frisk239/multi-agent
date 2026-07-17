@@ -139,6 +139,38 @@ export function classifyRunFailure(error: string | null | undefined): RunFailure
   };
 }
 
+export const WikiIngestFailureCode = z.enum(['key_missing', 'generic']);
+export type WikiIngestFailureCode = z.infer<typeof WikiIngestFailureCode>;
+
+export const WikiIngestFailureClassification = z.object({
+  code: WikiIngestFailureCode,
+  title: z.string(),
+  hint: z.string(),
+  settingsHref: z.string().nullable(),
+});
+export type WikiIngestFailureClassification = z.infer<typeof WikiIngestFailureClassification>;
+
+/** Wiki ingest 失败分类：只看 lastError 文本 */
+export function classifyWikiIngestFailure(
+  error: string | null | undefined,
+): WikiIngestFailureClassification {
+  const e = (error ?? '').trim();
+  if (/WIKI_LLM_API_KEY|api.?key|未配置.*key|llm.*未配置|missing.*key/i.test(e)) {
+    return {
+      code: 'key_missing',
+      title: 'Wiki LLM 未配置或密钥无效',
+      hint: '在 server 环境配置 WIKI_LLM_API_KEY（及可选 base/model）后，到设置页确认就绪，再对 dead job 点「重试」。',
+      settingsHref: '/settings',
+    };
+  }
+  return {
+    code: 'generic',
+    title: 'Wiki 编译失败',
+    hint: e || '无详细错误。可到设置页检查 Wiki LLM，或稍后重试该 job。',
+    settingsHref: '/settings',
+  };
+}
+
 // bu03：快速派活入参 / 出参
 export const CreateQuickRunInput = z.object({
   prompt: z.string().min(1).max(20000),
