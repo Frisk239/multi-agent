@@ -225,7 +225,14 @@ export function AgentsPage() {
                         {readinessLabel(rd)}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Link
+                        href={`/?assignee=agent:${encodeURIComponent(ag.id)}`}
+                        className="btn btn-ghost btn-sm"
+                        data-testid="agent-list-board"
+                      >
+                        看板
+                      </Link>{' '}
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"

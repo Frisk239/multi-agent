@@ -77,12 +77,12 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `issue-card-origin-link`（`6a7bf0e`）  
-- **本刀：** `assignee-board-links` — Agent/Squad 详情回链看板指派筛选  
+- **已推：** `assignee-board-links`（`1d88a5d`）  
+- **本刀：** `roster-board-links` — 列表行回链看板指派  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 人指定主题；差距表 P1  
+- **再下一刀建议：** 人指定主题；差距表滚动  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

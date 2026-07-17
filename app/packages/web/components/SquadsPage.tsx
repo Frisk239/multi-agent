@@ -276,7 +276,14 @@ export function SquadsPage() {
                       )}
                     </td>
                     <td className="text-dim">{sq.memberCount ?? '—'}</td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Link
+                        href={`/?assignee=squad:${encodeURIComponent(sq.id)}`}
+                        className="btn btn-ghost btn-sm"
+                        data-testid="squad-list-board"
+                      >
+                        看板
+                      </Link>{' '}
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
