@@ -50,10 +50,11 @@
 - **已推：** `inbox-run-nav`（`94ae27b`）  
 - **已推：** `inbox-filter-url`（`b529e69`）  
 - **已推：** `memory-search-url`（`2b51cdb`）  
-- **本刀：** `wiki-slug-url` — `/wiki?slug=` 选中页可分享  
+- **已推：** `wiki-slug-url`（`d7bbe02`）  
+- **本刀：** `cmdk-wiki-memory` — CmdK→wiki/memory 深链 + memory AND 检索  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** CmdK 跳 wiki/memory 深链；或 memory 检索收紧  
+- **再下一刀建议：** Squad 详情从 CmdK；或 Settings 诊断深链  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

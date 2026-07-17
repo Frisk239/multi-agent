@@ -51,13 +51,18 @@ export class SqliteTextProvider implements MemoryProvider {
         .orderBy(desc(memoryItems.createdAt))
         .limit(200)
         .all();
+      // 收紧：须命中全部 token（AND）；分值=匹配次数 + 整串命中加权
+      const needle = query.trim().toLowerCase();
       rows = all
         .map((r) => {
           const lower = r.text.toLowerCase();
-          let score = 0;
+          let hits = 0;
           for (const t of tokens) {
-            if (lower.includes(t.toLowerCase()) || r.text.includes(t)) score += 1;
+            if (lower.includes(t.toLowerCase())) hits += 1;
           }
+          if (hits < tokens.length) return { r, score: 0 };
+          let score = hits;
+          if (needle && lower.includes(needle)) score += 2;
           return { r, score };
         })
         .filter((x) => x.score > 0)

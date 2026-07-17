@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAgents, useIssues } from '@/lib/api';
+import { useAgents, useIssues, useWikiPages } from '@/lib/api';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -18,7 +18,7 @@ type Command = {
   run: () => void;
 };
 
-// S12：Ctrl+K；issue-find：服务端 Issue 搜 + Agents + 键盘上下
+// S12：Ctrl+K；issue-find + wiki/memory 深链（?slug= / ?q=）
 export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -26,6 +26,8 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const [active, setActive] = useState(0);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const { data: agents = [] } = useAgents();
+  // 有查询时才拉 wiki 列表做标题匹配（轻量）
+  const { data: wikiPages = [] } = useWikiPages();
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(query.trim()), 200);
@@ -210,12 +212,53 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             run: () => router.push(`/agents/${a.id}`),
           }));
 
-    // 有查询：Issues 优先，再 Agents，再导航
+    // Wiki：标题/slug 匹配 → /wiki?slug=
+    const wikiCmds = !q
+      ? []
+      : wikiPages
+          .filter(
+            (p) =>
+              p.title.toLowerCase().includes(q) ||
+              p.slug.toLowerCase().includes(q) ||
+              q === 'wiki',
+          )
+          .slice(0, 6)
+          .map((p) => ({
+            id: `wiki-${p.slug}`,
+            label: p.title,
+            hint: `/wiki?slug=${p.slug}`,
+            group: 'Wiki',
+            run: () =>
+              router.push(`/wiki?slug=${encodeURIComponent(p.slug)}`),
+          }));
+
+    // 记忆：有查询时提供「在记忆中搜索…」→ /memory?q=
+    const memoryCmds =
+      q.length >= 1
+        ? [
+            {
+              id: 'memory-search',
+              label: `在记忆中搜索「${debouncedQ}」`,
+              hint: `/memory?q=`,
+              group: '记忆',
+              run: () =>
+                router.push(`/memory?q=${encodeURIComponent(debouncedQ)}`),
+            },
+          ]
+        : [];
+
+    // 有查询：Issues → Wiki → Memory → Agents → 导航
     if (q) {
-      return [...issueCmds, ...agentCmds, ...filteredNav];
+      return [
+        ...issueCmds,
+        ...wikiCmds,
+        ...memoryCmds,
+        ...agentCmds,
+        ...filteredNav,
+      ];
     }
     return [...filteredNav, ...issueCmds];
-  }, [agents, debouncedQ, remoteIssues, router, setOpen]);
+  }, [agents, debouncedQ, remoteIssues, router, setOpen, wikiPages]);
 
   useEffect(() => {
     setActive(0);
@@ -247,8 +290,9 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               className="cmdk-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索命令、Issue 或智能体…"
+              placeholder="搜索命令、Issue、Wiki、记忆或智能体…"
               autoFocus
+              data-testid="cmdk-input"
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
