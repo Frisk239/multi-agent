@@ -309,7 +309,10 @@ export function useCancelRun() {
       return res.json() as Promise<AgentRun>;
     },
     onSuccess: (run) => {
-      qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+      if (run.issueId) {
+        qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+      }
+      qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       toastSuccess('已请求停止运行');
     },
     onError: (err) => toastError(errMessage(err, '取消失败')),

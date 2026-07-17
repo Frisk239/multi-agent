@@ -124,6 +124,8 @@ function checkAndEnqueue(
       agentId,
       runtime: agent.runtime,
       status: 'queued',
+      kind: 'issue',
+      quickPrompt: null,
       error: null,
       startedAt: null,
       finishedAt: null,

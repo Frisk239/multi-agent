@@ -34,6 +34,10 @@ export const AgentRunStatus = z.enum([
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
+// bu03：run 种类——issue 工作 run vs 无 Issue 的 quick_create
+export const AgentRunKind = z.enum(['issue', 'quick_create']);
+export type AgentRunKind = z.infer<typeof AgentRunKind>;
+
 export const RunMessageKind = z.enum([
   'assistant', 'user', 'tool_start', 'tool_end', 'system',
 ]);
@@ -41,10 +45,15 @@ export type RunMessageKind = z.infer<typeof RunMessageKind>;
 
 export const AgentRun = z.object({
   id: BusinessId,
-  issueId: BusinessId,
+  // bu03：quick_create 初始无 Issue，可空；Link 后回填
+  issueId: BusinessId.nullable(),
   agentId: BusinessId,
   runtime: RuntimeId,
   status: AgentRunStatus,
+  // bu03：issue | quick_create
+  kind: AgentRunKind.default('issue'),
+  // bu03：仅 quick_create 使用；issue run 为 null
+  quickPrompt: z.string().nullable(),
   error: z.string().nullable(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
@@ -56,6 +65,21 @@ export const AgentRun = z.object({
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
+
+// bu03：快速派活入参 / 出参
+export const CreateQuickRunInput = z.object({
+  prompt: z.string().min(1).max(20000),
+  assignee: z.object({
+    type: z.enum(['agent', 'squad']),
+    id: BusinessId,
+  }),
+});
+export type CreateQuickRunInput = z.infer<typeof CreateQuickRunInput>;
+
+export const CreateQuickRunResult = z.object({
+  run: AgentRun,
+});
+export type CreateQuickRunResult = z.infer<typeof CreateQuickRunResult>;
 
 export const RunMessage = z.object({
   id: BusinessId,
@@ -111,24 +135,37 @@ export const Issue = z.object({
   creatorType: CreatorType,
   creatorId: BusinessId,
   position: z.number(),
+  // bu03：溯源（快速派活建卡）
+  originType: z.literal('quick_create').nullable().optional(),
+  originRunId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 export type Issue = z.infer<typeof Issue>;
 
-export const CreateIssueInput = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
-  priority: Priority.optional().default('none'),
-  assignee: z
-    .object({
-      type: AssigneeType,
-      id: BusinessId,
-    })
-    .nullable()
-    .optional()
-    .default(null),
-});
+export const CreateIssueInput = z
+  .object({
+    title: z.string().min(1),
+    description: z.string().optional(),
+    priority: Priority.optional().default('none'),
+    assignee: z
+      .object({
+        type: AssigneeType,
+        id: BusinessId,
+      })
+      .nullable()
+      .optional()
+      .default(null),
+    // bu03：agent/CLI 建卡回链 QC run
+    originType: z.literal('quick_create').optional(),
+    originRunId: BusinessId.optional(),
+  })
+  .refine(
+    (o) =>
+      (o.originType === undefined && o.originRunId === undefined) ||
+      (o.originType !== undefined && o.originRunId !== undefined),
+    { message: 'originType 与 originRunId 必须同时提供或同时省略' },
+  );
 export type CreateIssueInput = z.infer<typeof CreateIssueInput>;
 
 export const UpdateIssueInput = z.object({
@@ -510,7 +547,8 @@ export type RunLifecycleEvent = z.infer<typeof RunLifecycleEvent>;
 export const RunProgressEvent = z.object({
   type: z.literal('run:progress'),
   runId: BusinessId,
-  issueId: BusinessId,
+  // bu03：quick_create 可无 issue
+  issueId: BusinessId.nullable(),
   text: z.string(),
 });
 export type RunProgressEvent = z.infer<typeof RunProgressEvent>;
@@ -518,7 +556,8 @@ export type RunProgressEvent = z.infer<typeof RunProgressEvent>;
 export const RunMessageEvent = z.object({
   type: z.literal('run:message'),
   message: RunMessage,
-  issueId: BusinessId,
+  // bu03：quick_create 可无 issue
+  issueId: BusinessId.nullable(),
 });
 export type RunMessageEvent = z.infer<typeof RunMessageEvent>;
 

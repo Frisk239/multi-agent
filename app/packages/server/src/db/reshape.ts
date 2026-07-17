@@ -37,6 +37,8 @@ export function toIssue(row: IssueRow): Issue {
     creatorType: row.creatorType,
     creatorId: row.creatorId,
     position: row.position,
+    originType: row.originType === 'quick_create' ? 'quick_create' : null,
+    originRunId: row.originRunId ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -63,13 +65,16 @@ function iso(ms: number | null): string | null {
 // DB 扁平行 → API AgentRun（S03 执行层）
 // S04：映射 isLeader（integer 0/1 → boolean）+ squadId
 // bu01：lastHeartbeatAt
+// bu03：nullable issueId + kind + quickPrompt
 export function toAgentRun(row: RunRow): AgentRun {
   return {
     id: row.id,
-    issueId: row.issueId,
+    issueId: row.issueId ?? null,
     agentId: row.agentId,
     runtime: row.runtime,
     status: row.status,
+    kind: (row.kind as 'issue' | 'quick_create') ?? 'issue',
+    quickPrompt: row.quickPrompt ?? null,
     error: row.error,
     startedAt: iso(row.startedAt),
     finishedAt: iso(row.finishedAt),

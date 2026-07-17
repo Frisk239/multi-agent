@@ -64,6 +64,13 @@
       "when": 1784726400000,
       "tag": "0008_bu02_agent_instructions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784812800000,
+      "tag": "0009_bu03_quick_create",
+      "breakpoints": true
     }
   ]
 }
