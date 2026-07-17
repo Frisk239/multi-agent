@@ -7,6 +7,7 @@ import { toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { triggerFromComment } from '../orchestration/comment-trigger.js';
 import { LOCAL_MEMBER } from '../local-member.js';
+import { memoryManager } from '../memory/manager.js';
 
 export async function commentRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/issues/:id/comments — R3: created_at ASC, id ASC
@@ -54,6 +55,23 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
     eventBus.publish({ type: 'comment:created', comment });
     // S04：comment-trigger 解析 mention 派任务（spec §7.3 入口1）
     triggerFromComment(comment);
+
+    // S11：member 普通评论 → ambient 记忆（不含 status_change）
+    if (comment.type === 'comment' && comment.authorType === 'member') {
+      const issueRow = db.select().from(issues).where(eq(issues.id, id)).get();
+      const ident = issueRow?.identifier ?? id;
+      const title = issueRow?.title ?? '';
+      const body =
+        comment.body.length > 1500
+          ? comment.body.slice(0, 1500)
+          : comment.body;
+      memoryManager.ambientCapture({
+        kind: 'comment',
+        issueId: id,
+        text: `[ambient:comment] Issue ${ident}: ${title}\n${body}`,
+      });
+    }
+
     return reply.status(201).send(comment);
   });
 }
