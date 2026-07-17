@@ -4065,6 +4065,13 @@ body {
 .runs-fail-cell {
   max-width: 22rem;
 }
+.runs-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
 .run-status-actions {
   display: flex;
   flex-wrap: wrap;

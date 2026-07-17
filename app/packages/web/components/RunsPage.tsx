@@ -249,8 +249,52 @@ function RunsPageInner() {
         />
       ) : !visibleRuns || visibleRuns.length === 0 ? (
         <EmptyState
-          title="没有匹配的运行"
-          description="换筛选条件，或先指派/快速派活产生 run。"
+          title={
+            status === 'active'
+              ? '当前没有在途运行'
+              : status === 'failed'
+                ? '没有失败运行'
+                : '没有匹配的运行'
+          }
+          description={
+            status === 'active'
+              ? 'queued / running 为空时属正常。可从看板派活，或查看全部 / 失败记录。'
+              : '换筛选条件，或先指派 / 快速派活产生 run。'
+          }
+          action={
+            <div className="runs-empty-actions" data-testid="runs-empty-actions">
+              {status === 'active' || status === 'failed' ? (
+                <Link
+                  href="/runs?status=all"
+                  className="btn-secondary btn-sm"
+                  data-testid="runs-empty-all"
+                >
+                  查看全部
+                </Link>
+              ) : null}
+              {status !== 'failed' ? (
+                <Link
+                  href="/runs?status=failed"
+                  className="btn-secondary btn-sm"
+                  data-testid="runs-empty-failed"
+                >
+                  看失败 run
+                </Link>
+              ) : null}
+              {status !== 'active' ? (
+                <Link
+                  href="/runs?status=active"
+                  className="btn-secondary btn-sm"
+                  data-testid="runs-empty-active"
+                >
+                  看在途
+                </Link>
+              ) : null}
+              <Link href="/" className="btn-primary btn-sm" data-testid="runs-empty-board">
+                去看板派活
+              </Link>
+            </div>
+          }
         />
       ) : (
         <div className="data-table-wrap">
