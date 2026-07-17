@@ -408,3 +408,65 @@ export function useCreateWikiPage() {
     },
   });
 }
+
+// —— S11 Memory hooks ——
+
+export type MemoryStatus = {
+  provider: string | null;
+  available: boolean;
+  backend?: string;
+};
+
+export type MemoryItem = {
+  id: string;
+  text: string;
+  issueId?: string | null;
+  createdAt?: string;
+  source?: string;
+};
+
+// GET /api/memory/status
+export function useMemoryStatus() {
+  return useQuery({
+    queryKey: ['memory-status'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/memory/status`);
+      if (!res.ok) throw new Error('status 失败');
+      return res.json() as Promise<MemoryStatus>;
+    },
+  });
+}
+
+// GET /api/memory?q= — 空 q 为最近 N 条
+export function useMemoryList(q: string) {
+  return useQuery({
+    queryKey: ['memory', q],
+    queryFn: async () => {
+      const url = q.trim()
+        ? `${API}/memory?q=${encodeURIComponent(q.trim())}`
+        : `${API}/memory`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('加载记忆失败');
+      return res.json() as Promise<MemoryItem[]>;
+    },
+  });
+}
+
+// POST /api/memory — curated 写入
+export function useCreateMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { text: string; issueId?: string }) => {
+      const res = await fetch(`${API}/memory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('创建失败');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['memory'] });
+    },
+  });
+}
