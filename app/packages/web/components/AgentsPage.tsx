@@ -1,15 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { CreateAgentInput, RuntimeId } from '@ma/shared';
-import { useAgents, useCreateAgent, useDeleteAgent } from '@/lib/api';
+import type { AgentReadiness, CreateAgentInput, RuntimeId } from '@ma/shared';
+import {
+  useAgents,
+  useAgentsReadinessMap,
+  useCreateAgent,
+  useDeleteAgent,
+} from '@/lib/api';
 import { Icon } from './Icon';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
 
-// bu02：列表 + 新建智能体；行点进详情；可选删除
+function readinessLabel(rd: AgentReadiness | null | undefined): string {
+  if (!rd) return '…';
+  if (rd.status === 'ready') return 'ready';
+  if (rd.status === 'busy') return 'busy';
+  if (rd.status === 'cwd_missing') return 'cwd 未配置';
+  if (rd.status === 'runtime_missing') return 'runtime 缺失';
+  return rd.status;
+}
+
+function readinessClass(status: AgentReadiness['status'] | undefined): string {
+  if (status === 'ready') return 'readiness-chip readiness-ready readiness-chip-inline';
+  if (status === 'busy') return 'readiness-chip readiness-busy readiness-chip-inline';
+  return 'readiness-chip readiness-missing readiness-chip-inline';
+}
+
+// bu02 + readiness 列：列表 + 新建智能体；行点进详情；可选删除
 export function AgentsPage() {
   const router = useRouter();
   const { data, isLoading, isError, error } = useAgents();
@@ -21,6 +41,9 @@ export function AgentsPage() {
   const [category, setCategory] = useState('');
   const [concurrency, setConcurrency] = useState(1);
   const [instructions, setInstructions] = useState('');
+
+  const agentIds = useMemo(() => (data ?? []).map((a) => a.id), [data]);
+  const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
 
   function resetForm() {
     setName('');
@@ -156,51 +179,65 @@ export function AgentsPage() {
       )}
 
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table" data-testid="agents-table">
           <thead>
             <tr>
               <th>智能体</th>
               <th>分类</th>
               <th>运行时</th>
+              <th>就绪</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {agents.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
                   暂无智能体，点「新建智能体」开始
                 </td>
               </tr>
             ) : (
-              agents.map((ag) => (
-                <tr key={ag.id}>
-                  <td>
-                    <Link href={`/agents/${ag.id}`} className="agent-cell">
-                      <span className="agent-icon-sm">
-                        <Icon name="agent" size={14} />
+              agents.map((ag) => {
+                const rd = readinessMap[ag.id];
+                return (
+                  <tr key={ag.id} data-agent-id={ag.id}>
+                    <td>
+                      <Link href={`/agents/${ag.id}`} className="agent-cell">
+                        <span className="agent-icon-sm">
+                          <Icon name="agent" size={14} />
+                        </span>
+                        <span>
+                          <div className="agent-cell-name">{ag.name}</div>
+                        </span>
+                      </Link>
+                    </td>
+                    <td className="text-dim">{ag.category || '—'}</td>
+                    <td>
+                      <code>{ag.runtime}</code>
+                    </td>
+                    <td>
+                      <span
+                        className={readinessClass(rd?.status)}
+                        data-testid="agent-list-readiness"
+                        data-status={rd?.status ?? 'unknown'}
+                        title={rd?.detail ?? undefined}
+                      >
+                        {readinessLabel(rd)}
                       </span>
-                      <span>
-                        <div className="agent-cell-name">{ag.name}</div>
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="text-dim">{ag.category || '—'}</td>
-                  <td>
-                    <code>{ag.runtime}</code>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      disabled={del.isPending}
-                      onClick={() => handleDelete(ag.id, ag.name)}
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={del.isPending}
+                        onClick={() => handleDelete(ag.id, ag.name)}
+                      >
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
