@@ -101,6 +101,9 @@ export function useWsEvents() {
         }
         // agent Runs Tab（补2）
         qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+        // runs-active-nav：生命周期变化刷新在途角标 + 工作区 runs 列表
+        qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+        qc.invalidateQueries({ queryKey: ['runs', 'workspace'] });
         if (
           event.type === 'run:completed' ||
           event.type === 'run:failed' ||

@@ -69,10 +69,14 @@ export const AgentRun = z.object({
 export type AgentRun = z.infer<typeof AgentRun>;
 
 // run-observability + runs-leader：GET /api/runs 查询（issueId 可选）
+// runs-active-nav：status=active 表示 queued|running（侧栏在途）
+export const ListRunsStatus = z.union([AgentRunStatus, z.literal('active')]);
+export type ListRunsStatus = z.infer<typeof ListRunsStatus>;
+
 export const ListRunsQuery = z.object({
   issueId: BusinessId.optional(),
   agentId: BusinessId.optional(),
-  status: AgentRunStatus.optional(),
+  status: ListRunsStatus.optional(),
   kind: AgentRunKind.optional(),
   // isLeader=1|true：仅小队 leader run（对齐 Multica leader task 列表）
   isLeader: z
@@ -81,6 +85,14 @@ export const ListRunsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
 });
 export type ListRunsQuery = z.infer<typeof ListRunsQuery>;
+
+// GET /api/runs/active-count —— 侧栏「运行」角标
+export const RunsActiveCount = z.object({
+  count: z.number().int(),
+  queued: z.number().int(),
+  running: z.number().int(),
+});
+export type RunsActiveCount = z.infer<typeof RunsActiveCount>;
 
 // run-observability：POST /api/issues/:id/rerun body（Multica task_id → runId）
 export const RerunIssueInput = z.object({

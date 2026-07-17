@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { useInbox, useInboxUnreadCount, useIssues } from '@/lib/api';
+import {
+  useInbox,
+  useInboxUnreadCount,
+  useIssues,
+  useRunsActiveCount,
+} from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
@@ -33,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/?assignee=any',
   },
   { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
+  // 有活跃 run 时 href 会被替换为 /runs?status=active
   { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
@@ -46,19 +52,32 @@ const NAV_ITEMS: NavItem[] = [
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   const hasFail = (item.failBadge ?? 0) > 0;
+  const isRuns = item.id === 'runs';
   const badge =
     item.badge != null && item.badge > 0 ? (
       <span
-        className={`nav-badge${hasFail ? ' nav-badge--fail' : ''}`}
-        data-testid={item.id === 'inbox' ? 'nav-inbox-badge' : undefined}
+        className={`nav-badge${hasFail ? ' nav-badge--fail' : ''}${isRuns ? ' nav-badge--active-runs' : ''}`}
+        data-testid={
+          item.id === 'inbox'
+            ? 'nav-inbox-badge'
+            : isRuns
+              ? 'nav-runs-badge'
+              : undefined
+        }
         data-fail={hasFail ? String(item.failBadge) : '0'}
         aria-label={
-          hasFail
-            ? `${item.badge} 未读，其中 ${item.failBadge} 条失败`
-            : `${item.badge} 未读`
+          isRuns
+            ? `${item.badge} 个在途运行`
+            : hasFail
+              ? `${item.badge} 未读，其中 ${item.failBadge} 条失败`
+              : `${item.badge} 未读`
         }
         title={
-          hasFail ? `含 ${item.failBadge} 条未读失败` : undefined
+          isRuns
+            ? 'queued + running'
+            : hasFail
+              ? `含 ${item.failBadge} 条未读失败`
+              : undefined
         }
       >
         {item.badge > 99 ? '99+' : item.badge}
@@ -110,6 +129,9 @@ function navItemActive(
   if (item.id === 'issues') {
     return pathname === '/' && searchParams.get('assignee') !== 'any';
   }
+  if (item.id === 'runs') {
+    return pathname === '/runs' || pathname.startsWith('/runs/');
+  }
   if (item.href && item.href !== '/' && !item.href.includes('?')) {
     return pathname.startsWith(item.href);
   }
@@ -125,6 +147,7 @@ export function Sidebar() {
   const { data: inboxUnread } = useInboxUnreadCount();
   // 轻量：列表里数未读失败，驱动侧栏角标强调（与 Inbox strip 同源数据）
   const { data: inboxData } = useInbox();
+  const { data: activeRuns } = useRunsActiveCount();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
@@ -153,12 +176,21 @@ export function Sidebar() {
 
   const navItems = useMemo(() => {
     const unread = inboxUnread?.count ?? 0;
-    return NAV_ITEMS.map((item) =>
-      item.id === 'inbox'
-        ? { ...item, badge: unread, failBadge: unreadFailCount }
-        : item,
-    );
-  }, [inboxUnread?.count, unreadFailCount]);
+    const activeCount = activeRuns?.count ?? 0;
+    return NAV_ITEMS.map((item) => {
+      if (item.id === 'inbox') {
+        return { ...item, badge: unread, failBadge: unreadFailCount };
+      }
+      if (item.id === 'runs') {
+        return {
+          ...item,
+          badge: activeCount,
+          href: activeCount > 0 ? '/runs?status=active' : '/runs',
+        };
+      }
+      return item;
+    });
+  }, [inboxUnread?.count, unreadFailCount, activeRuns?.count]);
 
   const sections = [
     {

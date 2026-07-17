@@ -195,6 +195,19 @@ export function useInboxUnreadCount() {
   });
 }
 
+// GET /api/runs/active-count —— 侧栏「运行」在途角标
+export function useRunsActiveCount() {
+  return useQuery<{ count: number; queued: number; running: number }>({
+    queryKey: ['runs-active-count'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs/active-count`);
+      if (!res.ok) throw new Error(await apiError(res, '加载活跃运行数失败'));
+      return res.json();
+    },
+    refetchInterval: 15_000,
+  });
+}
+
 export function useMarkInboxRead() {
   const qc = useQueryClient();
   return useMutation({
@@ -506,6 +519,7 @@ export function useRetryRun() {
       qc.invalidateQueries({ queryKey: ['runs'] });
       if (run.issueId) qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
       toastSuccess(`已排队再执行 ${run.id.slice(0, 8)}…`);
     },
     onError: (err) => toastError(errMessage(err, '再执行失败')),
@@ -528,6 +542,7 @@ export function useRerunIssue(issueId: string) {
       qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: ['runs', issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
       toastSuccess('已按当前指派/历史 agent 排队再执行');
     },
     onError: (err) => toastError(errMessage(err, '再执行失败')),
@@ -558,7 +573,9 @@ export function useCancelRun() {
       if (run.issueId) {
         qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       }
+      qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
       toastSuccess('已请求停止运行');
     },
     onError: (err) => toastError(errMessage(err, '取消失败')),

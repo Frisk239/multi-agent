@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc, asc, and, type SQL } from 'drizzle-orm';
-import { ListRunsQuery } from '@ma/shared';
+import { eq, desc, asc, and, inArray, type SQL } from 'drizzle-orm';
+import { ListRunsQuery, type RunsActiveCount } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages } from '../db/schema.js';
 import { toAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, retryRun } from '../orchestration/run-service.js';
 
+const ACTIVE_STATUSES = ['queued', 'running'] as const;
+
 // runs list / detail / messages / cancel / retry（S03 + run-observability）
+// runs-active-nav：active 筛选 + active-count 角标
 export async function runRoutes(app: FastifyInstance) {
   // GET /api/runs —— issueId 可选；可按 status/agentId/kind/isLeader/limit 筛选
   app.get('/api/runs', async (req, reply) => {
@@ -18,7 +21,11 @@ export async function runRoutes(app: FastifyInstance) {
     const filters: SQL[] = [];
     if (q.issueId) filters.push(eq(agentRuns.issueId, q.issueId));
     if (q.agentId) filters.push(eq(agentRuns.agentId, q.agentId));
-    if (q.status) filters.push(eq(agentRuns.status, q.status));
+    if (q.status === 'active') {
+      filters.push(inArray(agentRuns.status, [...ACTIVE_STATUSES]));
+    } else if (q.status) {
+      filters.push(eq(agentRuns.status, q.status));
+    }
     if (q.kind) filters.push(eq(agentRuns.kind, q.kind));
     if (q.isLeader === '1' || q.isLeader === 'true') {
       filters.push(eq(agentRuns.isLeader, 1));
@@ -32,6 +39,22 @@ export async function runRoutes(app: FastifyInstance) {
 
     const rows = query.orderBy(desc(agentRuns.createdAt)).limit(q.limit).all();
     return rows.map(toAgentRun);
+  });
+
+  // GET /api/runs/active-count —— 侧栏「运行」角标（须在 :runId 前注册）
+  app.get('/api/runs/active-count', async (): Promise<RunsActiveCount> => {
+    const rows = db
+      .select({ status: agentRuns.status })
+      .from(agentRuns)
+      .where(inArray(agentRuns.status, [...ACTIVE_STATUSES]))
+      .all();
+    let queued = 0;
+    let running = 0;
+    for (const r of rows) {
+      if (r.status === 'queued') queued += 1;
+      else if (r.status === 'running') running += 1;
+    }
+    return { count: queued + running, queued, running };
   });
 
   // GET /api/runs/:runId —— 单条

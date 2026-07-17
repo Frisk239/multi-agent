@@ -256,6 +256,12 @@ body {
   box-shadow: 0 0 0 1px color-mix(in srgb, #ef4444 50%, transparent);
 }
 
+/* 在途 run 角标：中性强调，区别于 Inbox 失败红 */
+.nav-badge--active-runs {
+  background: color-mix(in srgb, #3b82f6 88%, #1e3a8a);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #3b82f6 40%, transparent);
+}
+
 .nav-item--has-fail .nav-item-label {
   color: color-mix(in srgb, #ef4444 55%, var(--text));
 }

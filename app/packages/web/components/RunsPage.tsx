@@ -8,10 +8,18 @@ import { useAgents, useRetryRun, useWorkspaceRuns } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
-type StatusFilter = '' | 'queued' | 'running' | 'failed' | 'cancelled' | 'completed';
+type StatusFilter =
+  | ''
+  | 'active'
+  | 'queued'
+  | 'running'
+  | 'failed'
+  | 'cancelled'
+  | 'completed';
 
 const STATUS_VALUES: StatusFilter[] = [
   '',
+  'active',
   'queued',
   'running',
   'failed',
@@ -143,7 +151,7 @@ function RunsPageInner() {
             <span className="count">{visibleRuns?.length ?? 0}</span>
           </div>
           <div className="page-desc">
-            筛选同步 URL（可分享）；队长 run 与 ?run= 高亮对齐 Multica 任务列表。
+            筛选同步 URL（可分享）；status=active 为 queued+running 在途列表。
           </div>
         </div>
         <div className="page-actions runs-page-actions">
@@ -188,15 +196,17 @@ function RunsPageInner() {
           状态
           <select
             value={status}
+            data-testid="runs-status-filter"
             onChange={(e) => {
               const v = e.target.value as StatusFilter;
-              // 显式写 status=（含 failed），便于分享；选「全部」则删参数并区分默认
+              // 显式写 status=（含 failed/active），便于分享；选「全部」则删参数并区分默认
               if (v === '') replaceParams({ status: 'all' });
               else replaceParams({ status: v });
             }}
             aria-label="筛选状态"
           >
             <option value="">全部</option>
+            <option value="active">活跃 (queued+running)</option>
             <option value="failed">failed</option>
             <option value="running">running</option>
             <option value="queued">queued</option>
