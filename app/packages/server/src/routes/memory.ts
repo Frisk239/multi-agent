@@ -1,41 +1,19 @@
-// S09 Memory API（spec §7）
-// GET  /api/memory/status  provider 名 + available
-// GET  /api/memory         ?q=&limit= 检索；q 空则最近 limit 条
-// POST /api/memory         curated 写入 body CreateMemoryInput
+// S09/S10 Memory API（spec §7 / S10 §9）
+// GET  /api/memory/status  provider + available + backend
+// GET  /api/memory         ?q=&limit= 检索；一律 Manager.search（R8）
+// POST /api/memory         curated 写入 body CreateMemoryInput（R9：依赖 addRaw 返回值）
 import type { FastifyInstance } from 'fastify';
-import { desc } from 'drizzle-orm';
 import { CreateMemoryInput } from '@ma/shared';
-import { db } from '../db/client.js';
-import { memoryItems } from '../db/schema.js';
 import { memoryManager } from '../memory/manager.js';
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/memory/status', async () => ({
-    provider: memoryManager.getExternalName(),
-    available: memoryManager.getExternalName() != null,
-  }));
+  app.get('/api/memory/status', async () => memoryManager.getStatus());
 
   app.get('/api/memory', async (req) => {
     const { q, limit } = req.query as { q?: string; limit?: string };
     const lim = Math.min(Number(limit) || 20, 100);
-    if (q && q.trim()) {
-      return memoryManager.search(q.trim(), lim);
-    }
-    const rows = db
-      .select()
-      .from(memoryItems)
-      .orderBy(desc(memoryItems.createdAt))
-      .limit(lim)
-      .all();
-    return rows.map((r) => ({
-      id: r.id,
-      scope: r.scope,
-      issueId: r.issueId,
-      agentId: r.agentId,
-      runId: r.runId,
-      text: r.text,
-      createdAt: new Date(r.createdAt).toISOString(),
-    }));
+    // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
+    return memoryManager.search(q?.trim() ?? '', lim);
   });
 
   app.post('/api/memory', async (req, reply) => {
@@ -59,26 +37,8 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
           createdAt: created.createdAt ?? new Date().toISOString(),
         });
       }
-      // fallback：无 addRaw 时从库取最新一条
-      const row = db
-        .select()
-        .from(memoryItems)
-        .orderBy(desc(memoryItems.createdAt))
-        .limit(1)
-        .get();
-      return reply.status(201).send(
-        row
-          ? {
-              id: row.id,
-              scope: row.scope,
-              issueId: row.issueId,
-              agentId: row.agentId,
-              runId: row.runId,
-              text: row.text,
-              createdAt: new Date(row.createdAt).toISOString(),
-            }
-          : { ok: true },
-      );
+      // 无 addRaw 时 syncTurn 路径：无 SQLite fallback（pgvector 会读错库）
+      return reply.status(201).send({ ok: true });
     } catch (e) {
       return reply.status(500).send({ error: String(e) });
     }
