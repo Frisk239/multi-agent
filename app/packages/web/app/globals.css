@@ -622,9 +622,26 @@ body {
   margin: var(--space-2) 0;
 }
 
+.run-status-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .run-status-pill {
   font-size: var(--text-sm);
   color: var(--text-muted);
+}
+
+.run-progress-text {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* S04 B2：leader run 徽标，区分队长 run 与普通 run */
@@ -1756,3 +1773,222 @@ body {
   max-width: 52rem;
 }
 
+
+/* —— S12 Chrome：toast / empty / cmdk / ws chip —— */
+
+.toast-viewport {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: min(360px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
+.toast--success {
+  border-color: color-mix(in srgb, var(--color-green) 45%, var(--border));
+}
+
+.toast--error {
+  border-color: color-mix(in srgb, var(--color-red) 55%, var(--border));
+  color: var(--color-red);
+}
+
+.empty-state {
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.empty-state-desc {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+
+.empty-state-action {
+  margin-top: var(--space-3);
+}
+
+.empty-state--column {
+  padding: var(--space-6) var(--space-2);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin: 0 var(--space-1) var(--space-2);
+}
+
+.sidebar-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.ws-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.ws-chip--open .ws-chip-dot {
+  background: var(--color-green);
+}
+
+.ws-chip--connecting .ws-chip-dot {
+  background: var(--color-yellow);
+}
+
+.ws-chip--closed .ws-chip-dot {
+  background: var(--color-red);
+}
+
+.working-count {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  padding-top: min(18vh, 140px);
+}
+
+.cmdk-dialog {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: min(70vh, 480px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cmdk-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-md, 15px);
+  font-family: var(--font-ui);
+  outline: none;
+}
+
+.cmdk-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow: auto;
+  flex: 1;
+}
+
+.cmdk-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  text-align: left;
+}
+
+.cmdk-item:hover,
+.cmdk-item:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.cmdk-hint {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  flex-shrink: 0;
+}
+
+.cmdk-empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+}
+
+.cmdk-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+}
+
+.app-error {
+  max-width: 28rem;
+  margin: 4rem auto;
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  text-align: center;
+}
+
+.app-error-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.125rem;
+}
+
+.app-error-message {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  word-break: break-word;
+}
