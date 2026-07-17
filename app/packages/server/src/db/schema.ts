@@ -65,6 +65,7 @@ export const squads = sqliteTable('squad', {
 // 不再进 DB。分配关系见上方 agentSkills。
 
 // —— issue（spec §3.2，照 multica 001_init.up.sql:52-72）——
+// bu03：+ origin_type / origin_run_id（快速派活溯源）
 export const issues = sqliteTable(
   'issue',
   {
@@ -86,6 +87,8 @@ export const issues = sqliteTable(
     creatorType: text('creator_type', { enum: ['member', 'agent'] }).notNull(),
     creatorId: text('creator_id').notNull(),
     position: real('position').notNull().default(0),
+    originType: text('origin_type'), // 'quick_create' | null
+    originRunId: text('origin_run_id'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -115,18 +118,19 @@ export const comments = sqliteTable(
 );
 
 // —— agent_run（S03 执行层，薄状态机，对齐 multica task）——
+// bu03：issue_id 可空（quick_create 初始无 Issue）；+ kind / quick_prompt
 export const agentRuns = sqliteTable(
   'agent_run',
   {
     id: text('id').primaryKey(),
-    issueId: text('issue_id')
-      .notNull()
-      .references(() => issues.id),
+    issueId: text('issue_id').references(() => issues.id), // 可空：QC 先 run 再建卡
     agentId: text('agent_id').notNull(),
     runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] }).notNull(),
     status: text('status', {
       enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
     }).notNull(),
+    kind: text('kind', { enum: ['issue', 'quick_create'] }).notNull().default('issue'),
+    quickPrompt: text('quick_prompt'),
     // S04：is_leader + squad_id（照 multica 090/127 migration，标记 squad-leader run）
     isLeader: integer('is_leader').notNull().default(0),
     squadId: text('squad_id'),
@@ -140,6 +144,7 @@ export const agentRuns = sqliteTable(
   (t) => ({
     issueIdx: index('idx_agent_run_issue').on(t.issueId),
     statusIdx: index('idx_agent_run_status').on(t.status),
+    kindStatusIdx: index('idx_agent_run_kind_status').on(t.kind, t.status),
   }),
 );
 
