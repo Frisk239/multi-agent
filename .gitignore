@@ -52,3 +52,5 @@ mcps/
 
 # ── git worktrees（隔离开发目录）──
 .worktrees/
+
+# Local skill/work scratch (tickets, wayfinder maps)

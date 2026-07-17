@@ -8,8 +8,8 @@
 
 **论文一句话：** 四层架构（编排-执行-知识-记忆），用「编译式项目 Wiki」+「可插拔记忆」解决 RAG 不累积、执行不可追踪、跨会话上下文丢失。
 
-**工程实现已启动。** S01–S12 已合 main（编排/执行/Wiki/记忆 + 产品硬化）。  
-**当前主线：补充阶段（补1、补2…，刀数不固定）——先补可运营缺口，不再前推后续能力切片；补到差不多再开后续。** 真源见 [docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)。
+**工程实现已启动。** S01–S12 + 补1–4 已合 main；补5 自动化待合 PR。  
+**当前主线：补充阶段收尾**——可运营缺口（见 [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)）；**工作流已迁到 Matt 工程 skills**（见下方 §工程模式），不再默认 superpowers。
 
 ## 目录地图
 
@@ -21,7 +21,10 @@
 | `references/`（高层摘要） | catalog/orchestration/runtime/wiki/memory 各层摘要 | 快速了解用 |
 | `references/repos/` | 12 个上游开源 clone（**只读，gitignore，独立 git**） | **绝不在此改上游代码** |
 | `concepts/` | 跨项目理论（Wiki 模式等） | 论文 Related Work 用 |
-| `app/` | 应用代码（pnpm monorepo：shared / server / web） | 一切片一 feature 分支；handoff 在 `app/.progress/` |
+| `app/` | 应用代码（pnpm monorepo：shared / server / web） | feature 分支 → PR；见 §工程模式 |
+| `docs/agents/` | **Skills 配置**（tracker / domain / triage） | setup 产出；可手改 |
+| `CONTEXT.md` | **领域词汇 + 当前方位** | grill / domain-modeling 维护 |
+| `.scratch/` | **本地工单与 spec**（to-spec / to-tickets / wayfinder） | 一 feature 一目录 |
 
 ## 技术栈（已锁定）
 
@@ -84,25 +87,13 @@
 - ✅ 12 个参考项目调研 + 源码深读
 - ✅ 技术选型锁定（TS 全栈 + 纯本地 + 多 Backend）
 - ✅ 产品原型已验收（`chanpin/`，88 Must REQ 可交互）
-- ✅ **S01–S05** 看板 / 详情 / 真实执行 / Squad / Skill·MCP
-- ✅ **S06–S08** Wiki + ingest 队列 + AGENTS bridge
-- ✅ **S09–S11** MemoryProvider + pgvector + brain-first UI
-- ✅ **S12** 产品硬化（Chrome + progress + Squad 只读 + 合成 Inbox）
-- ✅ **补1** 可靠性 + 真 Inbox（PR #12 合 main）— heartbeat/stale/orphan；`inbox_item` 落库；read/archive/角标
-- ⬅ **补充阶段（当前）** — 下一刀建议 **补2**（Agent/Squad 运营 C+D）；仍可按需加补3…；**不前推**后续能力主线
-- ⏸ **后续能力切片** — 补充阶段退出前不前推
+- ✅ **S01–S12** 编排 / 执行 / Wiki / 记忆 / 产品硬化
+- ✅ **补1–4** 可靠性+Inbox · Agent/Squad 运营 · Quick-create · Settings 诊断（PR #12–#15）
+- 🟢 **补5** 最小自动化 — 分支 `feat/bu05-automation`（计划者整刀验收通过，待合 PR）
+- ⏸ **后续能力主线** — 补充阶段退出前不前推
 
-**补充阶段真源：** [`docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
-**切片/handoff 约定：** 分支 `feat/bu0N-…`，进度写 `app/.progress/bu0N-*.md`  
-**当前补充刀：**  
-- **补2**（执行中/待合）：Agent/Squad 运营 — [`bu02-roster-ops` plan](docs/superpowers/plans/2026-07-17-bu02-roster-ops.md)  
-- **补3**（计划已就绪，建议补2 合后再实现）：快速派活 Multica QC — [spec](docs/superpowers/specs/2026-07-17-bu03-quick-create-design.md) · [plan](docs/superpowers/plans/2026-07-17-bu03-quick-create.md) · [kickoff](app/.progress/bu03-planner-0.md)  
-
-**当前补充刀：**
-- 补1–4 已合 main
-- **补5**（计划已就绪）：最小自动化 — [spec](docs/superpowers/specs/2026-07-17-bu05-autopilot-design.md) · [plan](docs/superpowers/plans/2026-07-17-bu05-automation.md) · [kickoff](app/.progress/bu05-planner-0.md)
-
-**计划者会话分工：** 只做计划 / handoff / 验收；**实现由用户另派执行会话**。
+**补充阶段进度表：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
+**领域词汇：** [CONTEXT.md](CONTEXT.md)
 
 ## 不可破坏的约束
 
@@ -112,69 +103,81 @@
 - ❌ 不在 `chanpin/prototype/` 引入构建步骤或框架（它是零依赖纯原生 HTML 原型，双击 index.html 即可运行——这是刻意的）
 - ✅ 答辩 demo 路径 FRI-11 必须始终可演示（见 [chanpin/prototype/data/seed.js](chanpin/prototype/data/seed.js)）
 
+## Agent skills
+
+### Issue tracker
+
+工单与 spec 落在 **本地 markdown** `.scratch/<feature>/`；GitHub 仅用于 PR。见 [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)。
+
+### Triage labels
+
+本地 `Status:` 使用标准五角色（`ready-for-agent` 等）。见 [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)。
+
+### Domain docs
+
+Single-context：`CONTEXT.md` + `docs/adr/`。见 [`docs/agents/domain.md`](docs/agents/domain.md)。
+
+### 工作流路由
+
+idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/workflow.md)。不确定用哪个 skill → **`/ask-matt`**。
+
 ## 工程模式（最高优先级，所有 `app/` 会话必读）
 
-### 核心方法：垂直切片 × 计划者-执行者
+> **已弃用**默认 superpowers 路径（brainstorming → writing-plans → 计划者/执行者厚切片 checkbox）。  
+> **现用**本机 `.zcode/skills` 的 Matt 工程流。技能不会自动猜——需要时显式 `/skill` 或问 `/ask-matt`。
 
-**两个维度，不是二选一：**
-- **垂直切片**决定「做什么」——每次端到端打通一条最薄路径，再加深。不做水平分层（先全 schema、再全 API、最后集成）。切片清单见 [`design/slices.md`](design/slices.md)。
-- **计划者-执行者**决定「每个切片内部怎么执行」——你（人）是编排者，每个垂直切片派一个**计划者主代理** + 多个**顺序执行的执行者子代理**。
-
-**为什么这样组合：** 一个会话执行时间太长质量会下降，所以切片内部要拆成短会话；但拆出来的子代理之间会丢上下文，所以用 handoff 文档传递。
-
-### 一个垂直切片的生命周期
+### 主链路：idea → ship
 
 ```
-人 → 开一个计划者会话
-     ├─ 读 AGENTS.md + design/ + 上一切片的 handoff
-     ├─ 用 EnterPlanMode 设计这个切片的执行者拆分 + 验收标准
-     ├─ 派执行者 1（写 handoff → 计划者验收 → 写给执行者 2 的注意点）
-     ├─ 派执行者 2（读上一切片注意点 → 实现 → 写 handoff）
-     ├─ ... 顺序执行 ...
-     └─ 最后一个执行者跑通验收 → 计划者写切片总结 → 人在 main 合并
+/grill-with-docs     有代码库时拷问设计；维护 CONTEXT.md / ADR
+       ↓
+  （可选）/handoff → /prototype → /handoff   必须可运行才能决的题
+       ↓
+  单会话做完？
+    是 → /implement（内含测试纪律 + 结束 /code-review）
+    否 → /to-spec → /to-tickets → 每个 ticket 新会话 /implement
 ```
 
-### Handoff 文档规则（跨会话记忆的关键）
+**上下文卫生（smart zone）：** grill → spec → tickets **同一窗口**尽量不断；每个 `/implement` **新会话**，只读 ticket + CONTEXT + 相关代码。逼近窗口质量悬崖时用 **`/handoff`** 换窗，不要硬撑。
 
-- 路径：`app/.progress/<slice-id>-<role>-<seq>.md`（如 `s01-impl-1.md`）
-- 执行者**必须**写：完成了什么、自测结果、与计划的偏离及原因
-- 计划者**必须**写：验收结论 + 给下一个执行者的注意点（不是新计划）
-- 模板见 [`app/.progress/_TEMPLATE.md`](app/.progress/_TEMPLATE.md)
-- **每个会话开始前先读这个目录最新的 handoff**
+### 垂直切片仍然有效
 
-### 垂直切片划分原则
+- **Tracer bullet / 垂直切片** = `/to-tickets` 的一票：端到端可演示，非「先全 schema 再全 UI」。  
+- **依赖** = ticket 的 `Blocked by`，不再靠 `app/.progress` 编号棒。  
+- 契约先行：改 shared 类型的票应先合，再开 UI 票。
 
-1. **每个切片端到端可跑**——切完能 `pnpm dev` 看到进展
-2. **切片之间串行，切片内部执行者串行**——除非两个子任务改不同文件且无接口依赖，才可并行
-3. **契约先行**——任何并行前，shared 类型/Zod schema 必须先定死
-4. **切片对应 RTM 需求**——[`chanpin/docs/prd/multi-agent-platform-rtm-v2.md`](chanpin/docs/prd/multi-agent-platform-rtm-v2.md) 的 88 Must 是验收字典
+### 大而雾 / 外来单 / 难 bug
 
-### Git 规则
+| 情况 | 用 |
+|---|---|
+| 目标可见但一会话装不下 | `/wayfinder` → 决策清晰后 **`/to-spec`**（不要 map 直接 implement） |
+| 外来 bug/请求 | `/triage` → ready-for-agent → `/implement` |
+| 难复现 / 性能回归 | `/diagnosing-bugs` |
+| 架构加深 | `/improve-codebase-architecture` + `/codebase-design` |
 
-**铁律：开发代码永远不直接进 main。** main 是稳定的文档基线 + 已验收合并的切片。
+### 跨会话
+
+- **`/handoff`**：换会话；摘要落到 OS 临时目录；不写密钥。  
+- **`/compact`**：同会话阶段间隙；勿在 grill 中途 compact。  
+- 历史 `app/.progress/*` **可保留作档案**，新工作不强制写；验收证据写在 ticket 或 PR。
+
+### Git 规则（不变）
+
+**铁律：`app/**` 工程代码不直接进 main。**
 
 | 场景 | 做法 |
 |---|---|
-| 文档/调研（design/、chanpin/、references/ 等） | 可直接提交 main（`docs:` 前缀） |
-| **任何 app/ 下的工程代码** | **必须**走 feature 分支 → PR → 审查 → 合并，**绝不直接 push main** |
+| 文档/调研（design/、chanpin/、docs/、CONTEXT…） | 可直接 `docs:` 提交 main |
+| **任何 app/ 下的工程代码** | `feat/<slug>` → PR → **新会话 `/code-review`** → 人合并 |
 
-**分支与提交规范：**
+- Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`  
+- main 始终 typecheck + `pnpm dev` 可起  
+- 单人也开 PR：无上下文偏见审 diff  
 
-- 一个垂直切片一个 feature 分支：`feat/<slice-id>-<描述>`（如 `feat/s01-monorepo-scaffold`）
-- 切片内部执行者都在这个分支上提交，不开新分支（除非试验性探索）
-- Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`
-- main 必须始终能 typecheck 通过、能 `pnpm dev` 起来
+### 与 superpowers 文档的关系
 
-**合并流程（每个切片结束）：**
-
-1. 计划者确认切片验收达标（handoff 里勾选了验收清单）
-2. 开 PR，让**新会话**（无上下文偏见）审 diff
-3. 审查通过 → 人在 main 合并（普通 merge，保留分支历史）
-4. 合并后该 feature 分支可删
-
-**单人为何也开 PR：** 新会话审查能发现接口不一致、遗漏的边界 case、与 AGENTS.md 约定的冲突——这些原会话因上下文惯性看不见。
-
-详细的切片→分支映射见 [`design/roadmap.md`](design/roadmap.md)。
+- `docs/superpowers/specs/*`、`plans/*`：**历史真源仍可读**，新 feature 优先 `.scratch/<feature>/spec.md`（可链接旧文）。  
+- 补充阶段能力池 phase4b：**产品 backlog 仍有效**，执行改走 tickets + implement。  
 
 ## 工作语言
 
