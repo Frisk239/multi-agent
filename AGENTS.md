@@ -1,15 +1,18 @@
 # AGENTS.md — 项目宪法
 
-> 这是本地多智能体编排平台的毕设工作区。改任何东西前，先读这份。
+> 这是**本地多智能体编排产品**的工程工作区。改任何东西前，先读这份。  
+> 出身可追溯毕设/调研，但**主航道按真实产品做**：日常可用、可演进、可运营——**不**把「答辩演示」「论文章节」当作产品排期真源。
 
 ## 这是什么
 
 纯本地（非云端）、面向软件工程的多智能体编排平台。人在本地 Web 控制台上分配任务给 Agent，Agent 绑定并驱动本机已有的编码 CLI（Claude Code / opencode / Cursor / Pi…），产出写入项目 Wiki，经验写入记忆层。
 
-**论文一句话：** 四层架构（编排-执行-知识-记忆），用「编译式项目 Wiki」+「可插拔记忆」解决 RAG 不累积、执行不可追踪、跨会话上下文丢失。
+**产品一句话：** 本机编码 CLI 的编排控制台——派活、小队、追踪、Wiki、记忆，全部本地、可天天用。
 
-**工程实现已启动。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
-**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md) 退出清单勾满，**不开补6**）。**当前：** 后续切片须人显式开刀；**工作流 = 计划者/执行者 × Matt skills**（见 §工程模式），不再默认 superpowers。
+**架构一句话（可写论文，但不驱动路线）：** 四层（编排-执行-知识-记忆），「编译式项目 Wiki」+「可插拔记忆」。
+
+**工程状态。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
+**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——按用户价值与痛点开刀，须人显式指定主题；**工作流 = 计划者/执行者 × Matt skills**（见 §工程模式）。
 
 ## 目录地图
 
@@ -91,10 +94,9 @@
 - ✅ **补1–4** 可靠性+Inbox · Agent/Squad 运营 · Quick-create · Settings 诊断（PR #12–#15）
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
-- ⏸ **后续能力主线** — 须人显式开刀（非自动前推 S 编号）
+- ▶ **产品演进主线** — 当真实产品继续切片；主题由人指定（非答辩清单、非自动 S 编号）
 
-**补充阶段进度表：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
-**领域词汇：** [CONTEXT.md](CONTEXT.md)
+**产品/阶段真源：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)（补充已收官）· [roadmap](design/roadmap.md) · [CONTEXT.md](CONTEXT.md)
 
 ## 不可破坏的约束
 
@@ -102,7 +104,7 @@
 - ❌ 不自造 Agent loop（用 Backend adapter 驱动已有 CLI）
 - ❌ 不改 `references/repos/` 下的上游代码
 - ❌ 不在 `chanpin/prototype/` 引入构建步骤或框架（它是零依赖纯原生 HTML 原型，双击 index.html 即可运行——这是刻意的）
-- ✅ 答辩 demo 路径 FRI-11 必须始终可演示（见 [chanpin/prototype/data/seed.js](chanpin/prototype/data/seed.js)）
+- ✅ 核心 seed 工作流（含历史 FRI-11 样例）不无故砸掉；**排期优先级 = 产品日常可用**，不是答辩彩排
 
 ## Agent skills
 

@@ -7,6 +7,8 @@
 
 纯本地软件工程多智能体编排平台：人在 Web 控制台派任务 → Agent 驱动本机编码 CLI → 产出进 **Wiki**、经验进 **Memory**。
 
+**产品立场：** 本仓按**真实产品**建设与演进。答辩、论文、seed 样例（如 FRI-11）可作回归锚点或并行材料，**不是**路线图与切片优先级的真源。
+
 ## 术语表（优先用这些词）
 
 | 术语 | 含义 | 避免说成 |
@@ -35,10 +37,11 @@
 ## 当前方位（2026-07-17）
 
 - **已合 main：** S01–S12；补1–5（可靠性/Inbox · 运营 CRUD · quick-create · Settings · 最小自动化 PR #16）  
-- **补充阶段：已收官**（phase4b 退出清单勾满；人授权 Playwright 日常路径过则 **不开补6**）  
-- **下一刀：** 人显式指定的 **后续切片**（非补N 主线）；H/I/J 仅在有明确痛点时另开  
-- **工作流：** **计划者主代理 + 执行者子代理（保留）** × Matt skills（grill / to-spec / to-tickets / implement / code-review / handoff）。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
-- **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`；可选 `app/.progress` 作 handoff 档案  
+- **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
+- **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
+- **下一刀：** 待人指定产品主题（例：Issue 厚度、运行可观测、Wiki/Memory 打磨、工作流深度…）  
+- **工作流：** **计划者主代理 + 执行者子代理** × Matt skills。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
+- **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`
 
 ## 相关入口
 
