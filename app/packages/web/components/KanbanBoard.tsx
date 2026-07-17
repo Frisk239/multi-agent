@@ -1,8 +1,14 @@
 'use client';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { IssueStatus } from '@ma/shared';
-import { useIssues, useLabels, useUpdateIssue } from '@/lib/api';
+import {
+  useAgents,
+  useIssues,
+  useLabels,
+  useSquads,
+  useUpdateIssue,
+} from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
 
@@ -16,13 +22,38 @@ const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
   { title: 'Blocked', status: 'blocked', color: 'var(--status-blocked)' },
 ];
 
+/** URL `assignee=` → IssuesQuery 字段 */
+function parseAssigneeParam(raw: string | null): {
+  assigneeType?: 'agent' | 'squad';
+  assigneeId?: string;
+  unassigned?: boolean;
+  assigned?: boolean;
+} {
+  if (!raw) return {};
+  if (raw === 'none') return { unassigned: true };
+  if (raw === 'any') return { assigned: true };
+  if (raw.startsWith('agent:')) {
+    const id = raw.slice('agent:'.length);
+    return id ? { assigneeType: 'agent', assigneeId: id } : {};
+  }
+  if (raw.startsWith('squad:')) {
+    const id = raw.slice('squad:'.length);
+    return id ? { assigneeType: 'squad', assigneeId: id } : {};
+  }
+  return {};
+}
+
 function KanbanBoardInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const labelFilter = searchParams.get('label') ?? '';
   const qFromUrl = searchParams.get('q') ?? '';
+  const assigneeFromUrl = searchParams.get('assignee') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
+
+  const { data: agents = [] } = useAgents();
+  const { data: squads = [] } = useSquads();
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -53,9 +84,26 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const setAssigneeFilter = useCallback(
+    (value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (value) sp.set('assignee', value);
+      else sp.delete('assignee');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const assigneeQuery = useMemo(
+    () => parseAssigneeParam(assigneeFromUrl || null),
+    [assigneeFromUrl],
+  );
+
   const { data: issues, isLoading } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
+    ...assigneeQuery,
   });
   const { data: labels } = useLabels();
   const update = useUpdateIssue();
@@ -63,7 +111,7 @@ function KanbanBoardInner() {
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
-  // cancelled 不渲染；服务端已按 q/label 过滤
+  // cancelled 不渲染；服务端已按 q/label/assignee 过滤
   const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
 
   function handleDrop(targetStatus: IssueStatus) {
@@ -76,6 +124,8 @@ function KanbanBoardInner() {
     update.mutate({ id: dragId, input: { status: targetStatus } });
     setDragId(null);
   }
+
+  const selectValue = assigneeFromUrl || '';
 
   return (
     <div className="kanban-board">
@@ -91,6 +141,30 @@ function KanbanBoardInner() {
           onChange={(e) => setQDraft(e.target.value)}
           aria-label="搜索 Issue"
         />
+        <select
+          className="kanban-assignee-select"
+          value={selectValue}
+          onChange={(e) => setAssigneeFilter(e.target.value)}
+          aria-label="按指派筛选"
+        >
+          <option value="">全部指派</option>
+          <option value="any">已指派</option>
+          <option value="none">未指派</option>
+          <optgroup label="智能体">
+            {agents.map((a) => (
+              <option key={a.id} value={`agent:${a.id}`}>
+                {a.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="小队">
+            {squads.map((s) => (
+              <option key={s.id} value={`squad:${s.id}`}>
+                {s.name}
+              </option>
+            ))}
+          </optgroup>
+        </select>
         <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
           <button
             type="button"

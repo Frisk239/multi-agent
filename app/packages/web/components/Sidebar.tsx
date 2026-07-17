@@ -20,8 +20,16 @@ type NavItem = {
 };
 
 // S12：已实现路由；run-observability 增加「运行」
+// issue-assignee-desk：侧栏「我的 issue」→ /?assignee=any
 const NAV_ITEMS: NavItem[] = [
   { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
+  {
+    id: 'my-issues',
+    label: '我的 issue',
+    icon: 'user',
+    section: 'workspace',
+    href: '/?assignee=any',
+  },
   { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
   { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
@@ -72,6 +80,24 @@ function wsLabel(status: 'connecting' | 'open' | 'closed') {
   if (status === 'open') return '已连接';
   if (status === 'connecting') return '连接中';
   return '已断开';
+}
+
+/** Issues vs 我的 issue：同 pathname `/`，靠 assignee= 区分高亮 */
+function navItemActive(
+  item: NavItem,
+  pathname: string,
+  searchParams: URLSearchParams,
+): boolean {
+  if (item.id === 'my-issues') {
+    return pathname === '/' && searchParams.get('assignee') === 'any';
+  }
+  if (item.id === 'issues') {
+    return pathname === '/' && searchParams.get('assignee') !== 'any';
+  }
+  if (item.href && item.href !== '/' && !item.href.includes('?')) {
+    return pathname.startsWith(item.href);
+  }
+  return false;
 }
 
 export function Sidebar() {
@@ -199,10 +225,7 @@ export function Sidebar() {
                 <li key={item.id}>
                   <NavRow
                     item={item}
-                    active={
-                      (item.href === '/' && pathname === '/') ||
-                      (item.href !== '/' && item.href != null && pathname.startsWith(item.href))
-                    }
+                    active={navItemActive(item, pathname, searchParams)}
                   />
                 </li>
               ))}

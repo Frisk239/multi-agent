@@ -37,14 +37,17 @@ function issueWithLabels(row: typeof issues.$inferSelect) {
 }
 
 export async function issueRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/issues —— spec §5.1 + issue-find：q / labelId / status
+  // GET /api/issues —— issue-find + issue-assignee-desk：q / labelId / status / assignee*
   app.get('/api/issues', async (req, reply) => {
     const parsed = ListIssuesQuery.safeParse(req.query ?? {});
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { q, labelId, status } = parsed.data;
+    const { q, labelId, status, assigneeType, assigneeId, unassigned, assigned } =
+      parsed.data;
     const qTrim = q?.trim() ?? '';
+    const unassignedOn = unassigned === '1' || unassigned === 'true';
+    const assignedOn = assigned === '1' || assigned === 'true';
 
     let rows = db
       .select()
@@ -85,6 +88,19 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         if ((r.description ?? '').toLowerCase().includes(needle)) return true;
         return false;
       });
+    }
+
+    if (unassignedOn) {
+      rows = rows.filter((r) => r.assigneeType == null || r.assigneeId == null);
+    } else if (assigneeType && assigneeId) {
+      rows = rows.filter(
+        (r) => r.assigneeType === assigneeType && r.assigneeId === assigneeId,
+      );
+    } else if (assignedOn) {
+      // 「我的 issue」/已指派：任一 agent 或 squad（忽略 member 等）
+      rows = rows.filter(
+        (r) => r.assigneeType === 'agent' || r.assigneeType === 'squad',
+      );
     }
 
     const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));

@@ -60,6 +60,13 @@ export type IssuesQuery = {
   q?: string;
   labelId?: string;
   status?: string;
+  /** agent | squad — 须与 assigneeId 成对 */
+  assigneeType?: 'agent' | 'squad';
+  assigneeId?: string;
+  /** 仅未指派 */
+  unassigned?: boolean;
+  /** 任一 agent/squad 指派（侧栏「我的 issue」） */
+  assigned?: boolean;
 };
 
 function issuesQueryKey(params?: IssuesQuery) {
@@ -68,6 +75,10 @@ function issuesQueryKey(params?: IssuesQuery) {
     params?.q?.trim() || '',
     params?.labelId || '',
     params?.status || '',
+    params?.assigneeType || '',
+    params?.assigneeId || '',
+    params?.unassigned ? '1' : '',
+    params?.assigned ? '1' : '',
   ] as const;
 }
 
@@ -76,6 +87,12 @@ function buildIssuesUrl(params?: IssuesQuery) {
   if (params?.q?.trim()) sp.set('q', params.q.trim());
   if (params?.labelId) sp.set('labelId', params.labelId);
   if (params?.status) sp.set('status', params.status);
+  if (params?.assigneeType && params?.assigneeId) {
+    sp.set('assigneeType', params.assigneeType);
+    sp.set('assigneeId', params.assigneeId);
+  }
+  if (params?.unassigned) sp.set('unassigned', '1');
+  if (params?.assigned) sp.set('assigned', '1');
   const qs = sp.toString();
   return qs ? `${API}/issues?${qs}` : `${API}/issues`;
 }
