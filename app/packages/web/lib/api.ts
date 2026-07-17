@@ -27,6 +27,7 @@ import type {
   WikiHealthResult,
   WikiLintResult,
   CreateWikiPageInput,
+  CreateQuickRunInput,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -727,5 +728,27 @@ export function useCreateMemory() {
       toastSuccess('记忆已保存');
     },
     onError: (err) => toastError(errMessage(err, '创建失败')),
+  });
+}
+
+// —— bu03 Quick Create hooks ——
+
+export function useCreateQuickRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateQuickRunInput) => {
+      const res = await fetch(`${API}/quick-runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '快速派活失败'));
+      return res.json() as Promise<{ run: AgentRun }>;
+    },
+    onSuccess: () => {
+      toastSuccess('已派出快速派活任务');
+      qc.invalidateQueries({ queryKey: ['agent-runs'] });
+    },
+    onError: (err) => toastError(errMessage(err, '快速派活失败')),
   });
 }

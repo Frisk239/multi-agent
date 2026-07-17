@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useIssues } from '@/lib/api';
+import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
   open: boolean;
@@ -17,9 +18,11 @@ type Command = {
 };
 
 // S12：Ctrl+K 命令面板——导航已实现路由 + 新建 Issue + 最近 issues 过滤
+// bu03：+ 快速派活命令
 export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const { data: issues = [] } = useIssues();
 
   useEffect(() => {
@@ -108,6 +111,15 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         hint: '/?new=1',
         run: () => router.push('/?new=1'),
       },
+      {
+        id: 'quick-dispatch',
+        label: '快速派活',
+        hint: 'Ctrl+K',
+        run: () => {
+          setOpen(false);
+          setQuickDispatchOpen(true);
+        },
+      },
     ];
 
     const q = query.trim().toLowerCase();
@@ -136,7 +148,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     return [...filteredNav, ...issueCmds];
   }, [issues, query, router]);
 
-  if (!open) return null;
+  if (!open && !quickDispatchOpen) return null;
 
   function runCommand(cmd: Command) {
     setOpen(false);
@@ -144,54 +156,62 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   }
 
   return (
-    <div
-      className="cmdk-overlay"
-      role="presentation"
-      onClick={() => setOpen(false)}
-    >
-      <div
-        className="cmdk-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="命令面板"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          className="cmdk-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索命令或 Issue…"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && commands[0]) {
-              e.preventDefault();
-              runCommand(commands[0]);
-            }
-          }}
-        />
-        <ul className="cmdk-list">
-          {commands.length === 0 ? (
-            <li className="cmdk-empty">无匹配项</li>
-          ) : (
-            commands.map((cmd) => (
-              <li key={cmd.id}>
-                <button
-                  type="button"
-                  className="cmdk-item"
-                  onClick={() => runCommand(cmd)}
-                >
-                  <span>{cmd.label}</span>
-                  {cmd.hint ? <span className="cmdk-hint">{cmd.hint}</span> : null}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-        <div className="cmdk-footer">
-          <span>Enter 执行</span>
-          <span>Esc 关闭</span>
+    <>
+      {open && (
+        <div
+          className="cmdk-overlay"
+          role="presentation"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="cmdk-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="命令面板"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              className="cmdk-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索命令或 Issue…"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && commands[0]) {
+                  e.preventDefault();
+                  runCommand(commands[0]);
+                }
+              }}
+            />
+            <ul className="cmdk-list">
+              {commands.length === 0 ? (
+                <li className="cmdk-empty">无匹配项</li>
+              ) : (
+                commands.map((cmd) => (
+                  <li key={cmd.id}>
+                    <button
+                      type="button"
+                      className="cmdk-item"
+                      onClick={() => runCommand(cmd)}
+                    >
+                      <span>{cmd.label}</span>
+                      {cmd.hint ? <span className="cmdk-hint">{cmd.hint}</span> : null}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+            <div className="cmdk-footer">
+              <span>Enter 执行</span>
+              <span>Esc 关闭</span>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+      <QuickDispatchPanel
+        open={quickDispatchOpen}
+        onClose={() => setQuickDispatchOpen(false)}
+      />
+    </>
   );
 }
