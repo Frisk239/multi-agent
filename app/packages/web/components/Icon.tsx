@@ -15,6 +15,7 @@ export type IconName =
   | 'squad'
   | 'usage'
   | 'wiki'
+  | 'memory'
   | 'runtime'
   | 'skills'
   | 'settings'
@@ -99,6 +100,16 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <polyline points="14 2 14 8 20 8" />
       <line x1="8" y1="13" x2="16" y2="13" />
       <line x1="8" y1="17" x2="14" y2="17" />
+    </>
+  ),
+  // 记忆：大脑（brain-first）
+  memory: (
+    <>
+      <path d="M9.5 2a4 4 0 0 0-3.6 5.7A3.5 3.5 0 0 0 5 14.2V15a3 3 0 0 0 3 3h.5" />
+      <path d="M14.5 2a4 4 0 0 1 3.6 5.7A3.5 3.5 0 0 1 19 14.2V15a3 3 0 0 1-3 3h-.5" />
+      <path d="M9.5 18v2a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-2" />
+      <path d="M12 8v4" />
+      <path d="M10 11h4" />
     </>
   ),
   // 运行时：服务器
