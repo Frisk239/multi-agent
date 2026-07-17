@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `wiki-dead-entry`（`375e53c`）  
-- **本刀：** `sidebar-wiki-dead-badge` — 侧栏 Wiki dead 角标  
+- **已推：** `sidebar-wiki-dead-badge`（`9a6ac48`）  
+- **本刀：** `settings-wiki-llm-guide` — Settings Wiki LLM 配置引导  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  

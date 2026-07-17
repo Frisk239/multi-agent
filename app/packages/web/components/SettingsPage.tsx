@@ -58,6 +58,7 @@ export function SettingsPage() {
     useSettingsStatus();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
@@ -70,6 +71,7 @@ export function SettingsPage() {
   );
 
   const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
+  const wikiExportLine = 'export WIKI_LLM_API_KEY=""  # required for wiki ingest/query/lint';
 
   async function copyEnv() {
     try {
@@ -90,6 +92,17 @@ export function SettingsPage() {
     } catch {
       setCwdCopyState('err');
       window.setTimeout(() => setCwdCopyState('idle'), 2500);
+    }
+  }
+
+  async function copyWikiLine() {
+    try {
+      await navigator.clipboard.writeText(wikiExportLine);
+      setWikiCopyState('ok');
+      window.setTimeout(() => setWikiCopyState('idle'), 2000);
+    } catch {
+      setWikiCopyState('err');
+      window.setTimeout(() => setWikiCopyState('idle'), 2500);
     }
   }
 
@@ -125,6 +138,7 @@ export function SettingsPage() {
 
   const { overall, summary } = data;
   const cwdBlocked = data.checks.some((c) => c.id === 'cwd' && c.status === 'error');
+  const wikiLlmBlocked = data.checks.some((c) => c.id === 'wiki_llm' && c.status === 'error');
 
   return (
     <div className="page-container settings-page" data-testid="settings-page">
@@ -199,8 +213,50 @@ export function SettingsPage() {
         </section>
       ) : null}
 
+      {wikiLlmBlocked ? (
+        <section
+          className="settings-wiki-guide"
+          data-testid="settings-wiki-llm-guide"
+          aria-label="Wiki LLM 配置引导"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>Wiki 编译需要 LLM 密钥</strong>
+            <span className="settings-wiki-guide-badge">阻塞编译</span>
+          </div>
+          <ol className="settings-cwd-steps">
+            <li>
+              导出 <code>WIKI_LLM_API_KEY</code>（以及如需要的 base URL / model 变量）
+            </li>
+            <li>同一终端重启 server 后再回本页刷新</li>
+            <li>
+              到 <a href="/wiki?jobStatus=dead">Wiki dead 任务</a> 点「重试」恢复编译
+            </li>
+          </ol>
+          <div className="settings-cwd-guide-actions">
+            <code className="settings-cwd-line" data-testid="settings-wiki-llm-line">
+              {wikiExportLine}
+            </code>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="settings-copy-wiki-llm"
+              onClick={() => void copyWikiLine()}
+            >
+              {wikiCopyState === 'ok'
+                ? '已复制 wiki 行'
+                : wikiCopyState === 'err'
+                  ? '复制失败'
+                  : '复制 wiki 行'}
+            </button>
+            <a className="btn-ghost btn-sm" href="/wiki?jobStatus=dead" data-testid="settings-wiki-dead-link">
+              查看 dead 任务
+            </a>
+          </div>
+        </section>
+      ) : null}
+
       <section
-        className={`settings-env-snippet${cwdBlocked ? ' settings-env-snippet--warn' : ''}`}
+        className={`settings-env-snippet${cwdBlocked || wikiLlmBlocked ? ' settings-env-snippet--warn' : ''}`}
         data-testid="settings-env-snippet"
       >
         <div className="settings-env-snippet-head">
