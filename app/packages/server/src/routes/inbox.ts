@@ -62,14 +62,22 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
     for (const c of commentRows) {
       const meta = issueMeta.get(c.issueId);
       const author = resolveAuthorLabel(c.authorType, c.authorId);
+      const summary = `${author}: ${trunc(c.body, 120)}`;
+      // bu01：shared InboxItem 已换真源形状；合成 feed 暂填默认字段，impl-2 换真表
       items.push({
         id: `comment:${c.id}`,
+        type: 'comment',
         kind: 'comment',
+        severity: 'attention',
+        title: `评论 · ${meta?.identifier ?? c.issueId}`,
+        body: trunc(c.body, 500),
+        summary,
         createdAt: new Date(c.createdAt).toISOString(),
         issueId: c.issueId,
         issueIdentifier: meta?.identifier,
         issueTitle: meta?.title,
-        summary: `${author}: ${trunc(c.body, 120)}`,
+        read: false,
+        archived: false,
       });
     }
 
@@ -80,12 +88,18 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       if (r.error) summary += ` · ${trunc(r.error, 80)}`;
       items.push({
         id: `run:${r.id}`,
+        type: kind,
         kind,
+        severity: kind === 'run_failed' ? 'action_required' : 'info',
+        title: `${kind === 'run_failed' ? 'Run 失败' : 'Run 完成'} · ${meta?.identifier ?? r.issueId}`,
+        body: r.error ?? null,
+        summary,
         createdAt: new Date(r.createdAt).toISOString(),
         issueId: r.issueId,
         issueIdentifier: meta?.identifier,
         issueTitle: meta?.title,
-        summary,
+        read: false,
+        archived: false,
       });
     }
 

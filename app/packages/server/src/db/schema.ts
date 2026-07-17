@@ -131,6 +131,8 @@ export const agentRuns = sqliteTable(
     error: text('error'),
     startedAt: integer('started_at'),
     finishedAt: integer('finished_at'),
+    // bu01：执行中 heartbeat；null 时 stale 回退 startedAt/createdAt
+    lastHeartbeatAt: integer('last_heartbeat_at'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
@@ -216,5 +218,63 @@ export const memoryItems = sqliteTable(
   (t) => ({
     createdIdx: index('idx_memory_item_created').on(t.createdAt),
     issueIdx: index('idx_memory_item_issue').on(t.issueId),
+  }),
+);
+
+// —— inbox_item（bu01：真 Inbox 落库；impl-1 建表，impl-2 写通知）——
+export const inboxItems = sqliteTable(
+  'inbox_item',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    recipientType: text('recipient_type', { enum: ['member', 'agent'] }).notNull(),
+    recipientId: text('recipient_id').notNull(),
+    type: text('type', {
+      enum: ['comment', 'run_completed', 'run_failed', 'assigned'],
+    }).notNull(),
+    severity: text('severity', {
+      enum: ['action_required', 'attention', 'info'],
+    })
+      .notNull()
+      .default('info'),
+    issueId: text('issue_id'),
+    title: text('title').notNull(),
+    body: text('body'),
+    actorType: text('actor_type'),
+    actorId: text('actor_id'),
+    // 简单去重键：comment:<id> / run:<id>:<status> / assign:...
+    dedupeKey: text('dedupe_key'),
+    read: integer('read').notNull().default(0),
+    archived: integer('archived').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    recipientCreatedIdx: index('idx_inbox_recipient_created').on(
+      t.recipientType,
+      t.recipientId,
+      t.createdAt,
+    ),
+    dedupeIdx: index('idx_inbox_dedupe').on(
+      t.recipientType,
+      t.recipientId,
+      t.dedupeKey,
+    ),
+  }),
+);
+
+// —— issue_subscriber（bu01：通知归属最小集）——
+export const issueSubscribers = sqliteTable(
+  'issue_subscriber',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    userType: text('user_type', { enum: ['member', 'agent'] }).notNull(),
+    userId: text('user_id').notNull(),
+    reason: text('reason').notNull().default('manual'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.issueId, t.userType, t.userId] }),
   }),
 );

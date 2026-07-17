@@ -9,12 +9,14 @@ import { Icon } from './Icon';
 function kindLabel(kind: InboxItem['kind']): string {
   if (kind === 'comment') return '评论';
   if (kind === 'run_completed') return '完成';
+  if (kind === 'assigned') return '指派';
   return '失败';
 }
 
 function kindClass(kind: InboxItem['kind']): string {
   if (kind === 'comment') return 'inbox-kind inbox-kind--comment';
   if (kind === 'run_completed') return 'inbox-kind inbox-kind--ok';
+  if (kind === 'assigned') return 'inbox-kind inbox-kind--comment';
   return 'inbox-kind inbox-kind--fail';
 }
 
@@ -71,13 +73,16 @@ export function InboxPage() {
         <ul className="inbox-list">
           {items.map((item) => (
             <li key={item.id}>
-              <Link href={`/issues/${item.issueId}`} className="inbox-row">
+              <Link
+                href={item.issueId ? `/issues/${item.issueId}` : '/inbox'}
+                className="inbox-row"
+              >
                 <span className={kindClass(item.kind)}>{kindLabel(item.kind)}</span>
                 <span className="inbox-body">
                   <span className="inbox-summary">{item.summary}</span>
                   <span className="inbox-meta">
                     <Icon name="issues" size={12} className="nav-icon-svg" />
-                    {item.issueIdentifier ?? item.issueId}
+                    {item.issueIdentifier ?? item.issueId ?? '—'}
                     {item.issueTitle ? ` · ${item.issueTitle}` : ''}
                   </span>
                 </span>
