@@ -1,5 +1,7 @@
 // S08 CLI 入口：ma wiki <cmd>（spec §5，Agent-first JSON Envelope）
+// bu03：ma issue create —— HTTP 调本地 server 建卡并 origin link
 // 只 import wiki/queue 函数，不复制业务逻辑（B10）
+import { readFileSync } from 'node:fs';
 import { ensureWikiDir, listWikiPages } from '../wiki/store.js';
 import { checkHealth } from '../wiki/health.js';
 import { checkLint } from '../wiki/lint.js';
@@ -41,6 +43,32 @@ function positional(args: string[]): string[] {
     if (a.startsWith('--format=')) continue;
     if (a === '--sync') continue;
     if (a.startsWith('--status=')) continue;
+    // bu03 issue create flags（有值的都 skip）
+    if (
+      a === '--title' ||
+      a === '--description' ||
+      a === '--description-file' ||
+      a === '--assignee-type' ||
+      a === '--assignee-id' ||
+      a === '--priority' ||
+      a === '--origin-run' ||
+      a === '--server'
+    ) {
+      i++;
+      continue;
+    }
+    if (
+      a.startsWith('--title=') ||
+      a.startsWith('--description=') ||
+      a.startsWith('--description-file=') ||
+      a.startsWith('--assignee-type=') ||
+      a.startsWith('--assignee-id=') ||
+      a.startsWith('--priority=') ||
+      a.startsWith('--origin-run=') ||
+      a.startsWith('--server=')
+    ) {
+      continue;
+    }
     out.push(a);
   }
   return out;
@@ -51,6 +79,106 @@ function statusFilter(args: string[]): string | undefined {
   return eq ? eq.slice('--status='.length) : undefined;
 }
 
+function flagValue(args: string[], name: string): string | undefined {
+  const eq = args.find((a) => a.startsWith(`${name}=`));
+  if (eq) return eq.slice(name.length + 1);
+  const i = args.indexOf(name);
+  if (i >= 0 && args[i + 1] && !args[i + 1].startsWith('-')) {
+    return args[i + 1];
+  }
+  return undefined;
+}
+
+async function handleIssueCreate(args: string[], wantText: boolean): Promise<void> {
+  const title = flagValue(args, '--title');
+  if (!title) emitErr('input.invalid', 'ma issue create 需要 --title', 5);
+
+  let description = flagValue(args, '--description') ?? '';
+  const descFile = flagValue(args, '--description-file');
+  if (descFile) {
+    try {
+      description = readFileSync(descFile, 'utf8');
+    } catch (e) {
+      emitErr('input.invalid', `无法读取 description-file: ${String(e)}`, 5);
+    }
+  }
+
+  const assigneeType = flagValue(args, '--assignee-type');
+  const assigneeId = flagValue(args, '--assignee-id');
+  if (!assigneeType || !assigneeId) {
+    emitErr(
+      'input.invalid',
+      'ma issue create 需要 --assignee-type agent|squad 与 --assignee-id',
+      5,
+    );
+  }
+  if (assigneeType !== 'agent' && assigneeType !== 'squad') {
+    emitErr('input.invalid', '--assignee-type 必须是 agent 或 squad', 5);
+  }
+
+  const priority = flagValue(args, '--priority') ?? 'medium';
+  const originRun =
+    flagValue(args, '--origin-run') ?? process.env.MA_RUN_ID ?? undefined;
+  if (!originRun) {
+    emitErr(
+      'input.invalid',
+      'ma issue create 需要 --origin-run 或环境变量 MA_RUN_ID',
+      5,
+    );
+  }
+
+  const server = (
+    flagValue(args, '--server') ??
+    process.env.MA_SERVER_URL ??
+    'http://127.0.0.1:3001'
+  ).replace(/\/$/, '');
+
+  const body = {
+    title,
+    description: description || undefined,
+    priority,
+    assignee: { type: assigneeType, id: assigneeId },
+    originType: 'quick_create' as const,
+    originRunId: originRun,
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(`${server}/api/issues`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    emitErr('server.transient', `无法连接 server ${server}: ${String(e)}`, 7);
+  }
+
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    emitErr('server.transient', `非 JSON 响应 HTTP ${res.status}: ${text.slice(0, 200)}`, 7);
+  }
+
+  if (!res.ok) {
+    const msg =
+      data && typeof data === 'object' && data !== null && 'error' in data
+        ? JSON.stringify((data as { error: unknown }).error)
+        : text;
+    emitErr('server.transient', `HTTP ${res.status}: ${msg}`, res.status === 400 ? 5 : 7);
+  }
+
+  if (wantText) {
+    const issue = data as { identifier?: string; title?: string; id?: string };
+    process.stdout.write(
+      `Created ${issue.identifier ?? issue.id ?? '?'}: ${issue.title ?? title}\n`,
+    );
+    process.exit(0);
+  }
+  emitOk({ issue: data });
+}
+
 async function main(): Promise<void> {
   ensureWikiDir();
   // pnpm run ma -- wiki ... 会把单独的 `--` 传进 argv，需剥离
@@ -58,8 +186,21 @@ async function main(): Promise<void> {
   const wantText = wantsText(args);
   const pos = positional(args);
 
+  // bu03：ma issue create
+  if (pos[0] === 'issue') {
+    if (pos[1] === 'create') {
+      await handleIssueCreate(args, wantText);
+      return;
+    }
+    emitErr('input.invalid', '用法: ma issue create --title ... --assignee-type ... --assignee-id ... --origin-run ...', 5);
+  }
+
   if (pos[0] !== 'wiki') {
-    emitErr('input.invalid', '用法: ma wiki <health|lint|query|pages|jobs|ingest> ...', 5);
+    emitErr(
+      'input.invalid',
+      '用法: ma wiki <health|lint|query|pages|jobs|ingest> ... | ma issue create ...',
+      5,
+    );
   }
 
   const cmd = pos[1];
