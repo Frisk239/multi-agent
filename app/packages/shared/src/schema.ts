@@ -185,17 +185,65 @@ export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
   runtime: RuntimeId,
+  // bu02：列表可选展示 category
+  category: z.string().nullable().optional(),
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
 // S05：单 agent 详情契约（GET /api/agents/:id，agent 详情页用）
 // AgentSummary 扩展：含 category/concurrency（profile 展示）+ mcpServers（MCP Tab 回填）
+// bu02：+ instructions（执行 prompt 注入）
 export const AgentDetail = AgentSummary.extend({
   category: z.string().nullable(),
   concurrency: z.number(),
   mcpServers: z.string().nullable(),
+  instructions: z.string(),
 });
 export type AgentDetail = z.infer<typeof AgentDetail>;
+
+// bu02：Agent 创建/更新（运营 CRUD）
+const OptionalClientId = z
+  .string()
+  .regex(/^[a-z][a-z0-9_-]{1,63}$/);
+
+export const CreateAgentInput = z.object({
+  name: z.string().min(1).max(80),
+  runtime: RuntimeId,
+  category: z.string().max(80).optional().nullable(),
+  concurrency: z.number().int().min(1).max(8).optional().default(1),
+  instructions: z.string().max(20000).optional().default(''),
+  mcpServers: z.string().nullable().optional(),
+  id: OptionalClientId.optional(),
+});
+export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
+
+export const UpdateAgentInput = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    runtime: RuntimeId.optional(),
+    category: z.string().max(80).nullable().optional(),
+    concurrency: z.number().int().min(1).max(8).optional(),
+    instructions: z.string().max(20000).optional(),
+    mcpServers: z.string().nullable().optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, { message: 'empty patch' });
+export type UpdateAgentInput = z.infer<typeof UpdateAgentInput>;
+
+// bu02：Agent readiness（runtime detect + 并发槽）
+export const AgentReadiness = z.object({
+  agentId: BusinessId,
+  runtime: RuntimeId,
+  runtimeInstalled: z.boolean(),
+  runtimePath: z.string().nullable(),
+  runtimeVersion: z.string().nullable(),
+  concurrency: z.number().int(),
+  runningCount: z.number().int(),
+  slotsAvailable: z.number().int(),
+  cwdConfigured: z.boolean(),
+  status: z.enum(['ready', 'busy', 'runtime_missing', 'cwd_missing', 'error']),
+  detail: z.string().nullable(),
+});
+export type AgentReadiness = z.infer<typeof AgentReadiness>;
 
 // S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
 // skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
@@ -210,6 +258,9 @@ export type SkillInfo = z.infer<typeof SkillInfo>;
 export const SquadSummary = z.object({
   id: BusinessId,
   name: z.string(),
+  // bu02：列表展示 leader + 成员数
+  leaderId: BusinessId.optional(),
+  memberCount: z.number().int().optional(),
 });
 export type SquadSummary = z.infer<typeof SquadSummary>;
 
@@ -229,6 +280,28 @@ export const SquadDetail = z.object({
   members: z.array(SquadMember),
 });
 export type SquadDetail = z.infer<typeof SquadDetail>;
+
+// bu02：Squad 创建/更新（运营 CRUD）
+export const CreateSquadInput = z.object({
+  name: z.string().min(1).max(80),
+  leaderId: BusinessId,
+  operatingProtocol: z.string().max(50000).optional().default(''),
+  missionDirective: z.string().max(50000).optional().default(''),
+  memberIds: z.array(BusinessId).default([]),
+  id: OptionalClientId.optional(),
+});
+export type CreateSquadInput = z.infer<typeof CreateSquadInput>;
+
+export const UpdateSquadInput = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    leaderId: BusinessId.optional(),
+    operatingProtocol: z.string().max(50000).optional(),
+    missionDirective: z.string().max(50000).optional(),
+    memberIds: z.array(BusinessId).optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, { message: 'empty patch' });
+export type UpdateSquadInput = z.infer<typeof UpdateSquadInput>;
 
 // —— WS 事件 ——
 export const IssueCreatedEvent = z.object({

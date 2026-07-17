@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { issues, comments, agentSkills } from '../db/schema.js';
+import { issues, comments, agentSkills, agents } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
@@ -17,12 +17,13 @@ const K = 20;
 // S05：skill 前置于一切（spec §6.1）——skill 是"执行方法论"，逻辑上先于角色 briefing
 //   和具体任务。
 // S08：wiki bridge；S09：memory prefetch。
-// 拼接顺序：skillBlock → wikiBridgeBlock → memoryBlock → briefing(if leader) → issueBody，
+// bu02：agent.instructions 注入（非 leader briefing 替代）。
+// 拼接顺序：skill → wiki → memory → **agent instructions** → briefing(if leader) → issueBody，
 // 统一用 parts.filter(Boolean).join('\n\n---\n\n')（borrow G-SKILL-INJECT + G-PROMPT-CACHE）。
 interface PromptRunContext {
   isLeader: boolean;
   squadId: string | null;
-  agentId?: string; // S05：查 agent_skill 分配
+  agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
 }
 
 // S10：async buildPrompt，await memory prefetch（pgvector 需 embed）
@@ -66,7 +67,7 @@ export async function buildPrompt(
     }
   }
 
-  // 拼接顺序（S05+S08+S09+S10）：skill → wiki → memory → briefing → body。
+  // 拼接顺序（S05+S08+S09+S10+bu02）：skill → wiki → memory → agent instructions → briefing → body。
   // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
@@ -84,6 +85,15 @@ export async function buildPrompt(
     description: issue.description,
   });
   if (memoryBlock) parts.push(memoryBlock);
+
+  // bu02：agent instructions（在 memory 之后、briefing 之前）
+  if (run?.agentId) {
+    const agent = db.select().from(agents).where(eq(agents.id, run.agentId)).get();
+    const instructions = agent?.instructions?.trim();
+    if (instructions) {
+      parts.push(`# Agent Instructions\n${instructions}`);
+    }
+  }
 
   // S04 briefing 前置（spec §5 S9）
   if (run?.isLeader && run?.squadId) {
