@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useSkills, useRefreshSkills } from '@/lib/api';
 
@@ -37,17 +38,29 @@ export function SkillsPage() {
         </div>
       </div>
 
-      <div className="table-search">
+      <div className="table-search memory-search-wrap">
         <input
           type="search"
           placeholder="搜索 skill..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          data-testid="skills-search"
+          aria-label="搜索 skill"
         />
+        {search.trim() ? (
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="skills-search-clear"
+            onClick={() => setSearch('')}
+          >
+            清除
+          </button>
+        ) : null}
       </div>
 
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table" data-testid="skills-table">
           <thead>
             <tr>
               <th>名称</th>
@@ -65,9 +78,15 @@ export function SkillsPage() {
                 <td>
                   {sk.usedBy.length > 0 ? (
                     sk.usedBy.map((a) => (
-                      <span key={a.id} className="skill-tag">
+                      <Link
+                        key={a.id}
+                        href={`/agents/${a.id}`}
+                        className="skill-tag skill-tag--link"
+                        data-testid="skill-used-by"
+                        data-agent-id={a.id}
+                      >
                         {a.name}
-                      </span>
+                      </Link>
                     ))
                   ) : (
                     <span className="text-dim">— 未使用</span>
@@ -84,7 +103,25 @@ export function SkillsPage() {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
-                  {isFetching ? '加载中…' : '没有匹配的 skill'}
+                  {isFetching ? (
+                    '加载中…'
+                  ) : (
+                    <div data-testid="skills-empty">
+                      <div>没有匹配的 skill</div>
+                      {search.trim() ? (
+                        <div style={{ marginTop: 8 }}>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            data-testid="skills-clear-search"
+                            onClick={() => setSearch('')}
+                          >
+                            清除搜索
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </td>
               </tr>
             )}

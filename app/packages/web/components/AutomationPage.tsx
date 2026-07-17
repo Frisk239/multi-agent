@@ -457,15 +457,24 @@ export function AutomationPage() {
           title="还没有自动化规则"
           description="新建一条规则：按间隔或每日时刻自动建 Issue，也可随时「立即执行」。"
           action={
-            !open ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setOpen(true)}
-              >
-                新建规则
-              </button>
-            ) : undefined
+            <div className="automation-empty-actions" data-testid="automation-empty-actions">
+              {!open ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  data-testid="automation-empty-create"
+                  onClick={() => setOpen(true)}
+                >
+                  新建规则
+                </button>
+              ) : null}
+              <Link href="/agents" className="btn-secondary btn-sm">
+                配置智能体
+              </Link>
+              <Link href="/settings" className="btn-ghost btn-sm">
+                环境诊断
+              </Link>
+            </div>
           }
         />
       ) : (
