@@ -80,7 +80,8 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     await failRun(runRow.id, '未配置 MA_WORKSPACE_CWD');
     return;
   }
-  const prompt = buildPrompt(runRow.issueId, {
+  // S10：buildPrompt 已 async，必须 await（R7）
+  const prompt = await buildPrompt(runRow.issueId, {
     isLeader: runRow.isLeader === 1,
     squadId: runRow.squadId,
     agentId: runRow.agentId, // S05：查 agent_skill 分配 → skillBlock 拼接

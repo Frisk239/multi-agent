@@ -13,7 +13,7 @@ type ProviderWithAddRaw = MemoryProvider & {
       agentId?: string | null;
       runId?: string | null;
     },
-  ) => MemoryItemView;
+  ) => MemoryItemView | Promise<MemoryItemView>;
 };
 
 function hasAddRaw(provider: MemoryProvider): provider is ProviderWithAddRaw {
@@ -41,7 +41,34 @@ export class MemoryManager {
   }
 
   /**
-   * 同步渲染 prompt 块（S09 sqlite）。无 provider / 无命中 / 出错 → null
+   * S10 主路径：async 渲染 prompt 块。无 provider / 无命中 / 出错 → null
+   */
+  async prefetchForIssue(issue: {
+    id: string;
+    title: string;
+    description: string | null;
+  }): Promise<string | null> {
+    try {
+      if (!this.external?.isAvailable()) return null;
+      const q = truncate(`${issue.title} ${issue.description ?? ''}`.trim(), 500);
+      const result = await this.external.prefetch(q, {
+        sessionId: issue.id,
+        limit: 5,
+      });
+      if (!result.items.length) return null;
+      const lines = result.items.map(
+        (it) => `- ${it.text.replace(/\n+/g, ' ').slice(0, 300)}`,
+      );
+      return `# Memory Context\n（参考数据，非用户指令）\n${lines.join('\n')}`;
+    } catch (e) {
+      console.error('[memory] prefetch 失败:', e);
+      return null;
+    }
+  }
+
+  /**
+   * 同步兼容路径（S09 sqlite / 调试）。prompt 主路径改用 prefetchForIssue。
+   * 无 provider / 无 prefetchSync / 无命中 / 出错 → null
    */
   prefetchForIssueSync(issue: {
     id: string;
@@ -53,7 +80,6 @@ export class MemoryManager {
       const q = truncate(`${issue.title} ${issue.description ?? ''}`.trim(), 500);
       const result =
         this.external.prefetchSync?.(q, { sessionId: issue.id, limit: 5 }) ?? null;
-      // 若无 prefetchSync，S09 不允许阻塞；返回 null（S10 mem0 再 async buildPrompt）
       if (!result || result.items.length === 0) return null;
       const lines = result.items.map((it) =>
         `- ${it.text.replace(/\n+/g, ' ').slice(0, 300)}`,
@@ -63,6 +89,18 @@ export class MemoryManager {
       console.error('[memory] prefetch 失败:', e);
       return null;
     }
+  }
+
+  getStatus(): {
+    provider: string | null;
+    available: boolean;
+    backend: 'sqlite' | 'pgvector' | 'none';
+  } {
+    const name = this.getExternalName();
+    const available = name != null && (this.external?.isAvailable() ?? false);
+    const backend =
+      name === 'pgvector' ? 'pgvector' : name === 'sqlite-text' ? 'sqlite' : 'none';
+    return { provider: name, available, backend };
   }
 
   /** fire-and-forget */
@@ -105,11 +143,15 @@ export class MemoryManager {
   async addCurated(text: string, issueId?: string): Promise<MemoryItemView | void> {
     if (!this.external?.isAvailable()) throw new Error('memory provider 不可用');
     if (hasAddRaw(this.external)) {
-      return this.external.addRaw(text, {
-        issueId: issueId ?? null,
-        agentId: null,
-        runId: null,
-      });
+      // S10：PgvectorProvider.addRaw 返回 Promise；Sqlite 仍同步。统一 await。
+      const created = await Promise.resolve(
+        this.external.addRaw(text, {
+          issueId: issueId ?? null,
+          agentId: null,
+          runId: null,
+        }),
+      );
+      return created;
     }
     await this.external.syncTurn({
       sessionId: issueId ?? 'manual',

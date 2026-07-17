@@ -25,7 +25,11 @@ interface PromptRunContext {
   agentId?: string; // S05：查 agent_skill 分配
 }
 
-export function buildPrompt(issueId: string, run?: PromptRunContext): string | null {
+// S10：async buildPrompt，await memory prefetch（pgvector 需 embed）
+export async function buildPrompt(
+  issueId: string,
+  run?: PromptRunContext,
+): Promise<string | null> {
   const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
   if (!issue) return null;
   const rows = db
@@ -62,7 +66,7 @@ export function buildPrompt(issueId: string, run?: PromptRunContext): string | n
     }
   }
 
-  // 拼接顺序（S05+S08+S09）：skill → wiki → memory → briefing → body。
+  // 拼接顺序（S05+S08+S09+S10）：skill → wiki → memory → briefing → body。
   // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
@@ -73,8 +77,8 @@ export function buildPrompt(issueId: string, run?: PromptRunContext): string | n
     parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
   }
 
-  // S09：memory prefetch（spec M5）；无命中 / 失败 → null，不留空标题
-  const memoryBlock = memoryManager.prefetchForIssueSync({
+  // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题
+  const memoryBlock = await memoryManager.prefetchForIssue({
     id: issue.id,
     title: issue.title,
     description: issue.description,
