@@ -61,10 +61,11 @@
 - **已推：** `cmdk-failed-board`（`beb3b83`）  
 - **已推：** `assign-squad-member-readiness`（`6a58b85`）  
 - **已推：** `inbox-fail-strip`（`eee76ed`）  
-- **本刀：** `sidebar-inbox-fail-cue` — 侧栏 Inbox 失败角标强调  
+- **已推：** `sidebar-inbox-fail-cue`（`4e8801a`）  
+- **本刀：** `env-cwd-banner` — cwd 缺失全局轻提示  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** cwd 缺失全局轻提示；Runs 页与看板失败队列互链加强  
+- **再下一刀建议：** Runs↔看板失败互链；运行中卡片脉冲  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

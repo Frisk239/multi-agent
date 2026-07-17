@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
+import { EnvBanner } from '@/components/EnvBanner';
 import { Sidebar } from '@/components/Sidebar';
 
 export const metadata: Metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Sidebar />
             </Suspense>
             <div className="main-column">
+              <EnvBanner />
               <main className="main-content">{children}</main>
             </div>
           </div>
