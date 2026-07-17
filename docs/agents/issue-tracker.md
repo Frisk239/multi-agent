@@ -42,4 +42,5 @@ Issues 与 specs（PRD）以 markdown 落在仓库 `.scratch/` 下。
 
 - 工单真源：始终 `.scratch/`。  
 - 合码：见 [merge.md](./merge.md)（push 触发审查，人远程合并）。  
+- 跨刀交接 / 下一 Owner 验收上一刀：见 [slice-handoff.md](./slice-handoff.md)。  
 - 外部/陌生人 PR 请求面：**关闭**（默认 off），不进 triage 队列。

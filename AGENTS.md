@@ -166,19 +166,22 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 ### 一个 feature 的生命周期（默认）
 
 ```
-人 → 开【Slice Owner】会话（一刀一事）
-     ├─ 读 AGENTS.md + CONTEXT.md + 相关 spec/ticket/handoff
+人 → 开【Slice Owner】会话
+     ├─ 【跨刀开场·默认】读上一刀 closeout/impl + spec/票
+     │     → handoff-based 验收上一刀（intake：通过/有条件通过/需返工）
+     │     → 需返工则先修上一刀；否则再进入下一刀
+     ├─ 短对齐 brainstorm 下一主题（人指定；默认可提候选）
      ├─ 需要对齐参考？→ 派调研子代理 → 只回收摘要
-     ├─ 短对齐（或已有 spec 则跳过）→ 必要时 to-spec / to-tickets
-     ├─ /implement（+ tdd）→ typecheck/smoke → 更新 ticket
-     ├─ 窗将满或一刀未完？→ /handoff → 人开下一会话续同一分支/下一票
+     ├─ 必要时 to-spec / to-tickets → /implement → 更新 ticket
+     ├─ 窗将满或一刀未完？→ /handoff → 下一会话 **续作同一 feat/**
      └─ 自测够了 → git push origin feat/<slug>
-              → 自动 CI typecheck
-              → 自动/新会话 /code-review（origin/main...HEAD）
-              → 人：远程合并进 main（见 docs/agents/merge.md）
+              → CI + 分支 code-review
+              → 人：远程合并 main
+              → 关刀 closeout（证据/偏离/债/CONTEXT 下一刀）
 ```
 
-**特大/特雾：** `/wayfinder` 或「只设计」半会话产出 map/spec 后**结束**；下一会话当 Owner 实现——这是**阶段**拆分，不是计划者人设。
+**跨刀交接专章：** [`docs/agents/slice-handoff.md`](docs/agents/slice-handoff.md)（关刀清单 · 验上一刀 · 开场提示词模板）。  
+**特大/特雾：** wayfinder 或设计-only 半会话 → 下一会话 Owner；仍先读交接再实现。
 
 ### 会话铁律
 
@@ -195,8 +198,10 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 |---|---|
 | Spec | `.scratch/<feature>/spec.md` |
 | Tickets | `.scratch/<feature>/issues/0N-*.md`（可选；小刀可一票或无票直接 implement） |
-| 会话交接 | ticket `## Comments`、`/handoff`、可选 `app/.progress/<feature>-*.md` |
-| 调研摘要 | 子代理报告 / `docs/` 笔记 / ticket 评论（**短**） |
+| 关刀 closeout / 实现证据 | `app/.progress/<feature>-impl-*.md` 或 ticket Comments |
+| **下一 Owner 验收上一刀** | `app/.progress/<feature>-intake.md`（或上一 progress 的 Comments） |
+| 会话中断续作 | `/handoff` + 同上 |
+| 调研摘要 | 子代理报告 / 短笔记 / ticket 评论 |
 
 ### 垂直切片原则（不变）
 
@@ -218,7 +223,8 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 - **`/handoff`**：换会话携带进度；不写密钥。  
 - **`/compact`**：同会话阶段间隙；勿在深调研/grill 中途乱 compact 丢出处。  
-- 续作会话：**只信** ticket + handoff + 调研摘要文件，不假设聊天记忆。
+- 续作 / 跨刀：**只信** ticket + closeout/impl/intake + `/handoff` + 调研摘要，不假设聊天记忆。  
+- **新 Slice Owner 默认顺序：** 验上一刀交接包 → 再 brainstorm 下一刀（见 [slice-handoff.md](docs/agents/slice-handoff.md)）。
 
 ### Git 规则
 

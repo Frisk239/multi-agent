@@ -1,42 +1,44 @@
-# Handoff: <切片ID>-<角色>-<序号>
+# Handoff / Closeout: <slug>-<role>-<n>
 
-> 切片：`<如 S01>` · 角色：`<planner | impl>` · 序号：`<1, 2, 3...>`
-> 日期：YYYY-MM-DD
+> 切片：`<slug>` · 角色：`owner | intake | review` · 日期：YYYY-MM-DD  
+> 跨刀约定见 [docs/agents/slice-handoff.md](../../docs/agents/slice-handoff.md)
 
-## 上下文（给下一个会话读）
+## 上下文
 
-> 这个切片是什么、在整体路线图的哪个位置。
-> 读 [design/roadmap.md](../../design/roadmap.md) 对应行 + 本文件 + 前序 handoff。
+> 这刀是什么、在产品演进里的位置。下一会话先读本文件 + `.scratch/<slug>/` + CONTEXT.md。
 
 ## 本会话完成了什么
 
 - ...
 
-## 自测结果
-
-> 跑了什么命令、什么结果。必须有证据，不能只说"通过了"。
+## 自测结果（必须有证据）
 
 ```
-$ pnpm typecheck
-（贴实际输出）
+$ pnpm -r typecheck
+（贴摘要）
 ```
 
-## 与计划的偏离
+## 偏离
 
-> 实际做法和计划者预期不一样的地方 + 原因。
-> 没有偏离就写"无"。
+> 无则写「无」。
 
-## 遗留 / 下一个执行者要注意的点
-
-> 不是新计划，是"如果你接着干，这些坑/约定你必须知道"。
+## 未做 / 债 / 合并注意
 
 - ...
 
-## 验收结论（仅计划者填）
+## 分支
 
-> 切片是否达标、能否合并、是否要点亮 FRI-11 路径的某一段。
+- `feat/<slug>` @ `<sha>` · 已 push：是/否 · 请人远程合并：是/否
 
-- [ ] typecheck 通过
-- [ ] `pnpm dev` 能跑
-- [ ] 切片验收标准达成（见 roadmap）
-- 结论：<达标合并 / 需返工 / 需追加切片>
+## 给下一 Owner
+
+- 验收时优先看：…
+- 建议下一主题（可选）：…
+
+## 下一 Owner 验收（intake · 由下一会话填写）
+
+- [ ] 读过 closeout/impl + spec/票
+- [ ] git：上一刀是否已在 main（人合并；不 push main）
+- [ ] 证据可复核
+- 结论：`通过` / `有条件通过` / `需返工`
+- 债与风险：…

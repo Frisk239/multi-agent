@@ -39,10 +39,11 @@
 - **已合 main：** S01–S12；补1–5（可靠性/Inbox · 运营 CRUD · quick-create · Settings · 最小自动化 PR #16）  
 - **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
-- **下一刀：** **运行可观测 + 人工再执行**（`run-observability`，B2 / Multica R3 收口 + `/runs` 壳）— spec/票见 `.scratch/run-observability/`  
+- **上一刀：** `run-observability`（实现已 push `feat/run-observability`；**人远程合并**）— 交接：`.scratch/run-observability/`、`app/.progress/run-observability-impl-1.md`  
+- **下一刀：** 待人点名；**新 Slice Owner 须先 intake 验收上一刀，再 brainstorm 下一刀**（见 [slice-handoff.md](docs/agents/slice-handoff.md)）  
+- **工作流：** Slice Owner × 验上一刀 × 调研子代理；合码 push→CI+review→人远程合并。`AGENTS.md` · [workflow](docs/agents/workflow.md) · [merge](docs/agents/merge.md) · ADR 0001/0002  
+- **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
-- **工作流：** **Slice Owner（一切片一会话）** × 调研子代理 × Matt skills；合码 = **push feat → CI+review → 人远程合并**（不以开 PR 为中心）。见 `AGENTS.md`、`docs/agents/merge.md`、[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)、[ADR 0002](docs/adr/0002-push-triggered-review-remote-merge.md)  
-- **工单：** `.scratch/<feature>/`；Owner `/implement` + 自测 + push；跨会话 `/handoff`
 
 ## 相关入口
 
