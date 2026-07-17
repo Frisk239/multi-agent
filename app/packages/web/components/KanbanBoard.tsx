@@ -73,6 +73,9 @@ function KanbanBoardInner() {
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   // 轻量：最近失败 run，用于卡片「失败」标记与「仅失败」筛选（limit 内即可）
   const { data: failedRuns = [] } = useWorkspaceRuns({ status: 'failed', limit: 80 });
+  // 轻量：活跃 run → 卡片「运行中」脉冲
+  const { data: runningRuns = [] } = useWorkspaceRuns({ status: 'running', limit: 40 });
+  const { data: queuedRuns = [] } = useWorkspaceRuns({ status: 'queued', limit: 40 });
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -183,6 +186,17 @@ function KanbanBoardInner() {
     }
     return s;
   }, [failedRuns]);
+
+  const activeIssueIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of runningRuns) {
+      if (r.issueId) s.add(r.issueId);
+    }
+    for (const r of queuedRuns) {
+      if (r.issueId) s.add(r.issueId);
+    }
+    return s;
+  }, [runningRuns, queuedRuns]);
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
@@ -307,6 +321,7 @@ function KanbanBoardInner() {
             onDrop={handleDrop}
             readinessByAgentId={readinessMap}
             failedIssueIds={failedIssueIds}
+            activeIssueIds={activeIssueIds}
             assigneeAgentByIssueId={assigneeAgentByIssueId}
           />
         ))}

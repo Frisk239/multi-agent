@@ -11,6 +11,8 @@ interface Props {
   onDrop: (status: IssueStatus) => void;
   readinessByAgentId?: Record<string, AgentReadiness | null>;
   failedIssueIds?: Set<string>;
+  /** queued/running run 覆盖的 issue */
+  activeIssueIds?: Set<string>;
   /** issueId → agentId（用于 squad 时已解析为 leader） */
   assigneeAgentByIssueId?: Record<string, string | undefined>;
 }
@@ -24,6 +26,7 @@ export function KanbanColumn({
   status,
   readinessByAgentId,
   failedIssueIds,
+  activeIssueIds,
   assigneeAgentByIssueId,
 }: Props) {
   return (
@@ -53,6 +56,7 @@ export function KanbanColumn({
               onDragStart={onDragStart}
               readiness={rd}
               lastRunFailed={failedIssueIds?.has(iss.id)}
+              runActive={activeIssueIds?.has(iss.id)}
             />
           );
         })

@@ -63,10 +63,11 @@
 - **已推：** `inbox-fail-strip`（`eee76ed`）  
 - **已推：** `sidebar-inbox-fail-cue`（`4e8801a`）  
 - **已推：** `env-cwd-banner`（`be8de2d`）  
-- **本刀：** `runs-failed-board-link` — Runs↔看板/Inbox 失败互链  
+- **已推：** `runs-failed-board-link`（`8f06822`）  
+- **本刀：** `board-run-active-pulse` — 看板运行中卡片脉冲  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 运行中卡片脉冲；失败筛选工具栏计数说明  
+- **再下一刀建议：** 失败筛选工具栏计数说明；详情 live 进度入口  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

@@ -597,6 +597,69 @@ body {
   gap: 6px;
 }
 
+.issue-card--run-active {
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent);
+  animation: issue-card-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes issue-card-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issue-card--run-active {
+    animation: none;
+  }
+}
+
+.issue-card-run-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 35%, transparent);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+
+.issue-card-run-active::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #3b82f6);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #3b82f6) 50%, transparent);
+  animation: issue-dot-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes issue-dot-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .issue-card-run-active::before {
+    animation: none;
+  }
+}
+
 .issue-card--run-failed {
   border-color: color-mix(in srgb, var(--color-red) 40%, var(--border));
 }

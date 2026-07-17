@@ -54,6 +54,8 @@ interface Props {
   readiness?: AgentReadiness | null;
   /** 最近一条 run 是否失败 */
   lastRunFailed?: boolean;
+  /** 是否有 queued/running run */
+  runActive?: boolean;
 }
 
 export function IssueCard({
@@ -61,26 +63,41 @@ export function IssueCard({
   onDragStart,
   readiness,
   lastRunFailed,
+  runActive,
 }: Props) {
   const tone = readinessTone(readiness);
   const showReadyDot = Boolean(issue.assignee?.type === 'agent' || issue.assignee?.type === 'squad');
+  // 活跃优先于失败标记（失败是历史；running 是当下）
+  const showFail = Boolean(lastRunFailed) && !runActive;
 
   return (
     <article
       draggable
       onDragStart={() => onDragStart(issue.id)}
-      className={`issue-card${lastRunFailed ? ' issue-card--run-failed' : ''}`}
+      className={[
+        'issue-card',
+        showFail ? 'issue-card--run-failed' : '',
+        runActive ? 'issue-card--run-active' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       data-testid="issue-card"
       data-issue-id={issue.id}
       data-readiness={showReadyDot ? tone : 'none'}
-      data-run-failed={lastRunFailed ? '1' : '0'}
+      data-run-failed={showFail ? '1' : '0'}
+      data-run-active={runActive ? '1' : '0'}
     >
       <div className="issue-card-top">
         <span className="issue-card-id" style={{ color: STATUS_COLORS[issue.status] }}>
           {issue.identifier}
         </span>
         <span className="issue-card-top-right">
-          {lastRunFailed ? (
+          {runActive ? (
+            <span className="issue-card-run-active" title="运行中 / 排队中">
+              运行中
+            </span>
+          ) : null}
+          {showFail ? (
             <span className="issue-card-run-fail" title="最近一次运行失败">
               失败
             </span>
