@@ -222,6 +222,7 @@ function RunsTab({ agentId }: { agentId: string }) {
         <thead>
           <tr>
             <th>状态</th>
+            <th>类型</th>
             <th>Issue</th>
             <th>Runtime</th>
             <th>创建</th>
@@ -235,13 +236,16 @@ function RunsTab({ agentId }: { agentId: string }) {
                 <code>{r.status}</code>
               </td>
               <td>
+                <code>{r.kind === 'quick_create' ? 'quick_create' : 'issue'}</code>
+              </td>
+              <td>
                 {r.issueId ? (
                   <Link href={`/issues/${r.issueId}`}>
                     <code>{r.issueId.slice(0, 8)}…</code>
                   </Link>
                 ) : (
                   <span className="text-dim">
-                    {r.kind === 'quick_create' ? '快速派活' : '—'}
+                    {r.kind === 'quick_create' ? '（建卡中）' : '—'}
                   </span>
                 )}
               </td>

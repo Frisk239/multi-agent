@@ -745,9 +745,12 @@ export function useCreateQuickRun() {
       if (!res.ok) throw new Error(await apiError(res, '快速派活失败'));
       return res.json() as Promise<{ run: AgentRun }>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toastSuccess('已派出快速派活任务');
       qc.invalidateQueries({ queryKey: ['agent-runs'] });
+      if (data.run.agentId) {
+        qc.invalidateQueries({ queryKey: ['agent-runs', data.run.agentId] });
+      }
     },
     onError: (err) => toastError(errMessage(err, '快速派活失败')),
   });

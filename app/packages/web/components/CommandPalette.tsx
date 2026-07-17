@@ -40,12 +40,17 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         setOpen(true);
         return;
       }
+      // 非输入态快捷键 Q → 快速派活
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        setOpen(false);
+        setQuickDispatchOpen(true);
+        return;
+      }
       if (e.key === 'Escape' && open) {
         e.preventDefault();
         setOpen(false);
       }
-      // 非输入框时忽略普通键；Ctrl+K 已处理
-      void typing;
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -114,7 +119,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       {
         id: 'quick-dispatch',
         label: '快速派活',
-        hint: 'Ctrl+K',
+        hint: 'Q',
         run: () => {
           setOpen(false);
           setQuickDispatchOpen(true);
@@ -146,7 +151,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
 
     // 有查询时优先展示 issue 匹配；导航仍保留
     return [...filteredNav, ...issueCmds];
-  }, [issues, query, router]);
+  }, [issues, query, router, setOpen]);
 
   if (!open && !quickDispatchOpen) return null;
 

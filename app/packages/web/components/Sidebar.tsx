@@ -163,6 +163,15 @@ export function Sidebar() {
           快速派活
           <span className="kbd-hint">Q</span>
         </button>
+        <button
+          type="button"
+          className="sidebar-new-issue"
+          onClick={() => router.push('/?new=1')}
+        >
+          <Icon name="issues" size={14} className="nav-icon-svg" />
+          新建 Issue
+          <span className="kbd-hint">C</span>
+        </button>
       </div>
       <nav>
         {sections.map((sec) => (
