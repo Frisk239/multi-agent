@@ -94,7 +94,10 @@
 
 **补充阶段真源：** [`docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
 **切片/handoff 约定：** 分支 `feat/bu0N-…`，进度写 `app/.progress/bu0N-*.md`  
-**当前刀：** **补2**（厚：Agent/Squad 运营）— 计划 [`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md`](docs/superpowers/plans/2026-07-17-bu02-roster-ops.md)；kickoff [`app/.progress/bu02-planner-0.md`](app/.progress/bu02-planner-0.md)  
+**当前补充刀：**  
+- **补2**（执行中/待合）：Agent/Squad 运营 — [`bu02-roster-ops` plan](docs/superpowers/plans/2026-07-17-bu02-roster-ops.md)  
+- **补3**（计划已就绪，建议补2 合后再实现）：快速派活 Multica QC — [spec](docs/superpowers/specs/2026-07-17-bu03-quick-create-design.md) · [plan](docs/superpowers/plans/2026-07-17-bu03-quick-create.md) · [kickoff](app/.progress/bu03-planner-0.md)  
+
 **计划者会话分工：** 只做计划 / handoff / 验收；**实现由用户另派执行会话**。
 
 ## 不可破坏的约束
