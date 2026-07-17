@@ -11,7 +11,7 @@
 - [x] API：labels CRUD、set labels、issues list 含 labels、settings/wiki/memory 不回归  
 - [x] `pnpm -r typecheck` 绿  
 - [x] `app/.progress/issue-labels-impl-1.md`  
-- [ ] push `feat/issue-labels`；不 push main  
+- [x] push `feat/issue-labels`；不 push main  
 - [x] 勿提交 `wiki/` `*.db`  
 
 ## Comments
