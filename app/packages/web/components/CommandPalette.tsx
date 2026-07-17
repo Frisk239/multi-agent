@@ -104,6 +104,13 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push('/'),
       },
       {
+        id: 'nav-issues-failed',
+        label: '仅失败 Issue',
+        hint: '/?failed=1',
+        group: '导航',
+        run: () => router.push('/?failed=1'),
+      },
+      {
         id: 'nav-inbox',
         label: 'Inbox',
         hint: '/inbox',
@@ -316,6 +323,30 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       ['runtime', '运行时', '探测', 'cli', 'claude', 'opencode', 'cursor'].some(
         (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
       );
+    const failedHit =
+      q &&
+      ['失败', 'failed', '挂了', '报错', 'error', 'fail'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+
+    const failedCmds = failedHit
+      ? [
+          {
+            id: 'board-failed-only',
+            label: '看板：仅失败 Issue',
+            hint: '/?failed=1',
+            group: '看板',
+            run: () => router.push('/?failed=1'),
+          },
+          {
+            id: 'runs-failed',
+            label: '运行：仅 failed',
+            hint: '/runs?status=failed',
+            group: '看板',
+            run: () => router.push('/runs?status=failed'),
+          },
+        ]
+      : [];
 
     const diagCmds = [
       ...(diagHit
@@ -342,9 +373,10 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         : []),
     ];
 
-    // 有查询：Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
+    // 有查询：失败/看板 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
     if (q) {
       return [
+        ...failedCmds,
         ...issueCmds,
         ...squadCmds,
         ...wikiCmds,
