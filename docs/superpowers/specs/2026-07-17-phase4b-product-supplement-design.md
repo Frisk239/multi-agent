@@ -186,7 +186,7 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 | 刀 | 状态 | 含包 | PR |
 |---|---|---|---|
 | 补1 | ✅ 已合 main | A+B | PR #12 → `a7195b9`；plan：`docs/superpowers/plans/2026-07-17-bu01-reliability-inbox.md` |
-| 补2 | 🟡 计划已写，待执行（**厚切片** C+D） | C+D | plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md`；kickoff：`app/.progress/bu02-planner-0.md` |
+| 补2 | 🟡 实现中（API + Web 已写，待计划者验收 / PR） | C+D | 分支 `feat/bu02-roster-ops`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md`；handoff：`app/.progress/bu02-impl-1.md`、`bu02-impl-2.md` |
 | 补3… | ⬜ 按需 | — | — |
 
 ---

@@ -1,15 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSquad } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import {
+  useAgents,
+  useDeleteSquad,
+  useSquad,
+  useUpdateSquad,
+} from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
-// S12：小队详情 — protocol / directive / members（只读）
+// bu02：小队详情可编辑 — protocol / directive / leader / members
 export function SquadDetailPage({ squadId }: { squadId: string }) {
+  const router = useRouter();
   const { data: squad, isLoading, isError, error } = useSquad(squadId);
+  const { data: agents = [] } = useAgents();
+  const update = useUpdateSquad(squadId);
+  const del = useDeleteSquad();
 
-  if (isLoading) return <div className="page-container">加载中…</div>;
+  const [name, setName] = useState('');
+  const [leaderId, setLeaderId] = useState('');
+  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [operatingProtocol, setOperatingProtocol] = useState('');
+  const [missionDirective, setMissionDirective] = useState('');
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!squad) return;
+    setName(squad.name);
+    setLeaderId(squad.leaderId);
+    setMemberIds(squad.members.map((m) => m.agentId));
+    setOperatingProtocol(squad.operatingProtocol ?? '');
+    setMissionDirective(squad.missionDirective ?? '');
+    setReady(true);
+  }, [squad]);
+
+  if (isLoading || (squad && !ready)) return <div className="page-container">加载中…</div>;
   if (isError || !squad) {
     return (
       <div className="page-container">
@@ -25,6 +53,35 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
       </div>
     );
   }
+
+  function toggleMember(id: string) {
+    setMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !leaderId) return;
+    update.mutate({
+      name: name.trim(),
+      leaderId,
+      operatingProtocol,
+      missionDirective,
+      memberIds,
+    });
+  }
+
+  function handleDelete() {
+    if (!squad) return;
+    if (!window.confirm(`确定删除小队「${squad.name}」？`)) return;
+    del.mutate(squadId, {
+      onSuccess: () => router.push('/squads'),
+    });
+  }
+
+  const leaderName =
+    agents.find((a) => a.id === squad.leaderId)?.name ?? squad.leaderId;
 
   return (
     <div className="page-container">
@@ -47,9 +104,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
             <div className="prop-row">
               <span className="prop-label">Leader</span>
               <span>
-                <Link href={`/agents/${squad.leaderId}`}>
-                  <code>{squad.leaderId}</code>
-                </Link>
+                <Link href={`/agents/${squad.leaderId}`}>{leaderName}</Link>
               </span>
             </div>
             <div className="prop-row">
@@ -57,49 +112,93 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
               <span>{squad.members.length}</span>
             </div>
           </div>
+
+          <div className="profile-section">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={del.isPending}
+              onClick={handleDelete}
+            >
+              删除小队
+            </button>
+          </div>
         </aside>
 
         <div className="agent-main">
-          <section className="squad-section">
-            <h3 className="squad-section-title">Operating Protocol</h3>
-            <pre className="squad-prose">
-              {squad.operatingProtocol?.trim() || '（空）'}
-            </pre>
-          </section>
+          <form className="ops-form ops-form-inline" onSubmit={save}>
+            <label className="ops-field">
+              <span>名称</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
 
-          <section className="squad-section">
-            <h3 className="squad-section-title">Mission Directive</h3>
-            <pre className="squad-prose">
-              {squad.missionDirective?.trim() || '（空）'}
-            </pre>
-          </section>
-
-          <section className="squad-section">
-            <h3 className="squad-section-title">
-              Members <span className="count">{squad.members.length}</span>
-            </h3>
-            {squad.members.length === 0 ? (
-              <p className="text-dim text-sm">暂无成员（leader 不在 roster 表）</p>
-            ) : (
-              <ul className="squad-member-list">
-                {squad.members.map((m) => (
-                  <li key={m.agentId}>
-                    <Link href={`/agents/${m.agentId}`} className="agent-cell">
-                      <span className="agent-icon-sm">
-                        <Icon name="agent" size={14} />
-                      </span>
-                      <span>
-                        <div className="agent-cell-name">{m.name}</div>
-                        <div className="text-dim text-sm">
-                          <code>{m.agentId}</code>
-                        </div>
-                      </span>
-                    </Link>
-                  </li>
+            <label className="ops-field">
+              <span>Leader</span>
+              <select
+                value={leaderId}
+                onChange={(e) => setLeaderId(e.target.value)}
+                required
+              >
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
                 ))}
-              </ul>
-            )}
-          </section>
+              </select>
+            </label>
+
+            <label className="ops-field">
+              <span>Operating Protocol</span>
+              <textarea
+                className="ops-textarea"
+                rows={5}
+                value={operatingProtocol}
+                onChange={(e) => setOperatingProtocol(e.target.value)}
+              />
+            </label>
+
+            <label className="ops-field">
+              <span>Mission Directive</span>
+              <textarea
+                className="ops-textarea"
+                rows={5}
+                value={missionDirective}
+                onChange={(e) => setMissionDirective(e.target.value)}
+              />
+            </label>
+
+            <div className="ops-field">
+              <span>Members（peers）</span>
+              <div className="ops-check-list">
+                {agents.map((a) => (
+                  <label key={a.id} className="ops-check-item">
+                    <input
+                      type="checkbox"
+                      checked={memberIds.includes(a.id)}
+                      onChange={() => toggleMember(a.id)}
+                    />
+                    <span>
+                      <Link href={`/agents/${a.id}`}>{a.name}</Link>{' '}
+                      <code className="text-dim text-sm">{a.id}</code>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-dim text-sm" style={{ marginTop: 8 }}>
+                leader 在上方单独选择；可勾选 leader 进 members（幂等，briefing 会过滤）。
+              </p>
+            </div>
+
+            <div className="ops-form-actions">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={update.isPending || !name.trim() || !leaderId}
+              >
+                {update.isPending ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

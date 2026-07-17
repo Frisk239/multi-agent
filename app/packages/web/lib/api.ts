@@ -8,6 +8,11 @@ import type {
   CreateCommentInput,
   AgentSummary,
   AgentDetail,
+  AgentReadiness,
+  CreateAgentInput,
+  UpdateAgentInput,
+  CreateSquadInput,
+  UpdateSquadInput,
   SkillInfo,
   SquadSummary,
   SquadDetail,
@@ -29,6 +34,16 @@ const API = 'http://localhost:3001/api';
 
 function errMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback;
+}
+
+async function apiError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: unknown };
+    if (typeof body?.error === 'string' && body.error) return body.error;
+  } catch {
+    /* ignore */
+  }
+  return fallback;
 }
 
 export function useIssues() {
@@ -336,10 +351,160 @@ export function useAgent(id: string) {
     queryKey: ['agent', id],
     queryFn: async () => {
       const res = await fetch(`${API}/agents/${id}`);
-      if (!res.ok) throw new Error('加载 agent 失败');
+      if (!res.ok) throw new Error(await apiError(res, '加载 agent 失败'));
       return res.json();
     },
     enabled: !!id,
+  });
+}
+
+// —— bu02 Agent / Squad 运营 hooks ——
+
+export function useCreateAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateAgentInput) => {
+      const res = await fetch(`${API}/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建智能体失败'));
+      return res.json() as Promise<AgentDetail>;
+    },
+    onSuccess: (agent) => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.setQueryData(['agent', agent.id], agent);
+      toastSuccess(`已创建 ${agent.name}`);
+    },
+    onError: (err) => toastError(errMessage(err, '创建智能体失败')),
+  });
+}
+
+export function useUpdateAgent(agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateAgentInput) => {
+      const res = await fetch(`${API}/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新智能体失败'));
+      return res.json() as Promise<AgentDetail>;
+    },
+    onSuccess: (agent) => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.setQueryData(['agent', agent.id], agent);
+      qc.invalidateQueries({ queryKey: ['agent-readiness', agent.id] });
+      toastSuccess('已保存');
+    },
+    onError: (err) => toastError(errMessage(err, '更新智能体失败')),
+  });
+}
+
+export function useDeleteAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      const res = await fetch(`${API}/agents/${agentId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiError(res, '删除智能体失败'));
+      return agentId;
+    },
+    onSuccess: (agentId) => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.removeQueries({ queryKey: ['agent', agentId] });
+      qc.removeQueries({ queryKey: ['agent-readiness', agentId] });
+      qc.removeQueries({ queryKey: ['agent-runs', agentId] });
+      toastSuccess('已删除智能体');
+    },
+    onError: (err) => toastError(errMessage(err, '删除智能体失败')),
+  });
+}
+
+export function useAgentReadiness(agentId: string) {
+  return useQuery<AgentReadiness>({
+    queryKey: ['agent-readiness', agentId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/agents/${agentId}/readiness`);
+      if (!res.ok) throw new Error(await apiError(res, '加载 readiness 失败'));
+      return res.json();
+    },
+    enabled: !!agentId,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useAgentRuns(agentId: string, limit = 20) {
+  return useQuery<AgentRun[]>({
+    queryKey: ['agent-runs', agentId, limit],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API}/agents/${agentId}/runs?limit=${encodeURIComponent(String(limit))}`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载 runs 失败'));
+      return res.json();
+    },
+    enabled: !!agentId,
+  });
+}
+
+export function useCreateSquad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateSquadInput) => {
+      const res = await fetch(`${API}/squads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建小队失败'));
+      return res.json() as Promise<SquadDetail>;
+    },
+    onSuccess: (squad) => {
+      qc.invalidateQueries({ queryKey: ['squads'] });
+      qc.setQueryData(['squad', squad.id], squad);
+      toastSuccess(`已创建 ${squad.name}`);
+    },
+    onError: (err) => toastError(errMessage(err, '创建小队失败')),
+  });
+}
+
+export function useUpdateSquad(squadId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateSquadInput) => {
+      const res = await fetch(`${API}/squads/${squadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新小队失败'));
+      return res.json() as Promise<SquadDetail>;
+    },
+    onSuccess: (squad) => {
+      qc.invalidateQueries({ queryKey: ['squads'] });
+      qc.setQueryData(['squad', squad.id], squad);
+      toastSuccess('已保存');
+    },
+    onError: (err) => toastError(errMessage(err, '更新小队失败')),
+  });
+}
+
+export function useDeleteSquad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (squadId: string) => {
+      const res = await fetch(`${API}/squads/${squadId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiError(res, '删除小队失败'));
+      return squadId;
+    },
+    onSuccess: (squadId) => {
+      qc.invalidateQueries({ queryKey: ['squads'] });
+      qc.removeQueries({ queryKey: ['squad', squadId] });
+      toastSuccess('已删除小队');
+    },
+    onError: (err) => toastError(errMessage(err, '删除小队失败')),
   });
 }
 

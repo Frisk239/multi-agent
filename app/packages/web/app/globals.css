@@ -2202,3 +2202,125 @@ body {
   white-space: nowrap;
   padding-top: 2px;
 }
+
+/* —— bu02 Agent / Squad 运营表单 —— */
+.ops-form {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ops-form-inline {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.ops-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.ops-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.ops-field input,
+.ops-field select {
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base, var(--bg));
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.ops-field input:focus,
+.ops-field select:focus,
+.ops-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #5b8def);
+}
+
+.ops-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base, var(--bg));
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.ops-form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ops-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base, var(--bg));
+}
+
+.ops-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.profile-edit-form .ops-field {
+  margin-bottom: var(--space-2);
+}
+
+.readiness-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  margin: var(--space-2) 0 var(--space-3);
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.readiness-ready {
+  color: #0f7b3a;
+  background: color-mix(in srgb, #22c55e 16%, transparent);
+  border: 1px solid color-mix(in srgb, #22c55e 40%, transparent);
+}
+
+.readiness-busy {
+  color: #9a6700;
+  background: color-mix(in srgb, #eab308 18%, transparent);
+  border: 1px solid color-mix(in srgb, #eab308 45%, transparent);
+}
+
+.readiness-missing {
+  color: #b42318;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 40%, transparent);
+}
