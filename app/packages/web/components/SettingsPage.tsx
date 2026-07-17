@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
 import { useSettingsStatus } from '@/lib/api';
 import { EmptyState } from './EmptyState';
@@ -29,14 +29,55 @@ function sortChecks(checks: SettingsCheck[]): SettingsCheck[] {
     .map(({ c }) => c);
 }
 
+function buildEnvSnippet(checks: SettingsCheck[]): string {
+  const lines = [
+    '# multi-agent local env (copy into shell / .env before starting server)',
+    '# 路径请按本机仓库根目录改写',
+  ];
+  const cwd = checks.find((c) => c.id === 'cwd');
+  if (!cwd || cwd.status !== 'ok') {
+    lines.push('export MA_WORKSPACE_CWD="D:/code/multi-agent"');
+  } else if (cwd.detail) {
+    lines.push(`# MA_WORKSPACE_CWD already ok: ${cwd.detail}`);
+    lines.push(`export MA_WORKSPACE_CWD="${cwd.detail}"`);
+  }
+  const wiki = checks.find((c) => c.id === 'wiki_llm');
+  if (!wiki || wiki.status !== 'ok') {
+    lines.push('export WIKI_LLM_API_KEY=""  # optional for wiki ingest/query');
+  }
+  const emb = checks.find((c) => c.id === 'embedding');
+  if (emb && emb.status !== 'ok') {
+    lines.push('# export OPENAI_API_KEY=""  # optional; needed for pgvector embeddings');
+  }
+  lines.push('# export MEMORY_PROVIDER=sqlite-text');
+  return `${lines.join('\n')}\n`;
+}
+
 export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
     [data],
   );
+
+  const envSnippet = useMemo(
+    () => (data ? buildEnvSnippet(data.checks) : ''),
+    [data],
+  );
+
+  async function copyEnv() {
+    try {
+      await navigator.clipboard.writeText(envSnippet);
+      setCopyState('ok');
+      window.setTimeout(() => setCopyState('idle'), 2000);
+    } catch {
+      setCopyState('err');
+      window.setTimeout(() => setCopyState('idle'), 2500);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -69,6 +110,7 @@ export function SettingsPage() {
   }
 
   const { overall, summary } = data;
+  const cwdBlocked = data.checks.some((c) => c.id === 'cwd' && c.status === 'error');
 
   return (
     <div className="page-container settings-page" data-testid="settings-page">
@@ -98,6 +140,31 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      <section
+        className={`settings-env-snippet${cwdBlocked ? ' settings-env-snippet--warn' : ''}`}
+        data-testid="settings-env-snippet"
+      >
+        <div className="settings-env-snippet-head">
+          <div>
+            <strong>一键复制 env 片段</strong>
+            <p className="settings-env-snippet-desc">
+              启动 server 前在 shell 导出（或写入 .env）。本页仍不写密钥/磁盘。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            data-testid="settings-copy-env"
+            onClick={() => void copyEnv()}
+          >
+            {copyState === 'ok' ? '已复制' : copyState === 'err' ? '复制失败' : '复制片段'}
+          </button>
+        </div>
+        <pre className="settings-env-pre" data-testid="settings-env-pre">
+          {envSnippet}
+        </pre>
+      </section>
 
       <ul className="settings-check-list" aria-label="诊断项">
         {sortedChecks.map((check) => (

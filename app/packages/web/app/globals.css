@@ -3614,6 +3614,50 @@ body {
   font-size: var(--text-xs);
 }
 
+.settings-env-snippet {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated, var(--bg-secondary));
+}
+
+.settings-env-snippet--warn {
+  border-color: color-mix(in srgb, #eab308 45%, var(--border));
+  background: color-mix(in srgb, #eab308 8%, var(--bg-elevated, var(--bg-secondary)));
+}
+
+.settings-env-snippet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.settings-env-snippet-desc {
+  margin: 4px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  max-width: 42rem;
+}
+
+.settings-env-pre {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-primary, #0b0d12) 88%, #000);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+
 /* —— bu05 Automation —— */
 .automation-page .page-title {
   display: flex;
