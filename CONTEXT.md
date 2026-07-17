@@ -39,7 +39,8 @@
 - **已合 main：** S01–S12；补1–5（可靠性/Inbox · 运营 CRUD · quick-create · Settings · 最小自动化 PR #16）  
 - **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
-- **下一刀：** 待人指定产品主题（例：Issue 厚度、运行可观测、Wiki/Memory 打磨、工作流深度…）  
+- **下一刀：** **运行可观测 + 人工再执行**（`run-observability`，B2 / Multica R3 收口 + `/runs` 壳）— spec/票见 `.scratch/run-observability/`  
+
 - **工作流：** **计划者主代理 + 执行者子代理** × Matt skills。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
 - **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`
 
