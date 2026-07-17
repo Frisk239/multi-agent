@@ -70,7 +70,7 @@ function WikiPageInner() {
         </div>
       </div>
 
-      <WikiJobsPanel />
+      <Suspense fallback={<div className="text-dim text-sm">加载编译任务…</div>}><Suspense fallback={<div className="text-dim text-sm">加载编译任务…</div>}><WikiJobsPanel /></Suspense></Suspense>
 
       <WikiHealthPanel onSelectPage={setSelectedSlug} />
 

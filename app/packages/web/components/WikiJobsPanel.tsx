@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyWikiIngestFailure, type WikiIngestJob } from '@ma/shared';
 import { useRetryWikiJob, useSettingsStatus, useWikiJobs } from '@/lib/api';
 
@@ -40,7 +41,29 @@ function JobRetryButton({ job }: { job: WikiIngestJob }) {
 }
 
 export function WikiJobsPanel() {
-  const [status, setStatus] = useState<StatusFilter>('dead');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const rawStatus = searchParams.get('jobStatus');
+  const status: StatusFilter =
+    rawStatus === 'pending' ||
+    rawStatus === 'running' ||
+    rawStatus === 'completed' ||
+    rawStatus === 'failed' ||
+    rawStatus === 'dead' ||
+    rawStatus === 'all'
+      ? (rawStatus === 'all' ? '' : rawStatus)
+      : 'dead';
+
+  function setStatus(next: StatusFilter) {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (!next) sp.set('jobStatus', 'all');
+    else sp.set('jobStatus', next);
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+
   const { data: settings } = useSettingsStatus();
   const { data: jobs, isLoading, isError, error, refetch, isFetching } = useWikiJobs(
     status || undefined,
@@ -93,6 +116,7 @@ export function WikiJobsPanel() {
             状态
             <select
               value={status}
+              data-testid="wiki-jobs-status-filter"
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
               aria-label="筛选 job 状态"
             >
@@ -115,8 +139,29 @@ export function WikiJobsPanel() {
         </div>
       </div>
 
+      {status && status !== 'dead' ? (
+        <div className="wiki-jobs-active-filters" data-testid="wiki-jobs-active-filters">
+          <button
+            type="button"
+            className="kanban-active-chip"
+            data-testid="wiki-jobs-chip-status"
+            onClick={() => setStatus('dead')}
+          >
+            状态 · {status || '全部'} ×
+          </button>
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="wiki-jobs-chip-clear"
+            onClick={() => setStatus('dead')}
+          >
+            重置为 dead
+          </button>
+        </div>
+      ) : null}
+
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table" data-testid="wiki-jobs-table">
           <thead>
             <tr>
               <th>状态</th>
@@ -187,9 +232,25 @@ export function WikiJobsPanel() {
             {!isLoading && !isError && sorted.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
-                  {status === 'dead'
-                    ? '没有 dead 任务。Issue 拖到 Done 后若编译失败会出现在此。'
-                    : '暂无匹配的编译任务'}
+                  <div data-testid="wiki-jobs-empty">
+                    <div>
+                      {status === 'dead'
+                        ? '没有 dead 任务。Issue 拖到 Done 后若编译失败会出现在此。'
+                        : '暂无匹配的编译任务'}
+                    </div>
+                    {status && status !== 'dead' ? (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          data-testid="wiki-jobs-clear-status"
+                          onClick={() => setStatus('dead')}
+                        >
+                          回到 dead
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             )}

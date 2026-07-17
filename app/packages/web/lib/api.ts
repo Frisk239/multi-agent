@@ -995,10 +995,16 @@ export function useRetryWikiJob() {
       if (!res.ok) throw new Error(await apiError(res, '重试 job 失败'));
       return res.json() as Promise<WikiIngestJob>;
     },
-    onSuccess: () => {
+    onSuccess: (job) => {
       qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
       qc.invalidateQueries({ queryKey: ['wiki-pages'] });
-      toastSuccess('已重新排队 Wiki 编译');
+      toastSuccess('已重新排队 Wiki 编译', {
+        action: {
+          label: '打开 Issue',
+          href: `/issues/${job.issueId}`,
+        },
+        durationMs: 7000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '重试 job 失败')),
   });

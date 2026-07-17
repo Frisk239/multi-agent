@@ -4355,3 +4355,11 @@ button.memory-kind-chip.is-active {
   align-items: center;
   margin: 0 0 var(--space-3);
 }
+
+.wiki-jobs-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+}
