@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { IssueStatus, Priority } from '@ma/shared';
 import { Priority as PriorityEnum } from '@ma/shared';
@@ -220,9 +221,14 @@ function KanbanBoardInner() {
 
   const selectValue = assigneeFromUrl || '';
   const failedCount = failedIssueIds.size;
+  const visibleCount = visible.length;
 
   return (
-    <div className="kanban-board" data-failed-only={failedOnly ? '1' : '0'}>
+    <div
+      className="kanban-board"
+      data-failed-only={failedOnly ? '1' : '0'}
+      data-visible-count={visibleCount}
+    >
       <div className="kanban-toolbar">
         <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
           <NewIssueForm />
@@ -286,6 +292,24 @@ function KanbanBoardInner() {
         >
           仅失败{failedCount > 0 ? ` ${failedCount}` : ''}
         </button>
+        {failedOnly ? (
+          <span
+            className="kanban-filter-note"
+            data-testid="kanban-failed-filter-note"
+            title="当前筛选下的可见 Issue 数（与列计数之和一致）"
+          >
+            <span>
+              显示 {visibleCount}
+              {failedCount > 0 && visibleCount !== failedCount
+                ? ` / 失败集 ${failedCount}`
+                : ''}
+            </span>
+            <span aria-hidden="true">·</span>
+            <Link href="/runs?status=failed" className="kanban-filter-note-link">
+              失败运行
+            </Link>
+          </span>
+        ) : null}
         <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
           <button
             type="button"

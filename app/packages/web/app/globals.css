@@ -484,6 +484,24 @@ body {
   background: color-mix(in srgb, var(--danger, #e35d6a) 14%, transparent);
 }
 
+.kanban-filter-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+.kanban-filter-note-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.kanban-filter-note-link:hover {
+  text-decoration: underline;
+}
+
 .kanban-columns {
   display: flex;
   gap: var(--space-3);

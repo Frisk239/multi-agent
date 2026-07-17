@@ -64,10 +64,11 @@
 - **已推：** `sidebar-inbox-fail-cue`（`4e8801a`）  
 - **已推：** `env-cwd-banner`（`be8de2d`）  
 - **已推：** `runs-failed-board-link`（`8f06822`）  
-- **本刀：** `board-run-active-pulse` — 看板运行中卡片脉冲  
+- **已推：** `board-run-active-pulse`（`5788704`）  
+- **本刀：** `board-failed-filter-note` — 仅失败筛选可见计数  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 失败筛选工具栏计数说明；详情 live 进度入口  
+- **再下一刀建议：** 详情 live 进度入口；Agent 列表 readiness 列  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
