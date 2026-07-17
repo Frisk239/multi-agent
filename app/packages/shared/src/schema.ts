@@ -135,9 +135,10 @@ export const Issue = z.object({
   creatorType: CreatorType,
   creatorId: BusinessId,
   position: z.number(),
-  // bu03：溯源（快速派活建卡）
-  originType: z.literal('quick_create').nullable().optional(),
+  // bu03/bu05：溯源（快速派活 / 自动化建卡）
+  originType: z.enum(['quick_create', 'automation']).nullable().optional(),
   originRunId: BusinessId.nullable().optional(),
+  originRuleId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -156,16 +157,36 @@ export const CreateIssueInput = z
       .nullable()
       .optional()
       .default(null),
-    // bu03：agent/CLI 建卡回链 QC run
-    originType: z.literal('quick_create').optional(),
+    // bu03：agent/CLI 建卡回链 QC run；bu05：automation 用 originRuleId
+    originType: z.enum(['quick_create', 'automation']).optional(),
     originRunId: BusinessId.optional(),
+    originRuleId: BusinessId.optional(),
   })
-  .refine(
-    (o) =>
-      (o.originType === undefined && o.originRunId === undefined) ||
-      (o.originType !== undefined && o.originRunId !== undefined),
-    { message: 'originType 与 originRunId 必须同时提供或同时省略' },
-  );
+  .superRefine((o, ctx) => {
+    if (o.originType === 'quick_create') {
+      if (!o.originRunId) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'originType=quick_create 时 originRunId 必填',
+          path: ['originRunId'],
+        });
+      }
+    } else if (o.originType === 'automation') {
+      if (!o.originRuleId) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'originType=automation 时 originRuleId 必填',
+          path: ['originRuleId'],
+        });
+      }
+    } else if (o.originRunId !== undefined || o.originRuleId !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: '提供 originRunId/originRuleId 时必须同时提供 originType',
+        path: ['originType'],
+      });
+    }
+  });
 export type CreateIssueInput = z.infer<typeof CreateIssueInput>;
 
 export const UpdateIssueInput = z.object({
@@ -604,3 +625,102 @@ export const SettingsStatusResponse = z.object({
   }),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
+
+// —— bu05：最小自动化（schedule + run-now）——
+export const AutomationScheduleKind = z.enum(['interval_minutes', 'daily_at']);
+export type AutomationScheduleKind = z.infer<typeof AutomationScheduleKind>;
+
+export const AutomationRunSource = z.enum(['schedule', 'manual']);
+export type AutomationRunSource = z.infer<typeof AutomationRunSource>;
+
+export const AutomationRunStatus = z.enum(['success', 'failed', 'skipped']);
+export type AutomationRunStatus = z.infer<typeof AutomationRunStatus>;
+
+export const AutomationRule = z.object({
+  id: BusinessId,
+  name: z.string(),
+  enabled: z.boolean(),
+  scheduleKind: AutomationScheduleKind,
+  intervalMinutes: z.number().int().nullable(),
+  dailyTime: z.string().nullable(), // "HH:mm"
+  assigneeType: z.enum(['agent', 'squad']),
+  assigneeId: BusinessId,
+  titleTemplate: z.string(),
+  bodyTemplate: z.string(),
+  lastPlannedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type AutomationRule = z.infer<typeof AutomationRule>;
+
+const CreateAutomationRuleFields = z.object({
+  name: z.string().min(1).max(80),
+  enabled: z.boolean().optional().default(true),
+  scheduleKind: AutomationScheduleKind,
+  intervalMinutes: z
+    .union([z.literal(5), z.literal(15), z.literal(30), z.literal(60)])
+    .optional()
+    .nullable(),
+  dailyTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional()
+    .nullable(),
+  assigneeType: z.enum(['agent', 'squad']),
+  assigneeId: BusinessId,
+  titleTemplate: z.string().min(1).max(200),
+  bodyTemplate: z.string().max(10000).optional().default(''),
+});
+
+export const CreateAutomationRuleInput = CreateAutomationRuleFields.superRefine((v, ctx) => {
+  if (v.scheduleKind === 'interval_minutes') {
+    if (v.intervalMinutes == null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'interval_minutes required',
+        path: ['intervalMinutes'],
+      });
+    }
+  } else if (!v.dailyTime) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'dailyTime required',
+      path: ['dailyTime'],
+    });
+  }
+});
+export type CreateAutomationRuleInput = z.infer<typeof CreateAutomationRuleInput>;
+
+export const UpdateAutomationRuleInput = CreateAutomationRuleFields.partial()
+  .refine((o) => Object.keys(o).length > 0, { message: 'empty patch' })
+  .superRefine((v, ctx) => {
+    // partial 更新：仅当显式改 scheduleKind 时做字段齐全校验；
+    // 路由层还会与 prev 合并后二次校验
+    if (v.scheduleKind === 'interval_minutes' && v.intervalMinutes === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'interval_minutes required',
+        path: ['intervalMinutes'],
+      });
+    }
+    if (v.scheduleKind === 'daily_at' && v.dailyTime === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'dailyTime required',
+        path: ['dailyTime'],
+      });
+    }
+  });
+export type UpdateAutomationRuleInput = z.infer<typeof UpdateAutomationRuleInput>;
+
+export const AutomationRun = z.object({
+  id: BusinessId,
+  ruleId: BusinessId,
+  plannedAt: z.string().datetime(),
+  source: AutomationRunSource,
+  status: AutomationRunStatus,
+  issueId: BusinessId.nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type AutomationRun = z.infer<typeof AutomationRun>;
