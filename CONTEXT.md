@@ -84,12 +84,14 @@
 - **已推：** `squads-list-filters`（`3fe60a9`）  
 - **已推：** `automation-rule-filters`（`ccebb36`）  
 - **已推：** `fail-recovery-cues`（`1490425`）  
-- **本刀：** `inbox-fail-retry` — Inbox 失败行内再执行 + cwd 环境链  
-- **closeout：** `app/.progress/inbox-fail-retry-impl-1.md`  
+- **已推：** `inbox-fail-retry`（`8d04451`）  
+- **本刀：** `settings-cwd-recovery` — Settings cwd 修好后回跳失败路径  
+- **closeout：** `app/.progress/settings-cwd-recovery-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** settings↔runs/inbox 回跳；批量已读失败  
+- **再下一刀建议：** wiki LLM 引导回跳；批量已读失败  
+
 
 
 

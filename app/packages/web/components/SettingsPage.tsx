@@ -206,6 +206,37 @@ export function SettingsPage() {
                   : '复制 cwd 行'}
             </button>
           </div>
+          <div className="settings-cwd-recovery-links" data-testid="settings-cwd-recovery">
+            <span className="text-dim text-sm">修好后：</span>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/runs?status=failed"
+              data-testid="settings-cwd-to-failed-runs"
+            >
+              失败运行 · 再执行
+            </Link>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/inbox?kind=run_failed&read=unread"
+              data-testid="settings-cwd-to-inbox-fails"
+            >
+              Inbox 失败
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/?failed=1"
+              data-testid="settings-cwd-to-failed-board"
+            >
+              看板仅失败
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/agents?ready=cwd_missing"
+              data-testid="settings-cwd-to-agents"
+            >
+              智能体 cwd
+            </Link>
+          </div>
           <p className="settings-cwd-guide-note text-dim text-sm">
             Windows 也可：PowerShell{' '}
             <code>$env:MA_WORKSPACE_CWD=&quot;D:\code\multi-agent&quot;</code>

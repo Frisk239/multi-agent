@@ -23,6 +23,13 @@
 | 侧栏 Wiki dead 角标 | ✅ | sidebar-wiki-dead-badge |
 | Settings Wiki LLM 引导 | ✅ | settings-wiki-llm-guide |
 | 运行时运营入口 | ✅ | runtimes-ops-links |
+| Skills usedBy / 空态 | ✅ | skills-ops-links |
+| 标签 → 看板筛选 | ✅ | label-board-links |
+| Agents 列表可分享筛选 | ✅ | agents-list-filters |
+| Squads 列表可分享筛选 | ✅ | squads-list-filters |
+| Automation 规则筛选 | ✅ | automation-rule-filters |
+| 失败恢复引导（Runs/看板） | ✅ | fail-recovery-cues |
+| Inbox 失败再执行 | ✅ | inbox-fail-retry |
 
 ## 仍弱（非完成态原因）
 
