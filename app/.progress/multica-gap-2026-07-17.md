@@ -30,6 +30,9 @@
 | Automation 规则筛选 | ✅ | automation-rule-filters |
 | 失败恢复引导（Runs/看板） | ✅ | fail-recovery-cues |
 | Inbox 失败再执行 | ✅ | inbox-fail-retry |
+| Settings cwd/wiki/runtime 回跳 | ✅ | settings-cwd/wiki/ops-recovery |
+| CmdK 运营恢复 | ✅ | cmdk-ops-recovery |
+| Inbox 批量已读 | ✅ | inbox-bulk-read |
 
 ## 仍弱（非完成态原因）
 
