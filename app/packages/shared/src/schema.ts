@@ -531,3 +531,37 @@ export type DomainEvent =
   | RunMessageEvent
   | WikiPageCreatedEvent
   | InboxItemEvent;
+
+// —— bu04：Settings / 环境诊断（G0 只读）——
+export const SettingsCheckStatus = z.enum(['ok', 'warn', 'error']);
+export type SettingsCheckStatus = z.infer<typeof SettingsCheckStatus>;
+
+export const SettingsOverall = z.enum(['ok', 'degraded', 'blocked']);
+export type SettingsOverall = z.infer<typeof SettingsOverall>;
+
+export const SettingsCheck = z.object({
+  id: z.string(),
+  label: z.string(),
+  status: SettingsCheckStatus,
+  detail: z.string().nullable(),
+  hint: z.string().nullable().optional(),
+  href: z.string().nullable().optional(),
+});
+export type SettingsCheck = z.infer<typeof SettingsCheck>;
+
+export const SettingsStatusResponse = z.object({
+  overall: SettingsOverall,
+  summary: z.object({
+    errors: z.number().int().nonnegative(),
+    warnings: z.number().int().nonnegative(),
+  }),
+  checks: z.array(SettingsCheck),
+  secrets: z.object({
+    wikiLlmConfigured: z.boolean(),
+    embeddingConfigured: z.boolean(),
+  }),
+  server: z.object({
+    port: z.number().int().optional(),
+  }),
+});
+export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
