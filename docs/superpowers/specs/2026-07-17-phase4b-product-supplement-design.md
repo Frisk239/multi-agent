@@ -189,7 +189,7 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 | 补2 | ✅ 已合 main | C+D | PR #13 → `840a6c8`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md` |
 | 补3 | ✅ 已合 main | E | PR #14 → `2ccd03d`；plan：`docs/superpowers/plans/2026-07-17-bu03-quick-create.md` |
 | 补4 | ✅ 已合 main | G | PR #15 → `50ad96c`；plan：`docs/superpowers/plans/2026-07-17-bu04-settings.md` |
-| 补5 | 🟡 **spec 已批准 + plan 已写**（B+方案1） | F | spec：`docs/superpowers/specs/2026-07-17-bu05-autopilot-design.md`；plan：`docs/superpowers/plans/2026-07-17-bu05-automation.md`；kickoff：`app/.progress/bu05-planner-0.md` |
+| 补5 | 🟠 **实现中 / 待计划者验收**（B+方案1；impl-1 API 已齐，impl-2 UI 待验） | F | 分支 `feat/bu05-automation`；spec：`docs/superpowers/specs/2026-07-17-bu05-autopilot-design.md`；plan：`docs/superpowers/plans/2026-07-17-bu05-automation.md`；handoff：`app/.progress/bu05-impl-2.md` |
 | 补6… | ⬜ 按需 | — | — |
 
 ---
