@@ -4347,3 +4347,11 @@ button.memory-kind-chip.is-active {
   justify-content: center;
   margin-top: 8px;
 }
+
+.memory-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+}

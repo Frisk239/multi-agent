@@ -254,6 +254,46 @@ function MemoryPageInner() {
         ) : null}
       </div>
 
+      {(hasQuery || kindFilter) ? (
+        <div
+          className="memory-active-filters"
+          data-testid="memory-active-filters"
+          aria-label="当前筛选"
+        >
+          {hasQuery ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="memory-chip-q"
+              onClick={clearSearch}
+            >
+              搜索「{qFromUrl.trim()}」 ×
+            </button>
+          ) : null}
+          {kindFilter ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="memory-chip-kind"
+              onClick={() => setKindFilter('')}
+            >
+              类型 · {kindFilter} ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="memory-chip-clear-all"
+            onClick={() => {
+              setQDraft('');
+              router.replace(pathname, { scroll: false });
+            }}
+          >
+            清除全部
+          </button>
+        </div>
+      ) : null}
+
       <div className="data-table-wrap">
         <table className="data-table" data-testid="memory-table">
           <thead>
