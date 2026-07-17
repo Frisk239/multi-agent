@@ -1,7 +1,8 @@
 'use client';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { IssueStatus } from '@ma/shared';
+import type { IssueStatus, Priority } from '@ma/shared';
+import { Priority as PriorityEnum } from '@ma/shared';
 import {
   useAgents,
   useIssues,
@@ -11,6 +12,15 @@ import {
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
+
+const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
+  { value: '', label: '全部优先级' },
+  { value: 'urgent', label: '紧急' },
+  { value: 'high', label: '高' },
+  { value: 'medium', label: '中' },
+  { value: 'low', label: '低' },
+  { value: 'none', label: '无' },
+];
 
 // spec §7.2：6 列，cancelled 不建列
 const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
@@ -50,6 +60,7 @@ function KanbanBoardInner() {
   const labelFilter = searchParams.get('label') ?? '';
   const qFromUrl = searchParams.get('q') ?? '';
   const assigneeFromUrl = searchParams.get('assignee') ?? '';
+  const priorityFromUrl = searchParams.get('priority') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   const { data: agents = [] } = useAgents();
@@ -95,14 +106,32 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const setPriorityFilter = useCallback(
+    (value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (value) sp.set('priority', value);
+      else sp.delete('priority');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const assigneeQuery = useMemo(
     () => parseAssigneeParam(assigneeFromUrl || null),
     [assigneeFromUrl],
   );
 
+  const priorityQuery = useMemo(() => {
+    if (!priorityFromUrl) return undefined;
+    const ok = (PriorityEnum.options as string[]).includes(priorityFromUrl);
+    return ok ? (priorityFromUrl as Priority) : undefined;
+  }, [priorityFromUrl]);
+
   const { data: issues, isLoading } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
+    priority: priorityQuery,
     ...assigneeQuery,
   });
   const { data: labels } = useLabels();
@@ -164,6 +193,18 @@ function KanbanBoardInner() {
               </option>
             ))}
           </optgroup>
+        </select>
+        <select
+          className="kanban-priority-select"
+          value={priorityQuery ?? ''}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          aria-label="按优先级筛选"
+        >
+          {PRIORITY_OPTIONS.map((o) => (
+            <option key={o.value || 'all'} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
         <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
           <button

@@ -283,6 +283,8 @@ export const ListIssuesQuery = z
     q: z.string().optional(),
     labelId: BusinessId.optional(),
     status: IssueStatus.optional(),
+    // board-priority-triage：单值优先级
+    priority: Priority.optional(),
     // 具体指派：须成对
     assigneeType: z.enum(['agent', 'squad']).optional(),
     assigneeId: BusinessId.optional(),

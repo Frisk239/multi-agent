@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
-import type { Issue, IssueStatus } from '@ma/shared';
-import { IssueStatus as IssueStatusEnum } from '@ma/shared';
+import type { Issue, IssueStatus, Priority } from '@ma/shared';
+import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import { useUpdateIssue } from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
 import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { Icon } from './Icon';
 
 const ALL_STATUS = IssueStatusEnum.options;
+const ALL_PRIORITY = PriorityEnum.options;
 
 const STATUS_ZH: Record<IssueStatus, string> = {
   backlog: 'Backlog',
@@ -17,6 +18,14 @@ const STATUS_ZH: Record<IssueStatus, string> = {
   done: 'Done',
   blocked: 'Blocked',
   cancelled: 'Cancelled',
+};
+
+const PRIORITY_ZH: Record<Priority, string> = {
+  urgent: '紧急',
+  high: '高',
+  medium: '中',
+  low: '低',
+  none: '无',
 };
 
 export function IssueHeader({ issue }: { issue: Issue }) {
@@ -50,7 +59,26 @@ export function IssueHeader({ issue }: { issue: Issue }) {
         <p className="issue-desc">{issue.description}</p>
       )}
       <div className="issue-meta">
-        <span>优先级：{issue.priority}</span>
+        <label className="issue-priority-field">
+          <span>优先级</span>
+          <select
+            className="priority-select"
+            value={issue.priority}
+            onChange={(e) =>
+              update.mutate({
+                id: issue.id,
+                input: { priority: e.target.value as Priority },
+              })
+            }
+            aria-label="优先级"
+          >
+            {ALL_PRIORITY.map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY_ZH[p]}
+              </option>
+            ))}
+          </select>
+        </label>
         <span>指派：{issue.assignee?.label ?? '未指派'}</span>
         <AssigneeSelect
           issueId={issue.id}

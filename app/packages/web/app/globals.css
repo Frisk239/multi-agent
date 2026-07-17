@@ -335,7 +335,8 @@ body {
   border-color: var(--accent);
 }
 
-.kanban-assignee-select {
+.kanban-assignee-select,
+.kanban-priority-select {
   min-width: 140px;
   max-width: 200px;
   height: 32px;
@@ -348,7 +349,32 @@ body {
   font-family: var(--font-ui);
 }
 
-.kanban-assignee-select:focus {
+.kanban-assignee-select:focus,
+.kanban-priority-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.issue-priority-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.priority-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-family: var(--font-ui);
+}
+
+.priority-select:focus {
   outline: none;
   border-color: var(--accent);
 }
