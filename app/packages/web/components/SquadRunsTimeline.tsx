@@ -44,11 +44,11 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
           {isFetching ? '刷新中…' : '刷新'}
         </button>
         <Link
-          href={`/runs?leader=1`}
+          href={`/runs?squad=${encodeURIComponent(squadId)}`}
           className="btn-secondary btn-sm"
-          data-testid="squad-runs-to-leader"
+          data-testid="squad-runs-to-runs"
         >
-          全局队长 run
+          在运行页打开
         </Link>
       </div>
 

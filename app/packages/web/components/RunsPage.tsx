@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
-import { useAgents, useRetryRun, useWorkspaceRuns } from '@/lib/api';
+import { useAgents, useRetryRun, useSquads, useWorkspaceRuns } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
@@ -92,6 +92,7 @@ function RunsPageInner() {
 
   const status = parseStatus(searchParams.get('status'));
   const agentId = searchParams.get('agent') ?? '';
+  const squadId = searchParams.get('squad') ?? '';
   const leaderOnly = searchParams.get('leader') === '1';
   const highlightRunId = searchParams.get('run') ?? '';
 
@@ -109,9 +110,11 @@ function RunsPageInner() {
   );
 
   const { data: agents = [] } = useAgents();
+  const { data: squads = [] } = useSquads();
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
     agentId: agentId || undefined,
+    squadId: squadId || undefined,
     isLeader: leaderOnly ? true : undefined,
     limit: 80,
   });
@@ -225,6 +228,22 @@ function RunsPageInner() {
             {agents.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          小队
+          <select
+            value={squadId}
+            data-testid="runs-squad-filter"
+            onChange={(e) => replaceParams({ squad: e.target.value || null })}
+            aria-label="筛选小队"
+          >
+            <option value="">全部</option>
+            {squads.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
               </option>
             ))}
           </select>
