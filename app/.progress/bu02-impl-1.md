@@ -115,10 +115,10 @@ DB_PATH=./bu02-smoke.db
 
 ## 验收结论（仅计划者填）
 
-- [ ] 0008 + instructions 列  
-- [ ] Agent/Squad CRUD 齐；409 规则  
-- [ ] readiness / runs  
-- [ ] prompt 注入顺序正确  
-- [ ] typecheck + smoke  
-- [ ] 无 UI 半残要求（本棒未改 web；shared 未弄红 web）  
-- 结论：<达标 / 需返工>
+- [x] 0008 + instructions 列  
+- [x] Agent/Squad CRUD 齐；409 规则  
+- [x] readiness / runs  
+- [x] prompt 注入顺序正确（skill→wiki→memory→instructions→briefing→body）  
+- [x] typecheck + smoke（handoff + 计划者复验 typecheck）  
+- [x] 无 UI 半残要求（本棒未改 web；shared 未弄红 web）  
+- 结论：**impl-1 达标**（与 impl-2 一并整刀验收）

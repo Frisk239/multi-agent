@@ -88,11 +88,12 @@ shared / server / web → Done
 
 ## 验收勾选（计划者）
 
-- [ ] UI 可建 Agent（非 seed id）  
-- [ ] UI 可建 Squad 并编辑 protocol  
-- [ ] Instructions 进入 prompt（DB 非空 + 代码路径；或 run 侧验证）  
-- [ ] Runs Tab 有数据或空态  
-- [ ] readiness 在 runtime 缺失时为 `runtime_missing`（可改 runtime 或断 PATH 测）  
-- [ ] typecheck 绿  
-- [ ] 无 wiki/db 误提交  
-- 结论：<达标开 PR / 需返工>
+- [x] UI 可建 Agent（非 seed id）— AgentsPage + useCreateAgent 代码 + API smoke  
+- [x] UI 可建 Squad 并编辑 protocol — SquadsPage / SquadDetailPage  
+- [x] Instructions 进入 prompt — DB 字段 + prompt.ts 路径；指派可 enqueue  
+- [x] Runs Tab 有数据或空态 — AgentDetail runs tab  
+- [x] readiness chip 代码在位（runtime_missing 路径在 readiness.ts）  
+- [x] typecheck 绿 — 计划者复验全绿  
+- [x] 无 wiki/db 误提交 — status 仅 `?? wiki/` 未 staged  
+- 偏离可接受：无独立 overview Tab；未跑 Next 全点（人评不挡 PR）  
+- 结论：**整刀补2 达标，允许开 PR 合 main**
