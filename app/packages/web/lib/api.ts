@@ -294,6 +294,74 @@ export function useRuns(issueId: string) {
   });
 }
 
+/** 工作区级 runs 列表（issueId 可选） */
+export function useWorkspaceRuns(params?: {
+  status?: string;
+  agentId?: string;
+  kind?: string;
+  limit?: number;
+}) {
+  const status = params?.status;
+  const agentId = params?.agentId;
+  const kind = params?.kind;
+  const limit = params?.limit ?? 50;
+  return useQuery<AgentRun[]>({
+    queryKey: ['runs', 'workspace', status ?? '', agentId ?? '', kind ?? '', limit],
+    queryFn: async () => {
+      const sp = new URLSearchParams();
+      if (status) sp.set('status', status);
+      if (agentId) sp.set('agentId', agentId);
+      if (kind) sp.set('kind', kind);
+      sp.set('limit', String(limit));
+      const res = await fetch(`${API}/runs?${sp.toString()}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载运行列表失败'));
+      return res.json();
+    },
+  });
+}
+
+export function useRetryRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      const res = await fetch(`${API}/runs/${encodeURIComponent(runId)}/retry`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(await apiError(res, '再执行失败'));
+      return res.json() as Promise<AgentRun>;
+    },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      if (run.issueId) qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+      qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+      toastSuccess(`已排队再执行 ${run.id.slice(0, 8)}…`);
+    },
+    onError: (err) => toastError(errMessage(err, '再执行失败')),
+  });
+}
+
+export function useRerunIssue(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body?: { runId?: string }) => {
+      const res = await fetch(`${API}/issues/${encodeURIComponent(issueId)}/rerun`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body ?? {}),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '再执行失败'));
+      return res.json() as Promise<AgentRun>;
+    },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['runs', issueId] });
+      qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+      toastSuccess('已按当前指派/历史 agent 排队再执行');
+    },
+    onError: (err) => toastError(errMessage(err, '再执行失败')),
+  });
+}
+
 export function useRunMessages(runId: string | undefined) {
   return useQuery<RunMessage[]>({
     queryKey: ['run-messages', runId],

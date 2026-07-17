@@ -1,13 +1,15 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, agents, comments } from '../db/schema.js';
+import { agentRuns, agents, comments, issues } from '../db/schema.js';
 import { toAgentRun, toComment } from '../db/reshape.js';
+import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from './event-bus.js';
 import { abortRun } from './run-control.js';
 import { wakeRunWorker } from './run-worker.js';
 import type { AgentRun } from '@ma/shared';
 
 const ACTIVE = ['queued', 'running'] as const;
+const RETRYABLE = ['failed', 'cancelled'] as const;
 
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
 // 15 给 3 倍余量，防住失控但不误杀正常多轮交互。
@@ -70,10 +72,11 @@ export function enqueueLeaderRun(
 function checkAndEnqueue(
   issueId: string,
   agentId: string,
-  opts?: { isLeader?: boolean; squadId?: string },
+  opts?: { isLeader?: boolean; squadId?: string; rerunOfRunId?: string | null },
 ): AgentRun | null {
   const isLeader = opts?.isLeader ?? false;
   const squadId = opts?.squadId ?? null;
+  const rerunOfRunId = opts?.rerunOfRunId ?? null;
 
   // per-(issue,agent) 去重（spec §6.1）
   // bu03：仅对 kind=issue 工作 run 去重；quick_create 回链后可能仍 active，不能挡 M1 工作 enqueue
@@ -134,6 +137,7 @@ function checkAndEnqueue(
       finishedAt: null,
       isLeader: isLeader ? 1 : 0,
       squadId,
+      rerunOfRunId,
       createdAt,
     })
     .run();
@@ -142,4 +146,111 @@ function checkAndEnqueue(
   eventBus.publish({ type: 'run:queued', run });
   wakeRunWorker();
   return run;
+}
+
+/** 仅取消同 issue + 同 agent 的 active 工作 run（学 Multica 不误杀其他 agent） */
+export function cancelActiveRunsForIssueAgent(issueId: string, agentId: string): void {
+  const rows = db
+    .select()
+    .from(agentRuns)
+    .where(
+      and(
+        eq(agentRuns.issueId, issueId),
+        eq(agentRuns.agentId, agentId),
+        eq(agentRuns.kind, 'issue'),
+        inArray(agentRuns.status, [...ACTIVE]),
+      ),
+    )
+    .all();
+  for (const row of rows) {
+    cancelRunById(row.id);
+  }
+}
+
+export type RerunResult =
+  | { ok: true; run: AgentRun }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 人工再执行（学 Multica RerunIssue）：始终新行，不复活旧 run。
+ * - 无 sourceRunId：当前 issue assignee → agent 或 squad leader
+ * - 有 sourceRunId：该历史 run 的 agent / isLeader / squadId（须属于本 issue）
+ */
+export function rerunIssue(issueId: string, sourceRunId?: string | null): RerunResult {
+  const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
+  if (!issue) return { ok: false, status: 404, error: 'issue 不存在' };
+
+  let agentId: string;
+  let isLeader = false;
+  let squadId: string | null = null;
+  let rerunOf: string | null = null;
+
+  if (sourceRunId) {
+    const src = db.select().from(agentRuns).where(eq(agentRuns.id, sourceRunId)).get();
+    if (!src) return { ok: false, status: 404, error: 'run 不存在' };
+    if (src.issueId !== issueId) {
+      return { ok: false, status: 400, error: 'run 不属于该 issue' };
+    }
+    if (src.kind !== 'issue') {
+      return { ok: false, status: 400, error: '仅 issue 工作 run 可按历史行再执行' };
+    }
+    agentId = src.agentId;
+    isLeader = src.isLeader === 1;
+    squadId = src.squadId ?? null;
+    rerunOf = src.id;
+  } else {
+    if (!issue.assigneeType || !issue.assigneeId) {
+      return { ok: false, status: 400, error: 'issue 未指派 agent 或小队' };
+    }
+    if (issue.assigneeType === 'agent') {
+      agentId = issue.assigneeId;
+    } else if (issue.assigneeType === 'squad') {
+      const squad = loadSquadDetail(issue.assigneeId);
+      if (!squad) return { ok: false, status: 400, error: '小队不存在' };
+      agentId = squad.leaderId;
+      isLeader = true;
+      squadId = squad.id;
+    } else {
+      return { ok: false, status: 400, error: 'issue 未指派 agent 或小队' };
+    }
+  }
+
+  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
+  if (!agent) return { ok: false, status: 400, error: 'agent 不存在' };
+
+  // 人工 rerun：先清掉该 agent 在此 issue 上的 active，再 enqueue（避免 dedupe 静默 null）
+  cancelActiveRunsForIssueAgent(issueId, agentId);
+
+  const run = isLeader && squadId
+    ? checkAndEnqueue(issueId, agentId, { isLeader: true, squadId, rerunOfRunId: rerunOf })
+    : checkAndEnqueue(issueId, agentId, { rerunOfRunId: rerunOf });
+
+  if (!run) {
+    return {
+      ok: false,
+      status: 409,
+      error: '无法排队新 run（可能已达 issue run 上限）',
+    };
+  }
+  return { ok: true, run };
+}
+
+/** POST /api/runs/:id/retry —— 仅 failed|cancelled；无 issueId 的 QC 拒绝 */
+export function retryRun(runId: string): RerunResult {
+  const src = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+  if (!src) return { ok: false, status: 404, error: 'run 不存在' };
+
+  if (!RETRYABLE.includes(src.status as (typeof RETRYABLE)[number])) {
+    return { ok: false, status: 400, error: '仅 failed 或 cancelled 的 run 可再执行' };
+  }
+
+  if (!src.issueId) {
+    return {
+      ok: false,
+      status: 400,
+      error: '快速派活失败且无 Issue：请使用「快速派活」重新提交，无法按 RerunIssue 再执行',
+    };
+  }
+
+  return rerunIssue(src.issueId, src.id);
 }

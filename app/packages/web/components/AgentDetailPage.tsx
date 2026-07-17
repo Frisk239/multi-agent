@@ -15,6 +15,7 @@ import {
   useUpdateAgentSkills,
   useAgentMcp,
   useUpdateAgentMcp,
+  useRetryRun,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
@@ -203,6 +204,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
 function RunsTab({ agentId }: { agentId: string }) {
   const { data: runs, isLoading, isError, error } = useAgentRuns(agentId);
+  const retry = useRetryRun();
 
   if (isLoading) return <p className="skill-assign-empty">加载中…</p>;
   if (isError) {
@@ -227,41 +229,62 @@ function RunsTab({ agentId }: { agentId: string }) {
             <th>Runtime</th>
             <th>创建</th>
             <th>错误</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
-          {runs.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <code>{r.status}</code>
-              </td>
-              <td>
-                <code>{r.kind === 'quick_create' ? 'quick_create' : 'issue'}</code>
-              </td>
-              <td>
-                {r.issueId ? (
-                  <Link href={`/issues/${r.issueId}`}>
-                    <code>{r.issueId.slice(0, 8)}…</code>
-                  </Link>
-                ) : (
-                  <span className="text-dim">
-                    {r.kind === 'quick_create' ? '（建卡中）' : '—'}
-                  </span>
-                )}
-              </td>
-              <td>
-                <code>{r.runtime}</code>
-              </td>
-              <td className="text-dim text-sm">{r.createdAt}</td>
-              <td className="text-dim text-sm">
-                {r.error
-                  ? r.error.length > 80
-                    ? `${r.error.slice(0, 80)}…`
-                    : r.error
-                  : '—'}
-              </td>
-            </tr>
-          ))}
+          {runs.map((r) => {
+            const canRetry =
+              (r.status === 'failed' || r.status === 'cancelled') && !!r.issueId;
+            return (
+              <tr key={r.id}>
+                <td>
+                  <code>{r.status}</code>
+                </td>
+                <td>
+                  <code>{r.kind === 'quick_create' ? 'quick_create' : 'issue'}</code>
+                </td>
+                <td>
+                  {r.issueId ? (
+                    <Link href={`/issues/${r.issueId}`}>
+                      <code>{r.issueId.slice(0, 8)}…</code>
+                    </Link>
+                  ) : (
+                    <span className="text-dim">
+                      {r.kind === 'quick_create' ? '（无 Issue）' : '—'}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <code>{r.runtime}</code>
+                </td>
+                <td className="text-dim text-sm">{r.createdAt}</td>
+                <td className="text-dim text-sm">
+                  {r.error
+                    ? r.error.length > 80
+                      ? `${r.error.slice(0, 80)}…`
+                      : r.error
+                    : '—'}
+                </td>
+                <td>
+                  {canRetry ? (
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      disabled={retry.isPending}
+                      onClick={() => retry.mutate(r.id)}
+                    >
+                      再执行
+                    </button>
+                  ) : !r.issueId && (r.status === 'failed' || r.status === 'cancelled') ? (
+                    <span className="text-dim text-sm">请快速派活</span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -70,7 +70,14 @@ export function InboxPage() {
         // mutation 已 toast；仍允许跳转
       }
     }
-    if (item.issueId) router.push(`/issues/${item.issueId}`);
+    if (item.issueId) {
+      router.push(`/issues/${item.issueId}`);
+      return;
+    }
+    // run_failed 无 issue（典型 QC）：去运行页看全局失败
+    if (item.kind === 'run_failed' || item.type === 'run_failed') {
+      router.push('/runs');
+    }
   }
 
   return (

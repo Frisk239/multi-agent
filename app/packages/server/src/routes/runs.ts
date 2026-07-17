@@ -1,24 +1,31 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, and, type SQL } from 'drizzle-orm';
+import { ListRunsQuery } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages } from '../db/schema.js';
 import { toAgentRun, toRunMessage } from '../db/reshape.js';
-import { cancelRunById } from '../orchestration/run-service.js';
+import { cancelRunById, retryRun } from '../orchestration/run-service.js';
 
-// runs CRUD + cancel（spec §5）。
+// runs list / detail / messages / cancel / retry（S03 + run-observability）
 export async function runRoutes(app: FastifyInstance) {
-  // GET /api/runs?issueId= —— 列表新→旧（B5：无 issueId → 400，禁止全表）
+  // GET /api/runs —— issueId 可选；可按 status/agentId/kind/limit 筛选
   app.get('/api/runs', async (req, reply) => {
-    const q = req.query as { issueId?: string };
-    if (!q.issueId) {
-      return reply.status(400).send({ error: 'issueId required' });
+    const parsed = ListRunsQuery.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const rows = db
-      .select()
-      .from(agentRuns)
-      .where(eq(agentRuns.issueId, q.issueId))
-      .orderBy(desc(agentRuns.createdAt))
-      .all();
+    const q = parsed.data;
+    const filters: SQL[] = [];
+    if (q.issueId) filters.push(eq(agentRuns.issueId, q.issueId));
+    if (q.agentId) filters.push(eq(agentRuns.agentId, q.agentId));
+    if (q.status) filters.push(eq(agentRuns.status, q.status));
+    if (q.kind) filters.push(eq(agentRuns.kind, q.kind));
+
+    let query = db.select().from(agentRuns).$dynamic();
+    if (filters.length === 1) query = query.where(filters[0]!);
+    else if (filters.length > 1) query = query.where(and(...filters));
+
+    const rows = query.orderBy(desc(agentRuns.createdAt)).limit(q.limit).all();
     return rows.map(toAgentRun);
   });
 
@@ -50,5 +57,13 @@ export async function runRoutes(app: FastifyInstance) {
     const res = cancelRunById(runId);
     if (!res.ok) return reply.status(409).send({ error: 'run 不可取消' });
     return res.run;
+  });
+
+  // POST /api/runs/:runId/retry —— 人工再执行（新行）；QC 无 issue → 400
+  app.post('/api/runs/:runId/retry', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const res = retryRun(runId);
+    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    return reply.status(201).send(res.run);
   });
 }

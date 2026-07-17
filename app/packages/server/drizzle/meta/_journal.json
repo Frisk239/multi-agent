@@ -78,6 +78,13 @@
       "when": 1784899200000,
       "tag": "0010_bu05_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784985600000,
+      "tag": "0011_run_observability",
+      "breakpoints": true
     }
   ]
 }

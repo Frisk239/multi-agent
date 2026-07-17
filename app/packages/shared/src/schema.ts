@@ -62,9 +62,82 @@ export const AgentRun = z.object({
   // S04：squad-leader run 标记（照 multica 090/127 migration）
   isLeader: z.boolean().default(false),
   squadId: BusinessId.nullable(),
+  // run-observability：人工 rerun 血缘（学 Multica rerun_of_task_id）；无则 null
+  rerunOfRunId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
+
+// run-observability：GET /api/runs 查询（issueId 可选）
+export const ListRunsQuery = z.object({
+  issueId: BusinessId.optional(),
+  agentId: BusinessId.optional(),
+  status: AgentRunStatus.optional(),
+  kind: AgentRunKind.optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+});
+export type ListRunsQuery = z.infer<typeof ListRunsQuery>;
+
+// run-observability：POST /api/issues/:id/rerun body（Multica task_id → runId）
+export const RerunIssueInput = z.object({
+  runId: BusinessId.optional(),
+});
+export type RerunIssueInput = z.infer<typeof RerunIssueInput>;
+
+export const RunFailureCode = z.enum([
+  'cwd_missing',
+  'cli_missing',
+  'stale_or_orphan',
+  'generic',
+]);
+export type RunFailureCode = z.infer<typeof RunFailureCode>;
+
+export const RunFailureClassification = z.object({
+  code: RunFailureCode,
+  title: z.string(),
+  hint: z.string(),
+  settingsHref: z.string().nullable(),
+});
+export type RunFailureClassification = z.infer<typeof RunFailureClassification>;
+
+/** 轻量失败分类（S4）：只看 error 文本，无 DB */
+export function classifyRunFailure(error: string | null | undefined): RunFailureClassification {
+  const e = (error ?? '').trim();
+  const lower = e.toLowerCase();
+  if (/ma_workspace_cwd|未配置\s*ma_workspace_cwd|workspace_cwd/i.test(e)) {
+    return {
+      code: 'cwd_missing',
+      title: '工作区目录未配置',
+      hint: '在启动 server 的环境中设置 MA_WORKSPACE_CWD 为项目根目录后，再执行。',
+      settingsHref: '/settings',
+    };
+  }
+  if (
+    /cli 未安装|未安装|runtime.?missing|not found|enoent|command not found/i.test(e) ||
+    (lower.includes('cli') && lower.includes('missing'))
+  ) {
+    return {
+      code: 'cli_missing',
+      title: '运行时 CLI 不可用',
+      hint: '检查本机 Claude Code / opencode / Cursor 是否在 PATH，或到运行时页确认探测结果。',
+      settingsHref: '/runtimes',
+    };
+  }
+  if (/^stale:|^orphan:|heartbeat timeout|no live executor/i.test(e)) {
+    return {
+      code: 'stale_or_orphan',
+      title: '执行中断或进程丢失',
+      hint: '服务重启或心跳超时导致失败。环境正常后可「再执行」。',
+      settingsHref: '/settings',
+    };
+  }
+  return {
+    code: 'generic',
+    title: '运行失败',
+    hint: e || '无详细错误信息。可复制错误或到设置页检查环境后重试。',
+    settingsHref: '/settings',
+  };
+}
 
 // bu03：快速派活入参 / 出参
 export const CreateQuickRunInput = z.object({
