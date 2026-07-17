@@ -15,6 +15,9 @@
 | 小队 run 时间线 + Runs 筛选 | ✅ | squad-runs-timeline / runs-squad-filter |
 | mention / 指派导航 | ✅ | mention-nav / issue-assignee-nav |
 | Issue/看板来源可见与筛选 | ✅ | origin-badge / board+cmdk origin / automation 回链 |
+| 筛选可清除芯片（板/Runs/Inbox） | ✅ | board/runs/inbox filter chips |
+| 指派/名单回链看板 | ✅ | assignee/roster/cmdk board links |
+| 记忆 kind URL 筛选 | ✅ | memory-kind-filter + cmdk |
 
 ## 仍弱（非完成态原因）
 

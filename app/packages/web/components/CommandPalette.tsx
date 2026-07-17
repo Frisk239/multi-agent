@@ -330,7 +330,17 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     // 记忆：有查询时提供搜索；命中关键词时再给「打开记忆页」
     const memoryKeyword =
       q &&
-      ['记忆', 'memory', 'mem', '经验'].some(
+      ['记忆', 'memory', 'mem', '经验', 'curated', 'ambient'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const memoryKindCurated =
+      q &&
+      ['curated', '精选', '沉淀'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const memoryKindAmbient =
+      q &&
+      ['ambient', '旁路', '评论记忆'].some(
         (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
       );
     const memoryCmds = [
@@ -354,6 +364,28 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               hint: '/memory',
               group: '记忆',
               run: () => router.push('/memory'),
+            },
+          ]
+        : []),
+      ...(memoryKindCurated || memoryKeyword
+        ? [
+            {
+              id: 'memory-kind-curated',
+              label: '记忆：仅 curated',
+              hint: '/memory?kind=curated',
+              group: '记忆',
+              run: () => router.push('/memory?kind=curated'),
+            },
+          ]
+        : []),
+      ...(memoryKindAmbient || (memoryKeyword && q.includes('ambient'))
+        ? [
+            {
+              id: 'memory-kind-ambient',
+              label: '记忆：仅 ambient',
+              hint: '/memory?kind=ambient',
+              group: '记忆',
+              run: () => router.push('/memory?kind=ambient'),
             },
           ]
         : []),
