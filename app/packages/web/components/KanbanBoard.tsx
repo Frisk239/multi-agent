@@ -250,6 +250,28 @@ function KanbanBoardInner() {
       failedOnly,
   );
 
+  const assigneeChipLabel = (() => {
+    if (!assigneeFromUrl) return '';
+    if (assigneeFromUrl === 'any') return '已指派';
+    if (assigneeFromUrl === 'none') return '未指派';
+    if (assigneeFromUrl.startsWith('agent:')) {
+      const id = assigneeFromUrl.slice('agent:'.length);
+      return agents.find((a) => a.id === id)?.name ?? id.slice(0, 8);
+    }
+    if (assigneeFromUrl.startsWith('squad:')) {
+      const id = assigneeFromUrl.slice('squad:'.length);
+      return squads.find((s) => s.id === id)?.name ?? id.slice(0, 8);
+    }
+    return assigneeFromUrl;
+  })();
+  const labelChipName = labelFilter
+    ? (labels ?? []).find((l) => l.id === labelFilter)?.name ?? '标签'
+    : '';
+  const priorityChip =
+    priorityQuery != null
+      ? PRIORITY_OPTIONS.find((o) => o.value === priorityQuery)?.label ?? priorityQuery
+      : '';
+
   return (
     <div
       className="kanban-board"
@@ -373,6 +395,88 @@ function KanbanBoardInner() {
           ))}
         </div>
       </div>
+      {hasActiveFilters ? (
+        <div
+          className="kanban-active-filters"
+          data-testid="kanban-active-filters"
+          aria-label="当前筛选"
+        >
+          {qFromUrl.trim() ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-q"
+              onClick={() => {
+                setQDraft('');
+                const sp = new URLSearchParams(searchParams.toString());
+                sp.delete('q');
+                const qs = sp.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+              }}
+            >
+              搜索「{qFromUrl.trim()}」 ×
+            </button>
+          ) : null}
+          {assigneeFromUrl ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-assignee"
+              onClick={() => setAssigneeFilter('')}
+            >
+              指派 · {assigneeChipLabel} ×
+            </button>
+          ) : null}
+          {priorityQuery ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-priority"
+              onClick={() => setPriorityFilter('')}
+            >
+              优先级 · {priorityChip} ×
+            </button>
+          ) : null}
+          {originQuery ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-origin"
+              onClick={() => setOriginFilter('')}
+            >
+              来源 · {originQuery === 'automation' ? '自动化' : '快速派活'} ×
+            </button>
+          ) : null}
+          {failedOnly ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-failed"
+              onClick={() => setFailedOnly(false)}
+            >
+              仅失败 ×
+            </button>
+          ) : null}
+          {labelFilter ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-label"
+              onClick={() => setLabelFilter('')}
+            >
+              标签 · {labelChipName} ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="kanban-chip-clear-all"
+            onClick={() => router.replace(pathname, { scroll: false })}
+          >
+            清除全部
+          </button>
+        </div>
+      ) : null}
       {visibleCount === 0 && hasActiveFilters ? (
         <div className="kanban-empty-filter" data-testid="kanban-empty-filter">
           <EmptyState
