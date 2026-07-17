@@ -6,6 +6,7 @@ import {
   useAgents,
   useAgentsReadinessMap,
   useIssues,
+  useRunsActiveCount,
   useSquads,
   useWikiPages,
 } from '@/lib/api';
@@ -34,6 +35,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const { data: wikiPages = [] } = useWikiPages();
+  const { data: activeRuns } = useRunsActiveCount();
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(query.trim()), 200);
@@ -151,6 +153,16 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         hint: '/runs',
         group: '导航',
         run: () => router.push('/runs'),
+      },
+      {
+        id: 'nav-runs-active',
+        label: '运行：活跃',
+        hint:
+          (activeRuns?.count ?? 0) > 0
+            ? `/runs?status=active · ${activeRuns?.count}`
+            : '/runs?status=active',
+        group: '导航',
+        run: () => router.push('/runs?status=active'),
       },
       {
         id: 'nav-automation',
@@ -345,6 +357,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       ['失败', 'failed', '挂了', '报错', 'error', 'fail'].some(
         (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
       );
+    const activeHit =
+      q &&
+      ['活跃', '在途', 'active', 'queued', 'running', '排队', '执行中'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
 
     const failedCmds = failedHit
       ? [
@@ -361,6 +378,21 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             hint: '/runs?status=failed',
             group: '看板',
             run: () => router.push('/runs?status=failed'),
+          },
+        ]
+      : [];
+
+    const activeCmds = activeHit
+      ? [
+          {
+            id: 'runs-active',
+            label: '运行：活跃 (queued+running)',
+            hint:
+              (activeRuns?.count ?? 0) > 0
+                ? `/runs?status=active · ${activeRuns?.count}`
+                : '/runs?status=active',
+            group: '运行',
+            run: () => router.push('/runs?status=active'),
           },
         ]
       : [];
@@ -390,9 +422,10 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         : []),
     ];
 
-    // 有查询：失败/看板 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
+    // 有查询：活跃/失败 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
     if (q) {
       return [
+        ...activeCmds,
         ...failedCmds,
         ...issueCmds,
         ...squadCmds,
@@ -406,6 +439,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     return [...filteredNav, ...issueCmds];
   }, [
     agents,
+    activeRuns?.count,
     squads,
     debouncedQ,
     remoteIssues,
