@@ -327,15 +327,75 @@ export function SettingsPage() {
             ))}
           </ul>
           <div className="settings-cwd-guide-actions">
-            <a className="btn-primary btn-sm" href="/runtimes" data-testid="settings-open-runtimes">
+            <Link className="btn-primary btn-sm" href="/runtimes" data-testid="settings-open-runtimes">
               打开运行时探测
-            </a>
-            <a className="btn-ghost btn-sm" href="/agents" data-testid="settings-open-agents">
+            </Link>
+            <Link className="btn-ghost btn-sm" href="/agents" data-testid="settings-open-agents">
               查看智能体
-            </a>
+            </Link>
+          </div>
+          <div className="settings-cwd-recovery-links" data-testid="settings-runtime-recovery">
+            <span className="text-dim text-sm">修好后：</span>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/agents?ready=runtime_missing"
+              data-testid="settings-runtime-to-agents"
+            >
+              runtime 缺失智能体
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/runs?status=failed"
+              data-testid="settings-runtime-to-failed-runs"
+            >
+              失败运行
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/inbox?kind=run_failed&read=unread"
+              data-testid="settings-runtime-to-inbox"
+            >
+              Inbox 失败
+            </Link>
           </div>
         </section>
       ) : null}
+
+      {/* 常驻运营回跳：不依赖阻塞态，方便从诊断页跳失败闭环 */}
+      <section
+        className="settings-ops-recovery"
+        data-testid="settings-ops-recovery"
+        aria-label="运营恢复入口"
+      >
+        <div className="settings-cwd-guide-title">
+          <strong>运营恢复</strong>
+          <span className="text-dim text-sm">失败 / 就绪 / 编译</span>
+        </div>
+        <div className="settings-cwd-recovery-links">
+          <Link className="btn-secondary btn-sm" href="/runs?status=failed" data-testid="settings-ops-failed-runs">
+            失败运行
+          </Link>
+          <Link
+            className="btn-secondary btn-sm"
+            href="/inbox?kind=run_failed&read=unread"
+            data-testid="settings-ops-inbox-fails"
+          >
+            Inbox 失败
+          </Link>
+          <Link className="btn-ghost btn-sm" href="/?failed=1" data-testid="settings-ops-failed-board">
+            看板仅失败
+          </Link>
+          <Link className="btn-ghost btn-sm" href="/agents?ready=blocked" data-testid="settings-ops-agents-blocked">
+            不可用智能体
+          </Link>
+          <Link className="btn-ghost btn-sm" href="/wiki?jobStatus=dead" data-testid="settings-ops-wiki-dead">
+            Wiki dead
+          </Link>
+          <Link className="btn-ghost btn-sm" href="/automation?failed=1" data-testid="settings-ops-automation-failed">
+            自动化失败规则
+          </Link>
+        </div>
+      </section>
 
       <section
         className={`settings-env-snippet${cwdBlocked || wikiLlmBlocked || runtimeBlocked.length > 0 ? ' settings-env-snippet--warn' : ''}`}

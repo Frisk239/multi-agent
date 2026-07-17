@@ -86,12 +86,14 @@
 - **已推：** `fail-recovery-cues`（`1490425`）  
 - **已推：** `inbox-fail-retry`（`8d04451`）  
 - **已推：** `settings-cwd-recovery`（`611c486`）  
-- **本刀：** `settings-wiki-recovery` — Wiki LLM 引导修好后回跳 dead/pending  
-- **closeout：** `app/.progress/settings-wiki-recovery-impl-1.md`  
+- **已推：** `settings-wiki-recovery`（`19e2a7a`）  
+- **本刀：** `settings-ops-recovery` — Settings 常驻运营恢复条 + runtime 回跳  
+- **closeout：** `app/.progress/settings-ops-recovery-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** runtime guide 回跳；批量已读失败  
+- **再下一刀建议：** 批量已读失败；CmdK 运营恢复关键词  
+
 
 
 

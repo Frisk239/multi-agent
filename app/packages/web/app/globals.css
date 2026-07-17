@@ -3891,6 +3891,16 @@ body {
   align-items: center;
   margin: 0 0 var(--space-2);
 }
+.settings-ops-recovery {
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated, var(--bg-secondary));
+}
+.settings-ops-recovery .settings-cwd-guide-title {
+  margin-bottom: var(--space-2);
+}
 .settings-cwd-line {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
