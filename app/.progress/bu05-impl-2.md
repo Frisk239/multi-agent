@@ -97,10 +97,10 @@ packages/server typecheck: Done
 
 ## 验收结论（仅计划者填）
 
-- [ ] `/automation` + 侧栏 + Ctrl+K  
-- [ ] 列表 enabled 开关 + 新建 interval|daily + 立即执行 toast（success/failed 区分）  
-- [ ] 可选最近 runs（issue 链接 / error）  
-- [ ] run-now 201 即使 failed；两次 run-now 两张卡；非法 assignee failed  
-- [ ] typecheck；issues/wiki/memory/inbox/settings 200  
-- [ ] 无 wiki/db 误提交  
-- 结论：_（计划者填）_
+- [x] `/automation` + 侧栏 + Ctrl+K — page + NAV + cmdk  
+- [x] 列表 enabled 开关 + 新建 interval|daily + 立即执行 toast（success/failed 区分）  
+- [x] 可选最近 runs（issue 链接 / error）  
+- [x] run-now 201 即使 failed；两次 run-now 两张卡；非法 assignee failed — handoff smoke  
+- [x] typecheck；issues/wiki/memory/inbox/settings 200 — 计划者复验 typecheck  
+- [x] 无 wiki/db 误提交 — status 仅 untracked wiki/  
+- 结论：**impl-2 达标；整刀补5（Task 1–5）达标，允许开 PR 合 main**
