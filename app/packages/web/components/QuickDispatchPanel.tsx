@@ -110,7 +110,13 @@ export function QuickDispatchPanel({
       // 可选短轮询：agent 建卡并 Link 后 toast identifier/id
       void pollRunUntilIssueId(run.id).then((linked) => {
         if (!linked?.issueId) return;
-        toastSuccess(`已创建 Issue · ${linked.issueId.slice(0, 8)}…`);
+        toastSuccess(`已创建 Issue · ${linked.issueId.slice(0, 8)}…`, {
+          action: {
+            label: '打开 Issue',
+            href: `/issues/${linked.issueId}`,
+          },
+          durationMs: 8000,
+        });
       });
     } catch {
       // useCreateQuickRun onError 已 toast

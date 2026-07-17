@@ -1090,8 +1090,16 @@ export function useCreateQuickRun() {
       return res.json() as Promise<{ run: AgentRun }>;
     },
     onSuccess: (data) => {
-      toastSuccess('已派出快速派活任务');
+      const runId = data.run.id;
+      toastSuccess(`已派出快速派活 · ${runId.slice(0, 8)}…`, {
+        action: {
+          label: '查看运行',
+          href: `/runs?run=${encodeURIComponent(runId)}&status=all`,
+        },
+      });
       qc.invalidateQueries({ queryKey: ['agent-runs'] });
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
       if (data.run.agentId) {
         qc.invalidateQueries({ queryKey: ['agent-runs', data.run.agentId] });
       }
