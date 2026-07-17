@@ -66,10 +66,11 @@
 - **已推：** `runs-failed-board-link`（`8f06822`）  
 - **已推：** `board-run-active-pulse`（`5788704`）  
 - **已推：** `board-failed-filter-note`（`4456f9e`）  
-- **本刀：** `agents-list-readiness` — 智能体列表就绪列  
+- **已推：** `agents-list-readiness`（`eb311e1`）  
+- **本刀：** `issue-live-progress` — 详情 live 进度入口 + 轨迹锚点  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 详情 live 进度入口；Settings 一键复制 env 片段  
+- **再下一刀建议：** Settings 一键复制 env 片段；看板 live 卡锚到 #run-trace  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

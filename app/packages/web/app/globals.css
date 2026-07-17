@@ -1257,6 +1257,141 @@ body {
   text-overflow: ellipsis;
 }
 
+.run-progress-text--idle {
+  font-style: italic;
+}
+
+.run-status-bar--live {
+  border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent, #3b82f6) 6%, var(--bg-elevated));
+}
+
+.run-status-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.run-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent, #3b82f6);
+  vertical-align: middle;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #3b82f6) 45%, transparent);
+  animation: run-live-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes run-live-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-live-dot {
+    animation: none;
+  }
+}
+
+.run-live-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.run-live-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.run-live-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 14%, var(--border));
+  overflow: hidden;
+}
+
+.run-live-bar-fill {
+  display: block;
+  height: 100%;
+  width: 36%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent, #3b82f6) 35%, transparent),
+    var(--accent, #3b82f6),
+    color-mix(in srgb, var(--accent, #3b82f6) 35%, transparent)
+  );
+  animation: run-live-bar-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes run-live-bar-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-live-bar-fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.55;
+  }
+}
+
+.run-trace--live {
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 35%, var(--border));
+}
+
+.run-trace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: var(--space-2);
+}
+
+.run-trace-header h3 {
+  margin: 0;
+}
+
+.run-trace-live-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  color: var(--accent, #3b82f6);
+  border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 40%, transparent);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.run-trace-live-progress {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* S04 B2：leader run 徽标，区分队长 run 与普通 run */
 .leader-briefing-panel {
   margin-top: var(--space-2);

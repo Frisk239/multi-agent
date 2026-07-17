@@ -54,15 +54,73 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
       ].join('\n\n')
     : '';
 
+  const isLive = active.status === 'queued' || active.status === 'running';
+
   return (
-    <div className="run-status-bar" data-run-status={active.status}>
+    <div
+      className={`run-status-bar${isLive ? ' run-status-bar--live' : ''}`}
+      data-run-status={active.status}
+      data-run-id={active.id}
+      data-testid="run-status-bar"
+    >
       <div className="run-status-main">
-        <span className="run-status-pill">
-          {active.isLeader && <span className="leader-badge">队长</span>}
-          运行 {active.status} · {active.runtime}
-          {active.error ? ` · ${active.error}` : ''}
-        </span>
-        {progress ? (
+        <div className="run-status-pill-row">
+          <span className="run-status-pill">
+            {active.isLeader && <span className="leader-badge">队长</span>}
+            {isLive ? (
+              <span className="run-live-dot" aria-hidden="true" data-testid="run-live-dot" />
+            ) : null}
+            运行 {active.status} · {active.runtime}
+            {active.error ? ` · ${active.error}` : ''}
+          </span>
+          {isLive ? (
+            <div className="run-live-actions" data-testid="run-live-entry">
+              <a
+                href="#run-trace"
+                className="btn-secondary btn-sm"
+                data-testid="run-live-to-trace"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('run-trace')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  });
+                }}
+              >
+                看轨迹
+              </a>
+              <Link
+                href={`/runs?run=${encodeURIComponent(active.id)}&status=${encodeURIComponent(active.status)}`}
+                className="btn-secondary btn-sm"
+                data-testid="run-live-to-runs"
+              >
+                运行列表
+              </Link>
+            </div>
+          ) : null}
+        </div>
+        {isLive ? (
+          <div
+            className="run-live-panel"
+            data-testid="run-live-panel"
+            data-has-progress={progress ? '1' : '0'}
+          >
+            <div className="run-live-bar" aria-hidden="true">
+              <span className="run-live-bar-fill" />
+            </div>
+            {progress ? (
+              <p className="run-progress-text" title={progress} data-testid="run-live-progress">
+                {progress}
+              </p>
+            ) : (
+              <p className="run-progress-text run-progress-text--idle" data-testid="run-live-waiting">
+                {active.status === 'queued'
+                  ? '已排队，等待 worker 领取…'
+                  : '执行中，等待进度推送…'}
+              </p>
+            )}
+          </div>
+        ) : progress ? (
           <p className="run-progress-text" title={progress}>
             {progress}
           </p>
