@@ -1,8 +1,8 @@
 # 工作流 — Slice Owner × 验上一刀 × 子代理调研 × Push 审查
 
 > 技能总路由：`/ask-matt`。  
-> **默认编排：** 人 → **Slice Owner** → **先按交接文档验收上一刀** → **再 brainstorm 下一刀** → implement → **push feat/** → CI+review → **人远程合并**。  
-> 交接专章：[slice-handoff.md](./slice-handoff.md) · 合码：[merge.md](./merge.md) · ADR 0001/0002。
+> **默认编排：** 人 → **Slice Owner** → 验上一刀 → 短对齐下一刀 → implement → **Playwright** → **commit/push main**（默认可直推）。  
+> 交接：[slice-handoff.md](./slice-handoff.md) · 合码：[merge.md](./merge.md) · ADR 0001；合码简化见 merge（覆盖旧 ADR 0002 默认）。
 
 ## 模型
 
@@ -16,25 +16,19 @@
 │  2) intake 验收上一刀（短结论）        │
 │  3) 通过后：短对齐 brainstorm 下一刀  │
 │  4) implement → Playwright 自测路径   │
-│  5) push feat/* → 关刀 closeout       │
+│  5) commit/push main → 关刀 closeout  │
 └──────────────┬───────────────────────┘
-               │ push
+               │（定期，非每刀必做）
                ▼
-        CI + 分支 code-review
-               │
-               ▼
-        人：远程合并 main
-               │
-               ▼（定期，非每刀必做）
         Multica 对照 → 调整下一刀方向
 ```
 
 | 角色 | 干什么 |
 |---|---|
-| **Slice Owner** | 验上一刀 → 对齐下一刀 → 实现 → **Playwright 自测** → push → 关刀 |
+| **Slice Owner** | 验上一刀 → 对齐下一刀 → 实现 → **Playwright** → **main 直推** → 关刀 |
 | **调研子代理** | 读 deep/repos（**主参考 Multica**）；Owner 只收摘要 |
-| **CI / review** | push 后 typecheck + 分支 diff 审查 |
-| **人** | 点题、**远程合并**、拍板主题 / 大方向 |
+| **CI / review** | 可选；push main 可触发 typecheck |
+| **人** | 点题、大方向；可随时要求改回 feat 隔离 |
 
 ## 北星（迭代约束）
 
@@ -46,7 +40,7 @@
 | **关刀自测** | 每刀结束前 **Playwright CLI** 走通本刀 Must 路径；证据写入 `app/.progress/<slug>-impl-*.md`（URL、断言、失败则不宣称完成） |
 | **对照调方向** | **定期**（建议每 2～3 刀或人点名）对照 `references/deep/multica.md` + 必要时 `references/repos/` Multica 源码；输出**短差距清单**（我们有/无/偏差），再选下一刀——**禁止** Owner 窗灌大段上游 |
 | **调研默认** | 路线犹豫、交互不确定 → **先调研 Multica（子代理）** 再实现 |
-| **合码** | push 只 `feat/*`；人远程合并 main |
+| **合码** | **默认 main 直推**；可选 feat 隔离 |
 
 **Playwright 自测最低要求（关刀门禁）：**
 
@@ -66,7 +60,7 @@
 1. **交接验收上一刀**（handoff / `app/.progress/*-impl|closeout` + `.scratch`；核对是否写了 Playwright 证据）  
 2. 写 **通过 / 有条件通过 / 需返工**  
 3. 需返工 → 先修；否则 **短对齐 brainstorm 下一刀**（可引用最近 Multica 差距表）  
-4. implement → **Playwright 自测** → push → 人合并 → **关刀文档**给再下一任  
+4. implement → **Playwright 自测** → commit/push **main** → **关刀文档**给再下一任  
 5. 每 2～3 刀或人要求：跑一轮 Multica 对照，更新「下一刀方向」  
 
 续作同一切片（窗满）：跳过「新主题 brainstorm」，只读 handoff 继续票；续作关刀仍要 Playwright。
@@ -79,7 +73,7 @@
 
 ## 合码
 
-见 [merge.md](./merge.md)：不以开 PR 为中心；禁止 agent push main。
+见 [merge.md](./merge.md)：默认 main 直推；不以开 PR 为中心。
 
 ## 启动提示词
 

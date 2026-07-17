@@ -41,7 +41,8 @@
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
 - **已合 main（续）：** `issue-assignee-desk`（PR #21）、`board-priority-triage`（PR #22）  
 - **上一刀 intake：** `board-priority-triage` **通过**（已合 main PR #22）— `app/.progress/board-priority-triage-intake.md`  
-- **本刀（待合）：** `issue-detail-edit`（详情 title/description 内联编辑）— `feat/issue-detail-edit` · progress `issue-detail-edit-impl-1`  
+- **上一交付：** `issue-detail-edit` 已在 **local main**（`0433bb0`，待 push）；progress `issue-detail-edit-impl-1`  
+- **工程简化：** 默认可 **main 直推**（人 2026-07-17 授权）；见 `docs/agents/merge.md`  
 - **北星：** 纯本地可用编排控制台，体验对标 **Multica**；缺口调研优先 multica（`references/deep/multica.md`）  
 - **迭代约束（2026-07-17）：**  
   1) 每刀关刀前 **Playwright CLI 自测** Must 路径，证据进 `app/.progress/*-impl*`  

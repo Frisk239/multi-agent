@@ -24,7 +24,7 @@
 | `references/`（高层摘要） | catalog/orchestration/runtime/wiki/memory 各层摘要 | 快速了解用 |
 | `references/repos/` | 12 个上游开源 clone（**只读，gitignore，独立 git**） | **绝不在此改上游代码** |
 | `concepts/` | 跨项目理论（Wiki 模式等） | 论文 Related Work 用 |
-| `app/` | 应用代码（pnpm monorepo：shared / server / web） | `feat/*` push → CI+review → **人远程合并**；见 §工程模式 · [merge.md](docs/agents/merge.md) |
+| `app/` | 应用代码（pnpm monorepo：shared / server / web） | **默认可在 `main` 直接开发并 push**（人授权简化流程）；见 §工程模式 · [merge.md](docs/agents/merge.md) |
 | `docs/agents/` | **Skills 配置**（tracker / domain / triage） | setup 产出；可手改 |
 | `CONTEXT.md` | **领域词汇 + 当前方位** | grill / domain-modeling 维护 |
 | `.scratch/` | **本地工单与 spec**（to-spec / to-tickets / wayfinder） | 一 feature 一目录 |
@@ -97,7 +97,7 @@
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
 - ▶ **产品演进主线** — 当真实产品继续切片；主题由人指定（非答辩清单、非自动 S 编号）
-- ▶ **工程编排** — Slice Owner；调研子代理；**push→CI+review→人远程合并**（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · [ADR 0002](docs/adr/0002-push-triggered-review-remote-merge.md)）
+- ▶ **工程编排** — Slice Owner；调研子代理；**默认可 main 直推** + Playwright 关刀；Multica 对照调方向（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · [merge.md](docs/agents/merge.md)）
 
 **产品/阶段真源：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)（补充已收官）· [roadmap](design/roadmap.md) · [CONTEXT.md](CONTEXT.md)
 
@@ -140,9 +140,9 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 | **垂直切片** | 做什么、多厚 | 一刀端到端可演示；可拆 `.scratch` 票，但**默认同一会话做完一刀**（窗不够再按票拆会话） |
 | **Slice Owner 会话** | 从对齐到做绿 | 短对齐 →（需要时）spec/票 → `/implement` → 自测 → handoff；**允许写 `app/**`** |
 | **调研子代理** | 读参考项目 / 全网 / 深仓 | 用户说「去调研 / 对齐 multica / 查 references」→ **派子代理或 `/research`**，**不要**在 Owner 窗里通读 upstream |
-| **审查** | 合码偏见隔离 | **push `feat/*` 后自动/新会话** `/code-review`，固定点 `origin/main...HEAD`；不靠开 PR |
-| **CI** | 机器门禁 | push `feat/**` → typecheck（`.github/workflows/feat-branch-ci.yml`） |
-| **人** | 主题、**远程合并**、产品拍板 | CI+review 通过后合进 main；agent 不 push main |
+| **审查** | 可选 | 需要时 `/code-review`；**不挡**日常 main 直推 |
+| **CI** | 机器门禁 | push `main` / 分支均可 typecheck（以仓库 workflow 为准） |
+| **人** | 主题、产品拍板 | 默认可授权 agent **直接维护 main**；要隔离实验时再用 `feat/*` |
 
 **为何改掉计划者/执行者：** Matt 的 grill 很深，计划者会话常先烧半窗；双角色 = 双倍固定成本。偏见隔离改由 **分支 diff 上的 code-review + CI** 承担。长上下文问题用 **按切片/票拆会话 + handoff** 解决，不靠角色名。
 
@@ -173,10 +173,8 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
      ├─ 短对齐 brainstorm 下一主题（人指定；默认可提候选）
      ├─ 需要对齐参考？→ 派调研子代理 → 只回收摘要
      ├─ 必要时 to-spec / to-tickets → /implement → 更新 ticket
-     ├─ 窗将满或一刀未完？→ /handoff → 下一会话 **续作同一 feat/**
-     └─ 自测够了 → git push origin feat/<slug>
-              → CI + 分支 code-review
-              → 人：远程合并 main
+     ├─ 窗将满或一刀未完？→ /handoff → 下一会话续作
+     └─ Playwright 自测够了 → commit on main（或 feat/*）→ git push
               → 关刀 closeout（证据/偏离/债/CONTEXT 下一刀）
 ```
 
@@ -187,10 +185,10 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 会话 | 必须 | 禁止 |
 |---|---|---|
-| **Slice Owner** | 交付可验行为；证据；偏离写清；**push feat/** | push main；把调研正文塞爆本窗；堵在「请先开 PR」 |
+| **Slice Owner** | 交付可验行为；**Playwright 证据**；偏离写清；**默认可 commit/push main** | 把调研正文塞爆本窗；无证据宣称完成 |
 | **调研子代理** | 可引用结论 + 出处；对照本仓 | 擅自改 `app/**` 业务（除非人明确授权同一任务） |
-| **Code-review** | 双轴 Standards + Spec；**分支 vs main** | 顺便开新 feature；要求必须有 PR URL |
-| **人** | 点题；**远程合并** | 让 agent 推 main |
+| **Code-review** | 需要时双轴 Standards + Spec | 顺便开新 feature；把审查当合并硬门槛（除非人要求） |
+| **人** | 点题；大方向；可随时改回 feat 隔离 | — |
 
 ### 票与进度写在哪
 
@@ -228,17 +226,19 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 ### Git 规则
 
-**铁律：`app/**` 工程代码不直接进 main；agent 禁止 `git push origin main`。**
+> **2026-07-17 人授权简化：** 默认可在 **`main` 直接开发、commit、`git push origin main`**。  
+> 需要隔离大实验 / 并行刀时再用 `feat/<slug>`。
 
 | 场景 | 做法 |
 |---|---|
-| 文档/调研笔记 | 可 `docs:` 进 main |
-| **任何 app/ 工程代码** | `feat/<slug>` → **push** → **CI + code-review（分支 diff）** → **人远程合并** |
+| 日常切片（默认） | 在 **`main`** 实现 → typecheck + **Playwright** → commit → **push main** |
+| 高风险 / 并行实验 | 可选 `feat/<slug>` 再合 main |
+| 文档/调研 | 直接 main |
 
-- **不以开 PR 为必做步骤**（详见 [merge.md](docs/agents/merge.md) · [ADR 0002](docs/adr/0002-push-triggered-review-remote-merge.md)）。  
-- 若托管 UI 需要 PR 对象，可在 push 后由脚本/agent **静默**创建，人仍只做「看结果 → 远程合并」。  
+- **不以开 PR / 远程合并仪式为中心**（详见 [merge.md](docs/agents/merge.md)）。  
 - Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`  
-- main 始终 typecheck + `pnpm dev` 可起  
+- main 始终 typecheck + `pnpm dev` 可起；**勿 commit** `wiki/` `*.db` 等运行产物  
+
 
 ### 与历史文档的关系
 
