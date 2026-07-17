@@ -77,11 +77,11 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `inbox-dual-deeplink` · `cmdk-automation`（`bd5c308`）  
-- **本刀：** `qc-cwd-gate` — 快速派活 cwd 未就绪警告  
+- **已推：** `cmdk-automation` · `qc-cwd-gate`（`4fbbb2a`）  
+- **本刀：** `issue-cwd-gate` — 新建 Issue 指派时 cwd 警告  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 新建 Issue 表单 cwd 同样提示；指派时 runtime 缺失强化  
+- **再下一刀建议：** AssigneeSelect runtime 缺失强化；周期 Multica 大差距（执行可靠性）  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
