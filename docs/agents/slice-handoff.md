@@ -18,15 +18,16 @@
 
 在宣布「这刀做完、可以交给下一会话」前：
 
-1. **证据**：typecheck / 相关 smoke（及若做了 Playwright）写进 progress 或 ticket  
+1. **证据（硬）：** `pnpm typecheck` + **Playwright CLI 自测本刀 Must 路径**（默认 `http://localhost:3000` + API `localhost:3001`）写进 progress；浏览器不可用则 API smoke + 标明缺口  
 2. **偏离**：与 spec 不一致处写清（无则写「无」）  
 3. **未做 / 债**：刻意不做、已知坑、合并注意点  
 4. **push**：`feat/<slug>` 已在远程（或文档-only 已说明）  
 5. **关刀文档**（推荐路径之一，名称可带序号）：  
    `app/.progress/<slug>-impl-*.md` 或 ticket `## Comments` + 可选 `/handoff`  
-6. **CONTEXT.md**：更新「下一刀」为待定或人已点名的主题（勿留过期刀名当已完成）
+6. **CONTEXT.md**：更新「下一刀」为待定或人已点名的主题（勿留过期刀名当已完成）  
+7. **（定期）Multica 对照：** 每 2～3 刀或人点名，短差距表驱动下一方向——见 [workflow.md](./workflow.md) 北星约束  
 
-关刀文档至少让下一 Owner 能回答：合没合、测了啥、差啥、别踩啥。
+关刀文档至少让下一 Owner 能回答：合没合、**Playwright 测了啥**、差啥、别踩啥。
 
 ### 关刀文档建议结构
 
@@ -39,10 +40,15 @@
 - 是否已请人远程合并：是/否
 
 ## 证据
-- typecheck / smoke / 手验要点
+- typecheck
+- Playwright：步骤 / URL / 断言（或失败原因 + API 替代）
+- 相关 API smoke
 
 ## 偏离 / 未做 / 债
 - …
+
+## Multica 对照（若本刀做了或到期）
+- 路径 · 我们 vs Multica · 下一刀建议
 
 ## 给下一 Owner
 - 验收时优先看：…
