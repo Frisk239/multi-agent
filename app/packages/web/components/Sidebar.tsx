@@ -27,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },
   { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },
+  { id: 'automation', label: '自动化', icon: 'automation', section: 'config', href: '/automation' },
   { id: 'runtime', label: '运行时', icon: 'runtime', section: 'config', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
   { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },

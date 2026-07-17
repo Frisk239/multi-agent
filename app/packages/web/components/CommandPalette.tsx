@@ -99,6 +99,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push('/memory'),
       },
       {
+        id: 'nav-automation',
+        label: '自动化',
+        hint: '/automation',
+        run: () => router.push('/automation'),
+      },
+      {
         id: 'nav-runtimes',
         label: '运行时',
         hint: '/runtimes',
