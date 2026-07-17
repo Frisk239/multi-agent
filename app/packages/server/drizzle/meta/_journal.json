@@ -57,6 +57,13 @@
       "when": 1784640000000,
       "tag": "0007_bu01_reliability_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784726400000,
+      "tag": "0008_bu02_agent_instructions",
+      "breakpoints": true
     }
   ]
 }

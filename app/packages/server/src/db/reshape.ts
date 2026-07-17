@@ -1,5 +1,14 @@
-import type { Issue, Assignee, Comment, AgentRun, RunMessage, InboxItem } from '@ma/shared';
-import { issues, comments, agentRuns, runMessages, inboxItems } from './schema.js';
+import type {
+  Issue,
+  Assignee,
+  Comment,
+  AgentRun,
+  RunMessage,
+  InboxItem,
+  AgentDetail,
+  AgentSummary,
+} from '@ma/shared';
+import { issues, comments, agentRuns, runMessages, inboxItems, agents } from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 
 type IssueRow = typeof issues.$inferSelect;
@@ -7,6 +16,7 @@ type CommentRow = typeof comments.$inferSelect;
 type RunRow = typeof agentRuns.$inferSelect;
 type MsgRow = typeof runMessages.$inferSelect;
 type InboxRow = typeof inboxItems.$inferSelect;
+type AgentRow = typeof agents.$inferSelect;
 
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
 export function toIssue(row: IssueRow): Issue {
@@ -110,5 +120,27 @@ export function toRunMessage(row: MsgRow): RunMessage {
     kind: row.kind,
     body: row.body,
     createdAt: new Date(row.createdAt).toISOString(),
+  };
+}
+
+// bu02：DB agent → API AgentSummary / AgentDetail
+export function toAgentSummary(row: AgentRow): AgentSummary {
+  return {
+    id: row.id,
+    name: row.name,
+    runtime: row.runtime,
+    category: row.category ?? null,
+  };
+}
+
+export function toAgentDetail(row: AgentRow): AgentDetail {
+  return {
+    id: row.id,
+    name: row.name,
+    runtime: row.runtime,
+    category: row.category ?? null,
+    concurrency: row.concurrency,
+    mcpServers: row.mcpServers ?? null,
+    instructions: row.instructions ?? '',
   };
 }

@@ -1,33 +1,94 @@
 'use client';
-import { useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import type { AgentReadiness, RuntimeId } from '@ma/shared';
 import {
   useAgent,
+  useAgentReadiness,
+  useAgentRuns,
+  useDeleteAgent,
   useSkills,
   useAgentSkills,
+  useUpdateAgent,
   useUpdateAgentSkills,
   useAgentMcp,
   useUpdateAgentMcp,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
-// 照原型 renderAgentDetail（app.js:467）+ AGENT_TABS（app.js:48）：
-// 薄 profile（左）+ tab 栏（右）。Skills/MCP Tab 实现，其余 tab 占位 Phase 2。
-
-type TabId = 'skills' | 'mcp' | 'activity' | 'instructions';
+// bu02：profile 可编辑 + readiness；Tabs = runs / skills / mcp / instructions
+type TabId = 'runs' | 'skills' | 'mcp' | 'instructions';
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'runs', label: 'Runs' },
   { id: 'skills', label: 'Skills' },
   { id: 'mcp', label: 'MCP' },
-  { id: 'activity', label: '动态' },
   { id: 'instructions', label: '指令' },
 ];
 
-export function AgentDetailPage({ agentId }: { agentId: string }) {
-  const { data: agent } = useAgent(agentId);
-  const [tab, setTab] = useState<TabId>('skills');
+const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
 
-  if (!agent) return <div className="page-container">加载中…</div>;
+function readinessClass(status: AgentReadiness['status']): string {
+  if (status === 'ready') return 'readiness-chip readiness-ready';
+  if (status === 'busy') return 'readiness-chip readiness-busy';
+  return 'readiness-chip readiness-missing';
+}
+
+export function AgentDetailPage({ agentId }: { agentId: string }) {
+  const router = useRouter();
+  const { data: agent, isLoading, isError, error } = useAgent(agentId);
+  const { data: readiness } = useAgentReadiness(agentId);
+  const update = useUpdateAgent(agentId);
+  const del = useDeleteAgent();
+  const [tab, setTab] = useState<TabId>('runs');
+
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [runtime, setRuntime] = useState<RuntimeId>('claude-code');
+  const [concurrency, setConcurrency] = useState(1);
+  const [profileReady, setProfileReady] = useState(false);
+
+  useEffect(() => {
+    if (!agent) return;
+    setName(agent.name);
+    setCategory(agent.category ?? '');
+    setRuntime(agent.runtime);
+    setConcurrency(agent.concurrency);
+    setProfileReady(true);
+  }, [agent]);
+
+  if (isLoading || !profileReady) return <div className="page-container">加载中…</div>;
+  if (isError || !agent) {
+    return (
+      <div className="page-container">
+        <p className="text-dim">{error instanceof Error ? error.message : 'agent 不存在'}</p>
+        <Link href="/agents" className="btn btn-ghost btn-sm">
+          返回列表
+        </Link>
+      </div>
+    );
+  }
+
+  function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    update.mutate({
+      name: name.trim(),
+      category: category.trim() ? category.trim() : null,
+      runtime,
+      concurrency,
+    });
+  }
+
+  function handleDelete() {
+    if (!agent) return;
+    if (!window.confirm(`确定删除智能体「${agent.name}」？`)) return;
+    del.mutate(agentId, {
+      onSuccess: () => router.push('/agents'),
+    });
+  }
 
   return (
     <div className="page-container">
@@ -45,16 +106,70 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           <div className="agent-profile-name">{agent.name}</div>
           <div className="agent-profile-cat">{agent.category || '—'}</div>
 
+          {readiness && (
+            <div className={readinessClass(readiness.status)} title={readiness.detail ?? undefined}>
+              {readiness.status}
+              {readiness.detail ? ` · ${readiness.detail}` : ''}
+            </div>
+          )}
+
+          <form className="profile-edit-form" onSubmit={saveProfile}>
+            <div className="profile-section">
+              <h4>编辑属性</h4>
+              <label className="ops-field">
+                <span>名称</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+              </label>
+              <label className="ops-field">
+                <span>分类</span>
+                <input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="可选"
+                />
+              </label>
+              <label className="ops-field">
+                <span>运行时</span>
+                <select
+                  value={runtime}
+                  onChange={(e) => setRuntime(e.target.value as RuntimeId)}
+                >
+                  {RUNTIMES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="ops-field">
+                <span>并发</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={concurrency}
+                  onChange={(e) => setConcurrency(Number(e.target.value) || 1)}
+                />
+              </label>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={update.isPending}
+              >
+                {update.isPending ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </form>
+
           <div className="profile-section">
-            <h4>属性</h4>
-            <div className="prop-row">
-              <span className="prop-label">运行时</span>
-              <span><code>{agent.runtime}</code></span>
-            </div>
-            <div className="prop-row">
-              <span className="prop-label">并发</span>
-              <span>{agent.concurrency}</span>
-            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={del.isPending}
+              onClick={handleDelete}
+            >
+              删除智能体
+            </button>
           </div>
         </aside>
 
@@ -73,10 +188,12 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           </div>
 
           <div className="detail-tab-content">
+            {tab === 'runs' && <RunsTab agentId={agentId} />}
             {tab === 'skills' && <SkillsTab agentId={agentId} />}
             {tab === 'mcp' && <McpTab agentId={agentId} />}
-            {tab === 'activity' && <PlaceholderTab label="动态" />}
-            {tab === 'instructions' && <PlaceholderTab label="指令" />}
+            {tab === 'instructions' && (
+              <InstructionsTab agentId={agentId} initial={agent.instructions ?? ''} />
+            )}
           </div>
         </div>
       </div>
@@ -84,8 +201,106 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   );
 }
 
-function PlaceholderTab({ label }: { label: string }) {
-  return <p className="skill-assign-empty">Phase 2 — {label} 配置</p>;
+function RunsTab({ agentId }: { agentId: string }) {
+  const { data: runs, isLoading, isError, error } = useAgentRuns(agentId);
+
+  if (isLoading) return <p className="skill-assign-empty">加载中…</p>;
+  if (isError) {
+    return (
+      <p className="skill-assign-empty">
+        {error instanceof Error ? error.message : '加载 runs 失败'}
+      </p>
+    );
+  }
+  if (!runs || runs.length === 0) {
+    return <p className="skill-assign-empty">暂无运行记录。指派该 agent 后会出现在此。</p>;
+  }
+
+  return (
+    <div className="data-table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>状态</th>
+            <th>Issue</th>
+            <th>Runtime</th>
+            <th>创建</th>
+            <th>错误</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <code>{r.status}</code>
+              </td>
+              <td>
+                <Link href={`/issues/${r.issueId}`}>
+                  <code>{r.issueId.slice(0, 8)}…</code>
+                </Link>
+              </td>
+              <td>
+                <code>{r.runtime}</code>
+              </td>
+              <td className="text-dim text-sm">{r.createdAt}</td>
+              <td className="text-dim text-sm">
+                {r.error
+                  ? r.error.length > 80
+                    ? `${r.error.slice(0, 80)}…`
+                    : r.error
+                  : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function InstructionsTab({
+  agentId,
+  initial,
+}: {
+  agentId: string;
+  initial: string;
+}) {
+  const update = useUpdateAgent(agentId);
+  const [draft, setDraft] = useState(initial);
+
+  useEffect(() => {
+    setDraft(initial);
+  }, [initial]);
+
+  function save() {
+    update.mutate({ instructions: draft });
+  }
+
+  return (
+    <div className="mcp-editor">
+      <div className="mcp-editor-hint">
+        Agent 级指令会注入执行 prompt（位于 memory 之后、squad briefing 之前）。
+        非空时以 <code># Agent Instructions</code> 块出现。
+      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="例如：Always reply short. Prefer existing project conventions."
+        spellCheck={false}
+        rows={12}
+      />
+      <div className="mcp-editor-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={save}
+          disabled={update.isPending}
+        >
+          {update.isPending ? '保存中…' : '保存指令'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // —— Skills Tab：checkbox 分配（spec §9.2）——
@@ -106,7 +321,11 @@ function SkillsTab({ agentId }: { agentId: string }) {
   };
 
   if (allSkills.length === 0) {
-    return <p className="skill-assign-empty">工作区暂无 skill。在 .skills/ 放 SKILL.md 后点「重新扫描」。</p>;
+    return (
+      <p className="skill-assign-empty">
+        工作区暂无 skill。在 .skills/ 放 SKILL.md 后点「重新扫描」。
+      </p>
+    );
   }
 
   return (
@@ -130,9 +349,6 @@ function SkillsTab({ agentId }: { agentId: string }) {
 }
 
 // —— MCP Tab：JSON 编辑器（spec §9.3）——
-// MCP 配置存 object 格式（对齐 claude-code --mcp-config 的 mcpServers 结构）：
-//   { "<server-name>": { "type": "stdio", "command": "...", "args": [...], "env": {...} } }
-// 前端编辑/存储/注入统一 object，注入边界不做转换。
 function McpTab({ agentId }: { agentId: string }) {
   const { data } = useAgentMcp(agentId);
   const update = useUpdateAgentMcp(agentId);
@@ -140,7 +356,6 @@ function McpTab({ agentId }: { agentId: string }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
 
-  // 首次加载回填
   if (data && !loaded) {
     setDraft(data.mcpServers ?? '');
     setLoaded(true);
@@ -153,7 +368,6 @@ function McpTab({ agentId }: { agentId: string }) {
       update.mutate(null);
       return;
     }
-    // 校验 JSON（必须是 object）
     try {
       const parsed = JSON.parse(trimmed);
       if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
@@ -175,10 +389,11 @@ function McpTab({ agentId }: { agentId: string }) {
   return (
     <div className="mcp-editor">
       <div className="mcp-editor-hint">
-        MCP server 配置（object 格式，对齐 claude <code>--mcp-config</code>）。每个 server 以 name 为 key，
-        含 <code>type</code> / <code>command</code>，可选 <code>args</code> / <code>env</code>。
+        MCP server 配置（object 格式，对齐 claude <code>--mcp-config</code>）。每个 server 以 name 为
+        key，含 <code>type</code> / <code>command</code>，可选 <code>args</code> / <code>env</code>。
         <br />
-        示例：<code>{`{ "github": { "type": "stdio", "command": "npx", "args": ["server-github"] } }`}</code>
+        示例：
+        <code>{`{ "github": { "type": "stdio", "command": "npx", "args": ["server-github"] } }`}</code>
       </div>
       <textarea
         value={draft}

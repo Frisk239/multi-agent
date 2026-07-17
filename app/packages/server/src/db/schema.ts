@@ -20,6 +20,7 @@ export const users = sqliteTable('user', {
 // —— agent（spec §3.1，4 行静态，用于 assignee label）——
 // S04：加 concurrency（per-agent 并发槽上限，照 multica 001_init.up.sql:45 max_concurrent_tasks）
 // S05：加 mcpServers（MCP 配置 JSON 字符串，spec §3.3）
+// bu02：加 instructions（执行 prompt 注入的 agent 级指令）
 export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -29,6 +30,7 @@ export const agents = sqliteTable('agent', {
     .default('claude-code'),
   concurrency: integer('concurrency').notNull().default(1),
   mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
+  instructions: text('instructions').notNull().default(''),
   createdAt: integer('created_at').notNull(),
 });
 
