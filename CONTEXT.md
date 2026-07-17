@@ -51,10 +51,11 @@
 - **已推：** `inbox-filter-url`（`b529e69`）  
 - **已推：** `memory-search-url`（`2b51cdb`）  
 - **已推：** `wiki-slug-url`（`d7bbe02`）  
-- **本刀：** `cmdk-wiki-memory` — CmdK→wiki/memory 深链 + memory AND 检索  
+- **已推：** `cmdk-wiki-memory`（`0b58387`）  
+- **本刀：** `cmdk-squad-settings` — CmdK 小队深链 + 环境诊断入口  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Squad 详情从 CmdK；或 Settings 诊断深链  
+- **再下一刀建议：** Agent readiness 在 CmdK；或 runtime 探测入口  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAgents, useIssues, useWikiPages } from '@/lib/api';
+import { useAgents, useIssues, useSquads, useWikiPages } from '@/lib/api';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -18,7 +18,7 @@ type Command = {
   run: () => void;
 };
 
-// S12：Ctrl+K；issue-find + wiki/memory 深链（?slug= / ?q=）
+// S12：Ctrl+K；issue-find + wiki/memory/squad + 诊断入口
 export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -26,7 +26,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const [active, setActive] = useState(0);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const { data: agents = [] } = useAgents();
-  // 有查询时才拉 wiki 列表做标题匹配（轻量）
+  const { data: squads = [] } = useSquads();
   const { data: wikiPages = [] } = useWikiPages();
 
   useEffect(() => {
@@ -156,6 +156,13 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push('/settings'),
       },
       {
+        id: 'nav-settings-diag',
+        label: '环境诊断',
+        hint: '/settings',
+        group: '导航',
+        run: () => router.push('/settings'),
+      },
+      {
         id: 'new-issue',
         label: '新建 Issue',
         hint: '/?new=1',
@@ -212,6 +219,26 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             run: () => router.push(`/agents/${a.id}`),
           }));
 
+    // 小队：名/id 匹配 → /squads/:id
+    const squadCmds = !q
+      ? []
+      : squads
+          .filter(
+            (s) =>
+              s.name.toLowerCase().includes(q) ||
+              s.id.toLowerCase().includes(q) ||
+              q === 'squad' ||
+              q === '小队',
+          )
+          .slice(0, 6)
+          .map((s) => ({
+            id: `squad-${s.id}`,
+            label: s.name,
+            hint: `/squads/${s.id}`,
+            group: '小队',
+            run: () => router.push(`/squads/${s.id}`),
+          }));
+
     // Wiki：标题/slug 匹配 → /wiki?slug=
     const wikiCmds = !q
       ? []
@@ -247,18 +274,47 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
           ]
         : [];
 
-    // 有查询：Issues → Wiki → Memory → Agents → 导航
+    // 诊断：关键词命中时置顶一条
+    const diagHit =
+      q &&
+      ['诊断', 'settings', '环境', 'cwd', 'llm', 'runtime', '配置'].some((k) =>
+        q.includes(k.toLowerCase()) || debouncedQ.includes(k),
+      );
+    const diagCmds = diagHit
+      ? [
+          {
+            id: 'diag-settings',
+            label: '打开环境诊断',
+            hint: '/settings',
+            group: '诊断',
+            run: () => router.push('/settings'),
+          },
+        ]
+      : [];
+
+    // 有查询：Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
+    // 诊断关键词时优先于「在记忆中搜索」泛化项
     if (q) {
       return [
         ...issueCmds,
+        ...squadCmds,
         ...wikiCmds,
+        ...diagCmds,
         ...memoryCmds,
         ...agentCmds,
         ...filteredNav,
       ];
     }
     return [...filteredNav, ...issueCmds];
-  }, [agents, debouncedQ, remoteIssues, router, setOpen, wikiPages]);
+  }, [
+    agents,
+    squads,
+    debouncedQ,
+    remoteIssues,
+    router,
+    setOpen,
+    wikiPages,
+  ]);
 
   useEffect(() => {
     setActive(0);

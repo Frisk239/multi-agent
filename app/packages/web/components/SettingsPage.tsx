@@ -71,7 +71,7 @@ export function SettingsPage() {
   const { overall, summary } = data;
 
   return (
-    <div className="page-container settings-page">
+    <div className="page-container settings-page" data-testid="settings-page">
       <div className="page-header">
         <div>
           <div className="page-title">
