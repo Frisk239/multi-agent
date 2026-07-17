@@ -20,8 +20,13 @@ import type {
   WikiLintResult,
   CreateWikiPageInput,
 } from '@ma/shared';
+import { toastError, toastSuccess } from './toast';
 
 const API = 'http://localhost:3001/api';
+
+function errMessage(err: unknown, fallback: string) {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
 
 export function useIssues() {
   return useQuery<Issue[]>({
@@ -92,7 +97,11 @@ export function useCreateIssue() {
       if (!res.ok) throw new Error('创建失败');
       return res.json() as Promise<Issue>;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['issues'] }),
+    onSuccess: (issue) => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess(`已创建 ${issue.identifier}`);
+    },
+    onError: (err) => toastError(errMessage(err, '创建失败')),
   });
 }
 
@@ -116,6 +125,7 @@ export function useCreateComment(issueId: string) {
         return [...old, comment];
       });
     },
+    onError: (err) => toastError(errMessage(err, '评论失败')),
   });
 }
 
@@ -148,9 +158,10 @@ export function useUpdateIssue() {
       }
       return { prevList, prevOne };
     },
-    onError: (_err, { id }, ctx) => {
+    onError: (err, { id }, ctx) => {
       if (ctx?.prevList) qc.setQueryData(['issues'], ctx.prevList);
       if (ctx?.prevOne) qc.setQueryData(['issue', id], ctx.prevOne);
+      toastError(errMessage(err, '更新失败'));
     },
     onSuccess: (issue) => {
       qc.setQueryData<Issue[]>(['issues'], (old) =>
@@ -210,7 +221,9 @@ export function useCancelRun() {
     },
     onSuccess: (run) => {
       qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
+      toastSuccess('已请求停止运行');
     },
+    onError: (err) => toastError(errMessage(err, '取消失败')),
   });
 }
 
@@ -405,7 +418,9 @@ export function useCreateWikiPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+      toastSuccess('Wiki 页已保存');
     },
+    onError: (err) => toastError(errMessage(err, '保存失败')),
   });
 }
 
@@ -467,6 +482,8 @@ export function useCreateMemory() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['memory'] });
+      toastSuccess('记忆已保存');
     },
+    onError: (err) => toastError(errMessage(err, '创建失败')),
   });
 }
