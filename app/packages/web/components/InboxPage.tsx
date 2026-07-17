@@ -104,6 +104,20 @@ function InboxPageInner() {
   const allItems = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
+  const failedAgg = useMemo(() => {
+    const fails = allItems.filter(
+      (i) => !i.read && (i.kind === 'run_failed' || i.type === 'run_failed'),
+    );
+    const issueIds = new Set(
+      fails.map((i) => i.issueId).filter((id): id is string => Boolean(id)),
+    );
+    return {
+      unreadFails: fails.length,
+      issueCount: issueIds.size,
+      latest: fails[0] ?? null,
+    };
+  }, [allItems]);
+
   const items = useMemo(() => {
     return allItems.filter((item) => {
       if (readFilter === 'unread' && item.read) return false;
@@ -154,6 +168,54 @@ function InboxPageInner() {
           </div>
         </div>
       </div>
+
+      {failedAgg.unreadFails > 0 ? (
+        <div
+          className="inbox-fail-strip"
+          data-testid="inbox-fail-strip"
+          data-count={failedAgg.unreadFails}
+          data-issues={failedAgg.issueCount}
+        >
+          <div className="inbox-fail-strip-main">
+            <span className="inbox-kind inbox-kind--fail">失败</span>
+            <span>
+              <strong>{failedAgg.unreadFails}</strong> 条未读失败
+              {failedAgg.issueCount > 0
+                ? ` · 覆盖 ${failedAgg.issueCount} 个 Issue`
+                : ''}
+              {failedAgg.latest?.summary
+                ? ` · 最近：${failedAgg.latest.summary}`
+                : ''}
+            </span>
+          </div>
+          <div className="inbox-fail-strip-actions">
+            <button
+              type="button"
+              className="inbox-action-btn"
+              data-testid="inbox-fail-filter"
+              onClick={() =>
+                replaceParams({ kind: 'run_failed', read: 'unread' })
+              }
+            >
+              筛未读失败
+            </button>
+            <Link
+              href="/?failed=1"
+              className="inbox-action-btn inbox-action-link"
+              data-testid="inbox-fail-board"
+            >
+              看板仅失败
+            </Link>
+            <Link
+              href="/runs?status=failed"
+              className="inbox-action-btn inbox-action-link"
+              data-testid="inbox-fail-runs"
+            >
+              失败运行
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <div className="inbox-filters" data-testid="inbox-filters">
         <label>
