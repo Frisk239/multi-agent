@@ -303,6 +303,8 @@ export const ListIssuesQuery = z
     status: IssueStatus.optional(),
     // board-priority-triage：单值优先级
     priority: Priority.optional(),
+    // board-origin-filter：automation | quick_create
+    originType: z.enum(['quick_create', 'automation']).optional(),
     // 具体指派：须成对
     assigneeType: z.enum(['agent', 'squad']).optional(),
     assigneeId: BusinessId.optional(),

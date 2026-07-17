@@ -64,6 +64,7 @@ function KanbanBoardInner() {
   const qFromUrl = searchParams.get('q') ?? '';
   const assigneeFromUrl = searchParams.get('assignee') ?? '';
   const priorityFromUrl = searchParams.get('priority') ?? '';
+  const originFromUrl = searchParams.get('origin') ?? '';
   // URL 可分享：?failed=1 仅显示最近有 failed run 的 issue
   const failedOnly = searchParams.get('failed') === '1';
   const [qDraft, setQDraft] = useState(qFromUrl);
@@ -140,6 +141,17 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const setOriginFilter = useCallback(
+    (value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (value === 'automation' || value === 'quick_create') sp.set('origin', value);
+      else sp.delete('origin');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const assigneeQuery = useMemo(
     () => parseAssigneeParam(assigneeFromUrl || null),
     [assigneeFromUrl],
@@ -151,10 +163,16 @@ function KanbanBoardInner() {
     return ok ? (priorityFromUrl as Priority) : undefined;
   }, [priorityFromUrl]);
 
+  const originQuery =
+    originFromUrl === 'automation' || originFromUrl === 'quick_create'
+      ? originFromUrl
+      : undefined;
+
   const { data: issues, isLoading } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
     priority: priorityQuery,
+    originType: originQuery,
     ...assigneeQuery,
   });
   const { data: labels } = useLabels();
@@ -227,7 +245,9 @@ function KanbanBoardInner() {
     <div
       className="kanban-board"
       data-failed-only={failedOnly ? '1' : '0'}
+      data-origin-filter={originQuery ?? ''}
       data-visible-count={visibleCount}
+      data-testid="kanban-board"
     >
       <div className="kanban-toolbar">
         <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
@@ -276,6 +296,17 @@ function KanbanBoardInner() {
               {o.label}
             </option>
           ))}
+        </select>
+        <select
+          className="kanban-origin-select"
+          value={originQuery ?? ''}
+          onChange={(e) => setOriginFilter(e.target.value)}
+          aria-label="按来源筛选"
+          data-testid="kanban-origin-filter"
+        >
+          <option value="">全部来源</option>
+          <option value="automation">自动化</option>
+          <option value="quick_create">快速派活</option>
         </select>
         <button
           type="button"

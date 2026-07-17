@@ -86,6 +86,7 @@ export function IssueCard({
       data-readiness={showReadyDot ? tone : 'none'}
       data-run-failed={showFail ? '1' : '0'}
       data-run-active={runActive ? '1' : '0'}
+      data-origin={issue.originType ?? ''}
     >
       <div className="issue-card-top">
         <span className="issue-card-id" style={{ color: STATUS_COLORS[issue.status] }}>
@@ -100,6 +101,25 @@ export function IssueCard({
           {showFail ? (
             <span className="issue-card-run-fail" title="最近一次运行失败">
               失败
+            </span>
+          ) : null}
+          {issue.originType === 'automation' ? (
+            <span
+              className="issue-card-origin"
+              data-testid="issue-card-origin"
+              data-origin="automation"
+              title="自动化创建"
+            >
+              自动
+            </span>
+          ) : issue.originType === 'quick_create' ? (
+            <span
+              className="issue-card-origin"
+              data-testid="issue-card-origin"
+              data-origin="quick_create"
+              title="快速派活创建"
+            >
+              QC
             </span>
           ) : null}
           {issue.priority !== 'none' && (

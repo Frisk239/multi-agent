@@ -48,6 +48,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       labelId,
       status,
       priority,
+      originType,
       assigneeType,
       assigneeId,
       unassigned,
@@ -70,6 +71,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     if (priority) {
       rows = rows.filter((r) => r.priority === priority);
+    }
+
+    if (originType) {
+      rows = rows.filter((r) => r.originType === originType);
     }
 
     if (labelId) {
