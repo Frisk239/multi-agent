@@ -186,9 +186,10 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 | 刀 | 状态 | 含包 | PR |
 |---|---|---|---|
 | 补1 | ✅ 已合 main | A+B | PR #12 → `a7195b9`；plan：`docs/superpowers/plans/2026-07-17-bu01-reliability-inbox.md` |
-| 补2 | 🟢 计划者整刀验收通过，待合 PR | C+D | 分支 `feat/bu02-roster-ops`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md`；handoff：`bu02-impl-1/2`、`bu02-planner-2` |
-| 补3 | 🟡 **spec 已批准 + plan 已写**（贴 Multica QC + M1） | E | spec：`docs/superpowers/specs/2026-07-17-bu03-quick-create-design.md`；plan：`docs/superpowers/plans/2026-07-17-bu03-quick-create.md`；kickoff：`app/.progress/bu03-planner-0.md` |
-| 补4… | ⬜ 按需 | — | — |
+| 补2 | ✅ 已合 main | C+D | PR #13 → `840a6c8`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md` |
+| 补3 | 🟡 实现中（impl-1 已验，待 impl-2 / PR） | E | 分支 `feat/bu03-quick-create`；spec/plan 已批准 |
+| 补4 | 🟡 **spec 已写（G0 只读诊断），待审阅** | G | spec：`docs/superpowers/specs/2026-07-17-bu04-settings-design.md` |
+| 补5… | ⬜ 按需 | — | — |
 
 ---
 
