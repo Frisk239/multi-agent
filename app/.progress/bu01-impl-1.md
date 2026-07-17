@@ -97,9 +97,10 @@ orphan_status failed orphan_error orphan: no live executor after restart
 
 ## 验收结论（仅计划者填）
 
-- [ ] 分支/worktree 正确，未污染 main  
-- [ ] `0007_bu01_reliability_inbox.sql` + journal  
-- [ ] claim 写 heartbeat；执行中 touch；sweeper + orphan  
-- [ ] typecheck 绿；handoff 有命令输出  
-- [ ] 无 wiki/ 误提交  
-- 结论：<达标进入 impl-2 / 需返工>
+- [x] 分支/worktree 正确，未污染 main — `feat/bu01-reliability-inbox` @ `34f0be0`，已 push origin  
+- [x] `0007_bu01_reliability_inbox.sql` + journal idx 7  
+- [x] claim 写 heartbeat；执行中 touch；sweeper + orphan — 代码与 smoke 证据齐  
+- [x] typecheck 绿 — 计划者复验 shared/server/web Done  
+- [x] 无 wiki/ 误提交  
+- 偏离可接受：合成 Inbox 最小字段适配（为真源 `InboxItem` typecheck）；**impl-2 必须删掉合成路径、上真表 API**  
+- 结论：**达标，允许进入 impl-2（Task 3–5）**
