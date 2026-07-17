@@ -228,6 +228,38 @@ export function useMarkInboxRead() {
   });
 }
 
+/** 客户端批量已读：逐条 POST /api/inbox/:id/read（无服务端 bulk 端点） */
+export function useMarkInboxReadMany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      let ok = 0;
+      let failed = 0;
+      for (const id of unique) {
+        try {
+          const res = await fetch(`${API}/inbox/${encodeURIComponent(id)}/read`, {
+            method: 'POST',
+          });
+          if (!res.ok) failed += 1;
+          else ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      return { ok, failed, total: unique.length };
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+      if (r.total === 0) return;
+      if (r.failed === 0) toastSuccess(`已标记 ${r.ok} 条已读`);
+      else toastSuccess(`已读 ${r.ok} 条 · 失败 ${r.failed}`);
+    },
+    onError: (err) => toastError(errMessage(err, '批量已读失败')),
+  });
+}
+
 export function useArchiveInbox() {
   const qc = useQueryClient();
   return useMutation({

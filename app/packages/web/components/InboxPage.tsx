@@ -7,6 +7,7 @@ import {
   useArchiveInbox,
   useInbox,
   useMarkInboxRead,
+  useMarkInboxReadMany,
   useRetryRun,
 } from '@/lib/api';
 import type { InboxItem } from '@ma/shared';
@@ -140,6 +141,7 @@ function InboxPageInner() {
   const searchParams = useSearchParams();
   const { data, isLoading, isError, error } = useInbox();
   const markRead = useMarkInboxRead();
+  const markReadMany = useMarkInboxReadMany();
   const archive = useArchiveInbox();
 
   const readFilter = parseReadFilter(searchParams.get('read'));
@@ -184,6 +186,18 @@ function InboxPageInner() {
     });
   }, [allItems, readFilter, kindFilter]);
 
+  const unreadVisibleIds = useMemo(
+    () => items.filter((i) => !i.read).map((i) => i.id),
+    [items],
+  );
+  const unreadFailIds = useMemo(
+    () =>
+      allItems
+        .filter((i) => !i.read && (i.kind === 'run_failed' || i.type === 'run_failed'))
+        .map((i) => i.id),
+    [allItems],
+  );
+
   async function openItem(item: InboxItem) {
     if (!item.read) {
       try {
@@ -224,6 +238,21 @@ function InboxPageInner() {
             筛选同步 URL（?read=&kind=）；失败优先开 Issue 轨迹，亦可进运行列表
           </div>
         </div>
+        <div className="page-actions">
+          {unreadVisibleIds.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="inbox-mark-visible-read"
+              disabled={markReadMany.isPending}
+              onClick={() => markReadMany.mutate(unreadVisibleIds)}
+            >
+              {markReadMany.isPending
+                ? '标记中…'
+                : `当前列表标已读 · ${unreadVisibleIds.length}`}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {failedAgg.unreadFails > 0 ? (
@@ -246,6 +275,17 @@ function InboxPageInner() {
             </span>
           </div>
           <div className="inbox-fail-strip-actions">
+            <button
+              type="button"
+              className="inbox-action-btn inbox-action-btn--primary"
+              data-testid="inbox-mark-fails-read"
+              disabled={markReadMany.isPending || unreadFailIds.length === 0}
+              onClick={() => markReadMany.mutate(unreadFailIds)}
+            >
+              {markReadMany.isPending
+                ? '标记中…'
+                : `失败全标已读 · ${unreadFailIds.length}`}
+            </button>
             <button
               type="button"
               className="inbox-action-btn"
