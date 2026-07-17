@@ -125,8 +125,17 @@ function RunsPageInner() {
     }
   }, [highlightRunId, visibleRuns]);
 
+  const failedIssueCount = useMemo(() => {
+    if (status !== 'failed' || !visibleRuns) return 0;
+    const s = new Set<string>();
+    for (const r of visibleRuns) {
+      if (r.issueId) s.add(r.issueId);
+    }
+    return s.size;
+  }, [status, visibleRuns]);
+
   return (
-    <div className="page-container">
+    <div className="page-container" data-testid="runs-page" data-status={status || 'all'}>
       <div className="page-header">
         <div>
           <div className="page-title">
@@ -137,9 +146,41 @@ function RunsPageInner() {
             筛选同步 URL（可分享）；队长 run 与 ?run= 高亮对齐 Multica 任务列表。
           </div>
         </div>
-        <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
-          刷新
-        </button>
+        <div className="page-actions runs-page-actions">
+          {status === 'failed' ? (
+            <Link
+              href="/?failed=1"
+              className="btn-secondary btn-sm"
+              data-testid="runs-to-failed-board"
+              title={
+                failedIssueCount > 0
+                  ? `打开看板仅失败（约 ${failedIssueCount} 个 Issue）`
+                  : '打开看板仅失败筛选'
+              }
+            >
+              看板仅失败
+              {failedIssueCount > 0 ? ` · ${failedIssueCount}` : ''}
+            </Link>
+          ) : (
+            <Link
+              href="/runs?status=failed"
+              className="btn-secondary btn-sm"
+              data-testid="runs-filter-failed"
+            >
+              看失败 run
+            </Link>
+          )}
+          <Link
+            href="/inbox?kind=run_failed&read=unread"
+            className="btn-secondary btn-sm"
+            data-testid="runs-to-inbox-fails"
+          >
+            Inbox 失败
+          </Link>
+          <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
+            刷新
+          </button>
+        </div>
       </div>
 
       <div className="runs-filters">
