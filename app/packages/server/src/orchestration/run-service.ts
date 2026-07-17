@@ -76,6 +76,7 @@ function checkAndEnqueue(
   const squadId = opts?.squadId ?? null;
 
   // per-(issue,agent) 去重（spec §6.1）
+  // bu03：仅对 kind=issue 工作 run 去重；quick_create 回链后可能仍 active，不能挡 M1 工作 enqueue
   const activeForAgent = db
     .select()
     .from(agentRuns)
@@ -83,6 +84,7 @@ function checkAndEnqueue(
       and(
         eq(agentRuns.issueId, issueId),
         eq(agentRuns.agentId, agentId),
+        eq(agentRuns.kind, 'issue'),
         inArray(agentRuns.status, [...ACTIVE]),
       ),
     )
@@ -90,10 +92,11 @@ function checkAndEnqueue(
   if (activeForAgent) return null;
 
   // 乒乓熔断（spec §7.4 R1）：issue 总 run 数超限 → 拒绝 + system comment
+  // bu03：只计 issue 工作 run，不把 quick_create 算进乒乓上限
   const totalRow = db
     .select({ cnt: sql<number>`COUNT(*)` })
     .from(agentRuns)
-    .where(eq(agentRuns.issueId, issueId))
+    .where(and(eq(agentRuns.issueId, issueId), eq(agentRuns.kind, 'issue')))
     .get();
   if ((totalRow?.cnt ?? 0) >= MAX_RUNS_PER_ISSUE) {
     const cid = crypto.randomUUID();
