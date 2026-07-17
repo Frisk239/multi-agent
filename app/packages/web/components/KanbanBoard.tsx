@@ -367,8 +367,20 @@ function KanbanBoardInner() {
                 : ''}
             </span>
             <span aria-hidden="true">·</span>
-            <Link href="/runs?status=failed" className="kanban-filter-note-link">
+            <Link href="/runs?status=failed" className="kanban-filter-note-link" data-testid="kanban-fail-to-runs">
               失败运行
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link
+              href="/inbox?kind=run_failed&read=unread"
+              className="kanban-filter-note-link"
+              data-testid="kanban-fail-to-inbox"
+            >
+              Inbox
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/settings" className="kanban-filter-note-link" data-testid="kanban-fail-to-settings">
+              环境
             </Link>
           </span>
         ) : null}
@@ -498,9 +510,18 @@ function KanbanBoardInner() {
                   </Link>
                 ) : null}
                 {failedOnly ? (
-                  <Link href="/runs?status=failed" className="btn-secondary btn-sm">
-                    失败运行
-                  </Link>
+                  <>
+                    <Link
+                      href="/runs?status=failed"
+                      className="btn-secondary btn-sm"
+                      data-testid="kanban-empty-failed-runs"
+                    >
+                      失败运行
+                    </Link>
+                    <Link href="/settings" className="btn-ghost btn-sm" data-testid="kanban-empty-settings">
+                      环境诊断
+                    </Link>
+                  </>
                 ) : null}
               </div>
             }

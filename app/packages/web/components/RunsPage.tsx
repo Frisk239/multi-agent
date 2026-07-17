@@ -145,6 +145,14 @@ function RunsPageInner() {
     return s.size;
   }, [status, visibleRuns]);
 
+  const cwdFailCount = useMemo(() => {
+    if (status !== 'failed' || !visibleRuns) return 0;
+    return visibleRuns.filter((r) => {
+      const e = (r.error ?? '').toLowerCase();
+      return e.includes('cwd') || e.includes('ma_workspace_cwd') || e.includes('工作目录');
+    }).length;
+  }, [status, visibleRuns]);
+
   return (
     <div className="page-container" data-testid="runs-page" data-status={status || 'all'}>
       <div className="page-header">
@@ -193,6 +201,45 @@ function RunsPageInner() {
           </button>
         </div>
       </div>
+
+      {status === 'failed' && (visibleRuns?.length ?? 0) > 0 ? (
+        <div className="fail-recovery-banner" data-testid="runs-fail-recovery" role="status">
+          <div className="fail-recovery-banner-text">
+            {cwdFailCount > 0 ? (
+              <>
+                当前列表约 <strong>{cwdFailCount}</strong> 条失败与{' '}
+                <code>MA_WORKSPACE_CWD</code> 有关。配置工作区后，可在行内「再执行」或看板打开 Issue 重试。
+              </>
+            ) : (
+              <>
+                共 <strong>{visibleRuns?.length ?? 0}</strong> 条失败 run
+                {failedIssueCount > 0 ? ` · 覆盖 ${failedIssueCount} 个 Issue` : ''}
+                。可逐行再执行，或打开看板/环境对照原因。
+              </>
+            )}
+          </div>
+          <div className="fail-recovery-banner-actions">
+            {cwdFailCount > 0 ? (
+              <Link href="/settings" className="btn-primary btn-sm" data-testid="runs-fail-to-settings">
+                环境诊断 / cwd
+              </Link>
+            ) : null}
+            <Link href="/runtimes" className="btn-secondary btn-sm" data-testid="runs-fail-to-runtimes">
+              运行时
+            </Link>
+            <Link href="/?failed=1" className="btn-secondary btn-sm" data-testid="runs-fail-to-board">
+              看板仅失败
+            </Link>
+            <Link
+              href="/agents?ready=blocked"
+              className="btn-ghost btn-sm"
+              data-testid="runs-fail-to-agents"
+            >
+              不可用智能体
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <div className="runs-filters">
         <label>

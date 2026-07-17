@@ -82,12 +82,14 @@
 - **已推：** `label-board-links`（`d8c1d1a`）  
 - **已推：** `agents-list-filters`（`d0a8001`）  
 - **已推：** `squads-list-filters`（`3fe60a9`）  
-- **本刀：** `automation-rule-filters` — `/automation` q/enabled/schedule/failed + chips + CmdK  
-- **closeout：** `app/.progress/automation-rule-filters-impl-1.md`  
+- **已推：** `automation-rule-filters`（`ccebb36`）  
+- **本刀：** `fail-recovery-cues` — Runs/看板失败恢复横幅与卡片深链  
+- **closeout：** `app/.progress/fail-recovery-cues-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 失败恢复密度；inbox 运营密度  
+- **再下一刀建议：** inbox 失败内联再执行；settings↔runs 回跳  
+
 
 
 

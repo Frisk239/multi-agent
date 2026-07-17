@@ -4513,3 +4513,36 @@ a.automation-schedule-link:hover {
   text-decoration: underline;
   color: var(--accent);
 }
+
+.fail-recovery-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-red, #ef4444) 35%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-red, #ef4444) 8%, var(--surface));
+}
+.fail-recovery-banner-text {
+  flex: 1 1 240px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.fail-recovery-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+a.issue-card-run-fail--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+a.issue-card-run-fail--link:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
+}

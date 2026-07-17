@@ -99,9 +99,16 @@ export function IssueCard({
             </span>
           ) : null}
           {showFail ? (
-            <span className="issue-card-run-fail" title="最近一次运行失败">
+            <Link
+              href={`/issues/${issue.id}#run-trace`}
+              className="issue-card-run-fail issue-card-run-fail--link"
+              title="最近一次运行失败 · 打开详情再执行"
+              data-testid="issue-card-fail-badge"
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
+            >
               失败
-            </span>
+            </Link>
           ) : null}
           {issue.originType === 'automation' || issue.originType === 'quick_create' ? (
             <Link
