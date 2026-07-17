@@ -34,9 +34,9 @@
 
 ## 当前方位（2026-07-17）
 
-- **已合 main：** S01–S12；补1–4（可靠性/Inbox、运营 CRUD、quick-create、Settings 诊断）  
-- **已合 main：** 补1–5（含最小自动化 PR #16）
-- **下一刀：** 可选补6 体验债 / Wiki·Memory 打磨，或宣布补充阶段收官  
+- **已合 main：** S01–S12；补1–5（可靠性/Inbox · 运营 CRUD · quick-create · Settings · 最小自动化 PR #16）  
+- **补充阶段：已收官**（phase4b 退出清单勾满；人授权 Playwright 日常路径过则 **不开补6**）  
+- **下一刀：** 人显式指定的 **后续切片**（非补N 主线）；H/I/J 仅在有明确痛点时另开  
 - **工作流：** **计划者主代理 + 执行者子代理（保留）** × Matt skills（grill / to-spec / to-tickets / implement / code-review / handoff）。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
 - **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`；可选 `app/.progress` 作 handoff 档案  
 

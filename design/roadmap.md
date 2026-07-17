@@ -104,18 +104,18 @@
 - `run:progress` 消费；Squad 只读详情；**合成** Inbox
 - 详见 [s12 spec](../docs/superpowers/specs/2026-07-17-s12-product-hardening-design.md)
 
-### 补充阶段 — 补1 / 补2 / …（当前主线）
+### 补充阶段 — 补1 / 补2 / … ✅ 已收官
 
 真源：[补充阶段 spec](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
 
-- **能力包池**抽刀，不锁死「必须 3 刀或 6 刀」
-- 默认建议：可靠性+真 Inbox → Agent/Squad 运营 → quick-create → Settings → 最小 Autopilot → 按需再补
-- 退出：人判定日常可用 + spec 退出清单；**然后再**谈后续切片
+- ✅ 补1–5 已合 main（A+B → C+D → E → G → F）
+- ✅ 2026-07-17 退出清单勾满；人授权 Playwright 日常路径过则 **不开补6**
+- H/I/J 与体验债 **不自动开工**；有明确痛点再开独立切片
 - **不做：** Redis、多节点、完整 GitHub/Lark channel、Graphiti（另议）
 
 ### 后续切片
 
-⏸ **暂停**。补充阶段退出前不开新的「前推」主线编号。
+可开，但须 **人显式指定** 刀与目标；仍走 计划者 → 票 → 执行者。不默认恢复旧「S13 接着 S14」编号。
 
 ### 答辩材料（并行，非挡板）
 

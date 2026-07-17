@@ -8,8 +8,8 @@
 
 **论文一句话：** 四层架构（编排-执行-知识-记忆），用「编译式项目 Wiki」+「可插拔记忆」解决 RAG 不累积、执行不可追踪、跨会话上下文丢失。
 
-**工程实现已启动。** S01–S12 + 补1–4 已合 main；补5 自动化待合 PR。  
-**当前主线：补充阶段收尾**——可运营缺口（见 [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)）；**工作流已迁到 Matt 工程 skills**（见下方 §工程模式），不再默认 superpowers。
+**工程实现已启动。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
+**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md) 退出清单勾满，**不开补6**）。**当前：** 后续切片须人显式开刀；**工作流 = 计划者/执行者 × Matt skills**（见 §工程模式），不再默认 superpowers。
 
 ## 目录地图
 
@@ -90,7 +90,8 @@
 - ✅ **S01–S12** 编排 / 执行 / Wiki / 记忆 / 产品硬化
 - ✅ **补1–4** 可靠性+Inbox · Agent/Squad 运营 · Quick-create · Settings 诊断（PR #12–#15）
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
-- ⏸ **后续能力主线** — 补充阶段退出前不前推
+- ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
+- ⏸ **后续能力主线** — 须人显式开刀（非自动前推 S 编号）
 
 **补充阶段进度表：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
 **领域词汇：** [CONTEXT.md](CONTEXT.md)

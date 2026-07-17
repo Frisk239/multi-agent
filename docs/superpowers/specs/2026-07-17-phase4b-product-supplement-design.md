@@ -42,16 +42,18 @@ S01–S11 打通四层；S12 擦亮 Chrome。对照 Multica **后端 + 体验** 
 
 人可以随时加 **补N**，但默认 **同时满足** 再退出：
 
-- [ ] 杀进程/重启后，无永久假 `running`  
-- [ ] Inbox 落库，刷新不丢，可 mark read / archive  
-- [ ] UI 内可建/改 Agent 与 Squad，并完成一次指派执行  
-- [ ] 至少一种低摩擦创建（quick-create 或等价）  
-- [ ] Settings（或等价）能显示 cwd / runtime / LLM·embed 是否就绪  
-- [ ] （可选但推荐）至少一条 cron/手动触发的自动建 issue  
-- [ ] Wiki pages + memory status + done→ingest 回归绿  
-- [ ] **人判定：可以当本地日常工具用了**
+- [x] 杀进程/重启后，无永久假 `running`（补1 heartbeat / sweeper / orphan）  
+- [x] Inbox 落库，刷新不丢，可 mark read / archive（补1）  
+- [x] UI 内可建/改 Agent 与 Squad，并完成一次指派执行（补2）  
+- [x] 至少一种低摩擦创建（quick-create，补3）  
+- [x] Settings 显示 cwd / runtime / LLM·embed 是否就绪（补4）  
+- [x] （可选但推荐）至少一条 cron/手动触发的自动建 issue（补5 schedule + run-now）  
+- [x] Wiki pages + memory status + done→ingest 回归绿（各刀 smoke；无 LLM key 时 ingest 可 dead 属环境）  
+- [x] **人判定：可以当本地日常工具用了**（2026-07-17：人授权「Playwright 日常路径过则收官」；计划者 e2e 通过 → **不开补6**）
 
 未勾满可以继续 **补7、补8…**；勾满后**不必**为了对齐 Multica 全集而无限补。
+
+**退出决议（2026-07-17）：** 补充阶段 **收官**。能力包 H/I/J 与体验债 **不强制开补6**；需要时作为「后续切片」或单独小刀另议，不再占用 phase4b 主线编号。
 
 ### 1.3 本阶段明确不做（除非单独开「后续切片」）
 
@@ -176,10 +178,10 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 
 ## 6. 下一步
 
-1. **当前：停在补充阶段规划**——不自动开「前推」类切片。  
-2. 人确认默认序列（或改打包）后，对 **补1** 做 writing-plans。  
-3. 补1 分支：`feat/bu01-reliability-inbox`（基于含 S12 的 main）。  
-4. 每刀合 main 后更新本文件「进度」表（下方）。
+1. ✅ 补1–5 已合 main；§1.2 退出清单已勾满。  
+2. ✅ **补充阶段收官**（2026-07-17）——**不开补6**；H/I/J 不自动开工。  
+3. **可恢复「后续切片」主线**（论文/实验/差异化能力）——须人显式开刀，仍走 计划者 → 票 → 执行者，**不**默认 S13 编号前推。  
+4. 答辩并行：FRI-11 demo 脚本 + 消融数据（非挡板）。
 
 ### 进度（活表）
 
@@ -190,7 +192,7 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 | 补3 | ✅ 已合 main | E | PR #14 → `2ccd03d`；plan：`docs/superpowers/plans/2026-07-17-bu03-quick-create.md` |
 | 补4 | ✅ 已合 main | G | PR #15 → `50ad96c`；plan：`docs/superpowers/plans/2026-07-17-bu04-settings.md` |
 | 补5 | ✅ 已合 main | F | PR #16 → `a0d772b`；plan：`docs/superpowers/plans/2026-07-17-bu05-automation.md` |
-| 补6… | ⬜ 按需 | — | — |
+| 补6… | ⏭ **不开**（收官） | H/I/J 未抽 | 2026-07-17 e2e 后决议；见 §1.2 退出决议 |
 
 ---
 
