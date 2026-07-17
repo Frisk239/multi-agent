@@ -4313,3 +4313,11 @@ a.issue-card-origin:hover {
 .kanban-active-chip--clear {
   font-weight: 600;
 }
+
+.runs-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+}

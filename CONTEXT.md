@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `board-empty-filter`（`6b712ab`）  
-- **本刀：** `board-filter-chips` — 当前筛选芯片条  
+- **已推：** `board-filter-chips`（`6c2ca00`）  
+- **本刀：** `runs-filter-chips` — Runs 当前筛选芯片  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  

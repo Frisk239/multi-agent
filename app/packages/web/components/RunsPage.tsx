@@ -259,6 +259,70 @@ function RunsPageInner() {
         </label>
       </div>
 
+      {(status || agentId || squadId || leaderOnly) ? (
+        <div
+          className="runs-active-filters"
+          data-testid="runs-active-filters"
+          aria-label="当前筛选"
+        >
+          {status ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="runs-chip-status"
+              onClick={() => replaceParams({ status: 'all' })}
+            >
+              状态 · {status === 'active' ? '活跃' : status} ×
+            </button>
+          ) : null}
+          {agentId ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="runs-chip-agent"
+              onClick={() => replaceParams({ agent: null })}
+            >
+              Agent · {agentName.get(agentId) ?? agentId.slice(0, 8)} ×
+            </button>
+          ) : null}
+          {squadId ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="runs-chip-squad"
+              onClick={() => replaceParams({ squad: null })}
+            >
+              小队 · {squads.find((s) => s.id === squadId)?.name ?? squadId.slice(0, 8)} ×
+            </button>
+          ) : null}
+          {leaderOnly ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="runs-chip-leader"
+              onClick={() => replaceParams({ leader: null })}
+            >
+              仅队长 ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="runs-chip-clear-all"
+            onClick={() =>
+              replaceParams({
+                status: 'all',
+                agent: null,
+                squad: null,
+                leader: null,
+              })
+            }
+          >
+            清除全部
+          </button>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <p className="text-dim">加载中…</p>
       ) : isError ? (
