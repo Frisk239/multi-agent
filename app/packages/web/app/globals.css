@@ -4321,3 +4321,11 @@ a.issue-card-origin:hover {
   align-items: center;
   margin: 0 0 var(--space-3);
 }
+
+.inbox-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 var(--space-3);
+}

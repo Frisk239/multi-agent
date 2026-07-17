@@ -269,6 +269,43 @@ function InboxPageInner() {
         </label>
       </div>
 
+      {(readFilter !== 'all' || kindFilter) ? (
+        <div
+          className="inbox-active-filters"
+          data-testid="inbox-active-filters"
+          aria-label="当前筛选"
+        >
+          {readFilter !== 'all' ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="inbox-chip-read"
+              onClick={() => replaceParams({ read: null })}
+            >
+              {readFilter === 'unread' ? '未读' : '已读'} ×
+            </button>
+          ) : null}
+          {kindFilter ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="inbox-chip-kind"
+              onClick={() => replaceParams({ kind: null })}
+            >
+              类型 · {kindLabel(kindFilter)} ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="inbox-chip-clear-all"
+            onClick={() => replaceParams({ read: null, kind: null })}
+          >
+            清除全部
+          </button>
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
         <EmptyState
           title="暂无动态"
