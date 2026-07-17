@@ -58,10 +58,11 @@
 - **已推：** `board-card-readiness`（`47871fb`）  
 - **已推：** `board-failed-filter`（`28b414f`）  
 - **已推：** `squad-readiness-summary`（`cbbcaeb`）  
-- **本刀：** `cmdk-failed-board` — CmdK 进「仅失败」看板 / runs  
+- **已推：** `cmdk-failed-board`（`beb3b83`）  
+- **本刀：** `assign-squad-member-readiness` — 指派小队成员阻塞摘要  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 指派小队时成员阻塞摘要；Inbox 失败聚合  
+- **再下一刀建议：** Inbox 失败聚合条；看板列计数随仅失败更新  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
