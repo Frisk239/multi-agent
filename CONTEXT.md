@@ -56,10 +56,11 @@
 - **已推：** `cmdk-agent-readiness`（`6e8dea8`）  
 - **已推：** `assign-readiness-fail-diag`（`7d1c6cf`）  
 - **已推：** `board-card-readiness`（`47871fb`）  
-- **本刀：** `board-failed-filter` — 看板「仅失败」`?failed=1` + 可分享 URL  
+- **已推：** `board-failed-filter`（`28b414f`）  
+- **本刀：** `squad-readiness-summary` — 小队列表/详情成员就绪汇总  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** squad 成员就绪汇总；CmdK 进「仅失败」看板  
+- **再下一刀建议：** CmdK 进「仅失败」看板；指派小队时成员阻塞摘要  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

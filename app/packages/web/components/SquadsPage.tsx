@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { CreateSquadInput } from '@ma/shared';
+import type { AgentReadiness, CreateSquadInput } from '@ma/shared';
 import {
   useAgents,
+  useAgentsReadinessMap,
   useCreateSquad,
   useDeleteSquad,
   useSquads,
@@ -13,7 +14,22 @@ import {
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
-// bu02：小队列表 + 新建（leader / members / protocol / directive）
+function leaderReadinessLabel(rd: AgentReadiness | null | undefined): string {
+  if (!rd) return '…';
+  if (rd.status === 'ready') return 'ready';
+  if (rd.status === 'busy') return 'busy';
+  if (rd.status === 'cwd_missing') return 'cwd 未配置';
+  if (rd.status === 'runtime_missing') return 'runtime 缺失';
+  return rd.status;
+}
+
+function leaderReadinessClass(status: AgentReadiness['status'] | undefined): string {
+  if (status === 'ready') return 'readiness-chip readiness-ready readiness-chip-inline';
+  if (status === 'busy') return 'readiness-chip readiness-busy readiness-chip-inline';
+  return 'readiness-chip readiness-missing readiness-chip-inline';
+}
+
+// bu02：小队列表 + 新建（leader / members / protocol / directive）+ leader 就绪
 export function SquadsPage() {
   const router = useRouter();
   const { data, isLoading, isError, error } = useSquads();
@@ -33,6 +49,16 @@ export function SquadsPage() {
     for (const a of agents) m.set(a.id, a.name);
     return m;
   }, [agents]);
+
+  const leaderIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const sq of data ?? []) {
+      if (sq.leaderId) s.add(sq.leaderId);
+    }
+    for (const a of agents) s.add(a.id);
+    return [...s];
+  }, [data, agents]);
+  const { data: readinessMap = {} } = useAgentsReadinessMap(leaderIds);
 
   // 默认 leader：第一个 agent
   const defaultLeader = agents[0]?.id ?? '';
@@ -201,50 +227,68 @@ export function SquadsPage() {
         />
       ) : (
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table" data-testid="squads-table">
             <thead>
               <tr>
                 <th>小队</th>
                 <th>Leader</th>
+                <th>队长就绪</th>
                 <th>成员数</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {squads.map((sq) => (
-                <tr key={sq.id}>
-                  <td>
-                    <Link href={`/squads/${sq.id}`} className="agent-cell">
-                      <span className="agent-icon-sm">
-                        <Icon name="squad" size={14} />
-                      </span>
-                      <span>
-                        <div className="agent-cell-name">{sq.name}</div>
-                      </span>
-                    </Link>
-                  </td>
-                  <td>
-                    {sq.leaderId ? (
-                      <Link href={`/agents/${sq.leaderId}`}>
-                        {agentNameById.get(sq.leaderId) ?? <code>{sq.leaderId}</code>}
+              {squads.map((sq) => {
+                const rd = sq.leaderId ? readinessMap[sq.leaderId] : null;
+                return (
+                  <tr key={sq.id} data-squad-id={sq.id}>
+                    <td>
+                      <Link href={`/squads/${sq.id}`} className="agent-cell">
+                        <span className="agent-icon-sm">
+                          <Icon name="squad" size={14} />
+                        </span>
+                        <span>
+                          <div className="agent-cell-name">{sq.name}</div>
+                        </span>
                       </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="text-dim">{sq.memberCount ?? '—'}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      disabled={del.isPending}
-                      onClick={() => handleDelete(sq.id, sq.name)}
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      {sq.leaderId ? (
+                        <Link href={`/agents/${sq.leaderId}`}>
+                          {agentNameById.get(sq.leaderId) ?? <code>{sq.leaderId}</code>}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      {sq.leaderId ? (
+                        <span
+                          className={leaderReadinessClass(rd?.status)}
+                          data-testid="squad-leader-readiness"
+                          data-status={rd?.status ?? 'unknown'}
+                          title={rd?.detail ?? undefined}
+                        >
+                          {leaderReadinessLabel(rd)}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="text-dim">{sq.memberCount ?? '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={del.isPending}
+                        onClick={() => handleDelete(sq.id, sq.name)}
+                      >
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
