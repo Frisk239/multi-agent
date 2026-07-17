@@ -1716,6 +1716,16 @@ body {
   font-size: var(--text-xs);
 }
 
+.mention-pill--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mention-pill--link:hover {
+  text-decoration: underline;
+  filter: brightness(1.08);
+}
+
 .mention-menu {
   list-style: none;
   margin: 0;

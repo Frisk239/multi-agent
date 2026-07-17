@@ -77,11 +77,11 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `issue-run-history`（`5cb0001`）  
-- **本刀：** `automation-edit-template` — 规则行内编辑模板+预览  
+- **已推：** `issue-run-history`（`5cb0001`）· `automation-edit-template`（`c0e4774`）  
+- **本刀：** `mention-nav-links` — mention pill 可跳 agent/squad  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Squad 成员 readiness 深链；Runs 页多选状态；工作区 cwd 一键复制已有  
+- **再下一刀建议：** Runs empty CTA；Issue 指派 chip 深链 agent/squad  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
