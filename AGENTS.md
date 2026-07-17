@@ -12,7 +12,7 @@
 **架构一句话（可写论文，但不驱动路线）：** 四层（编排-执行-知识-记忆），「编译式项目 Wiki」+「可插拔记忆」。
 
 **工程状态。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
-**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——按用户价值与痛点开刀，须人显式指定主题；**工作流 = 计划者/执行者 × Matt skills**（见 §工程模式）。
+**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——按用户价值与痛点开刀，须人显式指定主题；**工作流 = Slice Owner 一会话一切片 × 调研子代理 × Matt skills**（见 §工程模式 · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)）。
 
 ## 目录地图
 
@@ -45,11 +45,13 @@
 
 **遇到路线选择或策略评审问题，第一反应是调研分析参考项目，而不是凭经验拍脑袋。** 本项目不是从零发明，12 个参考项目（multica / hermes / pi / openwiki …）的源码深读就在 `references/deep/` 和 `references/repos/` 里，先看成熟实现怎么解决这个问题，再决定自己的方案。
 
+**怎么查（省 Slice Owner 上下文）：** 用户说「去调研 / 对齐 X」或需要通读 upstream 时，**默认派调研子代理**（或 `/research`）完成 1–3；Owner 会话**只合并**「结论 + 选项 + file:line + 与本仓差异」。禁止为调研在实现窗灌入大段上游源码。见 §工程模式 · ADR 0001。
+
 优先级**高于**「拍脑袋给方案」和「直接问人」：
 
-1. **先查 `references/deep/`（带 file:line 索引的源码深读）** —— 找最贴近问题的那个项目的对应章节。这是最高质量的一手信息，已为你提炼好。
-2. **再查 `references/repos/`（12 个上游 clone，只读）** —— 深读没覆盖的细节，直接 grep 上游源码。`grep -rn` 搜关键词比通读快。
-3. **交叉验证** —— 同一个问题看 ≥2 个项目怎么解，异同点就是你做架构决策的依据（见下方「关键架构决策」每条都标了「学 multica / 学 hermes」就是这个套路）。
+1. **先查 `references/deep/`（带 file:line 索引的源码深读）** —— 找最贴近问题的那个项目的对应章节。这是最高质量的一手信息，已为你提炼好。  
+2. **再查 `references/repos/`（12 个上游 clone，只读）** —— 深读没覆盖的细节，直接 grep 上游源码。`grep -rn` 搜关键词比通读快。  
+3. **交叉验证** —— 同一个问题看 ≥2 个项目怎么解，异同点就是你做架构决策的依据（见下方「关键架构决策」每条都标了「学 multica / 学 hermes」就是这个套路）。  
 4. **最后才下结论** —— 结论里注明「参考了 X 项目的 Y 做法 / 与 Z 项目的差异」。
 
 **典型场景：**
@@ -95,6 +97,7 @@
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
 - ▶ **产品演进主线** — 当真实产品继续切片；主题由人指定（非答辩清单、非自动 S 编号）
+- ▶ **工程编排** — Slice Owner（非计划者/执行者）；调研默认子代理（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)）
 
 **产品/阶段真源：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)（补充已收官）· [roadmap](design/roadmap.md) · [CONTEXT.md](CONTEXT.md)
 
@@ -126,84 +129,92 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 ## 工程模式（最高优先级，所有 `app/` 会话必读）
 
-> **双层融合，不是二选一：**  
-> 1. **编排层（本仓保留）**——**计划者主代理 + 执行者子代理**（人派会话、串行验收）  
-> 2. **工具层（Matt skills）**——`/grill-with-docs`、`/to-spec`、`/to-tickets`、`/implement`、`/code-review`、`/handoff`… 作为各角色会话里**调用的技能**  
->
-> 已弃用的是 **superpowers 默认路径名与长 checkbox plan**，**不是**计划者/执行者分工。  
-> 技能不会自动猜——需要时显式 `/skill` 或问 `/ask-matt`。
+> **2026-07-17 起默认：Slice Owner（一切片一会话），不再默认计划者/执行者双角色。**  
+> 工具层仍是 Matt skills（`/implement`、`/tdd`、`/code-review`、`/handoff`、`/research`…）；技能需显式调用或 `/ask-matt`。  
+> 决策记录：[docs/adr/0001-slice-owner-and-research-subagents.md](docs/adr/0001-slice-owner-and-research-subagents.md)
 
-### 核心方法：垂直切片 × 计划者-执行者 × Matt skills
+### 核心方法：垂直切片 × Slice Owner × 子代理调研 × Matt skills
 
 | 维度 | 决定什么 | 落地 |
 |---|---|---|
-| **垂直切片 / tracer bullet** | 做什么、多厚 | `/to-tickets` 的一票 = 端到端可演示一刀 |
-| **计划者主代理** | 切片内怎么拆、何时验收 | **只** grill / to-spec / to-tickets / 写 kickoff / **验收**；**不写** `app/**` 业务实现 |
-| **执行者子代理** | 把票做绿 | 新会话读 ticket → `/implement`（+ tdd）→ 自测 → handoff/进度 → push 分支 |
-| **人** | 编排与合码 | 派会话、合 PR、拍板产品 |
+| **垂直切片** | 做什么、多厚 | 一刀端到端可演示；可拆 `.scratch` 票，但**默认同一会话做完一刀**（窗不够再按票拆会话） |
+| **Slice Owner 会话** | 从对齐到做绿 | 短对齐 →（需要时）spec/票 → `/implement` → 自测 → handoff；**允许写 `app/**`** |
+| **调研子代理** | 读参考项目 / 全网 / 深仓 | 用户说「去调研 / 对齐 multica / 查 references」→ **派子代理或 `/research`**，**不要**在 Owner 窗里通读 upstream |
+| **审查会话** | 合码偏见隔离 | **新会话** `/code-review` 看 PR/分支；不靠「另一人格计划者」验收 |
+| **人** | 主题、合 PR、产品拍板 | 开哪个会话、是否合并 |
 
-**为什么保留计划者-执行者：** 长会话质量下降 → 切片内拆短会话；子代理丢上下文 → ticket + handoff 传真源；计划者无实现偏见 → 验收更干净。
+**为何改掉计划者/执行者：** Matt 的 grill 很深，计划者会话常先烧半窗；双角色 = 双倍固定成本。偏见隔离改由 **PR + 新会话 code-review** 承担。长上下文问题用 **按切片/票拆会话 + handoff** 解决，不靠角色名。
 
-### 一个 feature 的生命周期（融合后）
+### Grill 深度（省 Owner 上下文）
+
+| 情况 | 做法 |
+|---|---|
+| 主题清晰、对标已有结论 | **短对齐**（少量决策）或直接 implement；**不要**默认满血 `/grill-with-docs` |
+| 要改领域词 / 难逆决策 | 再开 grill-with-docs + ADR |
+| 要对齐参考实现 / 源码细节 | **调研子代理**（见下），Owner 只吃**结构化摘要** |
+
+### 调研：默认子代理（最高优先级之一）
+
+**当用户说「去调研 / 对齐 X / 看看 multica 怎么做 / 查 references」时：**
+
+1. **优先**派 **子代理**（或 `/research` / 并行 explore）去读 `references/deep/*`、`references/repos/*`、必要时上游文件。  
+2. 子代理产出：**短结论 + 文件:行 + 与本仓差异 + 推荐选项**（可落 `docs/` 或 ticket Comments / research 笔记）。  
+3. **Slice Owner 会话禁止**为了「调研彻底」在本窗灌入大段上游源码；只合并摘要再决策/实现。  
+4. 仍遵守宪法：决策**先查参考项目**——查的动作在子代理，**拍板**在 Owner/人。
+
+### 一个 feature 的生命周期（默认）
 
 ```
-人 → 开【计划者主代理】会话
-     ├─ 读 AGENTS.md + CONTEXT.md + design/ + 相关 ticket/旧 progress
-     ├─ /grill-with-docs（或小改跳过）→ 需要时 /handoff+/prototype
-     ├─ /to-spec → 落到 .scratch/<feature>/spec.md（可链 docs/superpowers 旧文）
-     ├─ /to-tickets → .scratch/<feature>/issues/0N-*.md（Blocked by + ready-for-agent）
-     ├─ 写 kickoff（可写在 ticket 评论或 app/.progress/<feature>-planner-0.md）
-     ├─ 人派【执行者 1】：只做 frontier 上无阻塞的票（通常 schema/API 先）
-     │     执行者：/implement → 自测 → 更新 ticket / 可选 progress handoff → push feat/*
-     ├─ 计划者验收执行者 1（读 handoff + typecheck/抽查）→ 勾票或写注意点给下一棒
-     ├─ 人派【执行者 2】…（串行；仅无接口依赖且不同文件才可并行）
-     └─ 全部票绿 → 计划者整刀结论 → 人开 PR
-           → 新会话 /code-review → 人合 main
+人 → 开【Slice Owner】会话（一刀一事）
+     ├─ 读 AGENTS.md + CONTEXT.md + 相关 spec/ticket/handoff
+     ├─ 需要对齐参考？→ 派调研子代理 → 只回收摘要
+     ├─ 短对齐（或已有 spec 则跳过）→ 必要时 to-spec / to-tickets
+     ├─ /implement（+ tdd）→ typecheck/smoke → 更新 ticket
+     ├─ 窗将满或一刀未完？→ /handoff → 人开下一会话续同一分支/下一票
+     └─ 自测够了 → 人开 PR → 【新会话】/code-review → 人合 main
 ```
 
-**小改动**（一票一会话能装下）：计划者可省略，人直接派执行者 `/implement`；仍建议 PR + code-review。
+**特大/特雾：** `/wayfinder` 或「只设计」半会话产出 map/spec 后**结束**；下一会话当 Owner 实现——这是**阶段**拆分，不是计划者人设。
 
-### 角色铁律
+### 会话铁律
 
-| 角色 | 必须 | 禁止 |
+| 会话 | 必须 | 禁止 |
 |---|---|---|
-| **计划者** | 拆票、kickoff、验收、给下一棒注意点、进度表/CONTEXT 文档更新 | 在计划者会话写 `app/**` 业务实现（修冲突文档除外） |
-| **执行者** | 按票实现、typecheck/smoke 证据、偏离写清、push **feature 分支** | push main；扩大 scope 到未派的票 |
-| **人** | 派谁做哪票、合 PR、产品拍板 | — |
+| **Slice Owner** | 交付可验行为；证据；偏离写清；push **feat/***| push main；把调研正文塞爆本窗 |
+| **调研子代理** | 可引用结论 + 出处；对照本仓 | 擅自改 `app/**` 业务（除非人明确授权同一任务） |
+| **Code-review 会话** | 双轴 Standards + Spec；对照分支 | 顺便开新 feature |
+| **人** | 点题、合 PR | — |
 
 ### 票与进度写在哪
 
 | 产物 | 路径 |
 |---|---|
-| Spec | `.scratch/<feature>/spec.md`（首选）；可链接 `docs/superpowers/specs/*` |
-| Tickets | `.scratch/<feature>/issues/0N-*.md`（`Blocked by` / `Status`） |
-| 计划者 kickoff / 验收 | 优先写在 ticket `## Comments`；或 `app/.progress/<feature>-planner-k.md`（习惯保留） |
-| 执行者交付 | ticket 勾选 + 可选 `app/.progress/<feature>-impl-k.md` |
-| 跨会话浓缩 | `/handoff`（OS 临时目录） |
-
-模板：[`app/.progress/_TEMPLATE.md`](app/.progress/_TEMPLATE.md) 仍可用。
+| Spec | `.scratch/<feature>/spec.md` |
+| Tickets | `.scratch/<feature>/issues/0N-*.md`（可选；小刀可一票或无票直接 implement） |
+| 会话交接 | ticket `## Comments`、`/handoff`、可选 `app/.progress/<feature>-*.md` |
+| 调研摘要 | 子代理报告 / `docs/` 笔记 / ticket 评论（**短**） |
 
 ### 垂直切片原则（不变）
 
-1. 每票端到端可跑 / 可 API 验收  
-2. **切片内执行者串行**（有接口依赖时）；无依赖才并行  
-3. **契约先行**：shared 类型票先合再开 UI 票  
-4. 依赖用 **Blocked by**，不靠口头「impl-2 接着干」却无票  
+1. 每刀（或每票）端到端可跑 / 可 API 验收  
+2. 有接口依赖则串行；拆会话按**厚度**，不按角色  
+3. 契约可与 UI 同会话做完；若拆票则 shared/API 票在前  
+4. 依赖写 `Blocked by`，不靠口头记忆  
 
 ### 大而雾 / 外来单 / 难 bug
 
 | 情况 | 用 |
 |---|---|
-| 目标可见但一会话装不下决策 | 计划者开 `/wayfinder` → 清晰后 `/to-spec` → tickets → 再派执行者 |
-| 外来 bug/请求 | `/triage` → ready-for-agent → 派执行者 `/implement` |
-| 难复现 | `/diagnosing-bugs`（常由执行者或专项会话） |
-| 架构加深 | `/improve-codebase-architecture` + `/codebase-design`（计划者导向） |
+| 一窗装不下决策 | wayfinder 或设计-only 会话 → 下一会话 Owner 实现 |
+| 外来 bug | `/triage` → Owner `/implement` |
+| 难复现 | `/diagnosing-bugs` |
+| 要对齐 upstream | **调研子代理** → Owner 决策 |
 
 ### 跨会话
 
-- **`/handoff`**：换会话；不写密钥。  
-- **`/compact`**：同会话阶段间隙；勿在 grill 中途 compact。  
-- 执行者之间：**只通过 ticket + 计划者验收注意点** 传上下文，不假设共享聊天记忆。
+- **`/handoff`**：换会话携带进度；不写密钥。  
+- **`/compact`**：同会话阶段间隙；勿在深调研/grill 中途乱 compact 丢出处。  
+- 续作会话：**只信** ticket + handoff + 调研摘要文件，不假设聊天记忆。
 
 ### Git 规则（不变）
 
@@ -211,18 +222,17 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 场景 | 做法 |
 |---|---|
-| 文档/调研（design/、chanpin/、docs/、CONTEXT…） | 可直接 `docs:` 提交 main（计划者也可做） |
-| **任何 app/ 下的工程代码** | `feat/<slug>` → PR → **新会话 `/code-review`** → 人合并 |
+| 文档/调研笔记 | 可 `docs:` 进 main |
+| **任何 app/ 工程代码** | `feat/<slug>` → PR → **新会话 `/code-review`** → 人合并 |
 
 - Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`  
 - main 始终 typecheck + `pnpm dev` 可起  
-- 单人也开 PR：无上下文偏见审 diff  
 
-### 与 superpowers 文档的关系
+### 与历史文档的关系
 
-- 弃用的是 **默认 superpowers 流程名**，不是历史文档。  
-- `docs/superpowers/specs/*`、`plans/*`：**仍可读**；新 feature 优先 `.scratch/<feature>/spec.md`（链回旧文即可）。  
-- 补充阶段 phase4b：**产品 backlog 仍有效**；执行 = 计划者拆票 + 执行者 implement。  
+- 旧 handoff 里的「计划者/执行者」：**历史角色名**；新会话按 **Slice Owner** 执行。  
+- `docs/superpowers/*` 仍可读；新工作优先 `.scratch/<feature>/`。  
+- phase4b 已收官；产品演进切片走本模式。  
 
 ## 工作语言
 

@@ -1,116 +1,85 @@
-# 工作流 — 计划者/执行者 × Matt skills（本仓）
+# 工作流 — Slice Owner × 子代理调研 × Matt skills
 
 > 技能总路由：`/ask-matt`。  
-> **编排不变：** 人 → **计划者主代理** → **执行者子代理**（可多棒串行）。  
-> **工具换成 Matt skills：** 各角色会话内显式调用，不替代分工。  
-> **产品立场：** 当**真实产品**切片；优先级 = 日常使用价值。答辩/论文材料不驱动默认排期（见 `AGENTS.md`、`design/roadmap.md` Phase 5+）。
+> **默认编排（2026-07-17）：** 人 → **Slice Owner 一会话一切片** → 做绿 → handoff；合码前 **新会话 code-review**。  
+> **不再默认** 计划者主代理 / 执行者子代理双角色（见 [ADR 0001](../adr/0001-slice-owner-and-research-subagents.md)）。  
+> **产品立场：** 真实产品；优先级 = 日常使用价值（见 `AGENTS.md`、`design/roadmap.md` Phase 5+）。
 
-## 两层模型
-
-```
-                    ┌──────────── 人（编排 / 合 PR / 拍板）────────────┐
-                    │                                                    │
-                    ▼                                                    │
-           ┌─────────────────┐     派票 / 收验收结论                      │
-           │ 计划者主代理     │◄────────────────────────────────────────┤
-           │ grill / to-spec │                                         │
-           │ to-tickets      │     kickoff + 验收注意点                   │
-           │ 验收 / 进度文档  │──────────────────┐                       │
-           └─────────────────┘                  │                       │
-                    ▲                           ▼                       │
-                    │ 验收                  ┌──────────────┐            │
-                    └───────────────────────│ 执行者子代理  │×N 串行     │
-                                            │ /implement   │            │
-                                            │ 自测 / push  │────────────┘
-                                            └──────────────┘
-```
-
-| 层 | 谁 | 干什么 | 典型 skills |
-|---|---|---|---|
-| **编排** | 计划者主代理 | 想清楚、拆票、kickoff、验收、不写业务代码 | `/grill-with-docs`、`/to-spec`、`/to-tickets`、`/wayfinder`、`/handoff` |
-| **执行** | 执行者子代理 | 按票实现、测绿、交证据 | `/implement`、`/tdd`、结束前可 `/code-review` 自检 |
-| **审查** | 新人会话 | PR diff | `/code-review` |
-| **人** | 你 | 开哪个会话、合 main | — |
-
-## 主链路（多会话 feature）
+## 模型
 
 ```
-【计划者会话】
-  /grill-with-docs  →  CONTEXT.md / ADR
-  （可选）/handoff → 新会话 /prototype → /handoff 回计划者
-  /to-spec          →  .scratch/<feature>/spec.md
-  /to-tickets       →  .scratch/<feature>/issues/0N-*.md
-  写 planner kickoff（ticket 评论或 app/.progress/*-planner-0.md）
-
-【人】派执行者 1（frontier 票，常是契约/API）
-
-【执行者 1 会话】（清上下文）
-  读 ticket + CONTEXT + AGENTS
-  /implement → 自测 → 更新 ticket / 可选 impl handoff → push feat/*
-
-【计划者会话】（可同会话续或新开）
-  验收 → 通过则勾票 + 给执行者 2 的注意点
-
-【人】派执行者 2 …
-
-【计划者】整刀可 PR
-【人】开 PR → 【新会话】/code-review → 【人】合 main
+人点主题
+   │
+   ▼
+┌─────────────────────────────┐     「去调研 / 对齐 multica」
+│  Slice Owner 会话           │ ──────────────────────────► 调研子代理 /research
+│  短对齐 · implement · 自测  │ ◄──── 只要摘要+出处 ────────┘
+│  可写 app/** · push feat/*  │
+└─────────────┬───────────────┘
+              │ 窗满 / 一刀未完
+              ▼
+         /handoff → 下一 Owner 会话（同切片续作或下一票）
+              │
+              ▼ 自测够
+         人开 PR → 新会话 /code-review → 人合 main
 ```
 
-**单票小改：** 人可直接派执行者 `/implement`，计划者可省略；仍 PR + code-review。
+| 会话 | 干什么 | 典型 skills |
+|---|---|---|
+| **Slice Owner** | 对齐 + 实现 + 自测 + 文档进度 | `/implement`、`/tdd`、短对齐；需要时 `/to-spec` `/to-tickets` |
+| **调研子代理** | 读 deep/repos/网上，**不占 Owner 窗** | Agent explore、`/research`、`agent-reach`（若适用） |
+| **Code-review** | Standards + Spec 审 diff | `/code-review` |
+| **人** | 点题、派续作、合 PR | — |
 
-## 角色铁律（与 AGENTS.md 一致）
+## Grill 与调研
 
-- 计划者 **禁止** 写 `app/**` 业务实现（文档、进度、冲突标记清理除外）。  
-- 执行者 **禁止** push main、禁止做未派发的票。  
-- 票之间有接口依赖 → **串行**；`Blocked by` 写清。
+- **满血 grill-with-docs：** 仅领域词/难逆决策/真雾；默认产品刀用**短对齐**。  
+- **「去调研」：** Owner **必须**倾向派子代理；回收「结论 / 选项 / file:line / 与本仓差异」，禁止在 Owner 窗通读上游。  
+- 宪法「先查参考项目」= 决策质量要求；**阅读动作**默认外包给子代理。
 
-## 产物放哪
+## 主链路（一刀）
+
+```
+【Owner 会话】
+  读 AGENTS + CONTEXT + 既有 .scratch/ticket/handoff
+  若需上游细节 → 派调研子代理
+  短对齐（或沿用已有 spec）
+  /implement → 证据 → push feat/*
+  未完 → /handoff
+
+【人】开 PR
+
+【新会话】/code-review → 【人】合 main
+```
+
+**窗不够装一整刀：** 按 **ticket 厚度** 拆下一会话（01 完 → handoff → 02），**不要**拆成「计划者会话 + 执行者会话」。
+
+## 铁律
+
+- Owner **可以**写 `app/**`（在 feature 分支）。  
+- **禁止** push main；`app/**` 必 PR + 新会话 review。  
+- 调研子代理默认 **只读** 上游与仓库；实现仍回 Owner（除非人明确同一任务授权）。  
+- 不假设跨会话聊天记忆；只信 ticket / handoff / 调研笔记。
+
+## 产物路径
 
 | 产物 | 路径 |
 |---|---|
-| Spec | `.scratch/<feature>/spec.md` |
-| Tickets | `.scratch/<feature>/issues/0N-*.md` |
-| 计划者 kickoff/验收 | ticket `## Comments` 或 `app/.progress/<feature>-planner-k.md` |
-| 执行者交付证据 | ticket 勾选 + 可选 `app/.progress/<feature>-impl-k.md` |
-| 跨窗浓缩 | `/handoff` |
+| Spec / 票 | `.scratch/<feature>/` |
+| 进度 / handoff 档案 | `app/.progress/` 或 `/handoff` |
+| ADR | `docs/adr/` |
+| 调研摘要 | ticket 评论、短 docs 笔记、子代理终报 |
 
-## 入口匝道
+## 与旧 superpowers / 双角色对照
 
-| 情况 | 谁开 | Skill |
-|---|---|---|
-| 想法模糊 | 计划者 | `/grill-with-docs` |
-| 特大/特雾 | 计划者 | `/wayfinder` → 再 to-spec |
-| 外来 bug 堆 | 计划者或人 | `/triage` → 派执行者 |
-| 难 debug | 执行者或专项 | `/diagnosing-bugs` |
-| 不会选 skill | 谁卡谁问 | `/ask-matt` |
-
-## 与旧 superpowers 对照
-
-| 旧动作 | 融合后 |
+| 旧 | 现 |
 |---|---|
-| brainstorming | 计划者 `/grill-with-docs` |
-| writing-plans 长 checkbox | 计划者 `/to-spec` + `/to-tickets` |
-| 计划者只验收 | **保留** |
-| 另派执行者实现 | **保留**；执行者用 `/implement` |
-| `app/.progress` handoff | **可保留** 作验收条；票为真源 |
-| docs/superpowers/plans | 历史参考；新票写 acceptance |
+| 计划者 grill + 验收，不写代码 | Owner 一体；审查靠 **code-review 会话** |
+| 执行者新会话只 implement | Owner 直接 implement；续作靠 handoff |
+| brainstorm 轻 | grill 深 → **少用满血 grill**；调研外包 |
+| 双角色串行会话 | **一切片一会话**（默认） |
 
 ## Git
 
-- 执行者：`feat/<slug>` 上提交；不 push main  
-- 计划者：文档可 `docs:` 进 main  
-- 合码：人 + PR + 新会话 code-review  
-
-## 示例目录
-
-```
-.scratch/bu05-automation/
-  spec.md                          # 链到历史 superpowers spec
-  issues/
-    01-schema-dispatch.md          # Blocked by: None
-    02-automation-ui.md            # Blocked by: 01
-app/.progress/
-  bu05-planner-0.md                # 可选 kickoff
-  bu05-impl-1.md                   # 可选执行证据
-```
+- `feat/<slug>` 提交；`docs:` 可进 main  
+- 合码：人 + PR + 新会话 `/code-review`

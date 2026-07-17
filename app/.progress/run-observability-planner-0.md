@@ -26,30 +26,28 @@
 - 选项 2：`/runs` 产品壳；QC `issueId==null` → retry 400（Q2）  
 - 产品立场已写入 AGENTS/CONTEXT/roadmap（commits `11cd8e8`, `860491a`）
 
-## 派工
+## 派工（工作流已改为 Slice Owner）
 
-**人现在可派【执行者 1】**：只做 **01**。
+**人开【Slice Owner】会话**（不要再开计划者验收会话）：
+
+- 默认可做 **整刀** 或从 **01 → 02 → 03** 同会话能做多少做多少；窗满 `/handoff` 续作。  
+- 已有 spec/票与 Multica 对齐结论，**不必**再满血 grill。  
+- 若还要对齐上游细节 → **派调研子代理**，Owner 只吃摘要。
 
 ```
-读 AGENTS.md + CONTEXT.md + .scratch/run-observability/spec.md
-+ issues/01-runs-api-rerun.md
+读 AGENTS.md + CONTEXT.md + ADR 0001
++ .scratch/run-observability/spec.md
++ issues/01…（frontier）
 → /implement
-→ typecheck + API smoke 证据
+→ typecheck + smoke 证据
 → push feat/run-observability
-→ 更新 ticket Comments
+→ 人开 PR → 新会话 /code-review
 ```
 
-**计划者**本会话不写 `app/packages/**` 业务代码。  
-01 交卷后计划者验收 → 再派 02。
+## 注意点
 
-## 注意点给执行者 1
-
-1. 今日 `GET /api/runs` 无 issueId 为 400 — 本票合法放宽。  
-2. 单一编排核心，避免 Issue/Run 两套逻辑。  
-3. 先查 `references/deep/multica.md` + 已有 `run-service` 再改。  
-4. 勿做 usage 大盘 / labels / wiki DLQ / auto-retry。  
+1. `GET /api/runs` 无 issueId 今日 400 — 合法放宽。  
+2. 单一编排核心（Issue rerun + Run retry）。  
+3. Multica 结论已在 spec；勿在 Owner 窗重灌上游源码。  
+4. 勿做 usage / labels / wiki DLQ / auto-retry。  
 5. 勿 commit `wiki/`、`*.db`、`.playwright-cli/`。
-
-## 计划者
-
-只 kickoff + 后续验收。

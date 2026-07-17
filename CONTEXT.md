@@ -41,8 +41,8 @@
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
 - **下一刀：** **运行可观测 + 人工再执行**（`run-observability`，B2 / Multica R3 收口 + `/runs` 壳）— spec/票见 `.scratch/run-observability/`  
 
-- **工作流：** **计划者主代理 + 执行者子代理** × Matt skills。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
-- **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`
+- **工作流：** **Slice Owner（一切片一会话）** × Matt skills；**调研默认子代理**（省 Owner 上下文）。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`、[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)  
+- **工单：** `.scratch/<feature>/`；Owner `/implement` + 自测；合码前 **新会话 code-review**；跨会话 `/handoff`
 
 ## 相关入口
 
