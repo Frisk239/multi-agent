@@ -630,6 +630,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ]
       : [];
 
+    const recoveryHit =
+      q &&
+      ['恢复', '运营', 'repair', 'recover', '修好', '重试全部', 'ops'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
     const diagCmds = [
       ...(diagHit
         ? [
@@ -650,6 +655,52 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               hint: '/runtimes',
               group: '诊断',
               run: () => router.push('/runtimes'),
+            },
+          ]
+        : []),
+      ...(diagHit || recoveryHit || failedHit
+        ? [
+            {
+              id: 'ops-failed-runs',
+              label: '运营：失败运行',
+              hint: '/runs?status=failed',
+              group: '诊断',
+              run: () => router.push('/runs?status=failed'),
+            },
+            {
+              id: 'ops-inbox-fails',
+              label: '运营：Inbox 失败',
+              hint: '/inbox?kind=run_failed&read=unread',
+              group: '诊断',
+              run: () => router.push('/inbox?kind=run_failed&read=unread'),
+            },
+            {
+              id: 'ops-failed-board',
+              label: '运营：看板仅失败',
+              hint: '/?failed=1',
+              group: '诊断',
+              run: () => router.push('/?failed=1'),
+            },
+            {
+              id: 'ops-agents-blocked',
+              label: '运营：不可用智能体',
+              hint: '/agents?ready=blocked',
+              group: '诊断',
+              run: () => router.push('/agents?ready=blocked'),
+            },
+            {
+              id: 'ops-wiki-dead',
+              label: '运营：Wiki dead',
+              hint: '/wiki?jobStatus=dead',
+              group: '诊断',
+              run: () => router.push('/wiki?jobStatus=dead'),
+            },
+            {
+              id: 'ops-automation-failed',
+              label: '运营：自动化失败规则',
+              hint: '/automation?failed=1',
+              group: '诊断',
+              run: () => router.push('/automation?failed=1'),
             },
           ]
         : []),
