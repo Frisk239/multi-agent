@@ -272,7 +272,13 @@ export function useCreateComment(issueId: string) {
         qc.invalidateQueries({ queryKey: ['comments', issueId] });
         qc.invalidateQueries({ queryKey: ['runs', issueId] });
         qc.invalidateQueries({ queryKey: ['runs'] });
-        toastSuccess(`已处理 ${n} 个 @提及派发`);
+        // mention → 运行列表：深链到 issue 的 run（+ 工作区 runs 入口）
+        toastSuccess(`已处理 ${n} 个 @提及派发`, {
+          action: {
+            label: '查看运行',
+            href: `/issues/${encodeURIComponent(issueId)}`,
+          },
+        });
       }
     },
     onError: (err) => toastError(errMessage(err, '评论失败')),
@@ -447,19 +453,32 @@ export function useWorkspaceRuns(params?: {
   status?: string;
   agentId?: string;
   kind?: string;
+  /** 仅小队 leader run */
+  isLeader?: boolean;
   limit?: number;
 }) {
   const status = params?.status;
   const agentId = params?.agentId;
   const kind = params?.kind;
+  const isLeader = params?.isLeader;
   const limit = params?.limit ?? 50;
   return useQuery<AgentRun[]>({
-    queryKey: ['runs', 'workspace', status ?? '', agentId ?? '', kind ?? '', limit],
+    queryKey: [
+      'runs',
+      'workspace',
+      status ?? '',
+      agentId ?? '',
+      kind ?? '',
+      isLeader === undefined ? '' : isLeader ? '1' : '0',
+      limit,
+    ],
     queryFn: async () => {
       const sp = new URLSearchParams();
       if (status) sp.set('status', status);
       if (agentId) sp.set('agentId', agentId);
       if (kind) sp.set('kind', kind);
+      if (isLeader === true) sp.set('isLeader', '1');
+      if (isLeader === false) sp.set('isLeader', '0');
       sp.set('limit', String(limit));
       const res = await fetch(`${API}/runs?${sp.toString()}`);
       if (!res.ok) throw new Error(await apiError(res, '加载运行列表失败'));

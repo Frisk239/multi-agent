@@ -8,7 +8,7 @@ import { cancelRunById, retryRun } from '../orchestration/run-service.js';
 
 // runs list / detail / messages / cancel / retry（S03 + run-observability）
 export async function runRoutes(app: FastifyInstance) {
-  // GET /api/runs —— issueId 可选；可按 status/agentId/kind/limit 筛选
+  // GET /api/runs —— issueId 可选；可按 status/agentId/kind/isLeader/limit 筛选
   app.get('/api/runs', async (req, reply) => {
     const parsed = ListRunsQuery.safeParse(req.query ?? {});
     if (!parsed.success) {
@@ -20,6 +20,11 @@ export async function runRoutes(app: FastifyInstance) {
     if (q.agentId) filters.push(eq(agentRuns.agentId, q.agentId));
     if (q.status) filters.push(eq(agentRuns.status, q.status));
     if (q.kind) filters.push(eq(agentRuns.kind, q.kind));
+    if (q.isLeader === '1' || q.isLeader === 'true') {
+      filters.push(eq(agentRuns.isLeader, 1));
+    } else if (q.isLeader === '0' || q.isLeader === 'false') {
+      filters.push(eq(agentRuns.isLeader, 0));
+    }
 
     let query = db.select().from(agentRuns).$dynamic();
     if (filters.length === 1) query = query.where(filters[0]!);

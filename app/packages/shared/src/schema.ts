@@ -68,12 +68,16 @@ export const AgentRun = z.object({
 });
 export type AgentRun = z.infer<typeof AgentRun>;
 
-// run-observability：GET /api/runs 查询（issueId 可选）
+// run-observability + runs-leader：GET /api/runs 查询（issueId 可选）
 export const ListRunsQuery = z.object({
   issueId: BusinessId.optional(),
   agentId: BusinessId.optional(),
   status: AgentRunStatus.optional(),
   kind: AgentRunKind.optional(),
+  // isLeader=1|true：仅小队 leader run（对齐 Multica leader task 列表）
+  isLeader: z
+    .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')])
+    .optional(),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
 });
 export type ListRunsQuery = z.infer<typeof ListRunsQuery>;

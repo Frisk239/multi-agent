@@ -64,9 +64,11 @@ export function RunsPage() {
   const [agentId, setAgentId] = useState('');
   const [leaderOnly, setLeaderOnly] = useState(false);
   const { data: agents = [] } = useAgents();
+  // isLeader 走服务端筛选（ListRunsQuery.isLeader），避免只客户端藏行
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
     agentId: agentId || undefined,
+    isLeader: leaderOnly ? true : undefined,
     limit: 80,
   });
 
@@ -76,11 +78,7 @@ export function RunsPage() {
     return m;
   }, [agents]);
 
-  const visibleRuns = useMemo(() => {
-    if (!runs) return runs;
-    if (!leaderOnly) return runs;
-    return runs.filter((r) => r.isLeader);
-  }, [runs, leaderOnly]);
+  const visibleRuns = runs;
 
   return (
     <div className="page-container">

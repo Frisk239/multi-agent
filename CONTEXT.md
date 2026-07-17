@@ -44,10 +44,11 @@
 - **已合 / 已推 main：** `issue-detail-edit`（PR #23 / `0433bb0`）；流程简化 docs（`ecb9da4` main 直推）  
 - **已推：** `mention-dispatch-visibility`（`10f2b91`）  
 - **已推：** `leader-briefing-preview`（`e0394af`）  
-- **本刀：** `runs-leader-badge` — `/runs` 队长 badge + 仅队长筛选  
+- **已推：** `runs-leader-badge`（`124bce3`）  
+- **本刀：** `runs-leader-api-nav` — `isLeader` 服务端筛 + mention toast→Issue Run  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** mention→Run 导航；或 runs API `isLeader` 服务端筛  
+- **再下一刀建议：** `/runs` URL mirror；dispatch 链具体 runId  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
