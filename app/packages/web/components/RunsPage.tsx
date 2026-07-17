@@ -1,13 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import { useAgents, useRetryRun, useWorkspaceRuns } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
 type StatusFilter = '' | 'queued' | 'running' | 'failed' | 'cancelled' | 'completed';
+
+const STATUS_VALUES: StatusFilter[] = [
+  '',
+  'queued',
+  'running',
+  'failed',
+  'cancelled',
+  'completed',
+];
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -24,6 +34,14 @@ function relativeTime(iso: string): string {
   const hr = Math.floor(min / 60);
   if (hr < 24) return `${hr} 小时前`;
   return new Date(iso).toLocaleString();
+}
+
+function parseStatus(raw: string | null): StatusFilter {
+  if (raw === 'all') return '';
+  if (raw && (STATUS_VALUES as string[]).includes(raw)) return raw as StatusFilter;
+  // 无 status 参数时默认 failed（与历史 runs 页一致）
+  if (raw === null) return 'failed';
+  return '';
 }
 
 function RunActions({ run }: { run: AgentRun }) {
@@ -59,12 +77,30 @@ function RunActions({ run }: { run: AgentRun }) {
   );
 }
 
-export function RunsPage() {
-  const [status, setStatus] = useState<StatusFilter>('failed');
-  const [agentId, setAgentId] = useState('');
-  const [leaderOnly, setLeaderOnly] = useState(false);
+function RunsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const status = parseStatus(searchParams.get('status'));
+  const agentId = searchParams.get('agent') ?? '';
+  const leaderOnly = searchParams.get('leader') === '1';
+  const highlightRunId = searchParams.get('run') ?? '';
+
+  const replaceParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '') sp.delete(k);
+        else sp.set(k, v);
+      }
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const { data: agents = [] } = useAgents();
-  // isLeader 走服务端筛选（ListRunsQuery.isLeader），避免只客户端藏行
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
     agentId: agentId || undefined,
@@ -80,6 +116,15 @@ export function RunsPage() {
 
   const visibleRuns = runs;
 
+  // 高亮行滚入视口
+  useEffect(() => {
+    if (!highlightRunId || !visibleRuns?.length) return;
+    const el = document.querySelector(`[data-run-id="${highlightRunId}"]`);
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [highlightRunId, visibleRuns]);
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -89,7 +134,7 @@ export function RunsPage() {
             <span className="count">{visibleRuns?.length ?? 0}</span>
           </div>
           <div className="page-desc">
-            工作区 run 浏览；队长 run 可识别（对齐 Multica leader task 可见性）。
+            筛选同步 URL（可分享）；队长 run 与 ?run= 高亮对齐 Multica 任务列表。
           </div>
         </div>
         <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
@@ -102,7 +147,12 @@ export function RunsPage() {
           状态
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as StatusFilter)}
+            onChange={(e) => {
+              const v = e.target.value as StatusFilter;
+              // 显式写 status=（含 failed），便于分享；选「全部」则删参数并区分默认
+              if (v === '') replaceParams({ status: 'all' });
+              else replaceParams({ status: v });
+            }}
             aria-label="筛选状态"
           >
             <option value="">全部</option>
@@ -117,7 +167,7 @@ export function RunsPage() {
           Agent
           <select
             value={agentId}
-            onChange={(e) => setAgentId(e.target.value)}
+            onChange={(e) => replaceParams({ agent: e.target.value || null })}
             aria-label="筛选 agent"
           >
             <option value="">全部</option>
@@ -132,7 +182,7 @@ export function RunsPage() {
           <input
             type="checkbox"
             checked={leaderOnly}
-            onChange={(e) => setLeaderOnly(e.target.checked)}
+            onChange={(e) => replaceParams({ leader: e.target.checked ? '1' : null })}
             aria-label="仅队长 run"
           />
           仅队长 run
@@ -171,12 +221,16 @@ export function RunsPage() {
                   r.status === 'failed' || r.error
                     ? classifyRunFailure(r.error)
                     : null;
+                const highlighted = highlightRunId === r.id;
                 return (
                   <tr
                     key={r.id}
+                    data-run-id={r.id}
                     data-run-status={r.status}
                     data-is-leader={r.isLeader ? '1' : '0'}
                     data-squad-id={r.squadId ?? ''}
+                    data-highlight={highlighted ? '1' : '0'}
+                    className={highlighted ? 'runs-row--highlight' : undefined}
                   >
                     <td>
                       <div className="runs-status-cell">
@@ -245,5 +299,13 @@ export function RunsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export function RunsPage() {
+  return (
+    <Suspense fallback={<div className="page-container">加载中…</div>}>
+      <RunsPageInner />
+    </Suspense>
   );
 }

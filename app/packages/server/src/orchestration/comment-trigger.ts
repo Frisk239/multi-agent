@@ -56,7 +56,10 @@ function publishDispatchSummary(issueId: string, dispatches: MentionDispatch[]):
       d.kind === 'agent'
         ? `[@${d.targetLabel}](mention://agent/${d.targetId})`
         : `[@${d.targetLabel}](mention://squad/${d.targetId})`;
-    if (d.runId) return `- ${link} → 已排队（run \`${d.runId.slice(0, 8)}…\`）`;
+    if (d.runId) {
+      // 可点进工作区 runs 并带 run 高亮（URL mirror 消费 ?run=）
+      return `- ${link} → 已排队（[run ${d.runId.slice(0, 8)}…](/runs?run=${d.runId})）`;
+    }
     return `- ${link} → ${d.note}`;
   });
   const body = ['📣 **@提及派发**', ...lines].join('\n');

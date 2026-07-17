@@ -267,17 +267,22 @@ export function useCreateComment(issueId: string) {
         if (old.some((c) => c.id === comment.id)) return old;
         return [...old, comment];
       });
-      const n = Array.isArray(comment.dispatches) ? comment.dispatches.length : 0;
+      type DispatchRow = { runId?: string | null };
+      const list = Array.isArray(comment.dispatches)
+        ? (comment.dispatches as DispatchRow[])
+        : [];
+      const n = list.length;
       if (n > 0) {
         qc.invalidateQueries({ queryKey: ['comments', issueId] });
         qc.invalidateQueries({ queryKey: ['runs', issueId] });
         qc.invalidateQueries({ queryKey: ['runs'] });
-        // mention → 运行列表：深链到 issue 的 run（+ 工作区 runs 入口）
+        const firstRunId = list.map((d) => d.runId).find((id) => typeof id === 'string' && id);
+        // 有具体 run → /runs?run=；否则回 issue 详情 Run 条
+        const href = firstRunId
+          ? `/runs?run=${encodeURIComponent(firstRunId)}`
+          : `/issues/${encodeURIComponent(issueId)}`;
         toastSuccess(`已处理 ${n} 个 @提及派发`, {
-          action: {
-            label: '查看运行',
-            href: `/issues/${encodeURIComponent(issueId)}`,
-          },
+          action: { label: '查看运行', href },
         });
       }
     },

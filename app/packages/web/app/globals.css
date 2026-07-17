@@ -3244,6 +3244,10 @@ body {
 .runs-squad-link:hover {
   text-decoration: underline;
 }
+.runs-row--highlight td {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .runs-fail-cell {
   max-width: 22rem;
 }

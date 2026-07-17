@@ -45,10 +45,11 @@
 - **已推：** `mention-dispatch-visibility`（`10f2b91`）  
 - **已推：** `leader-briefing-preview`（`e0394af`）  
 - **已推：** `runs-leader-badge`（`124bce3`）  
-- **本刀：** `runs-leader-api-nav` — `isLeader` 服务端筛 + mention toast→Issue Run  
+- **已推：** `runs-leader-api-nav`（`603e0e6`）  
+- **本刀：** `runs-url-mirror` — `/runs` 筛选 URL + `?run=` 高亮 + 派发链 runId  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** `/runs` URL mirror；dispatch 链具体 runId  
+- **再下一刀建议：** Inbox→run；或 Wiki/Memory 日常路径加厚  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
