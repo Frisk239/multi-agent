@@ -111,6 +111,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push('/skills'),
       },
       {
+        id: 'nav-settings',
+        label: '设置',
+        hint: '/settings',
+        run: () => router.push('/settings'),
+      },
+      {
         id: 'new-issue',
         label: '新建 Issue',
         hint: '/?new=1',

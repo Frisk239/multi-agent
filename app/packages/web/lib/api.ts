@@ -28,6 +28,7 @@ import type {
   WikiLintResult,
   CreateWikiPageInput,
   CreateQuickRunInput,
+  SettingsStatusResponse,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -692,6 +693,19 @@ export function useMemoryStatus() {
       if (!res.ok) throw new Error('status 失败');
       return res.json() as Promise<MemoryStatus>;
     },
+  });
+}
+
+// GET /api/settings/status —— bu04 G0 只读环境诊断
+export function useSettingsStatus() {
+  return useQuery<SettingsStatusResponse>({
+    queryKey: ['settings-status'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/settings/status`);
+      if (!res.ok) throw new Error('加载环境诊断失败');
+      return res.json();
+    },
+    staleTime: 10_000,
   });
 }
 

@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },
   { id: 'runtime', label: '运行时', icon: 'runtime', section: 'config', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
+  { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },
 ];
 
 function NavRow({ item, active }: { item: NavItem; active: boolean }) {
