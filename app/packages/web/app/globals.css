@@ -4329,3 +4329,13 @@ a.issue-card-origin:hover {
   align-items: center;
   margin: 0 0 var(--space-3);
 }
+
+button.memory-kind-chip {
+  cursor: pointer;
+  border: 1px solid transparent;
+  font: inherit;
+}
+button.memory-kind-chip.is-active {
+  outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}

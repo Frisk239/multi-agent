@@ -23,6 +23,7 @@ function MemoryPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const qFromUrl = searchParams.get('q') ?? '';
+  const kindFromUrl = searchParams.get('kind') ?? '';
 
   const { data: status } = useMemoryStatus();
   const { data: settings } = useSettingsStatus();
@@ -78,6 +79,25 @@ function MemoryPageInner() {
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
+
+  function setKindFilter(kind: string) {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (kind === 'curated' || kind === 'ambient' || kind === 'other') sp.set('kind', kind);
+    else sp.delete('kind');
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  const kindFilter =
+    kindFromUrl === 'curated' || kindFromUrl === 'ambient' || kindFromUrl === 'other'
+      ? kindFromUrl
+      : '';
+
+  const visibleMemories = useMemo(() => {
+    const list = data ?? [];
+    if (!kindFilter) return list;
+    return list.filter((m) => inferKind(m.text) === kindFilter);
+  }, [data, kindFilter]);
 
   async function handleCreate() {
     const text = draft.trim();
@@ -193,17 +213,42 @@ function MemoryPageInner() {
         </div>
         {!showUnavailable && data ? (
           <div className="memory-kind-summary" data-testid="memory-kind-summary">
-            <span className="memory-kind-chip memory-kind-chip--curated">
+            <button
+              type="button"
+              className={`memory-kind-chip memory-kind-chip--curated${kindFilter === 'curated' ? ' is-active' : ''}`}
+              data-testid="memory-kind-filter-curated"
+              aria-pressed={kindFilter === 'curated'}
+              onClick={() => setKindFilter(kindFilter === 'curated' ? '' : 'curated')}
+            >
               curated {kindCounts.curated}
-            </span>
-            <span className="memory-kind-chip memory-kind-chip--ambient">
+            </button>
+            <button
+              type="button"
+              className={`memory-kind-chip memory-kind-chip--ambient${kindFilter === 'ambient' ? ' is-active' : ''}`}
+              data-testid="memory-kind-filter-ambient"
+              aria-pressed={kindFilter === 'ambient'}
+              onClick={() => setKindFilter(kindFilter === 'ambient' ? '' : 'ambient')}
+            >
               ambient {kindCounts.ambient}
-            </span>
+            </button>
             {kindCounts.other > 0 ? (
-              <span className="memory-kind-chip">other {kindCounts.other}</span>
+              <button
+                type="button"
+                className={`memory-kind-chip${kindFilter === 'other' ? ' is-active' : ''}`}
+                data-testid="memory-kind-filter-other"
+                aria-pressed={kindFilter === 'other'}
+                onClick={() => setKindFilter(kindFilter === 'other' ? '' : 'other')}
+              >
+                other {kindCounts.other}
+              </button>
             ) : null}
             {hasQuery ? (
               <span className="text-dim text-sm">筛选「{qFromUrl.trim()}」</span>
+            ) : null}
+            {kindFilter ? (
+              <span className="text-dim text-sm" data-testid="memory-kind-filter-note">
+                类型 · {kindFilter}
+              </span>
             ) : null}
           </div>
         ) : null}

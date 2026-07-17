@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `runs-filter-chips`（`ae511e1`）  
-- **本刀：** `inbox-filter-chips` — Inbox 筛选芯片  
+- **已推：** `inbox-filter-chips`（`510b50d`）  
+- **本刀：** `memory-kind-filter` — 记忆类型 URL 筛选  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
