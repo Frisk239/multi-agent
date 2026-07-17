@@ -70,10 +70,11 @@
 - **已推：** `issue-live-progress`（`fc87b9c`）  
 - **已推：** `settings-env-copy`（`5556177`）  
 - **已推：** `board-live-trace-anchor`（`cc3ebbe`）  
-- **本刀：** `memory-ops-deepen` — 记忆类型汇总/清除搜索/CmdK  
+- **已推：** `memory-ops-deepen`（`f0cecb5`）  
+- **本刀：** `wiki-health-entry` — Wiki 健康自动检查 + LLM banner  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Wiki 健康入口加强；自动化规则可读性  
+- **再下一刀建议：** 自动化规则可读性；Runs 活跃计数侧栏  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

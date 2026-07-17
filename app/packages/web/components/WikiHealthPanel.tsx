@@ -1,5 +1,8 @@
 'use client';
-import { useWikiHealth, useWikiLint } from '@/lib/api';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useRef } from 'react';
+import { useSettingsStatus, useWikiHealth, useWikiLint } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 
 // S07 health + lint 面板（spec §5.4）
@@ -12,26 +15,77 @@ export function WikiHealthPanel({
 }) {
   const health = useWikiHealth();
   const lint = useWikiLint();
+  const { data: settings } = useSettingsStatus();
+  const autoRan = useRef(false);
+
+  // 进入 Wiki 自动跑一次结构检查（可刷新按钮复跑）
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    void health.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅首屏
+  }, []);
+
+  const wikiLlmBlocked = useMemo(() => {
+    const c = settings?.checks?.find((x) => x.id === 'wiki_llm');
+    return c != null && c.status === 'error';
+  }, [settings]);
+
+  const issueCount = useMemo(() => {
+    if (!health.data) return 0;
+    return (
+      health.data.orphans.length +
+      health.data.brokenLinks.length +
+      health.data.stubs.length
+    );
+  }, [health.data]);
 
   return (
-    <div className="wiki-health-panel">
+    <div className="wiki-health-panel" data-testid="wiki-health-panel">
+      {wikiLlmBlocked ? (
+        <div className="wiki-ops-banner" data-testid="wiki-llm-banner" role="status">
+          <div className="wiki-ops-banner-main">
+            <strong>Wiki LLM 未就绪</strong>
+            <p className="text-sm">
+              语义检查 / 自动编译依赖 <code>WIKI_LLM_API_KEY</code>
+              。结构检查仍可离线使用。
+            </p>
+          </div>
+          <Link href="/settings" className="btn-secondary btn-sm">
+            环境诊断
+          </Link>
+        </div>
+      ) : null}
+
       <div className="wiki-health-actions">
         <button
           type="button"
           className="btn-ghost"
+          data-testid="wiki-health-run"
           onClick={() => health.refetch()}
           disabled={health.isFetching}
         >
-          {health.isFetching ? '检查中…' : '结构检查'}
+          {health.isFetching ? '检查中…' : health.data ? '重新结构检查' : '结构检查'}
         </button>
         <button
           type="button"
           className="btn-ghost"
+          data-testid="wiki-lint-run"
           onClick={() => lint.mutate()}
-          disabled={lint.isPending}
+          disabled={lint.isPending || wikiLlmBlocked}
+          title={wikiLlmBlocked ? '需要 WIKI_LLM_API_KEY' : undefined}
         >
           {lint.isPending ? '语义检查中…' : '语义检查'}
         </button>
+        {health.data ? (
+          <span
+            className={`wiki-health-badge${issueCount > 0 ? ' wiki-health-badge--warn' : ' wiki-health-badge--ok'}`}
+            data-testid="wiki-health-badge"
+            data-issues={issueCount}
+          >
+            {issueCount > 0 ? `${issueCount} 项待处理` : '结构健康'}
+          </span>
+        ) : null}
       </div>
 
       {health.isError && (
@@ -42,7 +96,7 @@ export function WikiHealthPanel({
 
       {/* 结构检查结果 */}
       {health.data && (
-        <div className="wiki-health-result">
+        <div className="wiki-health-result" data-testid="wiki-health-result">
           <div className="wiki-health-summary">
             总页数: {health.data.total} · 孤儿: {health.data.orphans.length} · 断链:{' '}
             {health.data.brokenLinks.length} · 空短: {health.data.stubs.length}
