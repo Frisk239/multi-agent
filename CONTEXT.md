@@ -77,12 +77,12 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `qc-cwd-gate` · `issue-cwd-gate`（`ff6a0d3`）  
-- **对照：** `app/.progress/multica-gap-2026-07-17.md`（主路径可用，未宣称完成态）  
-- **本刀：** 已关；下一刀待开  
+- **已推：** `issue-cwd-gate`（`ff6a0d3`）· gap audit（`fd05eb1`）  
+- **本刀：** `settings-cwd-guide` — 环境诊断 cwd 三步引导  
+- **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Settings cwd 引导加厚；Squad 详情 runs 时间线  
+- **再下一刀建议：** Squad 详情 runs 时间线；规则失败计数  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

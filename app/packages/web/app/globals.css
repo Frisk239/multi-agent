@@ -3839,6 +3839,53 @@ body {
   font-size: var(--text-xs);
 }
 
+
+.settings-cwd-guide {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--color-orange, #f97316) 50%, transparent);
+  background: color-mix(in srgb, var(--color-orange, #f97316) 10%, transparent);
+}
+.settings-cwd-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--space-2);
+}
+.settings-cwd-guide-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-orange, #f97316) 85%, #7c2d12);
+  color: #fff;
+}
+.settings-cwd-steps {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.25rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.settings-cwd-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.settings-cwd-line {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated, #111) 80%, transparent);
+  border: 1px solid var(--border-subtle, var(--border));
+}
+.settings-cwd-guide-note {
+  margin: 0;
+}
+
 .settings-env-snippet {
   margin-bottom: var(--space-4);
   padding: var(--space-3);

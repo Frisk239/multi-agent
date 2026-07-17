@@ -57,6 +57,7 @@ export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
@@ -68,6 +69,8 @@ export function SettingsPage() {
     [data],
   );
 
+  const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
+
   async function copyEnv() {
     try {
       await navigator.clipboard.writeText(envSnippet);
@@ -76,6 +79,17 @@ export function SettingsPage() {
     } catch {
       setCopyState('err');
       window.setTimeout(() => setCopyState('idle'), 2500);
+    }
+  }
+
+  async function copyCwdLine() {
+    try {
+      await navigator.clipboard.writeText(cwdExportLine);
+      setCwdCopyState('ok');
+      window.setTimeout(() => setCwdCopyState('idle'), 2000);
+    } catch {
+      setCwdCopyState('err');
+      window.setTimeout(() => setCwdCopyState('idle'), 2500);
     }
   }
 
@@ -140,6 +154,50 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {cwdBlocked ? (
+        <section
+          className="settings-cwd-guide"
+          data-testid="settings-cwd-guide"
+          aria-label="工作区配置引导"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>先修好工作区（最高优先级）</strong>
+            <span className="settings-cwd-guide-badge">阻塞派活</span>
+          </div>
+          <ol className="settings-cwd-steps">
+            <li>
+              把仓库根目录导出为 <code>MA_WORKSPACE_CWD</code>（Git Bash / zsh）
+            </li>
+            <li>
+              在同一终端重启 <code>pnpm dev</code>（只改页面不够，server 进程要吃到 env）
+            </li>
+            <li>回到本页点「刷新」，cwd 应为 ok；再去快速派活 / 指派</li>
+          </ol>
+          <div className="settings-cwd-guide-actions">
+            <code className="settings-cwd-line" data-testid="settings-cwd-line">
+              {cwdExportLine}
+            </code>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              data-testid="settings-copy-cwd"
+              onClick={() => void copyCwdLine()}
+            >
+              {cwdCopyState === 'ok'
+                ? '已复制 cwd 行'
+                : cwdCopyState === 'err'
+                  ? '复制失败'
+                  : '复制 cwd 行'}
+            </button>
+          </div>
+          <p className="settings-cwd-guide-note text-dim text-sm">
+            Windows 也可：PowerShell{' '}
+            <code>$env:MA_WORKSPACE_CWD=&quot;D:\code\multi-agent&quot;</code>
+            。路径按本机仓库改写。
+          </p>
+        </section>
+      ) : null}
 
       <section
         className={`settings-env-snippet${cwdBlocked ? ' settings-env-snippet--warn' : ''}`}
