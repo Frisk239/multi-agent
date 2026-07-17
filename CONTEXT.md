@@ -42,11 +42,11 @@
 - **已合 main（续）：** `issue-assignee-desk`（PR #21）、`board-priority-triage`（PR #22）  
 - **上一刀 intake：** `board-priority-triage` **通过**（已合 main PR #22）— `app/.progress/board-priority-triage-intake.md`  
 - **已合 / 已推 main：** `issue-detail-edit`（PR #23 / `0433bb0`）；流程简化 docs（`ecb9da4` main 直推）  
-- **本刀：** `mention-dispatch-visibility` — @提及派发系统 comment + 时间线 badge（main 直推）  
-- **工程简化：** 默认可 **main 直推**；见 `docs/agents/merge.md`  
-- **北星：** 纯本地可用 · 体验对标 Multica；调研优先 multica  
-- **迭代约束：** 每刀 Playwright 关刀；**可主动调研** Multica；**选型 Owner 自决**（难逆/安全/禁区才问人）；定期差距表  
-- **再下一刀（建议·可直接开）：** leader briefing 可见 / Run 与 mention 联动  
+- **已推：** `mention-dispatch-visibility`（`10f2b91`）  
+- **本刀：** `leader-briefing-preview` — leader run 详情展示小队 briefing 只读预览  
+- **工程：** main 直推 · 自动迭代 · Playwright 关刀  
+- **北星：** 纯本地 · 对标 Multica  
+- **再下一刀建议：** Run 列表 isLeader 标识；mention→Run 条联动  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
