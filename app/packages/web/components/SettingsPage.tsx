@@ -280,9 +280,26 @@ export function SettingsPage() {
                   ? '复制失败'
                   : '复制 wiki 行'}
             </button>
-            <a className="btn-ghost btn-sm" href="/wiki?jobStatus=dead" data-testid="settings-wiki-dead-link">
-              查看 dead 任务
-            </a>
+          </div>
+          <div className="settings-cwd-recovery-links" data-testid="settings-wiki-recovery">
+            <span className="text-dim text-sm">修好后：</span>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/wiki?jobStatus=dead"
+              data-testid="settings-wiki-dead-link"
+            >
+              dead 任务 · 重试
+            </Link>
+            <Link className="btn-ghost btn-sm" href="/wiki" data-testid="settings-wiki-home">
+              Wiki 首页
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/wiki?jobStatus=pending"
+              data-testid="settings-wiki-pending"
+            >
+              pending 队列
+            </Link>
           </div>
         </section>
       ) : null}
