@@ -2,9 +2,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   Issue,
+  IssueLabel,
   Comment,
   CreateIssueInput,
   UpdateIssueInput,
+  CreateIssueLabelInput,
+  UpdateIssueLabelInput,
   CreateCommentInput,
   AgentSummary,
   AgentDetail,
@@ -267,6 +270,102 @@ export function useUpdateIssue() {
       // 时间线条等 WS comment:created；也可 invalidate 兜底
       qc.invalidateQueries({ queryKey: ['comments', issue.id] });
     },
+  });
+}
+
+// —— issue-labels ——
+
+export function useLabels() {
+  return useQuery<IssueLabel[]>({
+    queryKey: ['labels'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/labels`);
+      if (!res.ok) throw new Error('加载标签失败');
+      return res.json();
+    },
+  });
+}
+
+export function useCreateLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateIssueLabelInput) => {
+      const res = await fetch(`${API}/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建标签失败'));
+      return res.json() as Promise<IssueLabel>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['labels'] });
+      toastSuccess('已创建标签');
+    },
+    onError: (err) => toastError(errMessage(err, '创建标签失败')),
+  });
+}
+
+export function useUpdateLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateIssueLabelInput }) => {
+      const res = await fetch(`${API}/labels/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新标签失败'));
+      return res.json() as Promise<IssueLabel>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['labels'] });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+    },
+    onError: (err) => toastError(errMessage(err, '更新标签失败')),
+  });
+}
+
+export function useDeleteLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/labels/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error(await apiError(res, '删除标签失败'));
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['labels'] });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess('已删除标签');
+    },
+    onError: (err) => toastError(errMessage(err, '删除标签失败')),
+  });
+}
+
+export function useSetIssueLabels(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (labelIds: string[]) => {
+      const res = await fetch(`${API}/issues/${encodeURIComponent(issueId)}/labels`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labelIds }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新 Issue 标签失败'));
+      return res.json() as Promise<Issue>;
+    },
+    onSuccess: (issue) => {
+      qc.setQueryData<Issue[]>(['issues'], (old) =>
+        old?.map((i) => (i.id === issue.id ? issue : i)),
+      );
+      qc.setQueryData<Issue>(['issue', issue.id], issue);
+      qc.invalidateQueries({ queryKey: ['labels'] });
+    },
+    onError: (err) => toastError(errMessage(err, '更新 Issue 标签失败')),
   });
 }
 
