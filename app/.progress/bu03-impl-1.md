@@ -81,8 +81,9 @@ SMOKE_OK
 
 ## 验收结论（仅计划者填）
 
-- [ ] DB issue_id 可空真实
-- [ ] quick-runs + QC prompt + worker
-- [ ] origin link + ma issue create + M1
-- [ ] typecheck + smoke
-- 结论：
+- [x] DB issue_id 可空真实 — 0009 rebuild；handoff PRAGMA notnull=0；SQL 已抽查  
+- [x] quick-runs + QC prompt + worker — route + fail 闸 `quick_create: issue not created`  
+- [x] origin link + ma issue create + M1 — issues origin + CLI + enqueue kind=issue 去重修复  
+- [x] typecheck + smoke — 计划者复验 typecheck 全绿；handoff API smoke 采信  
+- 偏离可接受：enqueue 按 kind 过滤（必要）；web 最小 null-safe 非 Task4 UI  
+- 结论：**impl-1 达标，允许进入 impl-2（Task 4–5）**
