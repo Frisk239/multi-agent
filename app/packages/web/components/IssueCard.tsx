@@ -114,7 +114,11 @@ export function IssueCard({
         </span>
       </div>
       <div className="issue-card-title">
-        <Link href={`/issues/${issue.id}`} onClick={(e) => e.stopPropagation()} draggable={false}>
+        <Link
+          href={runActive ? `/issues/${issue.id}#run-trace` : `/issues/${issue.id}`}
+          onClick={(e) => e.stopPropagation()}
+          draggable={false}
+        >
           {issue.title}
         </Link>
       </div>
@@ -143,7 +147,19 @@ export function IssueCard({
           />
         ) : null}
         <span>{issue.assignee ? issue.assignee.label : '未指派'}</span>
-        {lastRunFailed ? (
+        {runActive ? (
+          <Link
+            href={`/issues/${issue.id}#run-trace`}
+            className="issue-card-live-link"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+            data-testid="issue-card-live-link"
+            title="打开详情并定位到运行轨迹"
+          >
+            进度
+          </Link>
+        ) : null}
+        {showFail ? (
           <Link
             href={`/issues/${issue.id}`}
             className="issue-card-fail-link"

@@ -715,6 +715,18 @@ body {
   background: var(--text-dim);
 }
 
+.issue-card-live-link {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--accent, #3b82f6);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.issue-card-live-link:hover {
+  text-decoration: underline;
+}
+
 .issue-card-fail-link {
   margin-left: auto;
   font-size: 10px;
