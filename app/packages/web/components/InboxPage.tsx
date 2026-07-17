@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useArchiveInbox,
   useInbox,
@@ -10,6 +11,16 @@ import {
 import type { InboxItem } from '@ma/shared';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+
+type ReadFilter = 'all' | 'unread' | 'read';
+type KindFilter = '' | InboxItem['kind'];
+
+const KIND_VALUES: InboxItem['kind'][] = [
+  'comment',
+  'run_completed',
+  'run_failed',
+  'assigned',
+];
 
 function kindLabel(kind: InboxItem['kind']): string {
   if (kind === 'comment') return '评论';
@@ -40,12 +51,79 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-// bu01：真 Inbox — 已读/归档 + 未读样式
-export function InboxPage() {
+function parseReadFilter(raw: string | null): ReadFilter {
+  if (raw === 'unread' || raw === 'read' || raw === 'all') return raw;
+  return 'all';
+}
+
+function parseKindFilter(raw: string | null): KindFilter {
+  if (raw && (KIND_VALUES as string[]).includes(raw)) return raw as KindFilter;
+  return '';
+}
+
+function hrefForItem(item: InboxItem): string | null {
+  if (item.runId) {
+    const sp = new URLSearchParams();
+    sp.set('run', item.runId);
+    if (item.kind === 'run_failed' || item.type === 'run_failed') sp.set('status', 'failed');
+    if (item.kind === 'run_completed' || item.type === 'run_completed') {
+      sp.set('status', 'completed');
+    }
+    return `/runs?${sp.toString()}`;
+  }
+  if (item.issueId) return `/issues/${item.issueId}`;
+  if (item.kind === 'run_failed' || item.type === 'run_failed') return '/runs?status=failed';
+  return null;
+}
+
+// bu01 + inbox-filter-url：真 Inbox + 未读/类型 URL 可分享
+function InboxPageInner() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data, isLoading, isError, error } = useInbox();
   const markRead = useMarkInboxRead();
   const archive = useArchiveInbox();
+
+  const readFilter = parseReadFilter(searchParams.get('read'));
+  const kindFilter = parseKindFilter(searchParams.get('kind'));
+
+  const replaceParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '') sp.delete(k);
+        else sp.set(k, v);
+      }
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const allItems = data?.items ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
+
+  const items = useMemo(() => {
+    return allItems.filter((item) => {
+      if (readFilter === 'unread' && item.read) return false;
+      if (readFilter === 'read' && !item.read) return false;
+      if (kindFilter && item.kind !== kindFilter) return false;
+      return true;
+    });
+  }, [allItems, readFilter, kindFilter]);
+
+  async function openItem(item: InboxItem) {
+    if (!item.read) {
+      try {
+        await markRead.mutateAsync(item.id);
+      } catch {
+        /* mutation toast */
+      }
+    }
+    const href = hrefForItem(item);
+    if (href) router.push(href);
+  }
 
   if (isLoading) return <div className="page-container">加载中…</div>;
   if (isError) {
@@ -57,37 +135,6 @@ export function InboxPage() {
         />
       </div>
     );
-  }
-
-  const items = data?.items ?? [];
-  const unreadCount = data?.unreadCount ?? 0;
-
-  function hrefForItem(item: InboxItem): string | null {
-    // Multica 式：run 终态优先落到具体 run 行
-    if (item.runId) {
-      const sp = new URLSearchParams();
-      sp.set('run', item.runId);
-      if (item.kind === 'run_failed' || item.type === 'run_failed') sp.set('status', 'failed');
-      if (item.kind === 'run_completed' || item.type === 'run_completed') {
-        sp.set('status', 'completed');
-      }
-      return `/runs?${sp.toString()}`;
-    }
-    if (item.issueId) return `/issues/${item.issueId}`;
-    if (item.kind === 'run_failed' || item.type === 'run_failed') return '/runs?status=failed';
-    return null;
-  }
-
-  async function openItem(item: InboxItem) {
-    if (!item.read) {
-      try {
-        await markRead.mutateAsync(item.id);
-      } catch {
-        // mutation 已 toast；仍允许跳转
-      }
-    }
-    const href = hrefForItem(item);
-    if (href) router.push(href);
   }
 
   return (
@@ -103,15 +150,51 @@ export function InboxPage() {
             )}
           </div>
           <div className="page-desc">
-            通知落库；Run 终态可跳到 /runs?run=（对齐 Multica 从 Inbox 进执行）
+            筛选同步 URL（?read=&kind=）；Run 终态可进 /runs?run=
           </div>
         </div>
+      </div>
+
+      <div className="inbox-filters" data-testid="inbox-filters">
+        <label>
+          已读
+          <select
+            value={readFilter}
+            onChange={(e) => {
+              const v = e.target.value as ReadFilter;
+              replaceParams({ read: v === 'all' ? null : v });
+            }}
+            aria-label="筛选已读状态"
+          >
+            <option value="all">全部</option>
+            <option value="unread">未读</option>
+            <option value="read">已读</option>
+          </select>
+        </label>
+        <label>
+          类型
+          <select
+            value={kindFilter}
+            onChange={(e) => replaceParams({ kind: e.target.value || null })}
+            aria-label="筛选通知类型"
+          >
+            <option value="">全部类型</option>
+            <option value="run_failed">失败</option>
+            <option value="run_completed">完成</option>
+            <option value="comment">评论</option>
+            <option value="assigned">指派</option>
+          </select>
+        </label>
       </div>
 
       {items.length === 0 ? (
         <EmptyState
           title="暂无动态"
-          description="评论、指派与 Run 终态会出现在这里"
+          description={
+            allItems.length > 0
+              ? '当前筛选无结果，试试「全部」或换类型。'
+              : '评论、指派与 Run 终态会出现在这里'
+          }
         />
       ) : (
         <ul className="inbox-list">
@@ -119,6 +202,8 @@ export function InboxPage() {
             <li key={item.id}>
               <div
                 className={`inbox-row${item.read ? '' : ' inbox-row--unread'}`}
+                data-inbox-read={item.read ? '1' : '0'}
+                data-inbox-kind={item.kind}
               >
                 <button
                   type="button"
@@ -176,5 +261,13 @@ export function InboxPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+export function InboxPage() {
+  return (
+    <Suspense fallback={<div className="page-container">加载中…</div>}>
+      <InboxPageInner />
+    </Suspense>
   );
 }

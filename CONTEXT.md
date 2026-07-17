@@ -47,10 +47,11 @@
 - **已推：** `runs-leader-badge`（`124bce3`）  
 - **已推：** `runs-leader-api-nav`（`603e0e6`）  
 - **已推：** `runs-url-mirror`（`9fc996a`）  
-- **本刀：** `inbox-run-nav` — Inbox runId → `/runs?run=` 高亮  
+- **已推：** `inbox-run-nav`（`94ae27b`）  
+- **本刀：** `inbox-filter-url` — Inbox `?read=&kind=` 可分享筛选  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Wiki/Memory 日常路径；或 Inbox 未读筛选 URL  
+- **再下一刀建议：** Wiki/Memory 日常路径加厚  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
