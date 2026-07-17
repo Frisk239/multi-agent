@@ -139,6 +139,7 @@ export function SettingsPage() {
   const { overall, summary } = data;
   const cwdBlocked = data.checks.some((c) => c.id === 'cwd' && c.status === 'error');
   const wikiLlmBlocked = data.checks.some((c) => c.id === 'wiki_llm' && c.status === 'error');
+  const runtimeBlocked = data.checks.filter((c) => c.id.startsWith('runtime:') && c.status === 'error');
 
   return (
     <div className="page-container settings-page" data-testid="settings-page">
@@ -255,8 +256,41 @@ export function SettingsPage() {
         </section>
       ) : null}
 
+      {runtimeBlocked.length > 0 ? (
+        <section
+          className="settings-runtime-guide"
+          data-testid="settings-runtime-guide"
+          aria-label="运行时缺失引导"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>有运行时 CLI 不可用</strong>
+            <span className="settings-runtime-guide-badge">阻塞执行</span>
+          </div>
+          <p className="text-sm" style={{ marginTop: 0 }}>
+            {runtimeBlocked.map((c) => c.label).join('、')} 探测失败。安装/修复 PATH 后重启 server，再到运行时页确认。
+          </p>
+          <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }}>
+            {runtimeBlocked.map((c) => (
+              <li key={c.id}>
+                <strong>{c.label}</strong>
+                {c.detail ? ` · ${c.detail}` : ''}
+                {c.hint ? ` — ${c.hint}` : ''}
+              </li>
+            ))}
+          </ul>
+          <div className="settings-cwd-guide-actions">
+            <a className="btn-primary btn-sm" href="/runtimes" data-testid="settings-open-runtimes">
+              打开运行时探测
+            </a>
+            <a className="btn-ghost btn-sm" href="/agents" data-testid="settings-open-agents">
+              查看智能体
+            </a>
+          </div>
+        </section>
+      ) : null}
+
       <section
-        className={`settings-env-snippet${cwdBlocked || wikiLlmBlocked ? ' settings-env-snippet--warn' : ''}`}
+        className={`settings-env-snippet${cwdBlocked || wikiLlmBlocked || runtimeBlocked.length > 0 ? ' settings-env-snippet--warn' : ''}`}
         data-testid="settings-env-snippet"
       >
         <div className="settings-env-snippet-head">

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useRuntimes } from '@/lib/api';
 import { Icon } from './Icon';
 
@@ -41,12 +42,36 @@ export function RuntimesPage() {
           <button
             type="button"
             className="btn-ghost btn-sm"
+            data-testid="runtimes-refresh"
             onClick={() => refetch()}
             disabled={isFetching}
           >
-            重新探测
+            {isFetching ? '探测中…' : '重新探测'}
           </button>
+          <Link href="/settings" className="btn-secondary btn-sm" data-testid="runtimes-to-settings">
+            环境诊断
+          </Link>
+          <Link href="/agents" className="btn-ghost btn-sm" data-testid="runtimes-to-agents">
+            智能体
+          </Link>
         </div>
+        {!machine.cwd ? (
+          <div className="runtime-cwd-banner" data-testid="runtimes-cwd-banner" role="status">
+            <strong>工作区 cwd 未配置</strong>
+            <span className="text-sm"> 运行时即使在线，派活仍可能立刻失败。</span>
+            <Link href="/settings" className="btn-secondary btn-sm">去设置</Link>
+          </div>
+        ) : null}
+        {runtimes.some((r) => !r.installed) ? (
+          <div className="runtime-missing-banner" data-testid="runtimes-missing-banner" role="status">
+            <strong>有 CLI 未检测到</strong>
+            <span className="text-sm">
+              {' '}
+              {runtimes.filter((r) => !r.installed).map((r) => r.label).join('、')}
+              。安装并加入 PATH 后点「重新探测」。
+            </span>
+          </div>
+        ) : null}
 
         <div className="data-table-wrap">
           <table className="data-table">
@@ -61,7 +86,7 @@ export function RuntimesPage() {
             </thead>
             <tbody>
               {runtimes.map((rt) => (
-                <tr key={rt.id}>
+                <tr key={rt.id} data-testid="runtime-row" data-runtime={rt.id} data-installed={rt.installed ? "1" : "0"}>
                   <td>
                     <span className="runtime-type-icon">
                       <Icon name="bot" size={14} />

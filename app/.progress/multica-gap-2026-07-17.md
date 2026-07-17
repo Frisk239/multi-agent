@@ -20,6 +20,9 @@
 | 记忆 kind URL 筛选 | ✅ | memory-kind-filter + cmdk |
 | 操作成功 toast 深链 | ✅ | qc/ops/retry toast nav |
 | WS 终态 toast 深链 | ✅ | live-run-toast |
+| 侧栏 Wiki dead 角标 | ✅ | sidebar-wiki-dead-badge |
+| Settings Wiki LLM 引导 | ✅ | settings-wiki-llm-guide |
+| 运行时运营入口 | ✅ | runtimes-ops-links |
 
 ## 仍弱（非完成态原因）
 
