@@ -93,28 +93,29 @@
 
 ---
 
-## Phase 4 — 产品硬化与补充（11-12 月+）
+## Phase 4 — 产品硬化；然后进入「补充阶段」（暂停前推）
 
-> 不再把 Phase 4 收成「只做答辩打磨」。S12 起按**可用产品**补齐 Multica 级运营能力；答辩材料穿插产出。
+> S12 起按**可用产品**补齐运营能力。  
+> **2026-07-17 决议：** S12 之后 **只做补充阶段（补1、补2…，刀数不固定）**，**不再前推**后续能力切片；补到差不多再开后续。
 
-### Phase 4a — S12 产品硬化
+### Phase 4a — S12 产品硬化 ✅
 
 - Chrome（toast / Ctrl+K / 可指派新建 / 空态 / 错误边界 / 诚实导航）
 - `run:progress` 消费；Squad 只读详情；**合成** Inbox
 - 详见 [s12 spec](../docs/superpowers/specs/2026-07-17-s12-product-hardening-design.md)
 
-### Phase 4b — 产品补充（大厚切片）
+### 补充阶段 — 补1 / 补2 / …（当前主线）
 
-真源：[phase4b spec](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
+真源：[补充阶段 spec](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
 
-| 切片 | 目标 |
-|---|---|
-| **S13** | run 可恢复（heartbeat/stale/orphan）+ **真** Inbox + subscriber |
-| **S14** | Agent/Squad **CRUD 运营** + readiness + Quick-create |
-| **S15** | **最小 Autopilot**（cron，可选 webhook）+ Settings 健康页 |
+- **能力包池**抽刀，不锁死「必须 3 刀或 6 刀」
+- 默认建议：可靠性+真 Inbox → Agent/Squad 运营 → quick-create → Settings → 最小 Autopilot → 按需再补
+- 退出：人判定日常可用 + spec 退出清单；**然后再**谈后续切片
+- **不做：** Redis、多节点、完整 GitHub/Lark channel、Graphiti（另议）
 
-可选 S16：Issue 厚度（label/attach/parent）、usage。  
-**不做：** Redis、多节点、完整 GitHub/Lark channel、Graphiti（另议）。
+### 后续切片
+
+⏸ **暂停**。补充阶段退出前不开新的「前推」主线编号。
 
 ### 答辩材料（并行，非挡板）
 

@@ -1,264 +1,202 @@
-# Phase 4b 设计 — 产品补充阶段（Multica 级可运营）
+# 补充阶段设计 — 产品可运营补齐（暂停前推）
 
-> 状态：**草案（计划者产出，待用户确认后 writing-plans）** · 日期：2026-07-17  
-> 前置：S12 产品硬化（Chrome + 薄 Inbox + Squad 只读 + progress）  
-> 依据：Multica 源码深读（`references/deep/multica.md` + `references/repos/multica`）对照 + S01–S12 已交付  
-> 定位：**把 MVP 扩成可天天用的本地产品**——后端编排/可靠性/运营面与体验同切，**不单独做前端壳**。  
-> 不做云端 / Redis / 多节点；不自造 Agent loop。
+> 状态：**已按用户决议改版** · 日期：2026-07-17  
+> 前置：S12 已合 main（Chrome + 合成 Inbox + Squad 只读 + progress）  
+> 依据：Multica 体验 + **后端**源码对照 + S01–S12 已交付  
+>  
+> ## 路线决议（最高优先级）
+>
+> 1. **现在进入补充阶段，不再前推**后续能力切片（不按旧「S13 接着 S14…」当主线往前赶创新/新层）。  
+> 2. 补充阶段按 **补1、补2、补3…** 编号，**需要几刀就几刀**，不固定 3 或 6。  
+> 3. **补到差不多了**（§1 成功画像大体达成 + 人判定可用），再恢复「后续切片」主线（若有）。  
+> 4. 每一刀仍是垂直厚切片：后端 + UI 同切；计划者-执行者；feature 分支 → PR。  
+> 5. 不做云端 / Redis / 多节点；不自造 Agent loop。
+
+**编号说明：** 仓库内分支/handoff 可用 `feat/bu01-…`、`app/.progress/bu01-*.md`，文中称 **补1**。与历史草稿里的 S13/S14/S15 **脱钩**——那些只是能力包参考，不是「必须按序前推的主线编号」。
 
 ---
 
-## 0. 为什么需要「补充阶段」
+## 0. 为什么要「停下来补」
 
-S01–S11 打通四层（编排-执行-Wiki-记忆）；S12 擦亮产品 Chrome。  
-对照 Multica **后端**后，仍差一个产品代际：
+S01–S11 打通四层；S12 擦亮 Chrome。对照 Multica **后端 + 体验** 后，差的是 **可天天用的运营厚度**，不是再叠一层论文功能：
 
-| 已对齐（可保留） | 相差甚远（本阶段补） | 我们反超（继续加深，不砍） |
+| 已对齐 | 补充阶段要补 | 已有优势（补的时候不能砸） |
 |---|---|---|
-| 多态指派、DB 行锁、Squad leader+briefing+mention | **真 Inbox 系统**、subscriber | 编译式 Wiki + AGENTS bridge |
-| Backend adapter、per-agent 槽、WS、progress | **run 可恢复性**（stale/orphan/heartbeat） | MemoryProvider + pgvector + ambient/cite |
-| 静态 seed Agent/Squad 能跑 FRI-11 | **Agent/Squad CRUD 运营** | 纯本地混合进程 |
-| 表单建 Issue | **Quick-create / 低摩擦输入** | — |
-| — | **最小 Autopilot（cron/webhook）** | — |
-| — | readiness / 派生 status / Settings | — |
+| 多态指派、行锁、Squad briefing+mention | 真 Inbox + subscriber | 编译式 Wiki + AGENTS bridge |
+| Backend、per-agent 槽、WS、progress | run 可恢复（stale/orphan/heartbeat） | MemoryProvider + ambient/cite |
+| seed 能跑 FRI-11 | Agent/Squad **可配置运营** | 纯本地混合进程 |
+| 表单建 Issue | 低摩擦派活（quick-create） | — |
+| 假入口已藏 | 最小自动化 + Settings 可诊断 | — |
 
-S12 合成 Inbox、Squad 只读、隐藏假入口 —— **正确占位**，不是终点。
-
----
-
-## 1. 阶段目标（一句话）
-
-用户能在 **不改 seed/SQL** 的前提下：配置 Agent/小队 → 一句话或看板派活 → 可靠执行与崩溃自愈 → Inbox 可处理已读/归档 →（可选）定时自动建任务；同时 Wiki/Memory 路径不被破坏。
-
-**非目标（本阶段仍不做）：** Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完整 usage 计费、固化 e2e 套件。
+合成 Inbox、Squad 只读 = **占位**；补充阶段把占位换成真能力。
 
 ---
 
-## 2. 切片策略：少而厚（3 个大厚切片）
+## 1. 阶段目标与「补得差不多了」的退出条件
 
-延续 S12「执行者少、单棒工作量大」。**不**拆成十几个薄 API 切片。
+### 1.1 目标（一句话）
 
-| 切片 | 名称 | 厚度 | 核心交付 | 建议分支 |
+不改 seed/SQL 也能：配 Agent/小队 → 看板或一句话派活 → 进程挂了任务能收口 → Inbox 可已读/归档 → 环境问题能在设置里看懂；Wiki/Memory/FRI-11 不回退。
+
+### 1.2 退出补充阶段（再谈「后续切片」）
+
+人可以随时加 **补N**，但默认 **同时满足** 再退出：
+
+- [ ] 杀进程/重启后，无永久假 `running`  
+- [ ] Inbox 落库，刷新不丢，可 mark read / archive  
+- [ ] UI 内可建/改 Agent 与 Squad，并完成一次指派执行  
+- [ ] 至少一种低摩擦创建（quick-create 或等价）  
+- [ ] Settings（或等价）能显示 cwd / runtime / LLM·embed 是否就绪  
+- [ ] （可选但推荐）至少一条 cron/手动触发的自动建 issue  
+- [ ] Wiki pages + memory status + done→ingest 回归绿  
+- [ ] **人判定：可以当本地日常工具用了**
+
+未勾满可以继续 **补7、补8…**；勾满后**不必**为了对齐 Multica 全集而无限补。
+
+### 1.3 本阶段明确不做（除非单独开「后续切片」）
+
+Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完整 usage 计费、仓库内固化 e2e 套件。
+
+---
+
+## 2. 工作方式：能力池 + 按需抽刀
+
+**不是**预先锁死「必须正好 3 刀」。  
+维护一个 **能力包池**；每一刀从池里取 **1 个主包 + 可选搭车**，做成端到端可 `pnpm dev` 的厚切片。
+
+### 2.1 能力包池（按依赖大致排序）
+
+| 包 ID | 名称 | 后端要点 | 前端要点 | 建议依赖 |
 |---|---|---|---|---|
-| **S13** | 可靠性 + 真 Inbox | 极厚 | heartbeat/stale/orphan + `inbox_item` 落库 + subscriber + Inbox UI 换真源 | `feat/s13-reliability-inbox` |
-| **S14** | 可运营队友 | 极厚 | Agent/Squad CRUD + readiness + 详情运营 Tab + Quick-create | `feat/s14-roster-ops-quickcreate` |
-| **S15** | 自动化与设置 | 厚 | 最小 Autopilot（cron→issue）+ 可选 webhook + Settings 薄页 + 命令面板增强 | `feat/s15-autopilot-settings` |
+| **A** | Run 可靠性 | heartbeat、stale sweeper、启动 orphan 收尸 | 看板/详情不再假 spinning；失败可见 | 无 |
+| **B** | 真 Inbox | `inbox_item` 表、写入钩子、read/archive API、subscriber | `/inbox` 真源、角标、已读归档 | 最好与 A 同阶段或紧随 |
+| **C** | Agent 运营 | CRUD、instructions?、readiness | 列表新建/编辑；详情 Tab（概览/Runs/Skills/MCP） | 无硬依赖 |
+| **D** | Squad 运营 | CRUD、成员、protocol/directive 可写 | `/squads` 从只读升级为可编辑 | C 或并行（不同表） |
+| **E** | Quick-create | `POST /api/quick-runs`（建 issue+enqueue） | 命令面板/顶栏一句话派活 | C/D 有 assignee 更顺 |
+| **F** | 最小 Autopilot | cron 表 + tick + 幂等；可选 webhook token | `/automation` 列表与开关 | A+B 后更稳 |
+| **G** | Settings / 诊断 | `GET /api/settings/status`（不回传密钥） | `/settings` 健康页；侧栏恢复入口 | 随时可做，常与 F 搭 |
+| **H** | Issue 厚度 | labels / attach 路径 / parent（可选） | 筛选与详情字段 | 退出条件非必须 |
+| **I** | 观测 | run 错误聚合、简单 usage 计数 | 轻量面板 | 可选 |
+| **J** | Wiki/Memory 打磨 | DLQ 可操作、失败提示、键缺失引导 | 已有页的空态/错误文案 | 可与任刀搭车回归 |
 
-可选后续（不进本阶段必达）：**S16** Issue 厚度（label/attach/parent）、usage 聚合、daemon 拆分。
+### 2.2 推荐抽刀序列（默认，可改可插）
 
-```
-S12（硬化）──► S13（能撑住）──► S14（能配置）──► S15（能自动）
-                 │                 │                 │
-                 └─ 后端可靠性      └─ 运营 CRUD       └─ 调度
-                    + 通知系统         + 低摩擦输入        + 设置
-```
+仅作 **开工顺序建议**，不是固定长度合同：
 
-每个切片内部仍：**计划者 1 + 执行者 2（厚棒）**，契约先行，feature 分支 → PR → 新会话审查。
+| 刀 | 建议打包 | 一句话验收 | 建议分支 |
+|---|---|---|---|
+| **补1** | A + B | 任务可收尸；Inbox 真源可已读 | `feat/bu01-reliability-inbox` |
+| **补2** | C + D | UI 建 Agent/小队并跑通指派 | `feat/bu02-roster-ops` |
+| **补3** | E（+ cmdk） | 一句话产生 issue+run | `feat/bu03-quick-create` |
+| **补4** | G | 设置页能解释「为什么跑不起来」 | `feat/bu04-settings` |
+| **补5** | F | cron 或 webhook 自动建 issue | `feat/bu05-autopilot` |
+| **补6+** | H / I / J 或复查缺口 | 按人感再补 | `feat/bu06-…` |
+
+若某一刀太厚：可拆（如补1 只做 A，下一刀 B）。  
+若某一刀太薄：可合并（如 E+G）。  
+**停手权在人**：随时可宣布「补充阶段结束」。
+
+### 2.3 与旧稿 S13–S15 的对照（仅迁移用）
+
+| 旧称呼 | 现能力包 |
+|---|---|
+| S13 | 补1 ≈ A+B |
+| S14 | 补2≈C+D，补3≈E |
+| S15 | 补4≈G，补5≈F |
+
+新会话、新分支 **只用 补N / bu0N**，避免和「前推 S 编号」混淆。
 
 ---
 
-## 3. S13 — 可靠性 + 真 Inbox（地基，最先做）
+## 3. 能力包规格摘要
 
-### 3.1 问题
+### 3.1 包 A — Run 可靠性
 
-- `agent_run` 仅五态；进程杀死后 **running 可能永卡**（无 lease/stale sweeper）。  
-- Inbox 合成刷新即「未读语义丢失」；无 `issue_subscriber`，通知无归属。
+学 Multica lease/stale 思想，**本地单进程简化**：
 
-### 3.2 后端（主）
+- `agent_run.last_heartbeat_at`；执行中周期 touch  
+- sweeper：`running` 且超时 → 条件更新 `failed` + 事件  
+- 启动：无存活执行上下文的 `running` → fail  
+- **不做**：多 host `SKIP LOCKED`、Redis wakeup  
 
-| 项 | 规格（学 Multica，本地简化） |
-|---|---|
-| Heartbeat | `agent_run.last_heartbeat_at`；worker 执行中每 N 秒 touch |
-| Stale sweeper | 定时：`running` 且 heartbeat 超时 → `failed` + error 文案 + 事件；可选 `queued` 过久告警 |
-| Orphan 收尸 | server 启动：无对应 Abort/子进程的 `running` → fail |
-| `inbox_item` 表 | id, workspace_id, recipient_type/id, type, severity, issue_id, title, body?, actor_*, read, archived, created_at（对齐 multica 001/012/019 精简） |
-| 写入钩子 | issue 指派变更、member/agent comment（可含 mention 收件人）、run 终态（completed/failed）、（可选）status→done |
-| subscriber | `issue_subscriber(issue_id, user_type, user_id, reason)`；创建/指派自动加 creator+assignee；@mention 加 member |
-| API | `GET /api/inbox?filter=`；`POST :id/read`；`POST :id/archive`；`POST /read-all`（可选） |
-| WS | `inbox:item` 或复用现有事件 + 前端 invalidate `['inbox']` |
+### 3.2 包 B — 真 Inbox
 
-**明确不做（S13）：** agent 作为 recipient 全量、跨 workspace 未读聚合、Redis。
+学 `inbox_item` + `issue_subscriber`（精简列）：
 
-### 3.3 前端
+- 落库；指派 / 评论 / run 终态写通知  
+- `GET/read/archive`；替换 S12 合成路径  
+- 默认弱化或过滤纯 `status_change` 噪音  
+- **不做**：agent 全量 recipient、跨 workspace 未读复杂聚合  
 
-- `/inbox` 换真源；已读/归档操作；未读角标（侧栏）  
-- 合成 id 策略废弃 → 真 UUID  
-- kind：`comment` / `run_completed` / `run_failed` / `assigned`（可扩展）  
-- 建议默认 **滤掉纯 status_change** 或降 severity=info
+### 3.3 包 C/D — Agent / Squad 运营
 
-### 3.4 验收
+- CRUD API + 表单；Squad 可写 protocol/directive/members  
+- readiness：CLI 是否可执行、槽占用、最近 run  
+- 详情 Tab 做 **4 个够用的**，不抄 Multica 8 Tab 全集  
 
-- [ ] 杀 server 再起：卡死 running 被收尸或 stale 失败，看板不再永久 spinning  
-- [ ] 评论/run 终态产生 inbox 行；刷新仍在；mark read 后角标变  
-- [ ] typecheck；FRI-11 / wiki enqueue / memory 路径不回归  
-- [ ] S12 合成逻辑删除或 feature-flag 掉，只保留落库路径  
+### 3.4 包 E — Quick-create
 
-### 3.5 执行者拆分（建议）
+- `POST /api/quick-runs`：prompt + assignee → issue + enqueue  
+- 命令面板或全局输入；复用现有路由，不建 chat 平台  
 
-| 棒 | 内容 |
-|---|---|
-| impl-1 | schema + migration + heartbeat/stale/orphan + 单测/脚本 smoke |
-| impl-2 | inbox 写入钩子 + API + Inbox UI + badge + handoff |
+### 3.5 包 F — 最小 Autopilot
 
----
+- 单进程 tick；`(trigger_id, planned_at)` 幂等  
+- `create_issue` 模式优先（持久审计）  
+- webhook 可选一种 token 入口  
 
-## 4. S14 — Agent / Squad 可运营 + Quick-create
+### 3.6 包 G — Settings
 
-### 4.1 问题
-
-- Agent/Squad 基本靠 seed；用户无法「建一个小队再跑」。  
-- 创建工作摩擦：必须看板填字段。
-
-### 4.2 后端
-
-| 项 | 规格 |
-|---|---|
-| Agent CRUD | POST/PATCH/DELETE（软删可选）；字段：name, runtime, concurrency, mcpServers, **instructions?** |
-| Squad CRUD | POST/PATCH；leaderId, operatingProtocol, missionDirective；成员 PUT 替换列表 |
-| 校验 | leader 存在；members 皆 agent；删 agent 前检查 active run / 是否 leader |
-| Readiness | `GET /api/agents/:id/readiness` 或嵌在详情：CLI 是否在 PATH、concurrency 占用、最近 run |
-| 派生 status（可选） | idle/working/error/offline 由 active runs + readiness 计算，不手填 |
-| Quick-create | `POST /api/quick-runs`：`{ prompt, assignee: agent\|squad, title? }` → 建 issue（origin 标记可选）+ enqueue；幂等可选 client token |
-| Runs 列表 | `GET /api/agents/:id/runs?limit=`（agent 维度历史） |
-
-### 4.3 前端
-
-- `/agents` 新建/编辑；详情 Tab：**概览 / Runs / Skills / MCP**（4 Tab，不抄满 8）  
-- `/squads` 新建/编辑协议与成员（S12 只读升级）  
-- 命令面板或顶栏：**快速派活**输入（调 quick-runs）  
-- toast 全覆盖 mutation  
-
-### 4.4 验收
-
-- [ ] 空库（或清 seed 外）UI 建 Agent+Squad → 指派 → 真实/可失败 run 可追踪  
-- [ ] quick-run 一条 API 产生 issue+run  
-- [ ] 只读路径与 S12 样式兼容  
-- [ ] typecheck + 回归看板/Inbox  
-
-### 4.5 执行者拆分
-
-| 棒 | 内容 |
-|---|---|
-| impl-1 | Agent/Squad API + schema 字段 + readiness |
-| impl-2 | 运营 UI + quick-create API/UI + handoff |
+- 只读/半写状态：cwd、runtime 探测、wiki/memory/LLM/embed 是否配置  
+- **不**在 API 回传完整密钥  
 
 ---
 
-## 5. S15 — 最小 Autopilot + Settings
+## 4. 工程约束（每刀都遵守）
 
-### 5.1 问题
-
-- 无定时/webhook；自动化入口 S12 已诚实隐藏。  
-- 模型 key、workspace cwd、embedding/wiki LLM 状态分散在 env，产品内不可见。
-
-### 5.2 后端（最小可用，非 Multica 全集）
-
-| 项 | 规格 |
-|---|---|
-| 表 | `autopilot_trigger(id, name, kind=cron\|webhook, cron_expr?, webhook_token?, assignee_type/id, title_template, body_template, enabled)` |
-| 执行日志 | `autopilot_run(id, trigger_id, planned_at, status, issue_id?, error?)` + **唯一 (trigger_id, planned_at)** |
-| Worker | 主进程 tick（如 30s）：到点则 create issue + 走现有 enqueue；离线策略：本地单机直接跑 create_issue 模式 |
-| Webhook | `POST /api/hooks/autopilot/:token` 校验 token → 同 dispatch 核心 |
-| Settings 只读/半写 | `GET /api/settings/status`：MA_WORKSPACE_CWD、各 runtime 探测、wiki/memory provider 状态、LLM/embed 是否配置（**不回传完整密钥**） |
-
-**不做：** multi-leader scheduler、CatchUp 全模式、GitHub app、Lark。
-
-### 5.3 前端
-
-- `/automation` 或 Settings 子页：trigger 列表 + 启用开关 + 最近 run  
-- `/settings`：环境健康、路径、provider 状态；链到 memory/wiki  
-- 侧栏重新挂「自动化」「设置」（此前 S12 隐藏）  
-
-### 5.4 验收
-
-- [ ] 建一条每分钟/测试 cron → 自动出现 issue 且可指派执行  
-- [ ] webhook 一次 POST 幂等不双建（同 planned_at 或 delivery id）  
-- [ ] Settings 页能诊断「为什么 agent 跑不起来」  
-- [ ] typecheck；不引入 Redis  
-
-### 5.5 执行者拆分
-
-| 棒 | 内容 |
-|---|---|
-| impl-1 | schema + dispatch 核心 + cron tick + webhook |
-| impl-2 | Automation/Settings UI + cmdk + handoff |
+1. 先查 `references/deep/multica.md`（及 hermes 若碰记忆/tool）再定实现。  
+2. DB 行即锁；Squad 不建独立 task 表。  
+3. 每刀验收必勾：typecheck、相关 API smoke、**Wiki/Memory/FRI-11 不回归**。  
+4. Playwright 仅手验，不落仓 e2e。  
+5. `app/` 只走 feature 分支 PR；文档可 `docs:` 进 main。  
+6. handoff：`app/.progress/bu0N-impl-k.md` / `bu0N-planner-k.md`。
 
 ---
 
-## 6. 跨切片约束（宪法级）
+## 5. 成功画像（补充阶段整体）
 
-1. **先查 Multica 再写**：claim/inbox/autopilot 任何状态机，对照 `references/deep/multica.md` 与上游 query，结论写进 handoff「参考了 X」。  
-2. **DB 行即锁**：状态转换继续 `UPDATE WHERE status IN`；新增 stale 也走条件更新。  
-3. **Squad 不建 task 抽象**：继续 leader run + mention。  
-4. **Inbox 写入与业务同事务或同请求顺序**：避免「issue 有了通知没有」。  
-5. **Wiki/Memory 回归门禁**：每切片验收勾选 `GET /api/wiki/pages`、memory status、done→ingest enqueue。  
-6. **Playwright**：探索式验收可，不落仓 e2e。  
-7. **Git**：仅 feature 分支；main 只合已审 PR；文档可 `docs:` 进 main。
-
----
-
-## 7. 与 roadmap / slices 的映射
-
-| 旧 Phase 4 文案 | 新 |
-|---|---|
-| 「打磨 + 答辩材料」 | **Phase 4a S12** 硬化；**Phase 4b S13–S15** 可运营补充；答辩材料穿插文档不单独立项挡产品 |
-| Autopilot「如时间允许」 | **S15 必达最小集** |
-| slices.md S06+ 占位（收件箱/8 Tab/…） | 由 S12–S15 **消化**：Inbox→S13；Agent Tab→S14；Ctrl+K 已 S12；设置→S15 |
+1. 休眠/杀进程 → 任务失败收口，不假 running。  
+2. Inbox 可处理，像轻量待办流。  
+3. 产品内配置队友与小队，快速派活。  
+4. 设置页能诊断环境。  
+5. （推荐）有一条自动化可演示。  
+6. Wiki + Memory 仍是差异化，FRI-11 可演示。
 
 ---
 
-## 8. 决策记录（待用户拍板）
+## 6. 下一步
 
-| 代号 | 建议默认 | 可选替代 |
+1. **当前：停在补充阶段规划**——不自动开「前推」类切片。  
+2. 人确认默认序列（或改打包）后，对 **补1** 做 writing-plans。  
+3. 补1 分支：`feat/bu01-reliability-inbox`（基于含 S12 的 main）。  
+4. 每刀合 main 后更新本文件「进度」表（下方）。
+
+### 进度（活表）
+
+| 刀 | 状态 | 含包 | PR |
+|---|---|---|---|
+| 补1 | ⬜ 未开始 | 建议 A+B | — |
+| 补2 | ⬜ | 建议 C+D | — |
+| 补3… | ⬜ 按需 | — | — |
+
+---
+
+## 附录 — Multica / 本仓锚点
+
+| 主题 | 上游 | 本仓 |
 |---|---|---|
-| Q1 | 三厚切片 S13→S14→S15 串行 | 合并 S14+S15 成更厚一条（不推荐，会话易炸） |
-| Q2 | S13 必须先于 S14（可靠性优先） | 先 CRUD 再 Inbox（演示友好但欠债） |
-| Q3 | Quick-create 放 S14 | 放到 S15 与 cmdk 一起 |
-| Q4 | Autopilot 仅 cron+可选 webhook | 只做 cron |
-| Q5 | Agent `instructions` 字段 S14 就加 | 推迟到 S15 |
-| Q6 | 补充阶段正式名 **Phase 4b** | 称 Phase 5（若想与 roadmap 月份脱钩） |
-
-**计划者推荐：** Q1 三切片串行；Q2 可靠性优先；Q3 quick-create 在 S14；Q4 cron+webhook token；Q5 instructions 进 S14；名称 **Phase 4b**。
-
----
-
-## 9. 成功画像（阶段结束时）
-
-1. 笔记本休眠/杀进程后，任务会失败收口而非假 running。  
-2. Inbox 像轻量 Linear：未读、归档、点进 Issue。  
-3. 产品内建 Agent/小队，改 briefing，快速一句话派活。  
-4. 至少一条 cron 自动化可演示。  
-5. Settings 能解释运行失败原因。  
-6. Wiki + Memory 仍是差异化主路径，FRI-11 可演示。
-
----
-
-## 10. 下一步（本文件批准后）
-
-1. 用户确认 §8 决策（或改默认）。  
-2. `writing-plans` 只写 **S13** 详细计划（S14/S15 保持本 spec 级，临开切片再拆）。  
-3. S12 PR 合并不阻塞 S13 开分支（S13 基于 main 含 S12）。  
-4. 更新 `design/slices.md` / `design/roadmap.md` / `AGENTS.md` 完成状态（文档提交 main）。
-
----
-
-## 附录 A — Multica 文件锚点（实现时打开）
-
-| 主题 | 上游 |
-|---|---|
-| Claim / stale | `pkg/db/queries/agent.sql` Claim/FailStale |
-| Inbox | `pkg/db/queries/inbox.sql`；`001_init` inbox_item |
-| Subscriber | `subscriber.sql` |
-| Squad briefing | `handler/squad_briefing.go` |
-| Autopilot | `service/autopilot.go`；`scheduler/` |
-| Quick create | `TaskService.EnqueueQuickCreateTask` |
-
-## 附录 B — 我们侧锚点
-
-| 主题 | 路径 |
-|---|---|
-| Run worker/claim | `app/packages/server/src/orchestration/run-worker.ts` |
-| Enqueue | `run-service.ts` |
-| 合成 Inbox（S12） | `routes/inbox.ts` → S13 替换 |
-| Squad loader | `db/squad-loader.ts` |
-| Schema | `db/schema.ts` |
+| Claim/stale | `pkg/db/queries/agent.sql` | `orchestration/run-worker.ts` |
+| Inbox | `queries/inbox.sql` | S12 `routes/inbox.ts`（待替换） |
+| Squad | `squad_briefing.go` | `runtime/prompt.ts` + `squad-loader` |
+| Autopilot | `service/autopilot.go` | （无） |
+| Quick create | `EnqueueQuickCreateTask` | （无） |

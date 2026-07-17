@@ -8,7 +8,8 @@
 
 **论文一句话：** 四层架构（编排-执行-知识-记忆），用「编译式项目 Wiki」+「可插拔记忆」解决 RAG 不累积、执行不可追踪、跨会话上下文丢失。
 
-**工程实现已启动。** S01（看板 + WebSocket）已合并 main；下一切片是 S02（Issue 详情 + 时间线 + 评论）。
+**工程实现已启动。** S01–S12 已合 main（编排/执行/Wiki/记忆 + 产品硬化）。  
+**当前主线：补充阶段（补1、补2…，刀数不固定）——先补可运营缺口，不再前推后续能力切片；补到差不多再开后续。** 真源见 [docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)。
 
 ## 目录地图
 
@@ -83,12 +84,15 @@
 - ✅ 12 个参考项目调研 + 源码深读
 - ✅ 技术选型锁定（TS 全栈 + 纯本地 + 多 Backend）
 - ✅ 产品原型已验收（`chanpin/`，88 Must REQ 可交互）
-- ✅ **S01 看板 + WebSocket**（PR #1 合 main）— 六列看板、Issue CRUD、双窗口实时同步
-- ✅ **S02 Issue 详情 + 时间线 + 评论**（PR #2 合 main）— 详情页、comment/status_change、@ 补全、WS 实时；FRI-11 时间线点亮
-- ⬜ **S03 真实 agent 执行**（下一切片 · 本计划者会话）
-- ⬜ S04 Squad · S05 Skill/MCP · Phase 2 Wiki · Phase 3 记忆
+- ✅ **S01–S05** 看板 / 详情 / 真实执行 / Squad / Skill·MCP
+- ✅ **S06–S08** Wiki + ingest 队列 + AGENTS bridge
+- ✅ **S09–S11** MemoryProvider + pgvector + brain-first UI
+- ✅ **S12** 产品硬化（Chrome + progress + Squad 只读 + 合成 Inbox）
+- ⬅ **补充阶段（当前）** — 补1…补N：可靠性、真 Inbox、Agent/Squad 运营、quick-create、Settings、最小 Autopilot…按需加刀
+- ⏸ **后续能力切片** — 补充阶段退出前不前推
 
-**最新 handoff：** [`app/.progress/s02-planner-2.md`](app/.progress/s02-planner-2.md)（S02 收尾 + 给 S03 的交接）
+**补充阶段真源：** [`docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
+**切片/handoff 约定：** 分支 `feat/bu0N-…`，进度写 `app/.progress/bu0N-*.md`
 
 ## 不可破坏的约束
 

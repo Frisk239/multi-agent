@@ -105,35 +105,42 @@
 | S09–S11 | MemoryProvider → pgvector → brain-first UI/ambient/cite | ✅ / 合入中 |
 | **S12** | 产品硬化：Chrome + progress + Squad 只读 + **合成** Inbox | ✅ 代码完成，PR 合 main |
 
-S12 之前「S06+ 占位」里的 Ctrl+K / 收件箱入口 / 诚实导航等已由 **S12** 消化（Inbox 仍为合成，见 S13）。
+S12 之前「S06+ 占位」里的 Ctrl+K / 收件箱入口 / 诚实导航等已由 **S12** 消化（Inbox 仍为合成，见补充阶段包 B）。
 
 ---
 
-### Phase 4b — 产品补充（大厚切片，Multica 级可运营）
+### 补充阶段 — 停前推，按需补刀（补1、补2…）
 
-> 真源 spec：[docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
-> 原则：**后端能力与 UI 同切**；少而厚（每切片 2 名执行者）；串行 S13→S14→S15。
+> **路线决议（2026-07-17）：** S12 之后 **先做补充阶段，不再前推** 后续能力主线。  
+> 编号 **补1 / 补2 / …**，需要几刀就几刀（不固定 3 或 6）；**补到差不多**再恢复后续切片。  
+> 真源：[docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
 
-| 切片 | 覆盖 | 验收一句话 | 细化时机 |
-|---|---|---|---|
-| **S13** 可靠性 + 真 Inbox | run heartbeat / stale / orphan；`inbox_item` 落库；subscriber；Inbox 已读归档 | 杀进程不再假 running；Inbox 刷新仍在且可 mark read | S12 合 main 后立即 |
-| **S14** 可运营队友 | Agent/Squad CRUD；readiness；详情 Tab；`POST /api/quick-runs` | 不改 seed 能建小队并派活；一句话 quick-create | S13 后 |
-| **S15** 自动化 + Settings | 最小 cron autopilot（+可选 webhook）；`/settings` 健康状态 | 定时自动建 issue；设置页能诊断跑不起来 | S14 后 |
-| S16+（可选） | label/attach/parent；usage；轻量 daemon | 项目管理厚度 | 阶段结束视需要 |
+**工作方式：** 能力包池（A 可靠性 / B 真 Inbox / C Agent 运营 / D Squad 运营 / E Quick-create / F Autopilot / G Settings / H Issue 厚度 / …）→ 每刀从池里抽包打成厚垂直切片。
 
-旧占位映射：收件箱三栏 → S13；智能体多 Tab → S14（4 Tab，不抄满 8）；设置 → S15；运行时多机 → 非本阶段必达。
+| 建议顺序（可改可插） | 建议打包 | 验收一句话 |
+|---|---|---|
+| **补1** | A+B | 杀进程不再假 running；Inbox 落库可已读 |
+| **补2** | C+D | UI 建 Agent/小队并派活 |
+| **补3** | E | 一句话 quick-create |
+| **补4** | G | Settings 能诊断环境 |
+| **补5** | F | 最小 cron/webhook 自动建 issue |
+| **补6+** | H/I/J 或缺口复查 | 人判定够用再停 |
+
+分支：`feat/bu01-…`；handoff：`app/.progress/bu01-*.md`。  
+旧稿 S13–S15 仅作能力对照，**不再当主线编号**。
 
 ---
 
-### 后续 Phase（更新）
+### Phase 总览（更新）
 
 | Phase | 覆盖 | 状态 |
 |---|---|---|
 | **Phase 2 — Wiki** | 存储 + ingest + query/lint/health + bridge + AGENTS | ✅ S06–S08 |
 | **Phase 3 — 记忆** | Provider + pgvector + brain-first | ✅ S09–S11 |
-| **Phase 4a — 硬化** | Chrome + 薄 Inbox + Squad 只读 | S12 |
-| **Phase 4b — 补充** | 可运营：可靠性/Inbox/CRUD/quick-create/autopilot | S13–S15 |
-| **答辩材料** | demo 脚本 + 指标 + 论文图表 | 穿插，不挡 4b |
+| **Phase 4a — 硬化** | Chrome + 薄 Inbox + Squad 只读 | ✅ S12 |
+| **补充阶段** | 可运营补齐（补1…补N，可伸缩） | ⬅ **当前** |
+| **后续切片** | 补充退出后再开 | ⏸ 暂停前推 |
+| **答辩材料** | demo 脚本 + 指标 + 论文图表 | 穿插，不挡补充 |
 
 ---
 
