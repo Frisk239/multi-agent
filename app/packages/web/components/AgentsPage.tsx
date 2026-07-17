@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AgentReadiness, CreateAgentInput, RuntimeId } from '@ma/shared';
 import {
   useAgents,
@@ -13,6 +13,25 @@ import {
 import { Icon } from './Icon';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
+
+type ReadyFilter =
+  | ''
+  | 'ready'
+  | 'busy'
+  | 'cwd_missing'
+  | 'runtime_missing'
+  | 'error'
+  | 'blocked';
+
+const READY_OPTIONS: { value: ReadyFilter; label: string }[] = [
+  { value: '', label: '全部就绪态' },
+  { value: 'ready', label: 'ready' },
+  { value: 'busy', label: 'busy' },
+  { value: 'cwd_missing', label: 'cwd 未配置' },
+  { value: 'runtime_missing', label: 'runtime 缺失' },
+  { value: 'error', label: 'error' },
+  { value: 'blocked', label: '不可用（非 ready）' },
+];
 
 function readinessLabel(rd: AgentReadiness | null | undefined): string {
   if (!rd) return '…';
@@ -29,9 +48,29 @@ function readinessClass(status: AgentReadiness['status'] | undefined): string {
   return 'readiness-chip readiness-missing readiness-chip-inline';
 }
 
-// bu02 + readiness 列：列表 + 新建智能体；行点进详情；可选删除
-export function AgentsPage() {
+function parseReady(raw: string | null): ReadyFilter {
+  if (
+    raw === 'ready' ||
+    raw === 'busy' ||
+    raw === 'cwd_missing' ||
+    raw === 'runtime_missing' ||
+    raw === 'error' ||
+    raw === 'blocked'
+  ) {
+    return raw;
+  }
+  return '';
+}
+
+function readyChipLabel(ready: ReadyFilter): string {
+  return READY_OPTIONS.find((o) => o.value === ready)?.label ?? ready;
+}
+
+// bu02 + readiness 列：列表 + 新建智能体；行点进详情；URL 可分享筛选
+function AgentsPageInner() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data, isLoading, isError, error } = useAgents();
   const create = useCreateAgent();
   const del = useDeleteAgent();
@@ -42,8 +81,68 @@ export function AgentsPage() {
   const [concurrency, setConcurrency] = useState(1);
   const [instructions, setInstructions] = useState('');
 
+  const qFromUrl = searchParams.get('q') ?? '';
+  const runtimeFromUrl = searchParams.get('runtime') ?? '';
+  const readyFromUrl = parseReady(searchParams.get('ready'));
+  const [qDraft, setQDraft] = useState(qFromUrl);
+
+  useEffect(() => {
+    setQDraft(qFromUrl);
+  }, [qFromUrl]);
+
+  function replaceParams(patch: Record<string, string | null>) {
+    const sp = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(patch)) {
+      if (v == null || v === '') sp.delete(k);
+      else sp.set(k, v);
+    }
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  // 防抖写 URL 搜索
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = qDraft.trim();
+      if (next === qFromUrl.trim()) return;
+      replaceParams({ q: next || null });
+    }, 250);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only draft drives debounce
+  }, [qDraft]);
+
   const agentIds = useMemo(() => (data ?? []).map((a) => a.id), [data]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+
+  const runtimeFilter =
+    runtimeFromUrl === 'claude-code' ||
+    runtimeFromUrl === 'opencode' ||
+    runtimeFromUrl === 'cursor'
+      ? runtimeFromUrl
+      : '';
+
+  const visible = useMemo(() => {
+    const list = data ?? [];
+    const q = qFromUrl.trim().toLowerCase();
+    return list.filter((ag) => {
+      if (runtimeFilter && ag.runtime !== runtimeFilter) return false;
+      if (q) {
+        const hay = `${ag.name} ${ag.category ?? ''} ${ag.id}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (readyFromUrl) {
+        const st = readinessMap[ag.id]?.status;
+        if (readyFromUrl === 'blocked') {
+          if (!st || st === 'ready') return false;
+        } else if (st !== readyFromUrl) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [data, qFromUrl, runtimeFilter, readyFromUrl, readinessMap]);
+
+  const hasActiveFilters = Boolean(qFromUrl.trim() || runtimeFilter || readyFromUrl);
 
   function resetForm() {
     setName('');
@@ -77,6 +176,11 @@ export function AgentsPage() {
     del.mutate(id);
   }
 
+  function clearAllFilters() {
+    setQDraft('');
+    router.replace(pathname, { scroll: false });
+  }
+
   if (isLoading) return <div className="page-container">加载中…</div>;
   if (isError) {
     return (
@@ -89,15 +193,24 @@ export function AgentsPage() {
   const agents = data ?? [];
 
   return (
-    <div className="page-container">
+    <div className="page-container" data-testid="agents-page">
       <div className="page-header">
         <div>
           <div className="page-title">
-            智能体 <span className="count">{agents.length}</span>
+            智能体{' '}
+            <span className="count" data-testid="agents-visible-count">
+              {hasActiveFilters ? `${visible.length}/${agents.length}` : agents.length}
+            </span>
           </div>
           <div className="page-desc">配置 runtime / 指令 / 并发，指派执行</div>
         </div>
         <div className="page-actions">
+          <Link href="/runtimes" className="btn btn-ghost btn-sm" data-testid="agents-to-runtimes">
+            运行时
+          </Link>
+          <Link href="/settings" className="btn btn-ghost btn-sm" data-testid="agents-to-settings">
+            环境
+          </Link>
           <button
             type="button"
             className="btn btn-primary"
@@ -178,6 +291,113 @@ export function AgentsPage() {
         </form>
       )}
 
+      <div className="agents-filters" data-testid="agents-filters">
+        <div className="table-search memory-search-wrap">
+          <input
+            type="search"
+            placeholder="搜索名称 / 分类…"
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
+            data-testid="agents-search"
+            aria-label="搜索智能体"
+          />
+          {qFromUrl.trim() ? (
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              data-testid="agents-search-clear"
+              onClick={() => {
+                setQDraft('');
+                replaceParams({ q: null });
+              }}
+            >
+              清除
+            </button>
+          ) : null}
+        </div>
+        <label className="agents-filter-field">
+          运行时
+          <select
+            value={runtimeFilter}
+            data-testid="agents-runtime-filter"
+            onChange={(e) => replaceParams({ runtime: e.target.value || null })}
+            aria-label="按运行时筛选"
+          >
+            <option value="">全部</option>
+            {RUNTIMES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="agents-filter-field">
+          就绪
+          <select
+            value={readyFromUrl}
+            data-testid="agents-ready-filter"
+            onChange={(e) => replaceParams({ ready: e.target.value || null })}
+            aria-label="按就绪态筛选"
+          >
+            {READY_OPTIONS.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {hasActiveFilters ? (
+        <div
+          className="agents-active-filters"
+          data-testid="agents-active-filters"
+          aria-label="当前筛选"
+        >
+          {qFromUrl.trim() ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="agents-chip-q"
+              onClick={() => {
+                setQDraft('');
+                replaceParams({ q: null });
+              }}
+            >
+              搜索「{qFromUrl.trim()}」 ×
+            </button>
+          ) : null}
+          {runtimeFilter ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="agents-chip-runtime"
+              onClick={() => replaceParams({ runtime: null })}
+            >
+              运行时 · {runtimeFilter} ×
+            </button>
+          ) : null}
+          {readyFromUrl ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="agents-chip-ready"
+              onClick={() => replaceParams({ ready: null })}
+            >
+              就绪 · {readyChipLabel(readyFromUrl)} ×
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="kanban-active-chip kanban-active-chip--clear"
+            data-testid="agents-chip-clear-all"
+            onClick={clearAllFilters}
+          >
+            清除全部
+          </button>
+        </div>
+      ) : null}
+
       <div className="data-table-wrap">
         <table className="data-table" data-testid="agents-table">
           <thead>
@@ -196,8 +416,26 @@ export function AgentsPage() {
                   暂无智能体，点「新建智能体」开始
                 </td>
               </tr>
+            ) : visible.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                  <div data-testid="agents-empty-filter">
+                    <div>没有匹配的智能体</div>
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        data-testid="agents-clear-filter"
+                        onClick={clearAllFilters}
+                      >
+                        清除筛选
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             ) : (
-              agents.map((ag) => {
+              visible.map((ag) => {
                 const rd = readinessMap[ag.id];
                 return (
                   <tr key={ag.id} data-agent-id={ag.id}>
@@ -213,17 +451,29 @@ export function AgentsPage() {
                     </td>
                     <td className="text-dim">{ag.category || '—'}</td>
                     <td>
-                      <code>{ag.runtime}</code>
+                      <Link
+                        href={`/agents?runtime=${encodeURIComponent(ag.runtime)}`}
+                        className="agents-runtime-link"
+                        data-testid="agent-list-runtime"
+                        title={`筛选 runtime：${ag.runtime}`}
+                      >
+                        <code>{ag.runtime}</code>
+                      </Link>
                     </td>
                     <td>
-                      <span
+                      <Link
+                        href={`/agents?ready=${encodeURIComponent(rd?.status ?? 'error')}`}
                         className={readinessClass(rd?.status)}
                         data-testid="agent-list-readiness"
                         data-status={rd?.status ?? 'unknown'}
-                        title={rd?.detail ?? undefined}
+                        title={
+                          rd?.detail
+                            ? `${rd.detail} · 点击筛选同态`
+                            : `筛选就绪态：${rd?.status ?? 'unknown'}`
+                        }
                       >
                         {readinessLabel(rd)}
-                      </span>
+                      </Link>
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <Link
@@ -250,5 +500,13 @@ export function AgentsPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+export function AgentsPage() {
+  return (
+    <Suspense fallback={<div className="page-container">加载中…</div>}>
+      <AgentsPageInner />
+    </Suspense>
   );
 }

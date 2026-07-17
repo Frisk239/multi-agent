@@ -512,6 +512,58 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ]
       : [];
 
+    const agentOpsHit =
+      !q ||
+      ['agent', '智能体', 'cwd', '就绪', 'readiness', 'blocked', 'runtime'].some((k) =>
+        q.includes(k.toLowerCase()),
+      );
+    const agentOpsCmds = agentOpsHit
+      ? [
+          {
+            id: 'agents-ready-cwd',
+            label: '智能体：cwd 未配置',
+            hint: '/agents?ready=cwd_missing',
+            group: '智能体',
+            run: () => router.push('/agents?ready=cwd_missing'),
+          },
+          {
+            id: 'agents-ready-runtime',
+            label: '智能体：runtime 缺失',
+            hint: '/agents?ready=runtime_missing',
+            group: '智能体',
+            run: () => router.push('/agents?ready=runtime_missing'),
+          },
+          {
+            id: 'agents-ready-blocked',
+            label: '智能体：不可用',
+            hint: '/agents?ready=blocked',
+            group: '智能体',
+            run: () => router.push('/agents?ready=blocked'),
+          },
+          {
+            id: 'agents-rt-claude',
+            label: '智能体：claude-code',
+            hint: '/agents?runtime=claude-code',
+            group: '智能体',
+            run: () => router.push('/agents?runtime=claude-code'),
+          },
+          {
+            id: 'agents-rt-opencode',
+            label: '智能体：opencode',
+            hint: '/agents?runtime=opencode',
+            group: '智能体',
+            run: () => router.push('/agents?runtime=opencode'),
+          },
+          {
+            id: 'agents-rt-cursor',
+            label: '智能体：cursor',
+            hint: '/agents?runtime=cursor',
+            group: '智能体',
+            run: () => router.push('/agents?runtime=cursor'),
+          },
+        ]
+      : [];
+
     const diagCmds = [
       ...(diagHit
         ? [
@@ -550,6 +602,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...wikiCmds,
         ...diagCmds,
         ...memoryCmds,
+        ...agentOpsCmds,
         ...agentCmds,
         ...filteredNav,
       ];
