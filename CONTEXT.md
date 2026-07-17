@@ -38,16 +38,16 @@
 
 - **已合 main：** S01–S12；补1–5；产品演进 `run-observability`（PR #17）、`wiki-memory-ops`（PR #18）、`issue-labels`（PR #19）、`issue-find`（PR #20）  
 - **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
-- **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
+- **主线：产品演进 · 自动迭代** — Owner 可按日常价值与 Multica 差距**自行选题**（人可不每刀点名；可随时否决）  
 - **已合 main（续）：** `issue-assignee-desk`（PR #21）、`board-priority-triage`（PR #22）  
 - **上一刀 intake：** `board-priority-triage` **通过**（已合 main PR #22）— `app/.progress/board-priority-triage-intake.md`  
 - **已合 / 已推 main：** `issue-detail-edit`（PR #23 / `0433bb0`）；流程简化 docs（`ecb9da4` main 直推）  
 - **本刀：** `mention-dispatch-visibility` — @提及派发系统 comment + 时间线 badge（main 直推）  
 - **工程简化：** 默认可 **main 直推**；见 `docs/agents/merge.md`  
 - **北星：** 纯本地可用 · 体验对标 Multica；调研优先 multica  
-- **迭代约束：** 每刀 Playwright 关刀；定期 Multica 短差距表  
-- **再下一刀：** leader briefing / Run 状态与 mention 联动；或人点名  
-- **工作流：** Slice Owner × 验上一刀 × 调研子代理 × Playwright 关刀；合码 push→CI+review→人远程合并。`AGENTS.md` · [workflow](docs/agents/workflow.md) · [merge](docs/agents/merge.md) · ADR 0001/0002  
+- **迭代约束：** 每刀 Playwright 关刀；**可主动调研** Multica；**选型 Owner 自决**（难逆/安全/禁区才问人）；定期差距表  
+- **再下一刀（建议·可直接开）：** leader briefing 可见 / Run 与 mention 联动  
+- **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
 

@@ -12,7 +12,7 @@
 **架构一句话（可写论文，但不驱动路线）：** 四层（编排-执行-知识-记忆），「编译式项目 Wiki」+「可插拔记忆」。
 
 **工程状态。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
-**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——按用户价值与痛点开刀，须人显式指定主题；**工作流 = Slice Owner 一会话一切片 × 调研子代理 × Matt skills**（见 §工程模式 · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)）。
+**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——日常可用、对标 Multica；**工作流 = 自动迭代 Slice Owner**（可主动调研、自行选题与拍板选项、Playwright 关刀、main 直推）。见 §工程模式 · [workflow.md](docs/agents/workflow.md) · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)。
 
 ## 目录地图
 
@@ -45,7 +45,7 @@
 
 **遇到路线选择或策略评审问题，第一反应是调研分析参考项目，而不是凭经验拍脑袋。** 本项目不是从零发明，12 个参考项目（multica / hermes / pi / openwiki …）的源码深读就在 `references/deep/` 和 `references/repos/` 里，先看成熟实现怎么解决这个问题，再决定自己的方案。
 
-**怎么查（省 Slice Owner 上下文）：** 用户说「去调研 / 对齐 X」或需要通读 upstream 时，**默认派调研子代理**（或 `/research`）完成 1–3；Owner 会话**只合并**「结论 + 选项 + file:line + 与本仓差异」。禁止为调研在实现窗灌入大段上游源码。见 §工程模式 · ADR 0001。
+**怎么查（省上下文）：** 路线不清或开新刀前，**默认可主动调研**（不必等人下令）——优先 Multica deep/repos，或派子代理 / `/research`。Owner **只保留**「结论 + 选项 + file:line + 与本仓差异 + **已选哪项**」。禁止在实现窗灌大段上游源码。见 §工程模式 · [workflow.md](docs/agents/workflow.md)。
 
 优先级**高于**「拍脑袋给方案」和「直接问人」：
 
@@ -137,12 +137,11 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 维度 | 决定什么 | 落地 |
 |---|---|---|
-| **垂直切片** | 做什么、多厚 | 一刀端到端可演示；可拆 `.scratch` 票，但**默认同一会话做完一刀**（窗不够再按票拆会话） |
-| **Slice Owner 会话** | 从对齐到做绿 | 短对齐 →（需要时）spec/票 → `/implement` → 自测 → handoff；**允许写 `app/**`** |
-| **调研子代理** | 读参考项目 / 全网 / 深仓 | 用户说「去调研 / 对齐 multica / 查 references」→ **派子代理或 `/research`**，**不要**在 Owner 窗里通读 upstream |
-| **审查** | 可选 | 需要时 `/code-review`；**不挡**日常 main 直推 |
-| **CI** | 机器门禁 | push `main` / 分支均可 typecheck（以仓库 workflow 为准） |
-| **人** | 主题、产品拍板 | 默认可授权 agent **直接维护 main**；要隔离实验时再用 `feat/*` |
+| **垂直切片** | 做什么、多厚 | 一刀端到端可演示；默认同会话做完 |
+| **Slice Owner** | 从缺口到做绿 | **可自主**调研 → **选题+拍板选项** → implement → Playwright → **push main** |
+| **调研** | 对齐 Multica 等 | **默认可主动**；子代理可选；窗内只留摘要 |
+| **审查** | 可选 | 不挡 main 直推 |
+| **人** | 北星、禁区、喊停 | **不必须每刀点题**；可随时否决/改向 |
 
 **为何改掉计划者/执行者：** Matt 的 grill 很深，计划者会话常先烧半窗；双角色 = 双倍固定成本。偏见隔离改由 **分支 diff 上的 code-review + CI** 承担。长上下文问题用 **按切片/票拆会话 + handoff** 解决，不靠角色名。
 
@@ -154,28 +153,22 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 | 要改领域词 / 难逆决策 | 再开 grill-with-docs + ADR |
 | 要对齐参考实现 / 源码细节 | **调研子代理**（见下），Owner 只吃**结构化摘要** |
 
-### 调研：默认子代理（最高优先级之一）
+### 调研与选型（自动迭代 · 最高优先级之一）
 
-**当用户说「去调研 / 对齐 X / 看看 multica 怎么做 / 查 references」时：**
+1. **默认可主动调研**（人不点「去调研」也要在不确定时先查 Multica）。  
+2. 产出：**短结论 + file:line + 与本仓差异 + 选项 + 推荐**；写入 progress。  
+3. **选型：Owner 自行拍板** 最贴「Multica 体验 + 本仓宪法」的选项并记录；**仅**难逆架构 / 安全 / 人禁区才停问人。  
+4. 禁止实现窗灌大段上游源码。细则：[workflow.md](docs/agents/workflow.md)「自动迭代授权」。
 
-1. **优先**派 **子代理**（或 `/research` / 并行 explore）去读 `references/deep/*`、`references/repos/*`、必要时上游文件。  
-2. 子代理产出：**短结论 + 文件:行 + 与本仓差异 + 推荐选项**（可落 `docs/` 或 ticket Comments / research 笔记）。  
-3. **Slice Owner 会话禁止**为了「调研彻底」在本窗灌入大段上游源码；只合并摘要再决策/实现。  
-4. 仍遵守宪法：决策**先查参考项目**——查的动作在子代理，**拍板**在 Owner/人。
-
-### 一个 feature 的生命周期（默认）
+### 一个 feature 的生命周期（默认 · 自动迭代）
 
 ```
-人 → 开【Slice Owner】会话
-     ├─ 【跨刀开场·默认】读上一刀 closeout/impl + spec/票
-     │     → handoff-based 验收上一刀（intake：通过/有条件通过/需返工）
-     │     → 需返工则先修上一刀；否则再进入下一刀
-     ├─ 短对齐 brainstorm 下一主题（人指定；默认可提候选）
-     ├─ 需要对齐参考？→ 派调研子代理 → 只回收摘要
-     ├─ 必要时 to-spec / to-tickets → /implement → 更新 ticket
-     ├─ 窗将满或一刀未完？→ /handoff → 下一会话续作
-     └─ Playwright 自测够了 → commit on main（或 feat/*）→ git push
-              → 关刀 closeout（证据/偏离/债/CONTEXT 下一刀）
+人（可只定北星）或续会话
+     ├─ intake 上一刀
+     ├─ 主动调研 Multica / 债 / CONTEXT → 选项 → **自行选定下一刀与方案**
+     ├─ implement 厚路径 → Playwright
+     ├─ commit + push main → 关刀（证据/决策/下一刀建议）
+     └─ 窗满 → /handoff 续作同一刀
 ```
 
 **跨刀交接专章：** [`docs/agents/slice-handoff.md`](docs/agents/slice-handoff.md)（关刀清单 · 验上一刀 · 开场提示词模板）。  
@@ -185,10 +178,9 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 会话 | 必须 | 禁止 |
 |---|---|---|
-| **Slice Owner** | 交付可验行为；**Playwright 证据**；偏离写清；**默认可 commit/push main** | 把调研正文塞爆本窗；无证据宣称完成 |
-| **调研子代理** | 可引用结论 + 出处；对照本仓 | 擅自改 `app/**` 业务（除非人明确授权同一任务） |
-| **Code-review** | 需要时双轴 Standards + Spec | 顺便开新 feature；把审查当合并硬门槛（除非人要求） |
-| **人** | 点题；大方向；可随时改回 feat 隔离 | — |
+| **Slice Owner** | 自主调研与选型；可验交付；**Playwright**；**push main**；决策写 progress | 灌上游全文；无证据宣称完成；擅自推翻宪法钉 |
+| **调研子代理** | 摘要 + 出处 + 选项 | 擅自改业务（除非同任务授权） |
+| **人** | 北星 / 禁区 / 否决；可不每刀点题 | — |
 
 ### 票与进度写在哪
 
