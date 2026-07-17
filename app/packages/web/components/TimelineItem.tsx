@@ -44,11 +44,23 @@ export function TimelineItemView({ item }: { item: Comment }) {
     );
   }
 
+  const hasMention = /mention:\/\/(agent|squad)\//.test(item.body);
+  const isDispatchSummary =
+    item.authorId === 'system' && item.body.includes('@提及派发');
+
   return (
-    <div className="timeline-item">
+    <div
+      className={`timeline-item${isDispatchSummary ? ' timeline-item--dispatch' : ''}`}
+    >
       <div className="timeline-meta">
         <span className="timeline-author">{item.authorLabel}</span>
         <span className="timeline-time">{formatTime(item.createdAt)}</span>
+        {isDispatchSummary && (
+          <span className="timeline-badge timeline-badge--dispatch">派发</span>
+        )}
+        {hasMention && !isDispatchSummary && (
+          <span className="timeline-badge timeline-badge--mention">@提及</span>
+        )}
       </div>
       <div className="timeline-body">
         <MarkdownBody source={item.body} />

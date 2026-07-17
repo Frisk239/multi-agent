@@ -1148,12 +1148,20 @@ body {
   border-left-color: var(--color-orange);
 }
 
+.timeline-item--dispatch {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
 .timeline-meta {
   display: flex;
   gap: var(--space-2);
   font-size: var(--text-xs);
   color: var(--text-dim);
   margin-bottom: 4px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .timeline-author {
@@ -1165,6 +1173,17 @@ body {
   background: var(--bg-hover);
   border-radius: 4px;
   padding: 0 6px;
+}
+
+.timeline-badge--mention {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+}
+
+.timeline-badge--dispatch {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .timeline-body--status {

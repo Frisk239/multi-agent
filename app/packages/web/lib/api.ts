@@ -258,15 +258,22 @@ export function useCreateComment(issueId: string) {
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error('评论失败');
-      return res.json() as Promise<Comment>;
+      return res.json() as Promise<Comment & { dispatches?: unknown[] }>;
     },
-    // R9：不做乐观插入；写入 cache + 依赖 WS 幂等
+    // R9：写入 cache；有 @mention 时服务端会追加系统「派发」comment → invalidate 拉全量
     onSuccess: (comment) => {
       qc.setQueryData<Comment[]>(['comments', issueId], (old) => {
         if (!old) return [comment];
         if (old.some((c) => c.id === comment.id)) return old;
         return [...old, comment];
       });
+      const n = Array.isArray(comment.dispatches) ? comment.dispatches.length : 0;
+      if (n > 0) {
+        qc.invalidateQueries({ queryKey: ['comments', issueId] });
+        qc.invalidateQueries({ queryKey: ['runs', issueId] });
+        qc.invalidateQueries({ queryKey: ['runs'] });
+        toastSuccess(`已处理 ${n} 个 @提及派发`);
+      }
     },
     onError: (err) => toastError(errMessage(err, '评论失败')),
   });

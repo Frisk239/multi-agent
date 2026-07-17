@@ -54,8 +54,8 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(comments).where(eq(comments.id, commentId)).get();
     const comment = toComment(row!);
     eventBus.publish({ type: 'comment:created', comment });
-    // S04：comment-trigger 解析 mention 派任务（spec §7.3 入口1）
-    triggerFromComment(comment);
+    // S04 + mention-visibility：解析 mention 派任务并写系统总结 comment
+    const dispatches = triggerFromComment(comment, { announce: true });
 
     // bu01：普通评论写真 Inbox（status_change 在 writer 内过滤）
     notifyCommentCreated(comment, toIssue(issue));
@@ -76,6 +76,7 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.status(201).send(comment);
+    // 201 仍以用户 comment 为主 body；dispatches 供前端 toast / 联调
+    return reply.status(201).send({ ...comment, dispatches });
   });
 }

@@ -41,14 +41,12 @@
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
 - **已合 main（续）：** `issue-assignee-desk`（PR #21）、`board-priority-triage`（PR #22）  
 - **上一刀 intake：** `board-priority-triage` **通过**（已合 main PR #22）— `app/.progress/board-priority-triage-intake.md`  
-- **上一交付：** `issue-detail-edit` 已在 **local main**（`0433bb0`，待 push）；progress `issue-detail-edit-impl-1`  
-- **工程简化：** 默认可 **main 直推**（人 2026-07-17 授权）；见 `docs/agents/merge.md`  
-- **北星：** 纯本地可用编排控制台，体验对标 **Multica**；缺口调研优先 multica（`references/deep/multica.md`）  
-- **迭代约束（2026-07-17）：**  
-  1) 每刀关刀前 **Playwright CLI 自测** Must 路径，证据进 `app/.progress/*-impl*`  
-  2) **定期**对照 Multica 源码/深读，用短差距表调整下一刀方向（非每刀满血通读）  
-  3) 见 [workflow.md](docs/agents/workflow.md) · [slice-handoff.md](docs/agents/slice-handoff.md)  
-- **再下一刀：** Multica 差距优先 **小队/mention 委派感知**；或人点名；新 Owner 先 intake  
+- **已合 / 已推 main：** `issue-detail-edit`（PR #23 / `0433bb0`）；流程简化 docs（`ecb9da4` main 直推）  
+- **本刀：** `mention-dispatch-visibility` — @提及派发系统 comment + 时间线 badge（main 直推）  
+- **工程简化：** 默认可 **main 直推**；见 `docs/agents/merge.md`  
+- **北星：** 纯本地可用 · 体验对标 Multica；调研优先 multica  
+- **迭代约束：** 每刀 Playwright 关刀；定期 Multica 短差距表  
+- **再下一刀：** leader briefing / Run 状态与 mention 联动；或人点名  
 - **工作流：** Slice Owner × 验上一刀 × 调研子代理 × Playwright 关刀；合码 push→CI+review→人远程合并。`AGENTS.md` · [workflow](docs/agents/workflow.md) · [merge](docs/agents/merge.md) · ADR 0001/0002  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
