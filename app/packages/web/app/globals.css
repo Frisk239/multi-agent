@@ -4453,6 +4453,21 @@ button.memory-kind-chip.is-active {
   align-items: center;
   margin-bottom: var(--space-3);
 }
+.runtime-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+a.runtimes-agent-count-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+a.runtimes-agent-count-link:hover {
+  text-decoration: underline;
+}
 
 a.skill-tag--link {
   text-decoration: none;

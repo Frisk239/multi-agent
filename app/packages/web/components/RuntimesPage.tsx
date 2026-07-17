@@ -54,12 +54,44 @@ export function RuntimesPage() {
           <Link href="/agents" className="btn-ghost btn-sm" data-testid="runtimes-to-agents">
             智能体
           </Link>
+          <Link
+            href="/agents?ready=runtime_missing"
+            className="btn-ghost btn-sm"
+            data-testid="runtimes-to-agents-missing"
+          >
+            runtime 缺失
+          </Link>
+          <Link
+            href="/runs?status=failed"
+            className="btn-ghost btn-sm"
+            data-testid="runtimes-to-failed-runs"
+          >
+            失败运行
+          </Link>
         </div>
         {!machine.cwd ? (
           <div className="runtime-cwd-banner" data-testid="runtimes-cwd-banner" role="status">
             <strong>工作区 cwd 未配置</strong>
             <span className="text-sm"> 运行时即使在线，派活仍可能立刻失败。</span>
-            <Link href="/settings" className="btn-secondary btn-sm">去设置</Link>
+            <div className="runtime-banner-actions">
+              <Link href="/settings" className="btn-secondary btn-sm" data-testid="runtimes-cwd-to-settings">
+                去设置
+              </Link>
+              <Link
+                href="/agents?ready=cwd_missing"
+                className="btn-ghost btn-sm"
+                data-testid="runtimes-cwd-to-agents"
+              >
+                智能体 cwd
+              </Link>
+              <Link
+                href="/runs?status=failed"
+                className="btn-ghost btn-sm"
+                data-testid="runtimes-cwd-to-failed"
+              >
+                失败运行
+              </Link>
+            </div>
           </div>
         ) : null}
         {runtimes.some((r) => !r.installed) ? (
@@ -70,6 +102,18 @@ export function RuntimesPage() {
               {runtimes.filter((r) => !r.installed).map((r) => r.label).join('、')}
               。安装并加入 PATH 后点「重新探测」。
             </span>
+            <div className="runtime-banner-actions">
+              <Link
+                href="/agents?ready=runtime_missing"
+                className="btn-secondary btn-sm"
+                data-testid="runtimes-missing-to-agents"
+              >
+                受影响智能体
+              </Link>
+              <Link href="/settings" className="btn-ghost btn-sm" data-testid="runtimes-missing-to-settings">
+                环境诊断
+              </Link>
+            </div>
           </div>
         ) : null}
 
@@ -102,7 +146,21 @@ export function RuntimesPage() {
                       <span className="status-offline">未检测到</span>
                     )}
                   </td>
-                  <td>{rt.agentIds.length ? `${rt.agentIds.length} 个` : '—'}</td>
+                  <td>
+                    {rt.agentIds.length ? (
+                      <Link
+                        href={`/agents?runtime=${encodeURIComponent(rt.id)}`}
+                        className="runtimes-agent-count-link"
+                        data-testid="runtime-agents-link"
+                        data-runtime={rt.id}
+                        title={`筛选 ${rt.label} 智能体`}
+                      >
+                        {rt.agentIds.length} 个
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td>—</td>
                   <td className="runtime-cli">
                     <code>{rt.version ?? '—'}</code>

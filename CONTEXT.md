@@ -90,12 +90,14 @@
 - **已推：** `settings-ops-recovery`（`e87ae9e`）  
 - **已推：** `cmdk-ops-recovery`（`6746e52`）  
 - **已推：** `inbox-bulk-read`（`9ee539b`）  
-- **本刀：** 本会话运营/筛选/失败恢复闭环已连续关刀；下一刀待人指定或 Owner 再选题  
+- **本刀：** `runtimes-recovery-links` — 运行时页 ↔ agents/runs 失败闭环  
+- **closeout：** `app/.progress/runtimes-recovery-links-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
-- **再下一刀建议：** 人指定主题；或执行层可靠性/cwd 持久化策略评审  
+- **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 
