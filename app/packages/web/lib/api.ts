@@ -60,6 +60,7 @@ export type IssuesQuery = {
   q?: string;
   labelId?: string;
   status?: string;
+  priority?: string;
   /** agent | squad — 须与 assigneeId 成对 */
   assigneeType?: 'agent' | 'squad';
   assigneeId?: string;
@@ -75,6 +76,7 @@ function issuesQueryKey(params?: IssuesQuery) {
     params?.q?.trim() || '',
     params?.labelId || '',
     params?.status || '',
+    params?.priority || '',
     params?.assigneeType || '',
     params?.assigneeId || '',
     params?.unassigned ? '1' : '',
@@ -87,6 +89,7 @@ function buildIssuesUrl(params?: IssuesQuery) {
   if (params?.q?.trim()) sp.set('q', params.q.trim());
   if (params?.labelId) sp.set('labelId', params.labelId);
   if (params?.status) sp.set('status', params.status);
+  if (params?.priority) sp.set('priority', params.priority);
   if (params?.assigneeType && params?.assigneeId) {
     sp.set('assigneeType', params.assigneeType);
     sp.set('assigneeId', params.assigneeId);

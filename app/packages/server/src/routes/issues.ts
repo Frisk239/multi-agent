@@ -43,8 +43,16 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { q, labelId, status, assigneeType, assigneeId, unassigned, assigned } =
-      parsed.data;
+    const {
+      q,
+      labelId,
+      status,
+      priority,
+      assigneeType,
+      assigneeId,
+      unassigned,
+      assigned,
+    } = parsed.data;
     const qTrim = q?.trim() ?? '';
     const unassignedOn = unassigned === '1' || unassigned === 'true';
     const assignedOn = assigned === '1' || assigned === 'true';
@@ -58,6 +66,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     if (status) {
       rows = rows.filter((r) => r.status === status);
+    }
+
+    if (priority) {
+      rows = rows.filter((r) => r.priority === priority);
     }
 
     if (labelId) {
