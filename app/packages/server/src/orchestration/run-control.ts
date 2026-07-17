@@ -20,3 +20,12 @@ export function abortRun(runId: string): boolean {
 export function clearRunAbort(runId: string): void {
   aborts.delete(runId);
 }
+
+// bu01：orphan 收尸 / 调试用 —— 本进程是否仍持有该 run 的 AbortController
+export function hasRunAbort(runId: string): boolean {
+  return aborts.has(runId);
+}
+
+export function listActiveRunIds(): string[] {
+  return [...aborts.keys()];
+}

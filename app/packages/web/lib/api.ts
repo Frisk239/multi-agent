@@ -12,6 +12,7 @@ import type {
   SquadSummary,
   SquadDetail,
   InboxItem,
+  InboxListResponse,
   AgentRun,
   RunMessage,
   RuntimesResponse,
@@ -100,15 +101,61 @@ export function useSquad(id: string) {
   });
 }
 
-// GET /api/inbox —— S12 合成 Inbox（不落库）
+// GET /api/inbox —— bu01 真表 InboxListResponse
 export function useInbox() {
-  return useQuery<InboxItem[]>({
+  return useQuery<InboxListResponse>({
     queryKey: ['inbox'],
     queryFn: async () => {
       const res = await fetch(`${API}/inbox`);
       if (!res.ok) throw new Error('加载 Inbox 失败');
       return res.json();
     },
+  });
+}
+
+// GET /api/inbox/unread-count —— 侧栏角标
+export function useInboxUnreadCount() {
+  return useQuery<{ count: number }>({
+    queryKey: ['inbox-unread'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/inbox/unread-count`);
+      if (!res.ok) throw new Error('加载未读失败');
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useMarkInboxRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/inbox/${id}/read`, { method: 'POST' });
+      if (!res.ok) throw new Error('标记已读失败');
+      return res.json() as Promise<InboxItem>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+    },
+    onError: (err) => toastError(errMessage(err, '标记已读失败')),
+  });
+}
+
+export function useArchiveInbox() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/inbox/${id}/archive`, { method: 'POST' });
+      if (!res.ok) throw new Error('归档失败');
+      return res.json() as Promise<InboxItem>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+      toastSuccess('已归档');
+    },
+    onError: (err) => toastError(errMessage(err, '归档失败')),
   });
 }
 

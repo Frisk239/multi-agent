@@ -3,9 +3,10 @@ import { eq, asc } from 'drizzle-orm';
 import { CreateCommentInput } from '@ma/shared';
 import { db } from '../db/client.js';
 import { comments, issues } from '../db/schema.js';
-import { toComment } from '../db/reshape.js';
+import { toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { triggerFromComment } from '../orchestration/comment-trigger.js';
+import { notifyCommentCreated } from '../orchestration/inbox-writer.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { memoryManager } from '../memory/manager.js';
 
@@ -55,6 +56,9 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
     eventBus.publish({ type: 'comment:created', comment });
     // S04：comment-trigger 解析 mention 派任务（spec §7.3 入口1）
     triggerFromComment(comment);
+
+    // bu01：普通评论写真 Inbox（status_change 在 writer 内过滤）
+    notifyCommentCreated(comment, toIssue(issue));
 
     // S11：member 普通评论 → ambient 记忆（不含 status_change）
     if (comment.type === 'comment' && comment.authorType === 'member') {

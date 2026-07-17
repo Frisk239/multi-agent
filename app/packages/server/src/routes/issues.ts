@@ -8,6 +8,10 @@ import { eventBus } from '../orchestration/event-bus.js';
 import { cancelActiveRunsForIssue, enqueueAgentRun, enqueueLeaderRun } from '../orchestration/run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
+import {
+  ensureIssueSubscriber,
+  notifyAssigned,
+} from '../orchestration/inbox-writer.js';
 import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
@@ -84,6 +88,12 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     const issue = toIssue(row!);
     eventBus.publish({ type: 'issue:created', issue });
+
+    // bu01：创建者订阅；有指派则写 assigned 通知
+    ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'creator');
+    if (input.assignee) {
+      notifyAssigned(issue);
+    }
 
     // S12 N2：Create 带 assignee 与 PUT 指派一致，立即 enqueue
     if (input.assignee?.type === 'agent' && input.assignee.id) {
@@ -176,6 +186,12 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       const nextId = input.assignee?.id ?? null;
       const nextKey = assigneeKey(nextType, nextId);
       if (prevKey !== nextKey) {
+        // bu01：指派变更 → subscriber + assigned inbox
+        if (nextType && nextId) {
+          notifyAssigned(issue);
+        } else {
+          ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'assignee_watch');
+        }
         cancelActiveRunsForIssue(id);
         if (nextType === 'agent' && nextId) {
           enqueueAgentRun(id, nextId);

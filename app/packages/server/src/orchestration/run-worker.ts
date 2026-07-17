@@ -1,14 +1,19 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages, comments, agents, issues } from '../db/schema.js';
-import { toAgentRun, toRunMessage, toComment } from '../db/reshape.js';
+import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
+import { touchRunHeartbeat } from './stale-runs.js';
+import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
 import { buildPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
+
+// bu01：执行中 heartbeat 间隔（plan 锁定）
+const HEARTBEAT_INTERVAL_MS = 5_000;
 
 // RunWorker —— 主进程内的单线程 run 执行循环（spec §6.2，学 multica daemon）。
 // S04 并发模型改造（★核心重写，spec §6.2 R3）：
@@ -56,10 +61,10 @@ async function tick(): Promise<void> {
       .get();
     if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
 
-    // claim（条件 UPDATE queued→running）
+    // claim（条件 UPDATE queued→running）；bu01：同步写 lastHeartbeatAt
     const now = Date.now();
     db.update(agentRuns)
-      .set({ status: 'running', startedAt: now })
+      .set({ status: 'running', startedAt: now, lastHeartbeatAt: now })
       .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
       .run();
     const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
@@ -96,6 +101,10 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   const mcpServers = agentRow?.mcpServers ?? null;
 
   const signal = registerRunAbort(runRow.id);
+  // bu01：执行中每 5s touch heartbeat；finally 必清
+  const hb = setInterval(() => {
+    touchRunHeartbeat(runRow.id);
+  }, HEARTBEAT_INTERVAL_MS);
   let seq = 0;
   const nextSeq = () => ++seq;
 
@@ -212,10 +221,21 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     eventBus.publish({ type: 'comment:created', comment });
     // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
     triggerFromComment(comment);
+    // bu01：agent 终态 comment 也进真 Inbox
+    const issueForComment = db
+      .select()
+      .from(issues)
+      .where(eq(issues.id, runRow.issueId))
+      .get();
+    if (issueForComment) {
+      notifyCommentCreated(comment, toIssue(issueForComment));
+    }
     const r = toAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
     );
     eventBus.publish({ type: 'run:completed', run: r });
+    // bu01：run 终态 → inbox（completed | failed；cancelled 不写）
+    notifyRunTerminal(r);
 
     // S09：成功 run 才写记忆（失败/取消路径禁止调用）
     try {
@@ -246,6 +266,8 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   } catch (err) {
     clearRunAbort(runRow.id);
     await failRun(runRow.id, String(err));
+  } finally {
+    clearInterval(hb);
   }
 }
 
@@ -267,5 +289,7 @@ async function failRun(runId: string, error: string): Promise<void> {
       db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!,
     );
     eventBus.publish({ type: 'run:failed', run: r });
+    // bu01：失败终态 → inbox
+    notifyRunTerminal(r);
   }
 }

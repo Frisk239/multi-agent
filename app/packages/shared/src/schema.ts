@@ -48,6 +48,8 @@ export const AgentRun = z.object({
   error: z.string().nullable(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
+  // bu01：执行中 heartbeat；stale sweeper / orphan 恢复用
+  lastHeartbeatAt: z.string().datetime().nullable(),
   // S04：squad-leader run 标记（照 multica 090/127 migration）
   isLeader: z.boolean().default(false),
   squadId: BusinessId.nullable(),
@@ -351,20 +353,49 @@ export const WikiCliErrorEnvelope = z.object({
 });
 export type WikiCliErrorEnvelope = z.infer<typeof WikiCliErrorEnvelope>;
 
-// —— S12：Inbox 合成条目（不落库；impl-2 路由消费）——
-export const InboxItemKind = z.enum(['comment', 'run_completed', 'run_failed']);
-export type InboxItemKind = z.infer<typeof InboxItemKind>;
+// —— bu01：Inbox 真源契约（impl-1 落 schema；impl-2 换真表 API）——
+export const InboxItemType = z.enum([
+  'comment',
+  'run_completed',
+  'run_failed',
+  'assigned',
+]);
+export type InboxItemType = z.infer<typeof InboxItemType>;
+/** @deprecated 兼容 S12 UI：kind === type */
+export const InboxItemKind = InboxItemType;
+export type InboxItemKind = InboxItemType;
+
+export const InboxSeverity = z.enum(['action_required', 'attention', 'info']);
+export type InboxSeverity = z.infer<typeof InboxSeverity>;
 
 export const InboxItem = z.object({
-  id: z.string(),
-  kind: InboxItemKind,
-  createdAt: z.string().datetime(),
-  issueId: BusinessId,
+  id: BusinessId,
+  type: InboxItemType,
+  kind: InboxItemType, // 与 type 相同，兼容 S12 UI
+  severity: InboxSeverity,
+  title: z.string(),
+  body: z.string().nullable(),
+  summary: z.string(), // title 或 title+body 截断，列表一行文案
+  issueId: BusinessId.nullable(),
   issueIdentifier: z.string().optional(),
   issueTitle: z.string().optional(),
-  summary: z.string(),
+  read: z.boolean(),
+  archived: z.boolean(),
+  createdAt: z.string().datetime(),
 });
 export type InboxItem = z.infer<typeof InboxItem>;
+
+export const InboxListResponse = z.object({
+  items: z.array(InboxItem),
+  unreadCount: z.number().int().nonnegative(),
+});
+export type InboxListResponse = z.infer<typeof InboxListResponse>;
+
+export const InboxItemEvent = z.object({
+  type: z.literal('inbox:item'),
+  item: InboxItem,
+});
+export type InboxItemEvent = z.infer<typeof InboxItemEvent>;
 
 // —— S09：Memory ——
 export const MemoryItem = z.object({
@@ -425,4 +456,5 @@ export type DomainEvent =
   | RunLifecycleEvent
   | RunProgressEvent
   | RunMessageEvent
-  | WikiPageCreatedEvent;
+  | WikiPageCreatedEvent
+  | InboxItemEvent;
