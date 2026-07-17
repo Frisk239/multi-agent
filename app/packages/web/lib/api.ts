@@ -470,6 +470,7 @@ export function useRuns(issueId: string) {
 export function useWorkspaceRuns(params?: {
   status?: string;
   agentId?: string;
+  squadId?: string;
   kind?: string;
   /** 仅小队 leader run */
   isLeader?: boolean;
@@ -477,6 +478,7 @@ export function useWorkspaceRuns(params?: {
 }) {
   const status = params?.status;
   const agentId = params?.agentId;
+  const squadId = params?.squadId;
   const kind = params?.kind;
   const isLeader = params?.isLeader;
   const limit = params?.limit ?? 50;
@@ -486,6 +488,7 @@ export function useWorkspaceRuns(params?: {
       'workspace',
       status ?? '',
       agentId ?? '',
+      squadId ?? '',
       kind ?? '',
       isLeader === undefined ? '' : isLeader ? '1' : '0',
       limit,
@@ -494,6 +497,7 @@ export function useWorkspaceRuns(params?: {
       const sp = new URLSearchParams();
       if (status) sp.set('status', status);
       if (agentId) sp.set('agentId', agentId);
+      if (squadId) sp.set('squadId', squadId);
       if (kind) sp.set('kind', kind);
       if (isLeader === true) sp.set('isLeader', '1');
       if (isLeader === false) sp.set('isLeader', '0');

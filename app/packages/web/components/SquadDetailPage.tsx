@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { SquadRunsTimeline } from './SquadRunsTimeline';
 
 function readinessClass(status: AgentReadiness['status'] | undefined): string {
   if (status === 'ready') return 'readiness-chip readiness-ready';
@@ -250,6 +251,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
         </aside>
 
         <div className="agent-main">
+          <SquadRunsTimeline squadId={squadId} />
           <form className="ops-form ops-form-inline" onSubmit={save}>
             <label className="ops-field">
               <span>名称</span>

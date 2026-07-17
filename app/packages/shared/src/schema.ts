@@ -76,6 +76,8 @@ export type ListRunsStatus = z.infer<typeof ListRunsStatus>;
 export const ListRunsQuery = z.object({
   issueId: BusinessId.optional(),
   agentId: BusinessId.optional(),
+  // squad-runs-timeline：按小队过滤 leader/member run
+  squadId: BusinessId.optional(),
   status: ListRunsStatus.optional(),
   kind: AgentRunKind.optional(),
   // isLeader=1|true：仅小队 leader run（对齐 Multica leader task 列表）
