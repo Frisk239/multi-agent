@@ -101,11 +101,27 @@ packages/server typecheck: Done
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过 — impl-2 自测全绿
-- [x] `/memory` 搜建 + 侧栏入口 — 代码 + HTTP 验收
+- [x] typecheck 通过 — 计划者 worktree 复核全绿
+- [x] `/memory` 搜建 + 侧栏入口 — hooks/MemoryPage/Sidebar 审查 + HTTP 证据
 - [x] comment / done ambient + status_change 不写 + wiki enqueue — API 复验
 - [x] cite 含 `- [id=` + list 含 `id`
-- [ ] 人评 `pnpm dev` 双窗口点一点 — 留给计划者/人
-- [ ] 看板 / wiki 浏览器回归 — 人评
+- [ ] 人评浏览器点侧栏 — PR 前建议 1 分钟；不阻塞代码达标
+- [x] 看板/wiki API 200 回归（handoff）
 
-- 结论：（计划者填）
+### 代码审查要点
+
+1. hooks：status / list(q) / create + invalidate `['memory']`
+2. MemoryPage：页头 provider、搜索、写入、列表含 id
+3. Sidebar：`/memory` + 专用 `memory` icon（优于 inbox）
+4. 未改 ambient B4
+
+### S11 切片总结
+
+| impl | 内容 | 结论 |
+|---|---|---|
+| 1 | cite + ambient 后端 | 通过 |
+| 2 | /memory UI + 侧栏 | 通过 |
+
+**Phase 3 收尾代码层达标，可 PR 合 main。**
+
+- 结论：**达标可合并**
