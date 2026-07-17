@@ -61,19 +61,39 @@ function parseKindFilter(raw: string | null): KindFilter {
   return '';
 }
 
-function hrefForItem(item: InboxItem): string | null {
-  if (item.runId) {
-    const sp = new URLSearchParams();
-    sp.set('run', item.runId);
-    if (item.kind === 'run_failed' || item.type === 'run_failed') sp.set('status', 'failed');
-    if (item.kind === 'run_completed' || item.type === 'run_completed') {
-      sp.set('status', 'completed');
-    }
-    return `/runs?${sp.toString()}`;
+function runListHref(item: InboxItem): string | null {
+  if (!item.runId) {
+    if (item.kind === 'run_failed' || item.type === 'run_failed') return '/runs?status=failed';
+    return null;
   }
-  if (item.issueId) return `/issues/${item.issueId}`;
-  if (item.kind === 'run_failed' || item.type === 'run_failed') return '/runs?status=failed';
-  return null;
+  const sp = new URLSearchParams();
+  sp.set('run', item.runId);
+  if (item.kind === 'run_failed' || item.type === 'run_failed') sp.set('status', 'failed');
+  if (item.kind === 'run_completed' || item.type === 'run_completed') {
+    sp.set('status', 'completed');
+  }
+  return `/runs?${sp.toString()}`;
+}
+
+function issueHref(item: InboxItem): string | null {
+  if (!item.issueId) return null;
+  // 失败项进详情轨迹区（含 run 历史切换）；其它进详情
+  if (item.kind === 'run_failed' || item.type === 'run_failed') {
+    return `/issues/${item.issueId}#run-trace`;
+  }
+  return `/issues/${item.issueId}`;
+}
+
+/** 行点击主入口：失败优先 Issue 诊断；有 run 再列表；否则 Issue */
+function primaryHrefForItem(item: InboxItem): string | null {
+  const isFail = item.kind === 'run_failed' || item.type === 'run_failed';
+  if (isFail && item.issueId) return issueHref(item);
+  return runListHref(item) ?? issueHref(item);
+}
+
+// 兼容旧名
+function hrefForItem(item: InboxItem): string | null {
+  return primaryHrefForItem(item);
 }
 
 // bu01 + inbox-filter-url：真 Inbox + 未读/类型 URL 可分享
@@ -164,7 +184,7 @@ function InboxPageInner() {
             )}
           </div>
           <div className="page-desc">
-            筛选同步 URL（?read=&kind=）；Run 终态可进 /runs?run=
+            筛选同步 URL（?read=&kind=）；失败优先开 Issue 轨迹，亦可进运行列表
           </div>
         </div>
       </div>
@@ -304,18 +324,42 @@ function InboxPageInner() {
                   >
                     归档
                   </button>
-                  {hrefForItem(item) && (
+                  {issueHref(item) ? (
                     <Link
-                      href={hrefForItem(item)!}
+                      href={issueHref(item)!}
                       className="inbox-action-btn inbox-action-link"
-                      data-testid={item.runId ? 'inbox-open-run' : 'inbox-open-issue'}
+                      data-testid="inbox-open-issue"
                       onClick={() => {
                         if (!item.read) markRead.mutate(item.id);
                       }}
                     >
-                      {item.runId ? '运行' : '打开'}
+                      Issue
                     </Link>
-                  )}
+                  ) : null}
+                  {runListHref(item) ? (
+                    <Link
+                      href={runListHref(item)!}
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-open-run"
+                      onClick={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    >
+                      运行
+                    </Link>
+                  ) : null}
+                  {!issueHref(item) && !runListHref(item) && primaryHrefForItem(item) ? (
+                    <Link
+                      href={primaryHrefForItem(item)!}
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-open-fallback"
+                      onClick={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    >
+                      打开
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             </li>
