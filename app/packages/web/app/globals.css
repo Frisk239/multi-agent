@@ -2931,6 +2931,22 @@ body {
   white-space: nowrap;
 }
 
+.active-runs-chip {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.active-runs-chip--hot {
+  color: color-mix(in srgb, #3b82f6 75%, var(--text));
+  font-weight: 600;
+}
+
+.active-runs-chip--hot:hover {
+  text-decoration: underline;
+}
+
 .cmdk-overlay {
   position: fixed;
   inset: 0;

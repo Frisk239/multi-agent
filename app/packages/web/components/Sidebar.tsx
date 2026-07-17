@@ -241,6 +241,26 @@ export function Sidebar() {
         <span className="working-count" title="In Progress / In Review">
           工作中 {workingCount}
         </span>
+        {(activeRuns?.count ?? 0) > 0 ? (
+          <Link
+            href="/runs?status=active"
+            className="active-runs-chip active-runs-chip--hot"
+            data-testid="sidebar-active-runs"
+            data-count={String(activeRuns?.count ?? 0)}
+            title={`queued ${activeRuns?.queued ?? 0} · running ${activeRuns?.running ?? 0}`}
+          >
+            在途 {activeRuns?.count}
+          </Link>
+        ) : (
+          <span
+            className="active-runs-chip"
+            data-testid="sidebar-active-runs"
+            data-count="0"
+            title="无 queued/running run"
+          >
+            在途 0
+          </span>
+        )}
       </div>
 
       <div className="sidebar-actions">

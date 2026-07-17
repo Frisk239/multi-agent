@@ -75,10 +75,11 @@
 - **上一刀 intake：** `wiki-health-entry` **通过** — `app/.progress/wiki-health-entry-intake.md`  
 - **已推/本地：** `runs-active-nav`（`a3538f2`；push 曾受 GitHub 网络影响）  
 - **已推：** `automation-next-run`（`bd6ec14`）  
-- **本刀：** `cmdk-active-runs` — CmdK 打开活跃运行列表  
+- **本地：** `cmdk-active-runs`（`5574b1c`）  
+- **本刀：** `sidebar-active-chip` — 状态行「在途 N」深链  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** automation 模板预览；workingCount↔active runs；Issue 详情 active run 条  
+- **再下一刀建议：** automation 标题模板预览；Issue 详情 active run 条  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
