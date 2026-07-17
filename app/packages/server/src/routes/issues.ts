@@ -10,6 +10,7 @@ import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
+import { memoryManager } from '../memory/manager.js';
 
 const WS_ID = 'ws-local';
 
@@ -177,9 +178,19 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // S08：Issue 完成 → 入队 wiki ingest（spec B9），不再 fire-and-forget 直调
+    // S11：并列 ambient 短记忆（B4 / B6，失败不挡 HTTP）
     if (statusChanged && input.status === 'done') {
       const jobId = enqueueWikiIngest(id);
       if (jobId) wakeWikiIngestWorker();
+
+      const desc = issue.description?.trim()
+        ? `\n${issue.description.length > 500 ? issue.description.slice(0, 500) : issue.description}`
+        : '';
+      memoryManager.ambientCapture({
+        kind: 'issue_done',
+        issueId: id,
+        text: `[ambient:issue_done] Issue ${issue.identifier}: ${issue.title}\nStatus → done${desc}`,
+      });
     }
 
     return reply.send(issue);
