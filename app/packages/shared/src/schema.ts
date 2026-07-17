@@ -270,12 +270,53 @@ export const SetIssueLabelsInput = z.object({
 });
 export type SetIssueLabelsInput = z.infer<typeof SetIssueLabelsInput>;
 
-// issue-find：GET /api/issues 查询
-export const ListIssuesQuery = z.object({
-  q: z.string().optional(),
-  labelId: BusinessId.optional(),
-  status: IssueStatus.optional(),
-});
+// issue-find + issue-assignee-desk：GET /api/issues 查询
+const QueryBool = z.union([
+  z.literal('1'),
+  z.literal('true'),
+  z.literal('0'),
+  z.literal('false'),
+]);
+
+export const ListIssuesQuery = z
+  .object({
+    q: z.string().optional(),
+    labelId: BusinessId.optional(),
+    status: IssueStatus.optional(),
+    // 具体指派：须成对
+    assigneeType: z.enum(['agent', 'squad']).optional(),
+    assigneeId: BusinessId.optional(),
+    // unassigned=1：仅未指派；assigned=1：任一 agent/squad
+    unassigned: QueryBool.optional(),
+    assigned: QueryBool.optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasType = data.assigneeType != null;
+    const hasId = data.assigneeId != null;
+    if (hasType !== hasId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'assigneeType 与 assigneeId 须成对传入',
+        path: hasType ? ['assigneeId'] : ['assigneeType'],
+      });
+    }
+    const unassignedOn = data.unassigned === '1' || data.unassigned === 'true';
+    const assignedOn = data.assigned === '1' || data.assigned === 'true';
+    if (unassignedOn && (hasType || hasId || assignedOn)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'unassigned 与 assignee/assigned 互斥',
+        path: ['unassigned'],
+      });
+    }
+    if (assignedOn && (hasType || hasId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'assigned 与具体 assignee 互斥',
+        path: ['assigned'],
+      });
+    }
+  });
 export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
 
 // issue-find：GET /api/labels?includeArchived=1

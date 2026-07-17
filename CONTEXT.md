@@ -36,11 +36,11 @@
 
 ## 当前方位（2026-07-17）
 
-- **已合 main：** S01–S12；补1–5；产品演进 `run-observability`（PR #17）、`wiki-memory-ops`（PR #18）、`issue-labels`（PR #19）  
+- **已合 main：** S01–S12；补1–5；产品演进 `run-observability`（PR #17）、`wiki-memory-ops`（PR #18）、`issue-labels`（PR #19）、`issue-find`（PR #20）  
 - **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
 - **主线：产品演进** — 当项目/产品继续做垂直切片；主题由人按**日常使用价值**点名（非答辩清单驱动）  
-- **上一刀 intake：** `issue-labels` **有条件通过**（已合 main PR #19）— `app/.progress/issue-labels-intake.md`  
-- **本刀进行中：** `issue-find`（服务端 Issue 筛选 + 标签软归档 + CmdK/看板查找加厚）— `.scratch/issue-find/`、`feat/issue-find`  
+- **上一刀 intake：** `issue-find` **有条件通过**（已合 main PR #20）— `app/.progress/issue-find-intake.md`  
+- **本刀进行中：** `issue-assignee-desk`（服务端按指派筛 Issue + 看板 `?assignee=` + 侧栏「我的 issue」）— `.scratch/issue-assignee-desk/`、`feat/issue-assignee-desk`  
 - **再下一刀：** 待人点名；新 Owner 先 intake 本刀 closeout 再短对齐（见 [slice-handoff.md](docs/agents/slice-handoff.md)）  
 - **工作流：** Slice Owner × 验上一刀 × 调研子代理；合码 push→CI+review→人远程合并。`AGENTS.md` · [workflow](docs/agents/workflow.md) · [merge](docs/agents/merge.md) · ADR 0001/0002  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
