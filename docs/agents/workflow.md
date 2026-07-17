@@ -2,7 +2,7 @@
 
 > 技能总路由：`/ask-matt`。  
 > **默认编排：** 人 → **Slice Owner** → **先按交接文档验收上一刀** → **再 brainstorm 下一刀** → implement → **push feat/** → CI+review → **人远程合并**。  
-> **可调用 skill：** 项目内 [`.agents/skills/slice-owner`](../../.agents/skills/slice-owner/SKILL.md)（`/slice-owner` 或描述触发）固化硬顺序；细则仍以本页 + [slice-handoff.md](./slice-handoff.md) + [merge.md](./merge.md) + ADR 0001/0002 为真源。
+> **可调用 skill：** 全局 **`/slice-owner`**（`~/.zcode/skills/slice-owner`，不进本仓 git）固化硬顺序；细则仍以本页 + [slice-handoff.md](./slice-handoff.md) + [merge.md](./merge.md) + ADR 0001/0002 为真源。
 
 ## 模型
 
