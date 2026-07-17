@@ -13,7 +13,7 @@ type ProviderWithAddRaw = MemoryProvider & {
       agentId?: string | null;
       runId?: string | null;
     },
-  ) => MemoryItemView;
+  ) => MemoryItemView | Promise<MemoryItemView>;
 };
 
 function hasAddRaw(provider: MemoryProvider): provider is ProviderWithAddRaw {
@@ -105,11 +105,15 @@ export class MemoryManager {
   async addCurated(text: string, issueId?: string): Promise<MemoryItemView | void> {
     if (!this.external?.isAvailable()) throw new Error('memory provider 不可用');
     if (hasAddRaw(this.external)) {
-      return this.external.addRaw(text, {
-        issueId: issueId ?? null,
-        agentId: null,
-        runId: null,
-      });
+      // S10：PgvectorProvider.addRaw 返回 Promise；Sqlite 仍同步。统一 await。
+      const created = await Promise.resolve(
+        this.external.addRaw(text, {
+          issueId: issueId ?? null,
+          agentId: null,
+          runId: null,
+        }),
+      );
+      return created;
     }
     await this.external.syncTurn({
       sessionId: issueId ?? 'manual',
