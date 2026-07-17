@@ -49,3 +49,6 @@ pnpm-debug.log*
 # ── 工具产物（验收/MCP 调试产生，不进版本库）──
 .playwright-mcp/
 mcps/
+
+# ── git worktrees（隔离开发目录）──
+.worktrees/
