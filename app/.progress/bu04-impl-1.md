@@ -61,10 +61,11 @@ Smoke（Fastify `inject`，临时脚本未入库）：
 
 ## 验收结论（仅计划者填）
 
-- [ ] shared 契约符合 spec  
-- [ ] `GET /api/settings/status` 200 + shape  
-- [ ] 无密钥字段；假 key 不进 body  
-- [ ] 无 CWD → overall `blocked`  
-- [ ] typecheck 通过  
-- [ ] 未做 Web UI（符合 impl-1 范围）  
-- 结论：_待计划者填_
+- [x] shared 契约符合 spec — SettingsOverall/Check/StatusResponse  
+- [x] `GET /api/settings/status` 200 + shape — buildSettingsStatus + register  
+- [x] 无密钥字段；假 key 不进 body — secrets 仅 boolean；smoke 采信  
+- [x] 无 CWD → overall `blocked` — 仅 cwd error 触发 blocked  
+- [x] typecheck 通过 — 计划者复验全绿  
+- [x] 未做 Web UI（符合 impl-1 范围）  
+- 偏离可接受：inject smoke 未 init memory → memory error（handoff 已说明）  
+- 结论：**impl-1 达标，允许进入 impl-2（Task 3–4）**
