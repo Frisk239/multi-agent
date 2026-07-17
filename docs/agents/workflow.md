@@ -1,59 +1,115 @@
-# 工作流 — idea → ship（本仓适配）
+# 工作流 — 计划者/执行者 × Matt skills（本仓）
 
-> 技能路由总览见本机 `/ask-matt`。本文是 **multi-agent 仓库专用**落地约定。
+> 技能总路由：`/ask-matt`。  
+> **编排不变：** 人 → **计划者主代理** → **执行者子代理**（可多棒串行）。  
+> **工具换成 Matt skills：** 各角色会话内显式调用，不替代分工。
 
-## 主链路（有代码库）
+## 两层模型
 
 ```
-/grill-with-docs          把想法拷问清楚 → 维护 CONTEXT.md + 需要时 ADR
-    ↓
-（可选）/handoff → /prototype → /handoff   必须跑起来才能决的题
-    ↓
-  单会话能做完？
-    ├─ 是 → /implement（内含 tdd 精神 + 结束 /code-review）
-    └─ 否 → /to-spec → /to-tickets → 每个 ticket 新会话 /implement
+                    ┌──────────── 人（编排 / 合 PR / 拍板）────────────┐
+                    │                                                    │
+                    ▼                                                    │
+           ┌─────────────────┐     派票 / 收验收结论                      │
+           │ 计划者主代理     │◄────────────────────────────────────────┤
+           │ grill / to-spec │                                         │
+           │ to-tickets      │     kickoff + 验收注意点                   │
+           │ 验收 / 进度文档  │──────────────────┐                       │
+           └─────────────────┘                  │                       │
+                    ▲                           ▼                       │
+                    │ 验收                  ┌──────────────┐            │
+                    └───────────────────────│ 执行者子代理  │×N 串行     │
+                                            │ /implement   │            │
+                                            │ 自测 / push  │────────────┘
+                                            └──────────────┘
 ```
 
-**上下文卫生：** grill → spec → tickets 尽量同一窗口；每个 `/implement` **清上下文**，只读 ticket + CONTEXT。
+| 层 | 谁 | 干什么 | 典型 skills |
+|---|---|---|---|
+| **编排** | 计划者主代理 | 想清楚、拆票、kickoff、验收、不写业务代码 | `/grill-with-docs`、`/to-spec`、`/to-tickets`、`/wayfinder`、`/handoff` |
+| **执行** | 执行者子代理 | 按票实现、测绿、交证据 | `/implement`、`/tdd`、结束前可 `/code-review` 自检 |
+| **审查** | 新人会话 | PR diff | `/code-review` |
+| **人** | 你 | 开哪个会话、合 main | — |
 
-## 大而雾
+## 主链路（多会话 feature）
 
-- `/wayfinder` — 决策票地图，产出 **决定** 不是功能；地图清晰后 **回到 `/to-spec`**，不要从 map 直接 implement。
+```
+【计划者会话】
+  /grill-with-docs  →  CONTEXT.md / ADR
+  （可选）/handoff → 新会话 /prototype → /handoff 回计划者
+  /to-spec          →  .scratch/<feature>/spec.md
+  /to-tickets       →  .scratch/<feature>/issues/0N-*.md
+  写 planner kickoff（ticket 评论或 app/.progress/*-planner-0.md）
+
+【人】派执行者 1（frontier 票，常是契约/API）
+
+【执行者 1 会话】（清上下文）
+  读 ticket + CONTEXT + AGENTS
+  /implement → 自测 → 更新 ticket / 可选 impl handoff → push feat/*
+
+【计划者会话】（可同会话续或新开）
+  验收 → 通过则勾票 + 给执行者 2 的注意点
+
+【人】派执行者 2 …
+
+【计划者】整刀可 PR
+【人】开 PR → 【新会话】/code-review → 【人】合 main
+```
+
+**单票小改：** 人可直接派执行者 `/implement`，计划者可省略；仍 PR + code-review。
+
+## 角色铁律（与 AGENTS.md 一致）
+
+- 计划者 **禁止** 写 `app/**` 业务实现（文档、进度、冲突标记清理除外）。  
+- 执行者 **禁止** push main、禁止做未派发的票。  
+- 票之间有接口依赖 → **串行**；`Blocked by` 写清。
+
+## 产物放哪
+
+| 产物 | 路径 |
+|---|---|
+| Spec | `.scratch/<feature>/spec.md` |
+| Tickets | `.scratch/<feature>/issues/0N-*.md` |
+| 计划者 kickoff/验收 | ticket `## Comments` 或 `app/.progress/<feature>-planner-k.md` |
+| 执行者交付证据 | ticket 勾选 + 可选 `app/.progress/<feature>-impl-k.md` |
+| 跨窗浓缩 | `/handoff` |
 
 ## 入口匝道
 
-| 情况 | Skill |
+| 情况 | 谁开 | Skill |
+|---|---|---|
+| 想法模糊 | 计划者 | `/grill-with-docs` |
+| 特大/特雾 | 计划者 | `/wayfinder` → 再 to-spec |
+| 外来 bug 堆 | 计划者或人 | `/triage` → 派执行者 |
+| 难 debug | 执行者或专项 | `/diagnosing-bugs` |
+| 不会选 skill | 谁卡谁问 | `/ask-matt` |
+
+## 与旧 superpowers 对照
+
+| 旧动作 | 融合后 |
 |---|---|
-| 外来 bug/请求堆着 | `/triage` → `ready-for-agent` → `/implement` |
-| 难 debug | `/diagnosing-bugs` |
-| 不知道用哪个 skill | `/ask-matt` |
-| 首次配本仓 skills | `/setup-matt-pocock-skills`（本仓已手配 `docs/agents/*`） |
+| brainstorming | 计划者 `/grill-with-docs` |
+| writing-plans 长 checkbox | 计划者 `/to-spec` + `/to-tickets` |
+| 计划者只验收 | **保留** |
+| 另派执行者实现 | **保留**；执行者用 `/implement` |
+| `app/.progress` handoff | **可保留** 作验收条；票为真源 |
+| docs/superpowers/plans | 历史参考；新票写 acceptance |
 
-## 与本仓旧习惯对照
+## Git
 
-| 旧（superpowers / 计划者-执行者） | 新 |
-|---|---|
-| brainstorming 会话 | `/grill-with-docs` 或 `/grilling` |
-| writing-plans 长 plan.md | `/to-spec` + `/to-tickets`（tracer bullet 票） |
-| 计划者验收 + 另派执行者 | 人编排；**一票一会话** `/implement` |
-| `app/.progress/bu0N-impl-k.md` | ticket 内自测记录 + 可选 progress 笔记；跨会话用 `/handoff` |
-| 厚切片 2 棒 impl | tickets 的 **Blocked by** 表达依赖；frontier 可并行（真无依赖时） |
-| docs/superpowers/plans 逐步 checkbox | 票的 Acceptance criteria + implement |
+- 执行者：`feat/<slug>` 上提交；不 push main  
+- 计划者：文档可 `docs:` 进 main  
+- 合码：人 + PR + 新会话 code-review  
 
-## Git（不变）
-
-- `app/**` 代码：`feat/<slug>` → PR → 新会话 `/code-review` → 合 main  
-- 文档可 `docs:` 直接 main  
-- Conventional Commits  
-
-## 本地工单示例
+## 示例目录
 
 ```
 .scratch/bu05-automation/
-  spec.md
+  spec.md                          # 链到历史 superpowers spec
   issues/
-    01-schema-dispatch.md    # Blocked by: None
-    02-automation-ui.md      # Blocked by: 01
+    01-schema-dispatch.md          # Blocked by: None
+    02-automation-ui.md            # Blocked by: 01
+app/.progress/
+  bu05-planner-0.md                # 可选 kickoff
+  bu05-impl-1.md                   # 可选执行证据
 ```
-
-历史 `docs/superpowers/specs/2026-07-17-bu05-autopilot-design.md` 可在 `spec.md` 顶部链接为真源，避免复制两份。

@@ -37,8 +37,8 @@
 - **已合 main：** S01–S12；补1–4（可靠性/Inbox、运营 CRUD、quick-create、Settings 诊断）  
 - **已合 main：** 补1–5（含最小自动化 PR #16）
 - **下一刀：** 可选补6 体验债 / Wiki·Memory 打磨，或宣布补充阶段收官  
-- **工作流：** 已弃 superpowers 默认路径；改用 `.zcode/skills` 的 Matt 工程流（见 `AGENTS.md` §工程模式）  
-- **工单：** `.scratch/<feature>/`；跨会话 `/handoff`；实现 `/implement`  
+- **工作流：** **计划者主代理 + 执行者子代理（保留）** × Matt skills（grill / to-spec / to-tickets / implement / code-review / handoff）。见 `AGENTS.md` §工程模式、`docs/agents/workflow.md`  
+- **工单：** `.scratch/<feature>/`；计划者验收 + 执行者 `/implement`；跨会话 `/handoff`；可选 `app/.progress` 作 handoff 档案  
 
 ## 相关入口
 

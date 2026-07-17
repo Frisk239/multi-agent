@@ -123,43 +123,84 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 ## 工程模式（最高优先级，所有 `app/` 会话必读）
 
-> **已弃用**默认 superpowers 路径（brainstorming → writing-plans → 计划者/执行者厚切片 checkbox）。  
-> **现用**本机 `.zcode/skills` 的 Matt 工程流。技能不会自动猜——需要时显式 `/skill` 或问 `/ask-matt`。
+> **双层融合，不是二选一：**  
+> 1. **编排层（本仓保留）**——**计划者主代理 + 执行者子代理**（人派会话、串行验收）  
+> 2. **工具层（Matt skills）**——`/grill-with-docs`、`/to-spec`、`/to-tickets`、`/implement`、`/code-review`、`/handoff`… 作为各角色会话里**调用的技能**  
+>
+> 已弃用的是 **superpowers 默认路径名与长 checkbox plan**，**不是**计划者/执行者分工。  
+> 技能不会自动猜——需要时显式 `/skill` 或问 `/ask-matt`。
 
-### 主链路：idea → ship
+### 核心方法：垂直切片 × 计划者-执行者 × Matt skills
+
+| 维度 | 决定什么 | 落地 |
+|---|---|---|
+| **垂直切片 / tracer bullet** | 做什么、多厚 | `/to-tickets` 的一票 = 端到端可演示一刀 |
+| **计划者主代理** | 切片内怎么拆、何时验收 | **只** grill / to-spec / to-tickets / 写 kickoff / **验收**；**不写** `app/**` 业务实现 |
+| **执行者子代理** | 把票做绿 | 新会话读 ticket → `/implement`（+ tdd）→ 自测 → handoff/进度 → push 分支 |
+| **人** | 编排与合码 | 派会话、合 PR、拍板产品 |
+
+**为什么保留计划者-执行者：** 长会话质量下降 → 切片内拆短会话；子代理丢上下文 → ticket + handoff 传真源；计划者无实现偏见 → 验收更干净。
+
+### 一个 feature 的生命周期（融合后）
 
 ```
-/grill-with-docs     有代码库时拷问设计；维护 CONTEXT.md / ADR
-       ↓
-  （可选）/handoff → /prototype → /handoff   必须可运行才能决的题
-       ↓
-  单会话做完？
-    是 → /implement（内含测试纪律 + 结束 /code-review）
-    否 → /to-spec → /to-tickets → 每个 ticket 新会话 /implement
+人 → 开【计划者主代理】会话
+     ├─ 读 AGENTS.md + CONTEXT.md + design/ + 相关 ticket/旧 progress
+     ├─ /grill-with-docs（或小改跳过）→ 需要时 /handoff+/prototype
+     ├─ /to-spec → 落到 .scratch/<feature>/spec.md（可链 docs/superpowers 旧文）
+     ├─ /to-tickets → .scratch/<feature>/issues/0N-*.md（Blocked by + ready-for-agent）
+     ├─ 写 kickoff（可写在 ticket 评论或 app/.progress/<feature>-planner-0.md）
+     ├─ 人派【执行者 1】：只做 frontier 上无阻塞的票（通常 schema/API 先）
+     │     执行者：/implement → 自测 → 更新 ticket / 可选 progress handoff → push feat/*
+     ├─ 计划者验收执行者 1（读 handoff + typecheck/抽查）→ 勾票或写注意点给下一棒
+     ├─ 人派【执行者 2】…（串行；仅无接口依赖且不同文件才可并行）
+     └─ 全部票绿 → 计划者整刀结论 → 人开 PR
+           → 新会话 /code-review → 人合 main
 ```
 
-**上下文卫生（smart zone）：** grill → spec → tickets **同一窗口**尽量不断；每个 `/implement` **新会话**，只读 ticket + CONTEXT + 相关代码。逼近窗口质量悬崖时用 **`/handoff`** 换窗，不要硬撑。
+**小改动**（一票一会话能装下）：计划者可省略，人直接派执行者 `/implement`；仍建议 PR + code-review。
 
-### 垂直切片仍然有效
+### 角色铁律
 
-- **Tracer bullet / 垂直切片** = `/to-tickets` 的一票：端到端可演示，非「先全 schema 再全 UI」。  
-- **依赖** = ticket 的 `Blocked by`，不再靠 `app/.progress` 编号棒。  
-- 契约先行：改 shared 类型的票应先合，再开 UI 票。
+| 角色 | 必须 | 禁止 |
+|---|---|---|
+| **计划者** | 拆票、kickoff、验收、给下一棒注意点、进度表/CONTEXT 文档更新 | 在计划者会话写 `app/**` 业务实现（修冲突文档除外） |
+| **执行者** | 按票实现、typecheck/smoke 证据、偏离写清、push **feature 分支** | push main；扩大 scope 到未派的票 |
+| **人** | 派谁做哪票、合 PR、产品拍板 | — |
+
+### 票与进度写在哪
+
+| 产物 | 路径 |
+|---|---|
+| Spec | `.scratch/<feature>/spec.md`（首选）；可链接 `docs/superpowers/specs/*` |
+| Tickets | `.scratch/<feature>/issues/0N-*.md`（`Blocked by` / `Status`） |
+| 计划者 kickoff / 验收 | 优先写在 ticket `## Comments`；或 `app/.progress/<feature>-planner-k.md`（习惯保留） |
+| 执行者交付 | ticket 勾选 + 可选 `app/.progress/<feature>-impl-k.md` |
+| 跨会话浓缩 | `/handoff`（OS 临时目录） |
+
+模板：[`app/.progress/_TEMPLATE.md`](app/.progress/_TEMPLATE.md) 仍可用。
+
+### 垂直切片原则（不变）
+
+1. 每票端到端可跑 / 可 API 验收  
+2. **切片内执行者串行**（有接口依赖时）；无依赖才并行  
+3. **契约先行**：shared 类型票先合再开 UI 票  
+4. 依赖用 **Blocked by**，不靠口头「impl-2 接着干」却无票  
 
 ### 大而雾 / 外来单 / 难 bug
 
 | 情况 | 用 |
 |---|---|
-| 目标可见但一会话装不下 | `/wayfinder` → 决策清晰后 **`/to-spec`**（不要 map 直接 implement） |
-| 外来 bug/请求 | `/triage` → ready-for-agent → `/implement` |
-| 难复现 / 性能回归 | `/diagnosing-bugs` |
-| 架构加深 | `/improve-codebase-architecture` + `/codebase-design` |
+| 目标可见但一会话装不下决策 | 计划者开 `/wayfinder` → 清晰后 `/to-spec` → tickets → 再派执行者 |
+| 外来 bug/请求 | `/triage` → ready-for-agent → 派执行者 `/implement` |
+| 难复现 | `/diagnosing-bugs`（常由执行者或专项会话） |
+| 架构加深 | `/improve-codebase-architecture` + `/codebase-design`（计划者导向） |
 
 ### 跨会话
 
-- **`/handoff`**：换会话；摘要落到 OS 临时目录；不写密钥。  
+- **`/handoff`**：换会话；不写密钥。  
 - **`/compact`**：同会话阶段间隙；勿在 grill 中途 compact。  
-- 历史 `app/.progress/*` **可保留作档案**，新工作不强制写；验收证据写在 ticket 或 PR。
+- 执行者之间：**只通过 ticket + 计划者验收注意点** 传上下文，不假设共享聊天记忆。
 
 ### Git 规则（不变）
 
@@ -167,7 +208,7 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 场景 | 做法 |
 |---|---|
-| 文档/调研（design/、chanpin/、docs/、CONTEXT…） | 可直接 `docs:` 提交 main |
+| 文档/调研（design/、chanpin/、docs/、CONTEXT…） | 可直接 `docs:` 提交 main（计划者也可做） |
 | **任何 app/ 下的工程代码** | `feat/<slug>` → PR → **新会话 `/code-review`** → 人合并 |
 
 - Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`  
@@ -176,8 +217,9 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 ### 与 superpowers 文档的关系
 
-- `docs/superpowers/specs/*`、`plans/*`：**历史真源仍可读**，新 feature 优先 `.scratch/<feature>/spec.md`（可链接旧文）。  
-- 补充阶段能力池 phase4b：**产品 backlog 仍有效**，执行改走 tickets + implement。  
+- 弃用的是 **默认 superpowers 流程名**，不是历史文档。  
+- `docs/superpowers/specs/*`、`plans/*`：**仍可读**；新 feature 优先 `.scratch/<feature>/spec.md`（链回旧文即可）。  
+- 补充阶段 phase4b：**产品 backlog 仍有效**；执行 = 计划者拆票 + 执行者 implement。  
 
 ## 工作语言
 
