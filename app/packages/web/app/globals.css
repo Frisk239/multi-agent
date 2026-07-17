@@ -410,6 +410,12 @@ body {
   background: color-mix(in srgb, var(--label-color, var(--accent)) 18%, transparent);
 }
 
+.kanban-failed-toggle.active {
+  border-color: var(--danger, #e35d6a);
+  color: var(--danger, #e35d6a);
+  background: color-mix(in srgb, var(--danger, #e35d6a) 14%, transparent);
+}
+
 .kanban-columns {
   display: flex;
   gap: var(--space-3);

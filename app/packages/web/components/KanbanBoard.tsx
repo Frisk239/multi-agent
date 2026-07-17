@@ -63,13 +63,15 @@ function KanbanBoardInner() {
   const qFromUrl = searchParams.get('q') ?? '';
   const assigneeFromUrl = searchParams.get('assignee') ?? '';
   const priorityFromUrl = searchParams.get('priority') ?? '';
+  // URL 可分享：?failed=1 仅显示最近有 failed run 的 issue
+  const failedOnly = searchParams.get('failed') === '1';
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
-  // 轻量：最近失败 run，用于卡片「失败」标记（limit 内即可）
+  // 轻量：最近失败 run，用于卡片「失败」标记与「仅失败」筛选（limit 内即可）
   const { data: failedRuns = [] } = useWorkspaceRuns({ status: 'failed', limit: 80 });
 
   useEffect(() => {
@@ -117,6 +119,17 @@ function KanbanBoardInner() {
       const sp = new URLSearchParams(searchParams.toString());
       if (value) sp.set('priority', value);
       else sp.delete('priority');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const setFailedOnly = useCallback(
+    (on: boolean) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (on) sp.set('failed', '1');
+      else sp.delete('failed');
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -173,8 +186,12 @@ function KanbanBoardInner() {
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
-  // cancelled 不渲染；服务端已按 q/label/assignee 过滤
-  const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
+  // cancelled 不渲染；服务端已按 q/label/assignee 过滤；failed=1 客户端再滤
+  const visible = (issues ?? []).filter((i) => {
+    if (i.status === 'cancelled') return false;
+    if (failedOnly && !failedIssueIds.has(i.id)) return false;
+    return true;
+  });
 
   function handleDrop(targetStatus: IssueStatus) {
     if (!dragId) return;
@@ -188,9 +205,10 @@ function KanbanBoardInner() {
   }
 
   const selectValue = assigneeFromUrl || '';
+  const failedCount = failedIssueIds.size;
 
   return (
-    <div className="kanban-board">
+    <div className="kanban-board" data-failed-only={failedOnly ? '1' : '0'}>
       <div className="kanban-toolbar">
         <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
           <NewIssueForm />
@@ -239,6 +257,21 @@ function KanbanBoardInner() {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className={`kanban-filter-pill kanban-failed-toggle${failedOnly ? ' active' : ''}`}
+          aria-pressed={failedOnly}
+          aria-label="仅显示有失败运行的 Issue"
+          data-testid="kanban-failed-only"
+          title={
+            failedCount > 0
+              ? `最近失败 run 覆盖 ${failedCount} 个 Issue`
+              : '最近无失败 run'
+          }
+          onClick={() => setFailedOnly(!failedOnly)}
+        >
+          仅失败{failedCount > 0 ? ` ${failedCount}` : ''}
+        </button>
         <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
           <button
             type="button"
