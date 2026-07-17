@@ -531,7 +531,13 @@ export function useRetryRun() {
       if (run.issueId) qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       qc.invalidateQueries({ queryKey: ['runs-active-count'] });
-      toastSuccess(`已排队再执行 ${run.id.slice(0, 8)}…`);
+      toastSuccess(`已排队再执行 ${run.id.slice(0, 8)}…`, {
+        action: {
+          label: '查看运行',
+          href: `/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status || 'queued')}`,
+        },
+        durationMs: 7000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '再执行失败')),
   });
@@ -554,7 +560,13 @@ export function useRerunIssue(issueId: string) {
       qc.invalidateQueries({ queryKey: ['runs', issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       qc.invalidateQueries({ queryKey: ['runs-active-count'] });
-      toastSuccess('已按当前指派/历史 agent 排队再执行');
+      toastSuccess('已按当前指派/历史 agent 排队再执行', {
+        action: {
+          label: '查看运行',
+          href: `/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status || 'queued')}`,
+        },
+        durationMs: 7000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '再执行失败')),
   });
