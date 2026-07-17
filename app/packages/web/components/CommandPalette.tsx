@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useIssues } from '@/lib/api';
+import { useAgents, useIssues } from '@/lib/api';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -14,16 +14,27 @@ type Command = {
   id: string;
   label: string;
   hint?: string;
+  group?: string;
   run: () => void;
 };
 
-// S12：Ctrl+K 命令面板——导航已实现路由 + 新建 Issue + 最近 issues 过滤
-// bu03：+ 快速派活命令
+// S12：Ctrl+K；issue-find：服务端 Issue 搜 + Agents + 键盘上下
 export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [active, setActive] = useState(0);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
-  const { data: issues = [] } = useIssues();
+  const { data: agents = [] } = useAgents();
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(query.trim()), 200);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  const { data: remoteIssues = [], isFetching: issuesFetching } = useIssues(
+    debouncedQ ? { q: debouncedQ } : undefined,
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -40,7 +51,6 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         setOpen(true);
         return;
       }
-      // 非输入态快捷键 Q → 快速派活
       if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         setOpen(false);
@@ -57,7 +67,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   }, [open, setOpen]);
 
   useEffect(() => {
-    if (!open) setQuery('');
+    if (!open) {
+      setQuery('');
+      setDebouncedQ('');
+      setActive(0);
+    }
   }, [open]);
 
   const commands = useMemo<Command[]>(() => {
@@ -66,78 +80,91 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         id: 'nav-issues',
         label: 'Issues',
         hint: '/',
+        group: '导航',
         run: () => router.push('/'),
       },
       {
         id: 'nav-inbox',
         label: 'Inbox',
         hint: '/inbox',
+        group: '导航',
         run: () => router.push('/inbox'),
       },
       {
         id: 'nav-squads',
         label: '小队',
         hint: '/squads',
+        group: '导航',
         run: () => router.push('/squads'),
       },
       {
         id: 'nav-agents',
         label: '智能体',
         hint: '/agents',
+        group: '导航',
         run: () => router.push('/agents'),
       },
       {
         id: 'nav-wiki',
         label: 'Wiki',
         hint: '/wiki',
+        group: '导航',
         run: () => router.push('/wiki'),
       },
       {
         id: 'nav-memory',
         label: '记忆',
         hint: '/memory',
+        group: '导航',
         run: () => router.push('/memory'),
       },
       {
         id: 'nav-runs',
         label: '运行',
         hint: '/runs',
+        group: '导航',
         run: () => router.push('/runs'),
       },
       {
         id: 'nav-automation',
         label: '自动化',
         hint: '/automation',
+        group: '导航',
         run: () => router.push('/automation'),
       },
       {
         id: 'nav-runtimes',
         label: '运行时',
         hint: '/runtimes',
+        group: '导航',
         run: () => router.push('/runtimes'),
       },
       {
         id: 'nav-skills',
         label: 'Skills',
         hint: '/skills',
+        group: '导航',
         run: () => router.push('/skills'),
       },
       {
         id: 'nav-settings',
         label: '设置',
         hint: '/settings',
+        group: '导航',
         run: () => router.push('/settings'),
       },
       {
         id: 'new-issue',
         label: '新建 Issue',
         hint: '/?new=1',
+        group: '导航',
         run: () => router.push('/?new=1'),
       },
       {
         id: 'quick-dispatch',
         label: '快速派活',
         hint: 'Q',
+        group: '导航',
         run: () => {
           setOpen(false);
           setQuickDispatchOpen(true);
@@ -145,31 +172,54 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       },
     ];
 
-    const q = query.trim().toLowerCase();
-    const issueCmds = issues
-      .filter((i) => {
-        if (!q) return true;
-        return (
-          i.title.toLowerCase().includes(q) ||
-          i.identifier.toLowerCase().includes(q)
-        );
-      })
-      .slice(0, 8)
-      .map((i) => ({
-        id: `issue-${i.id}`,
-        label: `${i.identifier} · ${i.title}`,
-        hint: i.status,
-        run: () => router.push(`/issues/${i.id}`),
-      }));
-
+    const q = debouncedQ.toLowerCase();
     const filteredNav = nav.filter((c) => {
       if (!q) return true;
       return c.label.toLowerCase().includes(q) || (c.hint ?? '').toLowerCase().includes(q);
     });
 
-    // 有查询时优先展示 issue 匹配；导航仍保留
+    // 无查询：本地全量 issues 前 8 条作「最近」；有查询：服务端结果
+    const issueSource = debouncedQ
+      ? remoteIssues
+      : remoteIssues; // useIssues() 无参时为全量
+    const issueCmds = issueSource
+      .slice(0, 8)
+      .map((i) => ({
+        id: `issue-${i.id}`,
+        label: `${i.identifier} · ${i.title}`,
+        hint: [
+          i.status,
+          ...(i.labels ?? []).slice(0, 2).map((l) => l.name),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        group: 'Issues',
+        run: () => router.push(`/issues/${i.id}`),
+      }));
+
+    const agentCmds = !q
+      ? []
+      : agents
+          .filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
+          .slice(0, 6)
+          .map((a) => ({
+            id: `agent-${a.id}`,
+            label: a.name,
+            hint: a.id,
+            group: '智能体',
+            run: () => router.push(`/agents/${a.id}`),
+          }));
+
+    // 有查询：Issues 优先，再 Agents，再导航
+    if (q) {
+      return [...issueCmds, ...agentCmds, ...filteredNav];
+    }
     return [...filteredNav, ...issueCmds];
-  }, [issues, query, router, setOpen]);
+  }, [agents, debouncedQ, remoteIssues, router, setOpen]);
+
+  useEffect(() => {
+    setActive(0);
+  }, [debouncedQ, commands.length]);
 
   if (!open && !quickDispatchOpen) return null;
 
@@ -197,27 +247,41 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               className="cmdk-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索命令或 Issue…"
+              placeholder="搜索命令、Issue 或智能体…"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && commands[0]) {
+                if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  runCommand(commands[0]);
+                  setActive((i) => Math.min(i + 1, Math.max(commands.length - 1, 0)));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setActive((i) => Math.max(i - 1, 0));
+                } else if (e.key === 'Enter' && commands[active]) {
+                  e.preventDefault();
+                  runCommand(commands[active]);
                 }
               }}
             />
             <ul className="cmdk-list">
               {commands.length === 0 ? (
-                <li className="cmdk-empty">无匹配项</li>
+                <li className="cmdk-empty">
+                  {issuesFetching ? '搜索中…' : '无匹配项'}
+                </li>
               ) : (
-                commands.map((cmd) => (
+                commands.map((cmd, idx) => (
                   <li key={cmd.id}>
                     <button
                       type="button"
-                      className="cmdk-item"
+                      className={`cmdk-item${idx === active ? ' is-active' : ''}`}
+                      onMouseEnter={() => setActive(idx)}
                       onClick={() => runCommand(cmd)}
                     >
-                      <span>{cmd.label}</span>
+                      <span className="cmdk-item-main">
+                        {cmd.group ? (
+                          <span className="cmdk-group-tag">{cmd.group}</span>
+                        ) : null}
+                        <span>{cmd.label}</span>
+                      </span>
                       {cmd.hint ? <span className="cmdk-hint">{cmd.hint}</span> : null}
                     </button>
                   </li>
@@ -225,7 +289,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               )}
             </ul>
             <div className="cmdk-footer">
-              <span>Enter 执行</span>
+              <span>↑↓ 选择 · Enter 执行</span>
               <span>Esc 关闭</span>
             </div>
           </div>

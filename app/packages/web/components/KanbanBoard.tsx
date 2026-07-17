@@ -1,5 +1,6 @@
 'use client';
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { IssueStatus } from '@ma/shared';
 import { useIssues, useLabels, useUpdateIssue } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
@@ -15,21 +16,55 @@ const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
   { title: 'Blocked', status: 'blocked', color: 'var(--status-blocked)' },
 ];
 
-export function KanbanBoard() {
-  const { data: issues, isLoading } = useIssues();
+function KanbanBoardInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const labelFilter = searchParams.get('label') ?? '';
+  const qFromUrl = searchParams.get('q') ?? '';
+  const [qDraft, setQDraft] = useState(qFromUrl);
+
+  useEffect(() => {
+    setQDraft(qFromUrl);
+  }, [qFromUrl]);
+
+  // 输入防抖后写 URL，再由 URL 驱动服务端 query
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = qDraft.trim();
+      if (next === qFromUrl.trim()) return;
+      const sp = new URLSearchParams(searchParams.toString());
+      if (next) sp.set('q', next);
+      else sp.delete('q');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [qDraft, qFromUrl, pathname, router, searchParams]);
+
+  const setLabelFilter = useCallback(
+    (id: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (id) sp.set('label', id);
+      else sp.delete('label');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const { data: issues, isLoading } = useIssues({
+    q: qFromUrl || undefined,
+    labelId: labelFilter || undefined,
+  });
   const { data: labels } = useLabels();
   const update = useUpdateIssue();
   const [dragId, setDragId] = useState<string | null>(null);
-  const [labelFilter, setLabelFilter] = useState<string>('');
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
-  // spec §7.5 R5：cancelled 的 issue 不渲染到任何列
-  const visible = (issues ?? []).filter((i) => {
-    if (i.status === 'cancelled') return false;
-    if (!labelFilter) return true;
-    return (i.labels ?? []).some((l) => l.id === labelFilter);
-  });
+  // cancelled 不渲染；服务端已按 q/label 过滤
+  const visible = (issues ?? []).filter((i) => i.status !== 'cancelled');
 
   function handleDrop(targetStatus: IssueStatus) {
     if (!dragId) return;
@@ -38,7 +73,6 @@ export function KanbanBoard() {
       setDragId(null);
       return;
     }
-    // spec §7.3 ①：乐观更新 + PUT（只传 status，不传 position，D4）
     update.mutate({ id: dragId, input: { status: targetStatus } });
     setDragId(null);
   }
@@ -49,6 +83,14 @@ export function KanbanBoard() {
         <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
           <NewIssueForm />
         </Suspense>
+        <input
+          className="kanban-search-input"
+          type="search"
+          placeholder="搜索标题 / FRI-…"
+          value={qDraft}
+          onChange={(e) => setQDraft(e.target.value)}
+          aria-label="搜索 Issue"
+        />
         <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
           <button
             type="button"
@@ -86,5 +128,13 @@ export function KanbanBoard() {
         ))}
       </div>
     </div>
+  );
+}
+
+export function KanbanBoard() {
+  return (
+    <Suspense fallback={<div className="kanban-loading">加载中…</div>}>
+      <KanbanBoardInner />
+    </Suspense>
   );
 }

@@ -231,11 +231,12 @@ for (const lab of seedLabelDefs) {
       workspaceId: WS_ID,
       name: lab.name,
       color: lab.color,
+      archivedAt: null,
       createdAt: labelNow,
       updatedAt: labelNow,
     })
     .run();
-}
+  }
 
 const fri11 = db.select().from(issues).where(eq(issues.identifier, 'FRI-11')).get();
 const fri09 = db.select().from(issues).where(eq(issues.identifier, 'FRI-09')).get();

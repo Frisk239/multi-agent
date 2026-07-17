@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Issue, IssueLabel } from '@ma/shared';
-import { useCreateLabel, useLabels, useSetIssueLabels } from '@/lib/api';
+import { useCreateLabel, useDeleteLabel, useLabels, useSetIssueLabels } from '@/lib/api';
 
 const PRESET_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#6b7280'];
 
@@ -10,6 +10,7 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
   const { data: catalog, isLoading } = useLabels();
   const setLabels = useSetIssueLabels(issue.id);
   const createLabel = useCreateLabel();
+  const archiveLabel = useDeleteLabel();
   const [draftName, setDraftName] = useState('');
   const [draftColor, setDraftColor] = useState(PRESET_COLORS[3]);
 
@@ -41,11 +42,22 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
     );
   }
 
+  function handleArchive(label: IssueLabel) {
+    if (
+      !window.confirm(
+        `归档标签「${label.name}」？将从所有 Issue 上移除该标签（可之后用新名重建）。`,
+      )
+    ) {
+      return;
+    }
+    archiveLabel.mutate(label.id);
+  }
+
   return (
     <div className="issue-labels-editor">
       <div className="issue-labels-editor-head">
         <span className="issue-labels-editor-title">标签</span>
-        {(setLabels.isPending || createLabel.isPending) && (
+        {(setLabels.isPending || createLabel.isPending || archiveLabel.isPending) && (
           <span className="text-dim text-sm">保存中…</span>
         )}
       </div>
@@ -66,17 +78,27 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
         {(catalog ?? []).map((l) => {
           const on = selected.has(l.id);
           return (
-            <button
-              key={l.id}
-              type="button"
-              className={`issue-label-toggle${on ? ' is-on' : ''}`}
-              style={{ ['--label-color' as string]: l.color }}
-              onClick={() => toggle(l)}
-              disabled={setLabels.isPending}
-            >
-              <span className="issue-label-dot" />
-              {l.name}
-            </button>
+            <div key={l.id} className="issue-label-row">
+              <button
+                type="button"
+                className={`issue-label-toggle${on ? ' is-on' : ''}`}
+                style={{ ['--label-color' as string]: l.color }}
+                onClick={() => toggle(l)}
+                disabled={setLabels.isPending}
+              >
+                <span className="issue-label-dot" />
+                {l.name}
+              </button>
+              <button
+                type="button"
+                className="issue-label-archive-btn"
+                title="归档标签"
+                disabled={archiveLabel.isPending}
+                onClick={() => handleArchive(l)}
+              >
+                归档
+              </button>
+            </div>
           );
         })}
       </div>

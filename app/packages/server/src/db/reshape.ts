@@ -43,6 +43,8 @@ export function toIssueLabel(row: LabelRow): IssueLabel {
     workspaceId: row.workspaceId,
     name: row.name,
     color: row.color,
+    archivedAt:
+      row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
