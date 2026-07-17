@@ -97,6 +97,37 @@ export function IssueHeader({ issue }: { issue: Issue }) {
           看板
         </Link>
         <span className="issue-id">{issue.identifier}</span>
+        {issue.originType === 'automation' ? (
+          <Link
+            href="/automation"
+            className="issue-origin-badge"
+            data-testid="issue-origin-badge"
+            data-origin="automation"
+            title={issue.originRuleId ? `规则 ${issue.originRuleId}` : '自动化创建'}
+          >
+            来源 · 自动化
+          </Link>
+        ) : issue.originType === 'quick_create' ? (
+          issue.originRunId ? (
+            <Link
+              href={`/runs?run=${encodeURIComponent(issue.originRunId)}&status=all`}
+              className="issue-origin-badge"
+              data-testid="issue-origin-badge"
+              data-origin="quick_create"
+              title={`QC run ${issue.originRunId}`}
+            >
+              来源 · 快速派活
+            </Link>
+          ) : (
+            <span
+              className="issue-origin-badge"
+              data-testid="issue-origin-badge"
+              data-origin="quick_create"
+            >
+              来源 · 快速派活
+            </span>
+          )
+        ) : null}
         <select
           className="status-select"
           value={issue.status}
