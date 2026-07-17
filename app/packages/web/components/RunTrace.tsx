@@ -1,12 +1,15 @@
 'use client';
-import { useRuns, useRunMessages } from '@/lib/api';
+
+import type { AgentRun } from '@ma/shared';
+import { useRunMessages } from '@/lib/api';
 import { useRunProgressStore } from '@/lib/ws';
 
-export function RunTrace({ issueId }: { issueId: string }) {
-  const { data: runs = [] } = useRuns(issueId);
-  // 与 RunStatusBar 一致：优先活跃 run，否则最近一条
-  const run =
-    runs.find((r) => r.status === 'queued' || r.status === 'running') ?? runs[0];
+export function RunTrace({
+  run,
+}: {
+  /** 当前选中的 run（由 Issue 详情历史表驱动） */
+  run: AgentRun | undefined;
+}) {
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(runId);
   const progressByRun = useRunProgressStore((s) => s.byRunId);
@@ -22,9 +25,13 @@ export function RunTrace({ issueId }: { issueId: string }) {
       className={`run-trace${isLive ? ' run-trace--live' : ''}`}
       data-testid="run-trace"
       data-run-status={run.status}
+      data-run-id={run.id}
     >
       <div className="run-trace-header">
         <h3>运行轨迹</h3>
+        <span className="text-dim text-sm" data-testid="run-trace-run-id">
+          {run.id.slice(0, 8)}…
+        </span>
         {isLive ? (
           <span className="run-trace-live-badge" data-testid="run-trace-live-badge">
             live · {run.status}
@@ -32,7 +39,11 @@ export function RunTrace({ issueId }: { issueId: string }) {
         ) : null}
       </div>
       {isLive && progress ? (
-        <p className="run-trace-live-progress" data-testid="run-trace-live-progress" title={progress}>
+        <p
+          className="run-trace-live-progress"
+          data-testid="run-trace-live-progress"
+          title={progress}
+        >
           进度：{progress}
         </p>
       ) : null}

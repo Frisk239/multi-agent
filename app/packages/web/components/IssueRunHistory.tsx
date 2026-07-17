@@ -1,0 +1,100 @@
+'use client';
+
+import type { AgentRun } from '@ma/shared';
+
+function shortId(id: string): string {
+  return id.length > 10 ? `${id.slice(0, 8)}…` : id;
+}
+
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const diff = Date.now() - t;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return '刚刚';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  return new Date(iso).toLocaleString();
+}
+
+export function IssueRunHistory({
+  runs,
+  selectedRunId,
+  onSelect,
+}: {
+  runs: AgentRun[];
+  selectedRunId: string | undefined;
+  onSelect: (runId: string) => void;
+}) {
+  if (runs.length === 0) return null;
+
+  return (
+    <section
+      className="issue-run-history"
+      data-testid="issue-run-history"
+      aria-label="运行历史"
+    >
+      <div className="issue-run-history-header">
+        <h3>运行历史</h3>
+        <span className="count" data-testid="issue-run-history-count">
+          {runs.length}
+        </span>
+      </div>
+      <div className="data-table-wrap">
+        <table className="data-table issue-run-history-table">
+          <thead>
+            <tr>
+              <th>状态</th>
+              <th>Runtime</th>
+              <th>Run</th>
+              <th>创建</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((r) => {
+              const selected = r.id === selectedRunId;
+              const live = r.status === 'queued' || r.status === 'running';
+              return (
+                <tr
+                  key={r.id}
+                  className={`issue-run-history-row${selected ? ' is-selected' : ''}${live ? ' is-live' : ''}`}
+                  data-testid="issue-run-history-row"
+                  data-run-id={r.id}
+                  data-run-status={r.status}
+                  data-selected={selected ? '1' : '0'}
+                  onClick={() => onSelect(r.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelect(r.id);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={selected}
+                  title="点击查看该 run 的轨迹"
+                >
+                  <td>
+                    <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
+                    {r.isLeader ? (
+                      <span className="leader-badge" style={{ marginLeft: 6 }}>
+                        队长
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="text-sm">{r.runtime}</td>
+                  <td>
+                    <code className="text-sm">{shortId(r.id)}</code>
+                  </td>
+                  <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

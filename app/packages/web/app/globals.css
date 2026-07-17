@@ -1509,7 +1509,41 @@ body {
   cursor: not-allowed;
 }
 
-/* —— 运行轨迹 —— */
+/* —— Issue 运行历史 + 轨迹 —— */
+
+.issue-run-history {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.issue-run-history-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.issue-run-history-header h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.issue-run-history-row {
+  cursor: pointer;
+}
+
+.issue-run-history-row:hover {
+  background: color-mix(in srgb, var(--bg-elevated, #111) 70%, transparent);
+}
+
+.issue-run-history-row.is-selected {
+  outline: 1px solid color-mix(in srgb, #3b82f6 55%, transparent);
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+}
+
+.issue-run-history-row.is-live td:first-child {
+  font-weight: 600;
+}
 
 .run-trace {
   margin: var(--space-4) 0;
