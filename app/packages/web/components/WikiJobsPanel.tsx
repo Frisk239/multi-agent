@@ -83,7 +83,7 @@ export function WikiJobsPanel() {
   return (
     <div className="wiki-jobs-panel">
       {showBanner ? (
-        <div className="wiki-ops-banner" role="status">
+        <div className="wiki-ops-banner" role="status" data-testid="wiki-jobs-banner">
           <div className="wiki-ops-banner-main">
             <strong>
               {!wikiLlmOk
@@ -96,9 +96,28 @@ export function WikiJobsPanel() {
                 : '查看下方错误摘要；修好环境后点「重试」重新排队编译。'}
             </p>
           </div>
-          <Link href="/settings" className="btn-secondary btn-sm">
-            打开设置
-          </Link>
+          <div className="wiki-ops-banner-actions">
+            {!wikiLlmOk ? (
+              <Link href="/settings" className="btn-secondary btn-sm" data-testid="wiki-jobs-open-settings">
+                打开设置
+              </Link>
+            ) : null}
+            {deadCount > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                data-testid="wiki-jobs-show-dead"
+                onClick={() => setStatus('dead')}
+              >
+                只看 dead
+              </button>
+            ) : null}
+            {wikiLlmOk ? (
+              <Link href="/settings" className="btn-ghost btn-sm">
+                设置
+              </Link>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

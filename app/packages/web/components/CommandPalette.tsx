@@ -327,6 +327,30 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               router.push(`/wiki?slug=${encodeURIComponent(p.slug)}`),
           }));
 
+    const wikiOpsHit =
+      q &&
+      ['编译', 'wiki job', 'wikijob', 'dead job', 'ingest', 'wiki失败', 'wiki 失败'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const wikiOpsCmds = wikiOpsHit
+      ? [
+          {
+            id: 'wiki-jobs-dead',
+            label: 'Wiki：dead 编译任务',
+            hint: '/wiki?jobStatus=dead',
+            group: 'Wiki',
+            run: () => router.push('/wiki?jobStatus=dead'),
+          },
+          {
+            id: 'wiki-open',
+            label: '打开 Wiki',
+            hint: '/wiki',
+            group: 'Wiki',
+            run: () => router.push('/wiki'),
+          },
+        ]
+      : [];
+
     // 记忆：有查询时提供搜索；命中关键词时再给「打开记忆页」
     const memoryKeyword =
       q &&
@@ -522,6 +546,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...automationCmds,
         ...issueCmds,
         ...squadCmds,
+        ...wikiOpsCmds,
         ...wikiCmds,
         ...diagCmds,
         ...memoryCmds,

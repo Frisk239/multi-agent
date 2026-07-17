@@ -379,9 +379,15 @@ export function useCreateLabel() {
       if (!res.ok) throw new Error(await apiError(res, '创建标签失败'));
       return res.json() as Promise<IssueLabel>;
     },
-    onSuccess: () => {
+    onSuccess: (label) => {
       qc.invalidateQueries({ queryKey: ['labels'] });
-      toastSuccess('已创建标签');
+      toastSuccess(`已创建标签 · ${label.name}`, {
+        action: {
+          label: '看板筛选',
+          href: `/?label=${encodeURIComponent(label.id)}`,
+        },
+        durationMs: 7000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '创建标签失败')),
   });

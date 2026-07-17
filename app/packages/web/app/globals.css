@@ -4363,3 +4363,10 @@ button.memory-kind-chip.is-active {
   align-items: center;
   margin: 0 0 var(--space-3);
 }
+
+.wiki-ops-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
