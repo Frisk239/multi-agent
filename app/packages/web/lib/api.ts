@@ -10,6 +10,8 @@ import type {
   AgentDetail,
   SkillInfo,
   SquadSummary,
+  SquadDetail,
+  InboxItem,
   AgentRun,
   RunMessage,
   RuntimesResponse,
@@ -80,6 +82,31 @@ export function useSquads() {
     queryFn: async () => {
       const res = await fetch(`${API}/squads`);
       if (!res.ok) throw new Error('加载 squads 失败');
+      return res.json();
+    },
+  });
+}
+
+// GET /api/squads/:id —— S12 小队详情
+export function useSquad(id: string) {
+  return useQuery<SquadDetail>({
+    queryKey: ['squad', id],
+    queryFn: async () => {
+      const res = await fetch(`${API}/squads/${id}`);
+      if (!res.ok) throw new Error('squad 不存在');
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+// GET /api/inbox —— S12 合成 Inbox（不落库）
+export function useInbox() {
+  return useQuery<InboxItem[]>({
+    queryKey: ['inbox'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/inbox`);
+      if (!res.ok) throw new Error('加载 Inbox 失败');
       return res.json();
     },
   });
