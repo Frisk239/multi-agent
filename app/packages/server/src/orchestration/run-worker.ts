@@ -7,7 +7,7 @@ import { registerRunAbort, clearRunAbort } from './run-control.js';
 import { touchRunHeartbeat } from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
-import { buildPrompt } from '../runtime/prompt.js';
+import { resolveRunPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
@@ -79,20 +79,21 @@ async function tick(): Promise<void> {
 }
 
 // executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
+// bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
 async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
   const cwd = process.env.MA_WORKSPACE_CWD;
   if (!cwd) {
     await failRun(runRow.id, '未配置 MA_WORKSPACE_CWD');
     return;
   }
-  // S10：buildPrompt 已 async，必须 await（R7）
-  const prompt = await buildPrompt(runRow.issueId, {
-    isLeader: runRow.isLeader === 1,
-    squadId: runRow.squadId,
-    agentId: runRow.agentId, // S05：查 agent_skill 分配 → skillBlock 拼接
-  });
+  // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt
+  const prompt = await resolveRunPrompt(runRow);
   if (!prompt) {
-    await failRun(runRow.id, 'issue 不存在');
+    const kind = (runRow.kind as string) ?? 'issue';
+    await failRun(
+      runRow.id,
+      kind === 'quick_create' ? 'quick_create: 缺少 prompt' : 'issue 不存在',
+    );
     return;
   }
 
@@ -116,7 +117,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       eventBus.publish({
         type: 'run:progress',
         runId: runRow.id,
-        issueId: runRow.issueId,
+        issueId: runRow.issueId ?? null,
         text: e.text,
       });
       return;
@@ -147,7 +148,11 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       body,
       createdAt,
     });
-    eventBus.publish({ type: 'run:message', message, issueId: runRow.issueId });
+    eventBus.publish({
+      type: 'run:message',
+      message,
+      issueId: runRow.issueId ?? null,
+    });
   };
 
   try {
@@ -156,7 +161,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       {
         prompt,
         cwd,
-        issueId: runRow.issueId,
+        issueId: runRow.issueId ?? null,
         agentId: runRow.agentId,
         runId: runRow.id,
         mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
@@ -192,7 +197,17 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       return;
     }
 
-    // completed —— 写终态 + 一条 agent comment（人读最终回复，spec §3.4）
+    // bu03：QC completed 但 issue 仍未 Link → 失败收口
+    const kind = (runRow.kind as 'issue' | 'quick_create') ?? 'issue';
+    if (kind === 'quick_create') {
+      const fresh = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get();
+      if (!fresh?.issueId) {
+        await failRun(runRow.id, 'quick_create: issue not created');
+        return;
+      }
+    }
+
+    // completed —— 写终态；有 issueId 才写时间线 comment
     // A1 修复（审计）：加 WHERE status IN active，防 cancelled 后被覆写成 completed。
     db.update(agentRuns)
       .set({ status: 'completed', finishedAt, error: null })
@@ -204,64 +219,77 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
       )
       .run();
     const finalText = result.finalText || '(无输出)';
-    const cid = crypto.randomUUID();
-    db.insert(comments)
-      .values({
-        id: cid,
-        issueId: runRow.issueId,
-        type: 'comment',
-        authorType: 'agent',
-        authorId: runRow.agentId,
-        body: finalText,
-        createdAt: finishedAt,
-      })
-      .run();
-    const cRow = db.select().from(comments).where(eq(comments.id, cid)).get()!;
-    const comment = toComment(cRow);
-    eventBus.publish({ type: 'comment:created', comment });
-    // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
-    triggerFromComment(comment);
-    // bu01：agent 终态 comment 也进真 Inbox
-    const issueForComment = db
-      .select()
-      .from(issues)
-      .where(eq(issues.id, runRow.issueId))
-      .get();
-    if (issueForComment) {
-      notifyCommentCreated(comment, toIssue(issueForComment));
-    }
-    const r = toAgentRun(
-      db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
-    );
-    eventBus.publish({ type: 'run:completed', run: r });
-    // bu01：run 终态 → inbox（completed | failed；cancelled 不写）
-    notifyRunTerminal(r);
+    // 重新读 run（QC 可能已 Link issueId）
+    const freshRun = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!;
+    const linkedIssueId = freshRun.issueId;
 
-    // S09：成功 run 才写记忆（失败/取消路径禁止调用）
-    try {
-      const issueRow = db
+    if (linkedIssueId) {
+      const cid = crypto.randomUUID();
+      db.insert(comments)
+        .values({
+          id: cid,
+          issueId: linkedIssueId,
+          type: 'comment',
+          authorType: 'agent',
+          authorId: runRow.agentId,
+          body: finalText,
+          createdAt: finishedAt,
+        })
+        .run();
+      const cRow = db.select().from(comments).where(eq(comments.id, cid)).get()!;
+      const comment = toComment(cRow);
+      eventBus.publish({ type: 'comment:created', comment });
+      // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
+      // QC 路径一般无 mention；issue run 保持原逻辑
+      if (kind !== 'quick_create') {
+        triggerFromComment(comment);
+      }
+      // bu01：agent 终态 comment 也进真 Inbox
+      const issueForComment = db
         .select()
         .from(issues)
-        .where(eq(issues.id, runRow.issueId))
+        .where(eq(issues.id, linkedIssueId))
         .get();
-      if (issueRow) {
-        memoryManager.syncRunCompleted({
-          issue: {
-            id: issueRow.id,
-            identifier: issueRow.identifier,
-            title: issueRow.title,
-            description: issueRow.description,
-          },
-          run: {
-            id: runRow.id,
-            agentId: runRow.agentId,
-            status: 'completed',
-          },
-          assistantText: finalText,
-        });
+      if (issueForComment) {
+        notifyCommentCreated(comment, toIssue(issueForComment));
       }
-    } catch (e) {
-      console.error('[memory] syncRunCompleted 包装失败:', e);
+    }
+
+    // 再读一次确保 status 已落库
+    const rFinal = toAgentRun(
+      db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
+    );
+    eventBus.publish({ type: 'run:completed', run: rFinal });
+    // bu01：run 终态 → inbox（completed | failed；cancelled 不写）
+    notifyRunTerminal(rFinal);
+
+    // S09：成功 run 且有 issue 才写记忆（失败/取消路径禁止调用）
+    if (linkedIssueId) {
+      try {
+        const issueRow = db
+          .select()
+          .from(issues)
+          .where(eq(issues.id, linkedIssueId))
+          .get();
+        if (issueRow) {
+          memoryManager.syncRunCompleted({
+            issue: {
+              id: issueRow.id,
+              identifier: issueRow.identifier,
+              title: issueRow.title,
+              description: issueRow.description,
+            },
+            run: {
+              id: runRow.id,
+              agentId: runRow.agentId,
+              status: 'completed',
+            },
+            assistantText: finalText,
+          });
+        }
+      } catch (e) {
+        console.error('[memory] syncRunCompleted 包装失败:', e);
+      }
     }
   } catch (err) {
     clearRunAbort(runRow.id);

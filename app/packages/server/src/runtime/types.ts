@@ -11,7 +11,8 @@ export type AgentEvent =
 export interface ExecutionInput {
   prompt: string;
   cwd: string;
-  issueId: string;
+  // bu03：quick_create 可无 issue
+  issueId: string | null;
   agentId: string;
   runId: string;
   mcpServers?: string | null; // S05：MCP 配置 JSON 字符串（agent.mcpServers）
