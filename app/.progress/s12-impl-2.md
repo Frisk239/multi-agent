@@ -89,9 +89,13 @@ UI 手验建议（人评 / playwright-cli 可选）：
 
 ## 验收结论（仅计划者填）
 
-- [x] typecheck 通过（impl-2 自测）
-- [x] Squads 列表/详情 API+页代码在位
-- [x] Inbox 合成 API+页；NAV/Ctrl+K 已接
-- [x] 回归：B5 400、issues/wiki 200、指派创建
-- [ ] 人评浏览器路径 + 全切片 PR 审查 — 待计划者
-- 结论：impl-2 交付完成，可计划者验收 / 开 PR 合 main。
+- [x] typecheck 通过 — 计划者复验 `pnpm -r typecheck` shared/server/web 全绿
+- [x] Squads 列表/详情 API+页代码在位 — `GET :id` 404 形状正确；`loadSquadDetail` 复用
+- [x] Inbox 合成 API+页；NAV/Ctrl+K 已接 — 不落库符合 S12 P3
+- [x] 回归：B5 400、issues/wiki 200、指派创建 — smoke 记录充分
+- [x] 切片 §1.2 三包（A+B+C）代码闭环 — 可开 PR
+- [ ] 人评浏览器点验 — 合并前/合并后由人用本分支起 dev 点一遍（不挡 PR）
+
+- 结论：**impl-2 验收通过。** S12 整切片可开 PR → 新会话 code review → 合 main。
+- 已知可接受偏离：Inbox 合成含 `status_change`（S13 真 Inbox 再收敛 kind）。
+- 下一步：`gh pr create`（勿 push main）；**Phase 4b 补充阶段**见 `docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`。
