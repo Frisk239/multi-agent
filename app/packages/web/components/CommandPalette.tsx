@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAgents, useIssues, useSquads, useWikiPages } from '@/lib/api';
+import {
+  useAgents,
+  useAgentsReadinessMap,
+  useIssues,
+  useSquads,
+  useWikiPages,
+} from '@/lib/api';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -37,6 +43,18 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const { data: remoteIssues = [], isFetching: issuesFetching } = useIssues(
     debouncedQ ? { q: debouncedQ } : undefined,
   );
+
+  // 有查询时：为命中名称的 agent 拉 readiness 显示在 hint
+  const matchedAgentIds = useMemo(() => {
+    const q = debouncedQ.toLowerCase();
+    if (!q) return [] as string[];
+    return agents
+      .filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
+      .slice(0, 6)
+      .map((a) => a.id);
+  }, [agents, debouncedQ]);
+
+  const { data: readinessMap = {} } = useAgentsReadinessMap(matchedAgentIds);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -206,18 +224,31 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         run: () => router.push(`/issues/${i.id}`),
       }));
 
+    const readinessLabel = (status?: string | null) => {
+      if (!status) return '…';
+      if (status === 'ready') return 'ready';
+      if (status === 'busy') return 'busy';
+      if (status === 'cwd_missing') return 'cwd 未配置';
+      if (status === 'runtime_missing') return 'runtime 缺失';
+      return status;
+    };
+
     const agentCmds = !q
       ? []
       : agents
           .filter((a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
           .slice(0, 6)
-          .map((a) => ({
-            id: `agent-${a.id}`,
-            label: a.name,
-            hint: a.id,
-            group: '智能体',
-            run: () => router.push(`/agents/${a.id}`),
-          }));
+          .map((a) => {
+            const rd = readinessMap[a.id];
+            const st = readinessLabel(rd?.status);
+            return {
+              id: `agent-${a.id}`,
+              label: a.name,
+              hint: `${st} · ${a.runtime}`,
+              group: '智能体',
+              run: () => router.push(`/agents/${a.id}`),
+            };
+          });
 
     // 小队：名/id 匹配 → /squads/:id
     const squadCmds = !q
@@ -277,23 +308,41 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     // 诊断：关键词命中时置顶一条
     const diagHit =
       q &&
-      ['诊断', 'settings', '环境', 'cwd', 'llm', 'runtime', '配置'].some((k) =>
+      ['诊断', 'settings', '环境', 'cwd', 'llm', '配置'].some((k) =>
         q.includes(k.toLowerCase()) || debouncedQ.includes(k),
       );
-    const diagCmds = diagHit
-      ? [
-          {
-            id: 'diag-settings',
-            label: '打开环境诊断',
-            hint: '/settings',
-            group: '诊断',
-            run: () => router.push('/settings'),
-          },
-        ]
-      : [];
+    const runtimeHit =
+      q &&
+      ['runtime', '运行时', '探测', 'cli', 'claude', 'opencode', 'cursor'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+
+    const diagCmds = [
+      ...(diagHit
+        ? [
+            {
+              id: 'diag-settings',
+              label: '打开环境诊断',
+              hint: '/settings',
+              group: '诊断',
+              run: () => router.push('/settings'),
+            },
+          ]
+        : []),
+      ...(runtimeHit || diagHit
+        ? [
+            {
+              id: 'diag-runtimes',
+              label: '运行时探测',
+              hint: '/runtimes',
+              group: '诊断',
+              run: () => router.push('/runtimes'),
+            },
+          ]
+        : []),
+    ];
 
     // 有查询：Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
-    // 诊断关键词时优先于「在记忆中搜索」泛化项
     if (q) {
       return [
         ...issueCmds,
@@ -311,6 +360,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     squads,
     debouncedQ,
     remoteIssues,
+    readinessMap,
     router,
     setOpen,
     wikiPages,

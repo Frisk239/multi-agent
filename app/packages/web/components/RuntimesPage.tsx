@@ -10,7 +10,7 @@ export function RuntimesPage() {
   const installed = runtimes.filter((r) => r.installed).length;
 
   return (
-    <div className="runtime-layout">
+    <div className="runtime-layout" data-testid="runtimes-page">
       <aside className="machine-list">
         <div className="machine-list-header">运行时 {runtimes.length}</div>
         <div className="machine-filters">

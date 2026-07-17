@@ -684,6 +684,31 @@ export function useAgentReadiness(agentId: string) {
   });
 }
 
+/** 批量 readiness（CmdK 等）：并行拉每个 agent，失败则跳过 */
+export function useAgentsReadinessMap(agentIds: string[]) {
+  const key = agentIds.slice().sort().join(',');
+  return useQuery({
+    queryKey: ['agents-readiness-map', key],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        agentIds.map(async (id) => {
+          try {
+            const res = await fetch(`${API}/agents/${encodeURIComponent(id)}/readiness`);
+            if (!res.ok) return [id, null] as const;
+            const body = (await res.json()) as AgentReadiness;
+            return [id, body] as const;
+          } catch {
+            return [id, null] as const;
+          }
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, AgentReadiness | null>;
+    },
+    enabled: agentIds.length > 0,
+    staleTime: 10_000,
+  });
+}
+
 export function useAgentRuns(agentId: string, limit = 20) {
   return useQuery<AgentRun[]>({
     queryKey: ['agent-runs', agentId, limit],
