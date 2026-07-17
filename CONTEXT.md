@@ -77,8 +77,8 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `memory-filter-chips`（`b1ede62`）  
-- **本刀：** `qc-toast-nav` — 快速派活 toast 深链运行/Issue  
+- **已推：** `qc-toast-nav`（`d736511`）  
+- **本刀：** `ops-toast-nav` — 自动化/建卡 toast 深链  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  

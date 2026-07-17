@@ -259,7 +259,10 @@ export function useCreateIssue() {
     },
     onSuccess: (issue) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
-      toastSuccess(`已创建 ${issue.identifier}`);
+      toastSuccess(`已创建 ${issue.identifier}`, {
+        action: { label: '打开', href: `/issues/${issue.id}` },
+        durationMs: 6000,
+      });
     },
     onError: (err) => toastError(errMessage(err, '创建失败')),
   });
@@ -1211,9 +1214,27 @@ export function useRunAutomationNow() {
       qc.invalidateQueries({ queryKey: ['issues'] });
       if (run.status === 'success') {
         const label = run.issueId ? run.issueId.slice(0, 8) : '—';
-        toastSuccess(`已创建 Issue · ${label}…`);
+        toastSuccess(`已创建 Issue · ${label}…`, {
+          action: run.issueId
+            ? {
+                label: '打开 Issue',
+                href: `/issues/${run.issueId}`,
+              }
+            : {
+                label: '看板 · 自动化',
+                href: '/?origin=automation',
+              },
+          durationMs: 8000,
+        });
       } else if (run.status === 'failed') {
-        toastError(run.error || '执行失败');
+        const err = run.error || '执行失败';
+        const cwdish = /MA_WORKSPACE_CWD|cwd|工作区/i.test(err);
+        toastError(err, {
+          action: cwdish
+            ? { label: '环境诊断', href: '/settings' }
+            : { label: '看板 · 自动化', href: '/?origin=automation' },
+          durationMs: 8000,
+        });
       } else {
         toastSuccess(`已跳过（${run.status}）`);
       }
