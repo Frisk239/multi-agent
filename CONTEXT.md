@@ -49,10 +49,11 @@
 - **已推：** `runs-url-mirror`（`9fc996a`）  
 - **已推：** `inbox-run-nav`（`94ae27b`）  
 - **已推：** `inbox-filter-url`（`b529e69`）  
-- **本刀：** `memory-search-url` — `/memory?q=` 搜索可分享  
+- **已推：** `memory-search-url`（`2b51cdb`）  
+- **本刀：** `wiki-slug-url` — `/wiki?slug=` 选中页可分享  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** Wiki `?slug=` 选中页 URL  
+- **再下一刀建议：** CmdK 跳 wiki/memory 深链；或 memory 检索收紧  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 
