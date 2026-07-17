@@ -97,25 +97,43 @@
 
 ---
 
-### S06+ — 待定（占位）
+### S06–S12 — 已细化并推进（摘要）
 
-后续切片候选（做到时起会话定）：
-- 收件箱三栏（列表 + 详情 + 时间线一体）
-- 新建 Issue 双模态（智能体/手动）
-- 智能体列表 + 详情 8 Tab
-- 运行时页（机器列表 + Runtime 表格）
-- 命令面板 Ctrl+K
-- 设置二级导航
+| 切片 | 内容 | 状态 |
+|---|---|---|
+| S06–S08 | Wiki 存储/ingest/query/health/lint + AGENTS bridge + job 队列 | ✅ 已合或已交付 |
+| S09–S11 | MemoryProvider → pgvector → brain-first UI/ambient/cite | ✅ / 合入中 |
+| **S12** | 产品硬化：Chrome + progress + Squad 只读 + **合成** Inbox | ✅ 代码完成，PR 合 main |
+
+S12 之前「S06+ 占位」里的 Ctrl+K / 收件箱入口 / 诚实导航等已由 **S12** 消化（Inbox 仍为合成，见 S13）。
 
 ---
 
-### 后续 Phase（占位）
+### Phase 4b — 产品补充（大厚切片，Multica 级可运营）
 
-| Phase | 覆盖 | 细化时机 |
+> 真源 spec：[docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)  
+> 原则：**后端能力与 UI 同切**；少而厚（每切片 2 名执行者）；串行 S13→S14→S15。
+
+| 切片 | 覆盖 | 验收一句话 | 细化时机 |
+|---|---|---|---|
+| **S13** 可靠性 + 真 Inbox | run heartbeat / stale / orphan；`inbox_item` 落库；subscriber；Inbox 已读归档 | 杀进程不再假 running；Inbox 刷新仍在且可 mark read | S12 合 main 后立即 |
+| **S14** 可运营队友 | Agent/Squad CRUD；readiness；详情 Tab；`POST /api/quick-runs` | 不改 seed 能建小队并派活；一句话 quick-create | S13 后 |
+| **S15** 自动化 + Settings | 最小 cron autopilot（+可选 webhook）；`/settings` 健康状态 | 定时自动建 issue；设置页能诊断跑不起来 | S14 后 |
+| S16+（可选） | label/attach/parent；usage；轻量 daemon | 项目管理厚度 | 阶段结束视需要 |
+
+旧占位映射：收件箱三栏 → S13；智能体多 Tab → S14（4 Tab，不抄满 8）；设置 → S15；运行时多机 → 非本阶段必达。
+
+---
+
+### 后续 Phase（更新）
+
+| Phase | 覆盖 | 状态 |
 |---|---|---|
-| **Phase 2 — Wiki** | Wiki 存储 + ingest 管线 + query/lint/health + 浏览器 UI + AGENTS.md 桥梁 | Phase 1 合并后 |
-| **Phase 3 — 记忆** | MemoryProvider ABC + mem0 向量 + brain-first 协议 + graphiti 可选实验 | Phase 2 合并后 |
-| **Phase 4 — 打磨** | 端到端 demo + 性能数据 + 答辩材料 | Phase 3 合并后 |
+| **Phase 2 — Wiki** | 存储 + ingest + query/lint/health + bridge + AGENTS | ✅ S06–S08 |
+| **Phase 3 — 记忆** | Provider + pgvector + brain-first | ✅ S09–S11 |
+| **Phase 4a — 硬化** | Chrome + 薄 Inbox + Squad 只读 | S12 |
+| **Phase 4b — 补充** | 可运营：可靠性/Inbox/CRUD/quick-create/autopilot | S13–S15 |
+| **答辩材料** | demo 脚本 + 指标 + 论文图表 | 穿插，不挡 4b |
 
 ---
 

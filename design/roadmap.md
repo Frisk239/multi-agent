@@ -93,10 +93,32 @@
 
 ---
 
-## Phase 4 — 打磨（11-12 月）
+## Phase 4 — 产品硬化与补充（11-12 月+）
 
-- 端到端 demo + 性能数据 + 答辩材料
-- Autopilot 调度器（cron/webhook，如时间允许）
+> 不再把 Phase 4 收成「只做答辩打磨」。S12 起按**可用产品**补齐 Multica 级运营能力；答辩材料穿插产出。
+
+### Phase 4a — S12 产品硬化
+
+- Chrome（toast / Ctrl+K / 可指派新建 / 空态 / 错误边界 / 诚实导航）
+- `run:progress` 消费；Squad 只读详情；**合成** Inbox
+- 详见 [s12 spec](../docs/superpowers/specs/2026-07-17-s12-product-hardening-design.md)
+
+### Phase 4b — 产品补充（大厚切片）
+
+真源：[phase4b spec](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
+
+| 切片 | 目标 |
+|---|---|
+| **S13** | run 可恢复（heartbeat/stale/orphan）+ **真** Inbox + subscriber |
+| **S14** | Agent/Squad **CRUD 运营** + readiness + Quick-create |
+| **S15** | **最小 Autopilot**（cron，可选 webhook）+ Settings 健康页 |
+
+可选 S16：Issue 厚度（label/attach/parent）、usage。  
+**不做：** Redis、多节点、完整 GitHub/Lark channel、Graphiti（另议）。
+
+### 答辩材料（并行，非挡板）
+
+- 端到端 demo 脚本 + 性能/消融数据 + 论文图表
 
 ---
 
