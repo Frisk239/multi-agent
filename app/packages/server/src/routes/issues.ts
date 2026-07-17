@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { CreateIssueInput, UpdateIssueInput, validateUpdateIssue } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
-import { issues, comments, agentRuns } from '../db/schema.js';
+import { issues, comments } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { cancelActiveRunsForIssue, enqueueAgentRun, enqueueLeaderRun } from '../orchestration/run-service.js';
@@ -15,6 +15,7 @@ import {
 import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
+import { createIssueCore } from '../orchestration/issue-create.js';
 
 const WS_ID = 'ws-local';
 
@@ -38,113 +39,30 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     return toIssue(row);
   });
 
-  // POST /api/issues —— spec §5.2；bu03：origin quick_create Link + M1 enqueue
+  // POST /api/issues —— spec §5.2；bu03/bu05：createIssueCore（origin + enqueue）
   app.post('/api/issues', async (req, reply) => {
     const parsed = CreateIssueInput.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     const input = parsed.data;
-    const now = Date.now();
-
-    // bu03：先校验 origin run，再建卡（失败不留半成品 issue）
-    if (input.originType === 'quick_create' && input.originRunId) {
-      const run = db
-        .select()
-        .from(agentRuns)
-        .where(eq(agentRuns.id, input.originRunId))
-        .get();
-      if (!run || run.kind !== 'quick_create') {
-        return reply.status(400).send({ error: 'origin run 无效或非 quick_create' });
-      }
-      // 已 Link 到不同 issue → 409；同 issue 幂等在下方处理（此处尚无 id）
-      // 若已 Link 则拒绝再建新卡（避免重复）
-      if (run.issueId) {
-        return reply.status(409).send({
-          error: 'origin run 已关联 issue',
-          issueId: run.issueId,
-        });
-      }
+    const result = createIssueCore({
+      title: input.title,
+      description: input.description,
+      priority: input.priority,
+      assignee: input.assignee,
+      originType: input.originType ?? null,
+      originRunId: input.originRunId ?? null,
+      originRuleId: input.originRuleId ?? null,
+      enqueue: true,
+    });
+    if (!result.ok) {
+      return reply.status(result.status).send({
+        error: result.error,
+        ...(result.issueId ? { issueId: result.issueId } : {}),
+      });
     }
-
-    // identifier 生成：MAX(SUBSTR(identifier,5))+1
-    // 注意 SUBSTR 是 1-based：FRI-11 的数字从第 5 字符开始（F=1,R=2,I=3,-=4,1=5）
-    const maxRow = db
-      .select({ maxNum: sql<number>`MAX(CAST(SUBSTR(${issues.identifier}, 5) AS INTEGER))` })
-      .from(issues)
-      .where(eq(issues.workspaceId, WS_ID))
-      .get();
-    const nextNum = (maxRow?.maxNum ?? 0) + 1;
-    const identifier = `FRI-${nextNum}`;
-
-    // position 浮顶：MIN(position)-1（spec §5.2 + R3）
-    const minRow = db
-      .select({ minPos: sql<number>`COALESCE(MIN(${issues.position}), 0) - 1` })
-      .from(issues)
-      .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, 'backlog')))
-      .get();
-    const position = minRow?.minPos ?? -1;
-
-    const id = crypto.randomUUID();
-    const originType =
-      input.originType === 'quick_create' ? 'quick_create' : null;
-    const originRunId = input.originRunId ?? null;
-
-    db.insert(issues)
-      .values({
-        id,
-        workspaceId: WS_ID,
-        identifier,
-        title: input.title,
-        description: input.description ?? null,
-        status: 'backlog',
-        priority: input.priority,
-        assigneeType: input.assignee?.type ?? null,
-        assigneeId: input.assignee?.id ?? null,
-        creatorType: 'member',
-        creatorId: LOCAL_MEMBER.id,
-        position,
-        originType,
-        originRunId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
-
-    // bu03：Link QC run.issueId（在 enqueue 工作 run 之前）
-    if (originType === 'quick_create' && originRunId) {
-      db.update(agentRuns)
-        .set({ issueId: id })
-        .where(
-          and(
-            eq(agentRuns.id, originRunId),
-            eq(agentRuns.kind, 'quick_create'),
-          ),
-        )
-        .run();
-    }
-
-    const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    const issue = toIssue(row!);
-    eventBus.publish({ type: 'issue:created', issue });
-
-    // bu01：创建者订阅；有指派则写 assigned 通知
-    ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'creator');
-    if (input.assignee) {
-      notifyAssigned(issue);
-    }
-
-    // S12 N2 / bu03 M1：Create 带 assignee → 立即 enqueue 工作 run
-    if (input.assignee?.type === 'agent' && input.assignee.id) {
-      enqueueAgentRun(id, input.assignee.id);
-    } else if (input.assignee?.type === 'squad' && input.assignee.id) {
-      const squad = loadSquadDetail(input.assignee.id);
-      if (squad?.leaderId) {
-        enqueueLeaderRun(id, squad.leaderId, squad.id);
-      }
-    }
-
-    return reply.status(201).send(issue);
+    return reply.status(201).send(result.issue);
   });
 
   // PUT /api/issues/:id —— status 真变时同事务写 status_change + 双事件

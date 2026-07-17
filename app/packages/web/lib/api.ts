@@ -29,6 +29,10 @@ import type {
   CreateWikiPageInput,
   CreateQuickRunInput,
   SettingsStatusResponse,
+  AutomationRule,
+  AutomationRun,
+  CreateAutomationRuleInput,
+  UpdateAutomationRuleInput,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -767,5 +771,134 @@ export function useCreateQuickRun() {
       }
     },
     onError: (err) => toastError(errMessage(err, '快速派活失败')),
+  });
+}
+
+// —— bu05 Automation hooks ——
+
+// GET /api/automation/rules
+export function useAutomationRules() {
+  return useQuery<AutomationRule[]>({
+    queryKey: ['automation-rules'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/automation/rules`);
+      if (!res.ok) throw new Error(await apiError(res, '加载自动化规则失败'));
+      return res.json();
+    },
+  });
+}
+
+// POST /api/automation/rules
+export function useCreateAutomationRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateAutomationRuleInput) => {
+      const res = await fetch(`${API}/automation/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建规则失败'));
+      return res.json() as Promise<AutomationRule>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      toastSuccess('规则已创建');
+    },
+    onError: (err) => toastError(errMessage(err, '创建规则失败')),
+  });
+}
+
+// PATCH /api/automation/rules/:id
+export function useUpdateAutomationRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: UpdateAutomationRuleInput;
+    }) => {
+      const res = await fetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新规则失败'));
+      return res.json() as Promise<AutomationRule>;
+    },
+    onSuccess: (rule) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      qc.invalidateQueries({ queryKey: ['automation-rules', rule.id] });
+    },
+    onError: (err) => toastError(errMessage(err, '更新规则失败')),
+  });
+}
+
+// DELETE /api/automation/rules/:id
+export function useDeleteAutomationRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error(await apiError(res, '删除规则失败'));
+      }
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      qc.invalidateQueries({ queryKey: ['automation-runs', id] });
+      toastSuccess('规则已删除');
+    },
+    onError: (err) => toastError(errMessage(err, '删除规则失败')),
+  });
+}
+
+// POST /api/automation/rules/:id/run-now
+// 注意：业务失败时 HTTP 仍为 201 + status=failed，不 throw；由调用方看 status toast
+export function useRunAutomationNow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(
+        `${API}/automation/rules/${encodeURIComponent(id)}/run-now`,
+        { method: 'POST' },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '立即执行失败'));
+      return res.json() as Promise<AutomationRun>;
+    },
+    onSuccess: (run) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      qc.invalidateQueries({ queryKey: ['automation-runs', run.ruleId] });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      if (run.status === 'success') {
+        const label = run.issueId ? run.issueId.slice(0, 8) : '—';
+        toastSuccess(`已创建 Issue · ${label}…`);
+      } else if (run.status === 'failed') {
+        toastError(run.error || '执行失败');
+      } else {
+        toastSuccess(`已跳过（${run.status}）`);
+      }
+    },
+    onError: (err) => toastError(errMessage(err, '立即执行失败')),
+  });
+}
+
+// GET /api/automation/rules/:id/runs?limit=
+export function useAutomationRuns(ruleId: string | null | undefined, limit = 10) {
+  return useQuery<AutomationRun[]>({
+    queryKey: ['automation-runs', ruleId, limit],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API}/automation/rules/${encodeURIComponent(ruleId!)}/runs?limit=${limit}`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载执行记录失败'));
+      return res.json();
+    },
+    enabled: !!ruleId,
   });
 }

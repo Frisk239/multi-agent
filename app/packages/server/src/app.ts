@@ -13,6 +13,7 @@ import { memoryRoutes } from './routes/memory.js';
 import { inboxRoutes } from './routes/inbox.js';
 import { quickRunRoutes } from './routes/quick-runs.js';
 import { settingsRoutes } from './routes/settings.js';
+import { automationRoutes } from './routes/automation.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 
@@ -38,6 +39,7 @@ export async function buildApp() {
   await app.register(memoryRoutes);
   await app.register(inboxRoutes);
   await app.register(settingsRoutes);
+  await app.register(automationRoutes);
   await app.register(wsRoutes);
 
   return app;

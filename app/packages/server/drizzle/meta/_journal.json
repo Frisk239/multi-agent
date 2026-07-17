@@ -71,6 +71,13 @@
       "when": 1784812800000,
       "tag": "0009_bu03_quick_create",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784899200000,
+      "tag": "0010_bu05_automation",
+      "breakpoints": true
     }
   ]
 }

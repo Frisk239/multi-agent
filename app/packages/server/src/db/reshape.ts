@@ -7,8 +7,19 @@ import type {
   InboxItem,
   AgentDetail,
   AgentSummary,
+  AutomationRule,
+  AutomationRun,
 } from '@ma/shared';
-import { issues, comments, agentRuns, runMessages, inboxItems, agents } from './schema.js';
+import {
+  issues,
+  comments,
+  agentRuns,
+  runMessages,
+  inboxItems,
+  agents,
+  automationRules,
+  automationRuns,
+} from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 
 type IssueRow = typeof issues.$inferSelect;
@@ -17,6 +28,8 @@ type RunRow = typeof agentRuns.$inferSelect;
 type MsgRow = typeof runMessages.$inferSelect;
 type InboxRow = typeof inboxItems.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
+type AutomationRuleRow = typeof automationRules.$inferSelect;
+type AutomationRunRow = typeof automationRuns.$inferSelect;
 
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
 export function toIssue(row: IssueRow): Issue {
@@ -25,6 +38,10 @@ export function toIssue(row: IssueRow): Issue {
     const label = resolveAssigneeLabel(row.assigneeType, row.assigneeId);
     assignee = { type: row.assigneeType, id: row.assigneeId, label: label ?? '未知' };
   }
+  const originType =
+    row.originType === 'quick_create' || row.originType === 'automation'
+      ? row.originType
+      : null;
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -37,8 +54,9 @@ export function toIssue(row: IssueRow): Issue {
     creatorType: row.creatorType,
     creatorId: row.creatorId,
     position: row.position,
-    originType: row.originType === 'quick_create' ? 'quick_create' : null,
+    originType,
     originRunId: row.originRunId ?? null,
+    originRuleId: row.originRuleId ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -147,5 +165,38 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     concurrency: row.concurrency,
     mcpServers: row.mcpServers ?? null,
     instructions: row.instructions ?? '',
+  };
+}
+
+// bu05：DB automation_rule → API AutomationRule
+export function toAutomationRule(row: AutomationRuleRow): AutomationRule {
+  return {
+    id: row.id,
+    name: row.name,
+    enabled: row.enabled === 1,
+    scheduleKind: row.scheduleKind,
+    intervalMinutes: row.intervalMinutes ?? null,
+    dailyTime: row.dailyTime ?? null,
+    assigneeType: row.assigneeType,
+    assigneeId: row.assigneeId,
+    titleTemplate: row.titleTemplate,
+    bodyTemplate: row.bodyTemplate ?? '',
+    lastPlannedAt: row.lastPlannedAt == null ? null : new Date(row.lastPlannedAt).toISOString(),
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+// bu05：DB automation_run → API AutomationRun
+export function toAutomationRun(row: AutomationRunRow): AutomationRun {
+  return {
+    id: row.id,
+    ruleId: row.ruleId,
+    plannedAt: new Date(row.plannedAt).toISOString(),
+    source: row.source,
+    status: row.status,
+    issueId: row.issueId ?? null,
+    error: row.error ?? null,
+    createdAt: new Date(row.createdAt).toISOString(),
   };
 }

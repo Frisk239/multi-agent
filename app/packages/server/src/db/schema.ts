@@ -1,4 +1,13 @@
-import { sqliteTable, text, real, integer, index, check, primaryKey } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  real,
+  integer,
+  index,
+  uniqueIndex,
+  check,
+  primaryKey,
+} from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // —— workspace（spec §3.1，单行）——
@@ -66,6 +75,7 @@ export const squads = sqliteTable('squad', {
 
 // —— issue（spec §3.2，照 multica 001_init.up.sql:52-72）——
 // bu03：+ origin_type / origin_run_id（快速派活溯源）
+// bu05：+ origin_rule_id（自动化规则溯源）；origin_type 含 automation
 export const issues = sqliteTable(
   'issue',
   {
@@ -87,8 +97,9 @@ export const issues = sqliteTable(
     creatorType: text('creator_type', { enum: ['member', 'agent'] }).notNull(),
     creatorId: text('creator_id').notNull(),
     position: real('position').notNull().default(0),
-    originType: text('origin_type'), // 'quick_create' | null
+    originType: text('origin_type'), // 'quick_create' | 'automation' | null
     originRunId: text('origin_run_id'),
+    originRuleId: text('origin_rule_id'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -283,5 +294,45 @@ export const issueSubscribers = sqliteTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.issueId, t.userType, t.userId] }),
+  }),
+);
+
+// —— automation_rule（bu05：最小自动化规则）——
+export const automationRules = sqliteTable('automation_rule', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  enabled: integer('enabled').notNull().default(1),
+  scheduleKind: text('schedule_kind', {
+    enum: ['interval_minutes', 'daily_at'],
+  }).notNull(),
+  intervalMinutes: integer('interval_minutes'),
+  dailyTime: text('daily_time'), // HH:mm
+  assigneeType: text('assignee_type', { enum: ['agent', 'squad'] }).notNull(),
+  assigneeId: text('assignee_id').notNull(),
+  titleTemplate: text('title_template').notNull(),
+  bodyTemplate: text('body_template').notNull().default(''),
+  lastPlannedAt: integer('last_planned_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+// —— automation_run（bu05：幂等 UNIQUE(rule_id, planned_at)）——
+export const automationRuns = sqliteTable(
+  'automation_run',
+  {
+    id: text('id').primaryKey(),
+    ruleId: text('rule_id')
+      .notNull()
+      .references(() => automationRules.id, { onDelete: 'cascade' }),
+    plannedAt: integer('planned_at').notNull(),
+    source: text('source', { enum: ['schedule', 'manual'] }).notNull(),
+    status: text('status', { enum: ['success', 'failed', 'skipped'] }).notNull(),
+    issueId: text('issue_id'),
+    error: text('error'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    uqRulePlanned: uniqueIndex('uq_automation_run_rule_planned').on(t.ruleId, t.plannedAt),
+    ruleCreatedIdx: index('idx_automation_run_rule_created').on(t.ruleId, t.createdAt),
   }),
 );
