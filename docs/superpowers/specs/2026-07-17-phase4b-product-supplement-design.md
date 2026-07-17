@@ -186,16 +186,10 @@ Graphiti、多机 daemon 舰队、14 CLI、GitHub/Lark 全 channel、Redis、完
 | 刀 | 状态 | 含包 | PR |
 |---|---|---|---|
 | 补1 | ✅ 已合 main | A+B | PR #12 → `a7195b9`；plan：`docs/superpowers/plans/2026-07-17-bu01-reliability-inbox.md` |
-<<<<<<< HEAD
-| 补2 | 🟢 计划者整刀验收通过，待合 PR | C+D | 分支 `feat/bu02-roster-ops`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md`；handoff：`bu02-impl-1/2`、`bu02-planner-2` |
-| 补3 | 🟠 **impl-2 进行中**（UI Task 4–5；impl-1 后端已过） | E | 分支 `feat/bu03-quick-create`；spec/plan 同上；impl-1 验收：`app/.progress/bu03-planner-1.md` |
-| 补4… | ⬜ 按需 | — | — |
-=======
 | 补2 | ✅ 已合 main | C+D | PR #13 → `840a6c8`；plan：`docs/superpowers/plans/2026-07-17-bu02-roster-ops.md` |
-| 补3 | 🟡 实现中（impl-1 已验，待 impl-2 / PR） | E | 分支 `feat/bu03-quick-create`；spec/plan 已批准 |
-| 补4 | 🟡 **spec 已批准 + plan 已写**（G0 只读） | G | spec：`docs/superpowers/specs/2026-07-17-bu04-settings-design.md`；plan：`docs/superpowers/plans/2026-07-17-bu04-settings.md`；kickoff：`app/.progress/bu04-planner-0.md` |
+| 补3 | 🟢 计划者整刀验收通过，待合 PR | E | 分支 `feat/bu03-quick-create`；spec/plan 已批准；handoff：`bu03-impl-1/2`、`bu03-planner-2` |
+| 补4 | 🟡 **spec 已批准 + plan 已写**（G0 只读）；impl 进行中 | G | spec：`docs/superpowers/specs/2026-07-17-bu04-settings-design.md`；plan：`docs/superpowers/plans/2026-07-17-bu04-settings.md`；分支 `feat/bu04-settings` |
 | 补5… | ⬜ 按需 | — | — |
->>>>>>> main
 
 ---
 
