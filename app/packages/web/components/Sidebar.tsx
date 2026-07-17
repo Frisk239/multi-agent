@@ -19,10 +19,11 @@ type NavItem = {
   badge?: number;
 };
 
-// S12：只保留已实现路由（Inbox/Squads 本棒激活）
+// S12：已实现路由；run-observability 增加「运行」
 const NAV_ITEMS: NavItem[] = [
   { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
   { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
+  { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },

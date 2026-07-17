@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately  
 
-**Status:** ready-for-agent  
+**Status:** resolved 
 
 **Branch:** `feat/run-observability`（本票创建分支）
 

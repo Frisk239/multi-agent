@@ -2643,3 +2643,69 @@ body {
   gap: 6px;
   line-height: 1.5;
 }
+
+/* run-observability */
+.runs-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.runs-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.runs-filters select {
+  min-width: 10rem;
+}
+.runs-fail-cell {
+  max-width: 22rem;
+}
+.run-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+.run-failure-box {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-red) 35%, transparent);
+  background: color-mix(in srgb, var(--color-red) 8%, transparent);
+  max-width: 40rem;
+}
+.run-failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.run-error-pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  opacity: 0.9;
+}
+.run-pill {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+}
+.run-pill--failed {
+  color: var(--color-red);
+  border-color: color-mix(in srgb, var(--color-red) 40%, transparent);
+}
+.run-pill--running {
+  color: var(--accent);
+}
+.run-pill--queued {
+  color: var(--text-muted);
+}

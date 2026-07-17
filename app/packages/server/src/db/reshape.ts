@@ -99,6 +99,7 @@ export function toAgentRun(row: RunRow): AgentRun {
     lastHeartbeatAt: iso(row.lastHeartbeatAt),
     isLeader: row.isLeader === 1,
     squadId: row.squadId,
+    rerunOfRunId: row.rerunOfRunId ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

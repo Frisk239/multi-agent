@@ -1,11 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, sql } from 'drizzle-orm';
-import { CreateIssueInput, UpdateIssueInput, validateUpdateIssue } from '@ma/shared';
+import {
+  CreateIssueInput,
+  UpdateIssueInput,
+  RerunIssueInput,
+  validateUpdateIssue,
+} from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
 import { issues, comments } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
-import { cancelActiveRunsForIssue, enqueueAgentRun, enqueueLeaderRun } from '../orchestration/run-service.js';
+import {
+  cancelActiveRunsForIssue,
+  enqueueAgentRun,
+  enqueueLeaderRun,
+  rerunIssue,
+} from '../orchestration/run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import {
@@ -178,6 +188,19 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.send(issue);
+  });
+
+  // POST /api/issues/:id/rerun —— 人工再执行（学 Multica RerunIssue）
+  app.post('/api/issues/:id/rerun', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = req.body === undefined || req.body === null ? {} : req.body;
+    const parsed = RerunIssueInput.safeParse(body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const res = rerunIssue(id, parsed.data.runId);
+    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    return reply.status(201).send(res.run);
   });
 }
 
