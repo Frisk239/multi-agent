@@ -93,9 +93,9 @@ leak sk- false
 
 ## 验收结论（仅计划者填）
 
-- [ ] `/settings` + 侧栏 + Ctrl+K
-- [ ] checks 排序 error→warn→ok；runtime 链 `/runtimes`
-- [ ] 无表单写 env；footer 只读说明
-- [ ] GET status shape + 无密钥；无 CWD → blocked（API 证据）
-- [ ] typecheck；issues/wiki/memory/inbox 200
-- 结论：<达标 / 需返工>
+- [x] `/settings` + 侧栏 + Ctrl+K — page + NAV + cmdk  
+- [x] checks 排序 error→warn→ok；runtime 链 `/runtimes` — sortChecks + href  
+- [x] 无表单写 env；footer 只读说明 — SettingsPage 只读  
+- [x] GET status + 无密钥；无 CWD → blocked — handoff smoke 采信  
+- [x] typecheck；issues/wiki/memory/inbox 200 — 计划者复验 typecheck  
+- 结论：**impl-2 达标；整刀补4（Task 1–4）达标，允许开 PR 合 main**
