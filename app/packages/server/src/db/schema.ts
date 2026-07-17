@@ -119,6 +119,8 @@ export const issueLabels = sqliteTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     color: text('color').notNull().default('#6b7280'),
+    // issue-find：软归档时间戳（ms）；null=活跃
+    archivedAt: integer('archived_at'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },

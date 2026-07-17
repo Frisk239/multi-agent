@@ -5,6 +5,7 @@ import {
   UpdateIssueInput,
   RerunIssueInput,
   SetIssueLabelsInput,
+  ListIssuesQuery,
   validateUpdateIssue,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
@@ -36,14 +37,56 @@ function issueWithLabels(row: typeof issues.$inferSelect) {
 }
 
 export async function issueRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/issues —— spec §5.1，扁平数组，按 position ASC, created_at DESC
-  app.get('/api/issues', async () => {
-    const rows = db
+  // GET /api/issues —— spec §5.1 + issue-find：q / labelId / status
+  app.get('/api/issues', async (req, reply) => {
+    const parsed = ListIssuesQuery.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const { q, labelId, status } = parsed.data;
+    const qTrim = q?.trim() ?? '';
+
+    let rows = db
       .select()
       .from(issues)
       .where(eq(issues.workspaceId, WS_ID))
       .orderBy(issues.position, sql`created_at DESC`)
       .all();
+
+    if (status) {
+      rows = rows.filter((r) => r.status === status);
+    }
+
+    if (labelId) {
+      const lab = db
+        .select()
+        .from(issueLabels)
+        .where(and(eq(issueLabels.id, labelId), eq(issueLabels.workspaceId, WS_ID)))
+        .get();
+      if (!lab || lab.archivedAt != null) {
+        return reply.status(400).send({ error: 'labelId 无效或已归档' });
+      }
+      const linked = new Set(
+        db
+          .select()
+          .from(issueToLabels)
+          .where(eq(issueToLabels.labelId, labelId))
+          .all()
+          .map((j) => j.issueId),
+      );
+      rows = rows.filter((r) => linked.has(r.id));
+    }
+
+    if (qTrim) {
+      const needle = qTrim.toLowerCase();
+      rows = rows.filter((r) => {
+        if (r.identifier.toLowerCase().includes(needle)) return true;
+        if (r.title.toLowerCase().includes(needle)) return true;
+        if ((r.description ?? '').toLowerCase().includes(needle)) return true;
+        return false;
+      });
+    }
+
     const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));
     return rows.map((r) => toIssue(r, labelMap.get(r.id) ?? []));
   });
@@ -218,6 +261,9 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         .all();
       if (found.length !== uniqueIds.length) {
         return reply.status(400).send({ error: '存在无效或不属于本工作区的 labelId' });
+      }
+      if (found.some((l) => l.archivedAt != null)) {
+        return reply.status(400).send({ error: '不能挂载已归档的标签' });
       }
     }
 

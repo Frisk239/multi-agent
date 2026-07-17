@@ -239,6 +239,8 @@ export const IssueLabel = z.object({
   workspaceId: BusinessId,
   name: z.string().min(1).max(40),
   color: z.string(),
+  // issue-find：软归档；null=活跃
+  archivedAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -267,6 +269,22 @@ export const SetIssueLabelsInput = z.object({
   labelIds: z.array(BusinessId),
 });
 export type SetIssueLabelsInput = z.infer<typeof SetIssueLabelsInput>;
+
+// issue-find：GET /api/issues 查询
+export const ListIssuesQuery = z.object({
+  q: z.string().optional(),
+  labelId: BusinessId.optional(),
+  status: IssueStatus.optional(),
+});
+export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
+
+// issue-find：GET /api/labels?includeArchived=1
+export const ListLabelsQuery = z.object({
+  includeArchived: z
+    .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')])
+    .optional(),
+});
+export type ListLabelsQuery = z.infer<typeof ListLabelsQuery>;
 
 // —— Issue ——
 export const Issue = z.object({

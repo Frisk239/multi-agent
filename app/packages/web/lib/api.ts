@@ -56,11 +56,35 @@ async function apiError(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
-export function useIssues() {
+export type IssuesQuery = {
+  q?: string;
+  labelId?: string;
+  status?: string;
+};
+
+function issuesQueryKey(params?: IssuesQuery) {
+  return [
+    'issues',
+    params?.q?.trim() || '',
+    params?.labelId || '',
+    params?.status || '',
+  ] as const;
+}
+
+function buildIssuesUrl(params?: IssuesQuery) {
+  const sp = new URLSearchParams();
+  if (params?.q?.trim()) sp.set('q', params.q.trim());
+  if (params?.labelId) sp.set('labelId', params.labelId);
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  return qs ? `${API}/issues?${qs}` : `${API}/issues`;
+}
+
+export function useIssues(params?: IssuesQuery) {
   return useQuery<Issue[]>({
-    queryKey: ['issues'],
+    queryKey: issuesQueryKey(params),
     queryFn: async () => {
-      const res = await fetch(`${API}/issues`);
+      const res = await fetch(buildIssuesUrl(params));
       if (!res.ok) throw new Error('加载失败');
       return res.json();
     },
@@ -263,9 +287,8 @@ export function useUpdateIssue() {
       toastError(errMessage(err, '更新失败'));
     },
     onSuccess: (issue) => {
-      qc.setQueryData<Issue[]>(['issues'], (old) =>
-        old?.map((i) => (i.id === issue.id ? issue : i)),
-      );
+      // issue-find：issues 带筛选 queryKey，统一 invalidate 前缀
+      qc.invalidateQueries({ queryKey: ['issues'] });
       qc.setQueryData<Issue>(['issue', issue.id], issue);
       // 时间线条等 WS comment:created；也可 invalidate 兜底
       qc.invalidateQueries({ queryKey: ['comments', issue.id] });
@@ -334,15 +357,15 @@ export function useDeleteLabel() {
         method: 'DELETE',
       });
       if (!res.ok && res.status !== 204) {
-        throw new Error(await apiError(res, '删除标签失败'));
+        throw new Error(await apiError(res, '归档标签失败'));
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['labels'] });
       qc.invalidateQueries({ queryKey: ['issues'] });
-      toastSuccess('已删除标签');
+      toastSuccess('已归档标签');
     },
-    onError: (err) => toastError(errMessage(err, '删除标签失败')),
+    onError: (err) => toastError(errMessage(err, '归档标签失败')),
   });
 }
 
@@ -359,9 +382,7 @@ export function useSetIssueLabels(issueId: string) {
       return res.json() as Promise<Issue>;
     },
     onSuccess: (issue) => {
-      qc.setQueryData<Issue[]>(['issues'], (old) =>
-        old?.map((i) => (i.id === issue.id ? issue : i)),
-      );
+      qc.invalidateQueries({ queryKey: ['issues'] });
       qc.setQueryData<Issue>(['issue', issue.id], issue);
       qc.invalidateQueries({ queryKey: ['labels'] });
     },
