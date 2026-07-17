@@ -659,6 +659,120 @@ export MEMORY_DATABASE_URL=postgresql://nope
 
 ---
 
+## 执行者排雷（预调研 · 必读）
+
+> 调研源：mem0-ts `vector_stores/pgvector.ts`、mem0 Python pgvector、WeKnora postgres retriever、本仓 S09 代码、本机 Docker 可用性。  
+> **原则：踩过的坑写进 handoff，别让下一个执行者再踩。**
+
+### R1 — `vector(N)` 不能用 `$1` 参数化
+
+- **现象：** `CREATE TABLE ... embedding vector($1)` 会失败或变成错误类型。
+- **做法：** `dims = Math.floor(Number(EMBEDDING_DIMS||1536))`，校验 `Number.isInteger(dims) && dims > 0` 后**字符串拼进 DDL**（dims 来自受控 env，不是用户输入）。
+- **证据：** mem0-ts `createCol` 用 `` vector(${dims}) ``；Python 用 `sql.Literal(embedding_model_dims)`。
+
+### R2 — 写入向量用字面量字符串 + `::vector` 强转
+
+- **推荐：** 参数传 `'[0.1,0.2,...]'`，SQL 写 `$n::vector`（mem0-ts `insert`：`vector: \`[${vector.join(",")}]\`` + `$2::vector`）。
+- **避免：** 直接传 JS `number[]` 当绑定参数（驱动不一定映射为 pgvector）。
+- **辅助：** 计划里的 `vectorLiteral(v)` 即此用途。
+
+### R3 — 余弦检索：`ORDER BY embedding <=> $q` 必须与 HNSW ops 一致
+
+- **距离：** `<=>` = cosine distance；score 可用 `GREATEST(0, 1 - (embedding <=> $q))`（mem0 常见映射）。
+- **索引：** `USING hnsw (embedding vector_cosine_ops)`；若用 L2 会与 cosine ops 不匹配。
+- **HNSW 创建失败：** 数据过少/扩展版本时可能失败——**catch + warn 继续**（mem0 同样 try/catch warn）。无索引时顺序扫仍可验收。
+
+### R4 — `CREATE EXTENSION vector` 需要权限
+
+- compose 默认超级用户 `ma` 一般 OK。
+- 若接外部托管 PG 且无建扩展权限 → `initialize` 失败 → **回退 sqlite-text**（不要硬崩 listen）。
+
+### R5 — Embedding API 兼容性坑
+
+| 坑 | 处理 |
+|---|---|
+| baseURL 尾斜杠 | `replace(/\/$/, '')` 再拼 `/embeddings` |
+| 部分国产只实现 chat 不实现 embeddings | 启动后 spike 一条 embed；失败明确 log |
+| 返回 dims ≠ `EMBEDDING_DIMS` | **throw**，避免写入错误维向量（计划 embedder 已要求校验） |
+| `text-embedding-3-*` 支持 `dimensions` 缩维 | MVP 可不传；若传必须与表 `vector(N)` 一致 |
+| 空字符串 embed | 上层 truncate/拒空；勿把空串批量送给 API |
+
+- **实现选择：** 原生 `fetch`（计划）即可，**不必**装 `openai` SDK；mem0-ts 用 SDK 是为了省事，我们为少依赖可 fetch。
+- **鉴权：** `Authorization: Bearer <key>`；key 优先 `EMBEDDING_API_KEY`，回退 `OPENAI_API_KEY`。
+
+### R6 — `addRaw` 同步 vs Promise（会炸 Manager）
+
+- **现状：** S09 `SqliteTextProvider.addRaw` **同步**返回 `MemoryItemView`；`manager.addCurated` **直接 return this.external.addRaw(...)**（未 `await`）。
+- **S10：** `PgvectorProvider.addRaw` 必须 **async**（要 embed + INSERT）。
+- **必改（impl-1 或 impl-2 最早做）：**
+
+```typescript
+const created = await Promise.resolve(
+  this.external.addRaw(text, { issueId: issueId ?? null, agentId: null, runId: null }),
+);
+return created;
+```
+
+- 类型上 duck-type 返回 `MemoryItemView | Promise<MemoryItemView>`。
+
+### R7 — `buildPrompt` async 改动面极小但必全
+
+- **全仓 call site（已 rg）：** 仅  
+  - 定义：`runtime/prompt.ts:28`  
+  - 调用：`run-worker.ts:83`  
+- 改签名后 **worker 必须 `await buildPrompt`**，否则 prompt 变成 Promise 对象喂给 CLI。
+- 无其它包引用（web 不调 buildPrompt）。
+
+### R8 — `GET /api/memory` 无 `q` 时直读 SQLite（S09 债）
+
+- **现状：** `routes/memory.ts` 无 query 时 `db.select().from(memoryItems)`——**pgvector 模式下会读错库/空表**。
+- **S10 必须：** 一律 `memoryManager.search(q || '', lim)`。
+- **sqlite 空串：** `tokenize('')` → 无 token → 已有「最近 N 条」分支（`sqlite-text-provider` tokens.length===0）。OK。
+- **pg 空串：** Provider.prefetch 对 trim 空 query 走 `ORDER BY created_at DESC`（计划已写）。
+
+### R9 — POST 201 fallback 仍读 SQLite
+
+- **现状：** `addCurated` 无返回值时 fallback `memoryItems` 最新行。
+- **pgvector：** 必须让 `addRaw` **始终返回** `MemoryItemView`（含 id/text），避免 fallback 读错库。
+
+### R10 — Docker / 连接串
+
+- **本机已有：** Docker 29.x + Compose v5（预调研环境）。
+- **URL 示例：** `postgresql://ma:ma@127.0.0.1:5432/ma_memory`（compose 用户/库与文档一致）。
+- **Windows：** 若 5432 被占用，改 compose 端口映射并同步 URL。
+- **健康检查：** 等 `pg_isready` 再跑 initialize spike，避免 race。
+
+### R11 — `isAvailable()` 时序
+
+- `initialize()` 成功前 `ready=false` → `isAvailable()===false`。
+- index 逻辑必须：**先 await initialize()，再 isAvailable()**；不要颠倒。
+- embed key 缺失：pgvector `isAvailable()` 应为 false → 回退 sqlite（避免写入路径半残）。
+
+### R12 — 安全与运维
+
+- **勿**把 `MEMORY_DATABASE_URL` / embedding key 写进 git；只用 env。
+- DDL 中 dims 只允许数字；表名/列名用固定常量，勿拼用户字符串。
+- Pool `max: 5` 够本地；`shutdown`/`closeMemoryPgPool` 可选，server 长驻可不关。
+
+### R13 — 建议 spike 顺序（impl-1）
+
+```
+1. docker compose up -d
+2. pnpm add pg
+3. 裸 pg 客户端 SELECT 1
+4. CREATE EXTENSION vector
+5. embedder 单条文本 → 打印 dims
+6. INSERT ... $n::vector → SELECT <=> 自检索应 top1 自己
+```
+
+任一步失败在 handoff 写清环境，勿 silently skip 却报完成。
+
+### R14 — 明确不碰
+
+- 不引入 `mem0ai` 包、不迁 issues 到 PG、不双写 `memory_item`、不建 graphiti。
+
+---
+
 ## 执行者启动提示词
 
 ### impl-1
@@ -666,14 +780,18 @@ export MEMORY_DATABASE_URL=postgresql://nope
 ```
 你是 S10 执行者 impl-1。
 
-必读：AGENTS.md；docs/superpowers/specs/2026-07-17-s10-pgvector-memory-design.md；
-docs/superpowers/plans/2026-07-17-s10-pgvector-memory.md 片段 A。
+必读：
+1. AGENTS.md
+2. docs/superpowers/specs/2026-07-17-s10-pgvector-memory-design.md
+3. docs/superpowers/plans/2026-07-17-s10-pgvector-memory.md
+   —— 片段 A + **「执行者排雷 R1–R14」**（必读）
 
-分支 feat/s10-pgvector-memory 从已合 S09 的 origin/main 切。
+分支 feat/s10-pgvector-memory 从 origin/main（已合 S09）切。
+
 完成：docker-compose、pg 依赖、pg-memory pool、embedder、PgvectorProvider；
-Manager addCurated 兼容 Promise addRaw。
-可脚本测 initialize+insert+prefetch（需 docker+key）。
-不改 prompt/worker 也可；handoff 写清导出。写 s10-impl-1.md 并 push。
+Manager addCurated 必须 await Promise.resolve(addRaw)（排雷 R6）。
+按 R13 spike；handoff 记录 docker/embed/dims 是否跑通。
+可不改 prompt/worker。写 s10-impl-1.md 并 push。绝不 push main。
 ```
 
 ### impl-2
@@ -681,9 +799,10 @@ Manager addCurated 兼容 Promise addRaw。
 ```
 你是 S10 执行者 impl-2。
 
-必读：计划片段 B + app/.progress/s10-impl-1.md。
-接线：prefetchForIssue async、buildPrompt async、run-worker await、
-index MEMORY_PROVIDER 回退、memory routes 统一 Manager。
-验收：无 PG sqlite 开发；有 PG+embed 写向量+检索；错误 URL 回退。
+必读：计划片段 B + 排雷 R7–R9 + app/.progress/s10-impl-1.md。
+
+接线：prefetchForIssue async、buildPrompt async、run-worker 唯一 await、
+index MEMORY_PROVIDER 回退（R11 时序）、memory routes 禁止直读 SQLite（R8/R9）。
+验收：无 PG 默认 sqlite；有 PG+embed 写向量+检索；错误 URL 回退不崩。
 写 s10-impl-2.md 并 push。
 ```
