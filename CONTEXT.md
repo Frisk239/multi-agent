@@ -77,11 +77,11 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `…` · `issue-assignee-nav` · `runs-empty-cta`（`477d0fb`）  
-- **本刀：** `inbox-dual-deeplink` — Inbox Issue+Run 双入口  
+- **已推：** `runs-empty-cta` · `inbox-dual-deeplink`（`485383e`）  
+- **本刀：** `cmdk-automation` — CmdK 关键词打开自动化  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** CmdK 关键词直达自动化/设置；周期 Multica 差距表  
+- **再下一刀建议：** 周期差距表驱动更大刀（执行可靠性 / QC 体验）；Settings 一键复制已有  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

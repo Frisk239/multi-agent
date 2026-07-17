@@ -362,6 +362,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       ['活跃', '在途', 'active', 'queued', 'running', '排队', '执行中'].some(
         (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
       );
+    const automationHit =
+      q &&
+      ['自动化', 'automation', '定时', 'schedule', 'cron', '规则', '巡检'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
 
     const failedCmds = failedHit
       ? [
@@ -397,6 +402,18 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ]
       : [];
 
+    const automationCmds = automationHit
+      ? [
+          {
+            id: 'automation-open',
+            label: '打开自动化',
+            hint: '/automation',
+            group: '自动化',
+            run: () => router.push('/automation'),
+          },
+        ]
+      : [];
+
     const diagCmds = [
       ...(diagHit
         ? [
@@ -422,11 +439,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         : []),
     ];
 
-    // 有查询：活跃/失败 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
+    // 有查询：活跃/失败/自动化 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
     if (q) {
       return [
         ...activeCmds,
         ...failedCmds,
+        ...automationCmds,
         ...issueCmds,
         ...squadCmds,
         ...wikiCmds,
