@@ -69,9 +69,9 @@ GET /api/agents/agt-lead/runs → 含 kind=quick_create / issueId null 行
 
 ## 验收结论（仅计划者填）
 
-- [ ] UI 可提交 quick-run（无标题）
-- [ ] Ctrl+K + 侧栏同一组件
-- [ ] runs/ws null issueId / kind 展示不崩
-- [ ] typecheck + issues/wiki/memory/inbox 200
-- [ ] 无 wiki/db 误提交
-- 结论：
+- [x] UI 可提交 quick-run（无标题）— QuickDispatchPanel + useCreateQuickRun  
+- [x] Ctrl+K + 侧栏同一组件 — 另保留「新建 Issue」（偏离可接受）  
+- [x] runs/ws null issueId / kind 展示不崩 — Agent Runs 建卡中 + poll  
+- [x] typecheck + issues/wiki/memory/inbox 200 — 计划者复验 typecheck；smoke 采信  
+- [x] 无 wiki/db 误提交  
+- 结论：**impl-2 达标；整刀补3（Task 1–5）达标，允许开 PR 合 main**
