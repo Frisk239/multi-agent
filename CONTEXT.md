@@ -77,12 +77,12 @@
 - **已推：** `automation-next-run`（`bd6ec14`）  
 - **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
 - **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `memory-kind-filter`（`449d491`）  
-- **本刀：** `cmdk-memory-kind` — CmdK 记忆类型筛选  
+- **已推：** `cmdk-memory-kind`（`b27b682`）  
+- **本刀：** `memory-empty-filter` — 记忆筛选空态 CTA + visible 列表修复  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **再下一刀建议：** 人指定主题；或执行可靠性纵深  
+- **再下一刀建议：** 人指定主题；执行可靠性纵深  
 - **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
 - **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
 

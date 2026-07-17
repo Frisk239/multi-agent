@@ -4339,3 +4339,11 @@ button.memory-kind-chip.is-active {
   outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
 }
+
+.memory-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}

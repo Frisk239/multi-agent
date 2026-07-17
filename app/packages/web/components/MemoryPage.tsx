@@ -276,7 +276,7 @@ function MemoryPageInner() {
               </tr>
             )}
             {!isError &&
-              data?.map((m) => {
+              visibleMemories.map((m) => {
                 const kind = inferKind(m.text);
                 return (
                   <tr key={m.id} data-memory-id={m.id} data-memory-kind={kind}>
@@ -317,16 +317,53 @@ function MemoryPageInner() {
                   </tr>
                 );
               })}
-            {!isError && data && data.length === 0 && (
+            {!isError && visibleMemories.length === 0 && (
               <tr>
                 <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
-                  {isFetching
-                    ? '加载中…'
-                    : showUnavailable
-                      ? '记忆不可用，无法列出条目'
-                      : hasQuery
-                        ? '没有匹配的记忆'
-                        : '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'}
+                  {isFetching ? (
+                    '加载中…'
+                  ) : showUnavailable ? (
+                    '记忆不可用，无法列出条目'
+                  ) : hasQuery || kindFilter ? (
+                    <div data-testid="memory-empty-filter">
+                      <div>没有符合筛选的记忆</div>
+                      <div className="memory-empty-actions">
+                        {hasQuery ? (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            data-testid="memory-clear-q"
+                            onClick={clearSearch}
+                          >
+                            清除搜索
+                          </button>
+                        ) : null}
+                        {kindFilter ? (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            data-testid="memory-clear-kind"
+                            onClick={() => setKindFilter('')}
+                          >
+                            清除类型
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm"
+                          data-testid="memory-clear-filters"
+                          onClick={() => {
+                            setQDraft('');
+                            router.replace(pathname, { scroll: false });
+                          }}
+                        >
+                          清除全部
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'
+                  )}
                 </td>
               </tr>
             )}
