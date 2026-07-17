@@ -411,6 +411,37 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             group: '自动化',
             run: () => router.push('/automation'),
           },
+          {
+            id: 'board-origin-automation',
+            label: '看板：仅自动化 Issue',
+            hint: '/?origin=automation',
+            group: '看板',
+            run: () => router.push('/?origin=automation'),
+          },
+        ]
+      : [];
+
+    const originHit =
+      q &&
+      ['来源', 'origin', '快速派活', 'quick_create', 'qc', '自动创建'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const originCmds = originHit
+      ? [
+          {
+            id: 'board-origin-automation-2',
+            label: '看板：仅自动化 Issue',
+            hint: '/?origin=automation',
+            group: '看板',
+            run: () => router.push('/?origin=automation'),
+          },
+          {
+            id: 'board-origin-qc',
+            label: '看板：仅快速派活 Issue',
+            hint: '/?origin=quick_create',
+            group: '看板',
+            run: () => router.push('/?origin=quick_create'),
+          },
         ]
       : [];
 
@@ -444,6 +475,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       return [
         ...activeCmds,
         ...failedCmds,
+        ...originCmds,
         ...automationCmds,
         ...issueCmds,
         ...squadCmds,
