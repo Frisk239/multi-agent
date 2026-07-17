@@ -1,6 +1,8 @@
 'use client';
+
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useMemoryStatus,
   useMemoryList,
@@ -8,16 +10,38 @@ import {
   useSettingsStatus,
 } from '@/lib/api';
 
-// S11 /memory 浏览器 + wiki-memory-ops 可行动空态/失败
-// 布局对齐 SkillsPage（page-header / table-search / data-table）
-export function MemoryPage() {
+// S11 /memory + URL ?q= 可分享搜索（日常知识入口）
+function MemoryPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const qFromUrl = searchParams.get('q') ?? '';
+
   const { data: status } = useMemoryStatus();
   const { data: settings } = useSettingsStatus();
-  const [q, setQ] = useState('');
-  const { data, isFetching, isError, error } = useMemoryList(q);
+  const [qDraft, setQDraft] = useState(qFromUrl);
+  const { data, isFetching, isError, error } = useMemoryList(qFromUrl);
   const create = useCreateMemory();
   const [draft, setDraft] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQDraft(qFromUrl);
+  }, [qFromUrl]);
+
+  // 防抖写 URL → 再由 URL 驱动 useMemoryList
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = qDraft.trim();
+      if (next === qFromUrl.trim()) return;
+      const sp = new URLSearchParams(searchParams.toString());
+      if (next) sp.set('q', next);
+      else sp.delete('q');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [qDraft, qFromUrl, pathname, router, searchParams]);
 
   const available = status?.available ?? true;
   const statusLabel = status
@@ -52,7 +76,7 @@ export function MemoryPage() {
             记忆 <span className="count">{data?.length ?? 0}</span>
           </div>
           <div className="page-desc">
-            工作区经验记忆（curated + ambient）。provider：{statusLabel}
+            工作区经验记忆（curated + ambient）。搜索同步 URL（?q=）。provider：{statusLabel}
           </div>
         </div>
       </div>
@@ -80,6 +104,7 @@ export function MemoryPage() {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={create.isPending || showUnavailable}
+          aria-label="新记忆内容"
         />
         <div className="memory-create-actions">
           {formError && (
@@ -104,14 +129,16 @@ export function MemoryPage() {
         <input
           type="search"
           placeholder="搜索记忆…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          value={qDraft}
+          onChange={(e) => setQDraft(e.target.value)}
           disabled={showUnavailable}
+          aria-label="搜索记忆"
+          data-testid="memory-search"
         />
       </div>
 
       <div className="data-table-wrap">
-        <table className="data-table">
+        <table className="data-table" data-testid="memory-table">
           <thead>
             <tr>
               <th>内容</th>
@@ -132,17 +159,21 @@ export function MemoryPage() {
             )}
             {!isError &&
               data?.map((m) => (
-                <tr key={m.id}>
+                <tr key={m.id} data-memory-id={m.id}>
                   <td>
                     <div className="memory-text">{m.text}</div>
                   </td>
                   <td className="text-dim text-sm">
-                    {m.issueId ? <code>{m.issueId}</code> : '—'}
+                    {m.issueId ? (
+                      <Link href={`/issues/${m.issueId}`}>
+                        <code>{m.issueId.slice(0, 8)}…</code>
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="text-dim text-sm">
-                    {m.createdAt
-                      ? new Date(m.createdAt).toLocaleString()
-                      : '—'}
+                    {m.createdAt ? new Date(m.createdAt).toLocaleString() : '—'}
                   </td>
                   <td className="text-dim text-sm">
                     <code title={m.id}>{m.id.slice(0, 8)}…</code>
@@ -156,7 +187,7 @@ export function MemoryPage() {
                     ? '加载中…'
                     : showUnavailable
                       ? '记忆不可用，无法列出条目'
-                      : q.trim()
+                      : qFromUrl.trim()
                         ? '没有匹配的记忆'
                         : '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'}
                 </td>
@@ -173,5 +204,13 @@ export function MemoryPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+export function MemoryPage() {
+  return (
+    <Suspense fallback={<div className="page-container">加载中…</div>}>
+      <MemoryPageInner />
+    </Suspense>
   );
 }
