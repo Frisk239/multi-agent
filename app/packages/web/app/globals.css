@@ -3123,6 +3123,27 @@ body {
   color: var(--text-primary);
 }
 
+.quick-dispatch-cwd-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--color-orange, #f97316) 45%, transparent);
+  background: color-mix(in srgb, var(--color-orange, #f97316) 10%, transparent);
+}
+
+.quick-dispatch-cwd-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.quick-dispatch-cwd-banner p {
+  margin: 0;
+}
+
 .quick-dispatch-hint {
   margin: 0;
   padding: 0 var(--space-4) var(--space-3);

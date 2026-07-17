@@ -1,8 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
-import { useAgents, useCreateQuickRun, useSquads } from '@/lib/api';
+import {
+  useAgents,
+  useCreateQuickRun,
+  useSettingsStatus,
+  useSquads,
+} from '@/lib/api';
 import { toastSuccess } from '@/lib/toast';
 
 const API = 'http://localhost:3001/api';
@@ -36,6 +42,7 @@ async function pollRunUntilIssueId(
 }
 
 // bu03：快速派活 — prompt + agent|squad，无标题；侧栏 / Ctrl+K 共用
+// qc-cwd-gate：cwd 未就绪时面板内警告，按钮改为「仍要派活」
 export function QuickDispatchPanel({
   open,
   onClose,
@@ -45,7 +52,17 @@ export function QuickDispatchPanel({
   const [assigneeValue, setAssigneeValue] = useState('');
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: settings } = useSettingsStatus();
   const createQuickRun = useCreateQuickRun();
+
+  const cwdBlocked = useMemo(() => {
+    const cwd = settings?.checks?.find((c) => c.id === 'cwd');
+    return cwd?.status === 'error';
+  }, [settings]);
+  const cwdDetail = useMemo(() => {
+    const cwd = settings?.checks?.find((c) => c.id === 'cwd');
+    return cwd?.detail ?? '未配置 MA_WORKSPACE_CWD';
+  }, [settings]);
 
   useEffect(() => {
     if (!open) return;
@@ -113,6 +130,29 @@ export function QuickDispatchPanel({
         <p className="quick-dispatch-hint">
           无需标题。提交后先派出建卡任务，agent 会创建 Issue 并自动开工。
         </p>
+        {cwdBlocked ? (
+          <div
+            className="quick-dispatch-cwd-banner"
+            data-testid="quick-dispatch-cwd-banner"
+            role="status"
+          >
+            <div>
+              <strong>工作区未就绪</strong>
+              <p className="text-sm">
+                {cwdDetail}
+                。仍可派发，但 run 很可能立刻失败。
+              </p>
+            </div>
+            <Link
+              href="/settings"
+              className="btn-secondary btn-sm"
+              data-testid="quick-dispatch-settings"
+              onClick={onClose}
+            >
+              环境诊断
+            </Link>
+          </div>
+        ) : null}
         <form className="quick-dispatch-form" onSubmit={handleSubmit}>
           <label className="ops-field">
             <span>指派给</span>
@@ -157,9 +197,16 @@ export function QuickDispatchPanel({
             <button
               type="submit"
               className="btn-primary"
+              data-testid="quick-dispatch-submit"
+              data-cwd-blocked={cwdBlocked ? '1' : '0'}
+              title={cwdBlocked ? '工作区未就绪，run 可能失败' : undefined}
               disabled={!prompt.trim() || !assigneeValue || createQuickRun.isPending}
             >
-              {createQuickRun.isPending ? '派发中…' : '派活'}
+              {createQuickRun.isPending
+                ? '派发中…'
+                : cwdBlocked
+                  ? '仍要派活'
+                  : '派活'}
             </button>
           </div>
         </form>
