@@ -43,6 +43,10 @@
 | 看板状态列聚焦 | ✅ | board-status-focus |
 | 详情状态 → 看板聚焦 | ✅ | issue-status-board-link |
 | 运行表/Agent Runs 行内筛选 | ✅ | runs-table-deeplinks / agent-runs-deeplinks |
+| Skills URL 筛选 | ✅ | skills-url-filters |
+| 自动化规则行运营链 | ✅ | automation-row-links |
+| 小队/Wiki 任务深链 | ✅ | squad-wiki-run-links |
+| Mention 看板/运行链 | ✅ | mention-ops-links |
 
 ## 仍弱（非完成态原因）
 
