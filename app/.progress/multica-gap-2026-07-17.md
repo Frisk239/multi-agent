@@ -47,6 +47,7 @@
 | 自动化规则行运营链 | ✅ | automation-row-links |
 | 小队/Wiki 任务深链 | ✅ | squad-wiki-run-links |
 | Mention 看板/运行链 | ✅ | mention-ops-links |
+| Memory/Wiki 运营回跳与列表搜索 | ✅ | memory-ops-links / wiki-ops-links |
 
 ## 仍弱（非完成态原因）
 
