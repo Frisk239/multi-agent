@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
-import { useAgents, useRetryRun, useSquads, useWorkspaceRuns } from '@/lib/api';
+import {
+  useAgents,
+  useRecoverStuckRuns,
+  useRetryRun,
+  useSquads,
+  useWorkspaceRuns,
+} from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
@@ -111,6 +117,7 @@ function RunsPageInner() {
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const recoverStuck = useRecoverStuckRuns();
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
     agentId: agentId || undefined,
@@ -224,6 +231,16 @@ function RunsPageInner() {
                 环境诊断 / cwd
               </Link>
             ) : null}
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="runs-fail-recover-stuck"
+              disabled={recoverStuck.isPending}
+              onClick={() => recoverStuck.mutate()}
+              title="收尸 orphan/stale/missing-agent/queued 过久"
+            >
+              {recoverStuck.isPending ? '收尸中…' : '收尸卡住'}
+            </button>
             <Link href="/runtimes" className="btn-secondary btn-sm" data-testid="runs-fail-to-runtimes">
               运行时
             </Link>

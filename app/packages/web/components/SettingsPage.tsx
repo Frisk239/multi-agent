@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
-import { useSettingsStatus } from '@/lib/api';
+import { useRecoverStuckRuns, useSettingsStatus } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
@@ -56,6 +56,7 @@ function buildEnvSnippet(checks: SettingsCheck[]): string {
 export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
+  const recoverStuck = useRecoverStuckRuns();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
@@ -369,9 +370,19 @@ export function SettingsPage() {
       >
         <div className="settings-cwd-guide-title">
           <strong>运营恢复</strong>
-          <span className="text-dim text-sm">失败 / 就绪 / 编译</span>
+          <span className="text-dim text-sm">失败 / 就绪 / 编译 / 卡死 run</span>
         </div>
         <div className="settings-cwd-recovery-links">
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            data-testid="settings-ops-recover-stuck"
+            disabled={recoverStuck.isPending}
+            onClick={() => recoverStuck.mutate()}
+            title="收尸 orphan running / 心跳超时 / 缺 agent 排队 / 排队过久"
+          >
+            {recoverStuck.isPending ? '收尸中…' : '收尸卡住 run'}
+          </button>
           <Link className="btn-secondary btn-sm" href="/runs?status=failed" data-testid="settings-ops-failed-runs">
             失败运行
           </Link>

@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { agentRuns, runMessages } from '../db/schema.js';
 import { toAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, retryRun } from '../orchestration/run-service.js';
+import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 
 const ACTIVE_STATUSES = ['queued', 'running'] as const;
 
@@ -56,6 +57,11 @@ export async function runRoutes(app: FastifyInstance) {
       else if (r.status === 'running') running += 1;
     }
     return { count: queued + running, queued, running };
+  });
+
+  // POST /api/runs/recover-stuck —— 运维：立即收尸 orphan/stale/missing-agent（须在 :runId 前）
+  app.post('/api/runs/recover-stuck', async () => {
+    return recoverStuckRuns();
   });
 
   // GET /api/runs/:runId —— 单条

@@ -1,7 +1,7 @@
 import { buildApp } from './app.js';
 import { startRunWorker } from './orchestration/run-worker.js';
 import {
-  recoverOrphanedRunningRuns,
+  recoverStuckRuns,
   startStaleRunSweeper,
 } from './orchestration/stale-runs.js';
 import { startAutomationWorker } from './orchestration/automation-worker.js';
@@ -44,8 +44,8 @@ async function main() {
   await initMemoryProvider();
   await memoryManager.initialize();
   const app = await buildApp();
-  // bu01：先收尸上轮崩溃残留 running，再起 worker + stale sweeper
-  recoverOrphanedRunningRuns();
+  // bu01：先收尸残留 running + 卡死 queued，再起 worker + stale sweeper
+  recoverStuckRuns();
   // 启动 RunWorker 轮询（spec §6.2）：listen 前启动，enqueue 时 wake 立即触发
   startRunWorker();
   startStaleRunSweeper();

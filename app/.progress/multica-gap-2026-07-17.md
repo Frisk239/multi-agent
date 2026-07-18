@@ -56,6 +56,7 @@
 | 新建 Issue 指派就绪恢复 | ✅ | new-issue-assignee-readiness |
 | Inbox 服务端 bulk 已读/归档 | ✅ | inbox-bulk-api |
 | Agents 批量 readiness | ✅ | agents-readiness-bulk |
+| 卡死 run 收尸（queued/orphan） | ✅ | runs-recover-stuck |
 
 ## 仍弱（非完成态原因）
 

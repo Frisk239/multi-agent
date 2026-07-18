@@ -801,6 +801,41 @@ export function useAgentReadiness(agentId: string) {
   });
 }
 
+/** POST /api/runs/recover-stuck —— 收尸 orphan/stale/missing-agent runs */
+export function useRecoverStuckRuns() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API}/runs/recover-stuck`, { method: 'POST' });
+      if (!res.ok) throw new Error(await apiError(res, '收尸失败'));
+      return res.json() as Promise<{
+        orphanRunning: number;
+        staleRunning: number;
+        staleQueued: number;
+        missingAgentQueued: number;
+        total: number;
+      }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+      if (r.total === 0) toastSuccess('没有需要收尸的卡住 run');
+      else {
+        toastSuccess(
+          `已收尸 ${r.total} 条（running残留 ${r.orphanRunning} · 心跳超时 ${r.staleRunning} · 缺 agent ${r.missingAgentQueued} · 排队过久 ${r.staleQueued}）`,
+          {
+            action: { label: '失败运行', href: '/runs?status=failed' },
+            durationMs: 8000,
+          },
+        );
+      }
+    },
+    onError: (err) => toastError(errMessage(err, '收尸失败')),
+  });
+}
+
 /** 批量 readiness：GET /api/agents/readiness?ids=…（单请求，避免 N+1） */
 export function useAgentsReadinessMap(agentIds: string[]) {
   const unique = [...new Set(agentIds.filter(Boolean))];
