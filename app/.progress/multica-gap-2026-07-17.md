@@ -52,6 +52,7 @@
 | Wiki 健康 / RunTrace 恢复 | ✅ | wiki-health-run-trace-ops |
 | Issue 运行历史运营深链 | ✅ | issue-run-history-links |
 | 全局环境横幅分级恢复 | ✅ | env-banner-ops |
+| 快速派活指派就绪恢复 | ✅ | qc-assignee-readiness |
 
 ## 仍弱（非完成态原因）
 
