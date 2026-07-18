@@ -2200,6 +2200,13 @@ body {
   letter-spacing: -0.01em;
 }
 
+.agent-readiness-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0 12px;
+}
 .agent-profile-cat {
   color: var(--text-dim);
   font-size: var(--text-sm);

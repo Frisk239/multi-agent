@@ -114,6 +114,55 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             </div>
           )}
 
+          {readiness && readiness.status !== 'ready' && readiness.status !== 'busy' ? (
+            <div
+              className="agent-readiness-recovery"
+              data-testid="agent-readiness-recovery"
+              data-status={readiness.status}
+            >
+              <div className="text-sm text-dim">恢复：</div>
+              {readiness.status === 'cwd_missing' ? (
+                <Link
+                  href="/settings"
+                  className="btn btn-secondary btn-sm"
+                  data-testid="agent-recovery-settings"
+                >
+                  配置 cwd
+                </Link>
+              ) : null}
+              {readiness.status === 'runtime_missing' ? (
+                <Link
+                  href="/runtimes"
+                  className="btn btn-secondary btn-sm"
+                  data-testid="agent-recovery-runtimes"
+                >
+                  运行时探测
+                </Link>
+              ) : null}
+              <Link
+                href={`/agents?ready=${encodeURIComponent(readiness.status)}`}
+                className="btn btn-ghost btn-sm"
+                data-testid="agent-recovery-same-status"
+              >
+                同态列表
+              </Link>
+              <Link
+                href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
+                className="btn btn-ghost btn-sm"
+                data-testid="agent-recovery-board"
+              >
+                看板
+              </Link>
+              <Link
+                href={`/runs?agent=${encodeURIComponent(agentId)}&status=failed`}
+                className="btn btn-ghost btn-sm"
+                data-testid="agent-recovery-failed-runs"
+              >
+                失败运行
+              </Link>
+            </div>
+          ) : null}
+
           <form className="profile-edit-form" onSubmit={saveProfile}>
             <div className="profile-section">
               <h4>编辑属性</h4>
