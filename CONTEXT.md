@@ -105,13 +105,15 @@
 - **已推：** `agent-runs-deeplinks`（`1943292`）  
 - **已推：** `squad-wiki-run-links`（`daac058`）  
 - **已推：** `automation-row-links`（`2957040`）  
-- **本刀：** `skills-url-filters` — Skills q/source URL 筛选 + CmdK  
-- **closeout：** `app/.progress/skills-url-filters-impl-1.md`  
+- **已推：** `skills-url-filters`（`b6644a3`）  
+- **本刀：** `mention-ops-links` — 评论 mention 看板/运行深链  
+- **closeout：** `app/.progress/mention-ops-links-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

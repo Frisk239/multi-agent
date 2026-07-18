@@ -28,17 +28,47 @@ const components: Components = {
         const label = text.startsWith('@') ? text : `@${text}`;
         const to = mentionHref(kind, id);
         if (to) {
+          const boardHref =
+            kind === 'agent'
+              ? `/?assignee=agent:${encodeURIComponent(id)}`
+              : `/?assignee=squad:${encodeURIComponent(id)}`;
+          const runsHref =
+            kind === 'agent'
+              ? `/runs?agent=${encodeURIComponent(id)}`
+              : `/runs?squad=${encodeURIComponent(id)}`;
           return (
-            <Link
-              href={to}
-              className="mention-pill mention-pill--link"
-              data-testid="mention-link"
-              data-mention-kind={kind}
-              data-mention-id={id}
-              title={kind === 'agent' ? '打开智能体' : '打开小队'}
-            >
-              {label}
-            </Link>
+            <span className="mention-pill-group" data-testid="mention-group">
+              <Link
+                href={to}
+                className="mention-pill mention-pill--link"
+                data-testid="mention-link"
+                data-mention-kind={kind}
+                data-mention-id={id}
+                title={kind === 'agent' ? '打开智能体' : '打开小队'}
+              >
+                {label}
+              </Link>
+              <Link
+                href={boardHref}
+                className="mention-side-link"
+                data-testid="mention-board-link"
+                data-mention-kind={kind}
+                data-mention-id={id}
+                title="看板筛选此指派"
+              >
+                看板
+              </Link>
+              <Link
+                href={runsHref}
+                className="mention-side-link"
+                data-testid="mention-runs-link"
+                data-mention-kind={kind}
+                data-mention-id={id}
+                title="查看相关运行"
+              >
+                运行
+              </Link>
+            </span>
           );
         }
         return (

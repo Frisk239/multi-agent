@@ -1830,6 +1830,26 @@ a.issue-status-board-link:hover {
   filter: brightness(1.08);
 }
 
+.mention-pill-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+}
+
+a.mention-side-link {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+a.mention-side-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .mention-menu {
   list-style: none;
   margin: 0;
