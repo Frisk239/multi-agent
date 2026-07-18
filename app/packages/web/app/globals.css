@@ -2734,6 +2734,19 @@ a.issue-status-board-link:hover {
   padding: 4px 8px;
 }
 
+button.wiki-job-status-filter {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+button.wiki-job-status-filter:hover code {
+  text-decoration: underline;
+  color: var(--accent);
+}
 .wiki-job-error strong {
   display: block;
 }

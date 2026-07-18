@@ -102,13 +102,15 @@
 - **已推：** `board-status-focus`（`6794908`）  
 - **已推：** `issue-status-board-link`（`5c0b3cd`）  
 - **已推：** `runs-table-deeplinks`（`5c4ce25`）  
-- **本刀：** `agent-runs-deeplinks` — Agent Runs 与工作区筛选闭环  
-- **closeout：** `app/.progress/agent-runs-deeplinks-impl-1.md`  
+- **已推：** `agent-runs-deeplinks`（`1943292`）  
+- **本刀：** `squad-wiki-run-links` — 小队/Wiki 运行与任务深链  
+- **closeout：** `app/.progress/squad-wiki-run-links-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

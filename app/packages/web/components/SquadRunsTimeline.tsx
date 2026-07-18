@@ -57,11 +57,45 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
       ) : isError ? (
         <p className="text-dim text-sm">加载失败</p>
       ) : runs.length === 0 ? (
-        <p className="text-dim text-sm" data-testid="squad-runs-empty">
-          尚无标记到该小队的 run（指派小队后 leader run 会带 squadId）。
-        </p>
+        <div className="text-dim text-sm" data-testid="squad-runs-empty">
+          <p>尚无标记到该小队的 run（指派小队后 leader run 会带 squadId）。</p>
+          <div className="agent-runs-empty-actions">
+            <Link
+              href={`/?assignee=squad:${encodeURIComponent(squadId)}`}
+              className="btn-secondary btn-sm"
+              data-testid="squad-runs-empty-board"
+            >
+              看板指派
+            </Link>
+            <Link
+              href={`/runs?squad=${encodeURIComponent(squadId)}&status=failed`}
+              className="btn-ghost btn-sm"
+              data-testid="squad-runs-empty-failed"
+            >
+              失败运行
+            </Link>
+          </div>
+        </div>
       ) : (
         <div className="data-table-wrap">
+          {runs.some((r) => r.status === 'failed') ? (
+            <div className="agent-runs-toolbar" data-testid="squad-runs-toolbar">
+              <Link
+                href={`/runs?squad=${encodeURIComponent(squadId)}&status=failed`}
+                className="btn-secondary btn-sm"
+                data-testid="squad-runs-workspace-failed"
+              >
+                工作区失败 · {runs.filter((r) => r.status === 'failed').length}
+              </Link>
+              <Link
+                href={`/runs?squad=${encodeURIComponent(squadId)}&status=active`}
+                className="btn-ghost btn-sm"
+                data-testid="squad-runs-workspace-active"
+              >
+                在途
+              </Link>
+            </div>
+          ) : null}
           <table className="data-table" data-testid="squad-runs-table">
             <thead>
               <tr>
@@ -81,18 +115,36 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
                   data-is-leader={r.isLeader ? '1' : '0'}
                 >
                   <td>
-                    <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
+                    <Link
+                      href={`/runs?squad=${encodeURIComponent(squadId)}&status=${encodeURIComponent(r.status)}`}
+                      className={`run-pill run-pill--${r.status} run-pill--link`}
+                      data-testid="squad-run-status-link"
+                      data-status={r.status}
+                      title="在工作区运行中筛选"
+                    >
+                      {r.status}
+                    </Link>
                   </td>
                   <td className="text-sm">
                     {r.isLeader ? (
-                      <span className="leader-badge">队长</span>
+                      <Link
+                        href={`/runs?squad=${encodeURIComponent(squadId)}&leader=1`}
+                        className="leader-badge"
+                        data-testid="squad-run-leader-filter"
+                        title="仅队长 run"
+                      >
+                        队长
+                      </Link>
                     ) : (
                       <span className="text-dim">成员</span>
                     )}
                   </td>
                   <td className="text-sm">
                     {r.issueId ? (
-                      <Link href={`/issues/${r.issueId}#run-trace`}>
+                      <Link
+                        href={`/issues/${r.issueId}#run-trace`}
+                        data-testid="squad-run-issue-link"
+                      >
                         {shortId(r.issueId)}
                       </Link>
                     ) : (

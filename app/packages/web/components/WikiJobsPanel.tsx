@@ -216,12 +216,35 @@ export function WikiJobsPanel() {
                 return (
                   <tr key={job.id}>
                     <td>
-                      <code>{job.status}</code>
+                      <button
+                        type="button"
+                        className="wiki-job-status-filter"
+                        data-testid="wiki-job-status-link"
+                        data-status={job.status}
+                        title={`筛选状态：${job.status}`}
+                        onClick={() => setStatus(job.status as StatusFilter)}
+                      >
+                        <code>{job.status}</code>
+                      </button>
                     </td>
                     <td>
-                      <Link href={`/issues/${job.issueId}`} title={job.issueId}>
-                        {shortId(job.issueId)}
-                      </Link>
+                      <span className="runs-issue-cell">
+                        <Link
+                          href={`/issues/${job.issueId}`}
+                          title={job.issueId}
+                          data-testid="wiki-job-issue-link"
+                        >
+                          {shortId(job.issueId)}
+                        </Link>
+                        <Link
+                          href={`/issues/${job.issueId}#run-trace`}
+                          className="runs-inline-filter"
+                          data-testid="wiki-job-issue-trace"
+                          title="Issue 轨迹"
+                        >
+                          轨迹
+                        </Link>
+                      </span>
                     </td>
                     <td className="text-dim text-sm">
                       {job.failCount}/{job.maxRetries}
