@@ -917,6 +917,24 @@ export const SettingsRunHealth = z.object({
 });
 export type SettingsRunHealth = z.infer<typeof SettingsRunHealth>;
 
+/** Settings Wiki 编译队列摘要（settings-wiki-auto-health） */
+export const SettingsWikiHealth = z.object({
+  dead: z.number().int().nonnegative(),
+  pending: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  llmConfigured: z.boolean(),
+});
+export type SettingsWikiHealth = z.infer<typeof SettingsWikiHealth>;
+
+/** Settings 自动化规则摘要 */
+export const SettingsAutomationHealth = z.object({
+  total: z.number().int().nonnegative(),
+  enabled: z.number().int().nonnegative(),
+  failedRules: z.number().int().nonnegative(),
+  lastFailedAt: z.string().datetime().nullable(),
+});
+export type SettingsAutomationHealth = z.infer<typeof SettingsAutomationHealth>;
+
 export const SettingsStatusResponse = z.object({
   overall: SettingsOverall,
   summary: z.object({
@@ -933,6 +951,8 @@ export const SettingsStatusResponse = z.object({
   }),
   /** 可选：旧客户端忽略；新 Settings 展示运行健康 */
   runHealth: SettingsRunHealth.optional(),
+  wikiHealth: SettingsWikiHealth.optional(),
+  automationHealth: SettingsAutomationHealth.optional(),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
 

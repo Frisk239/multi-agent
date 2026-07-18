@@ -373,6 +373,75 @@ export function SettingsPage() {
         </section>
       ) : null}
 
+      {/* Wiki / 自动化健康摘要（settings-wiki-auto-health） */}
+      {data.wikiHealth || data.automationHealth ? (
+        <section
+          className="settings-ops-recovery"
+          data-testid="settings-wiki-auto-health"
+          aria-label="Wiki 与自动化健康"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>Wiki 与自动化</strong>
+            <span className="text-dim text-sm">
+              {data.wikiHealth
+                ? `dead ${data.wikiHealth.dead}`
+                : 'Wiki —'}
+              {' · '}
+              {data.automationHealth
+                ? `失败规则 ${data.automationHealth.failedRules}`
+                : '自动化 —'}
+            </span>
+          </div>
+          <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }} data-testid="settings-wiki-auto-stats">
+            {data.wikiHealth ? (
+              <li>
+                Wiki 队列：dead <strong>{data.wikiHealth.dead}</strong> · pending{' '}
+                <strong>{data.wikiHealth.pending}</strong> · running{' '}
+                <strong>{data.wikiHealth.running}</strong>
+                {' · '}
+                LLM {data.wikiHealth.llmConfigured ? '已配置' : '未配置'}
+              </li>
+            ) : null}
+            {data.automationHealth ? (
+              <li>
+                自动化：共 <strong>{data.automationHealth.total}</strong> 条 · 启用{' '}
+                <strong>{data.automationHealth.enabled}</strong> · 失败规则{' '}
+                <strong>{data.automationHealth.failedRules}</strong>
+                {data.automationHealth.lastFailedAt
+                  ? ` · 最近失败 ${new Date(data.automationHealth.lastFailedAt).toLocaleString()}`
+                  : ''}
+              </li>
+            ) : null}
+          </ul>
+          <div className="settings-cwd-recovery-links" data-testid="settings-wiki-auto-actions">
+            <Link
+              className="btn-secondary btn-sm"
+              href="/wiki?jobStatus=dead"
+              data-testid="settings-wiki-auto-to-dead"
+            >
+              Wiki dead
+            </Link>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/automation?failed=1"
+              data-testid="settings-wiki-auto-to-auto-failed"
+            >
+              自动化失败
+            </Link>
+            <Link className="btn-ghost btn-sm" href="/wiki" data-testid="settings-wiki-auto-to-wiki">
+              Wiki 首页
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/automation"
+              data-testid="settings-wiki-auto-to-automation"
+            >
+              自动化
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       {/* 运行健康：在途 + 心跳/排队收尸阈值（settings-run-health） */}
       {data.runHealth ? (
         <section

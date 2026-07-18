@@ -59,6 +59,7 @@
 | 卡死 run 收尸（queued/orphan） | ✅ | runs-recover-stuck |
 | 在途 run 批量取消 | ✅ | runs-bulk-cancel |
 | Settings 运行健康 / 心跳阈值可见 | ✅ | settings-run-health |
+| Settings Wiki/自动化健康摘要 | ✅ | settings-wiki-auto-health |
 	
 ## 仍弱（非完成态原因）
 

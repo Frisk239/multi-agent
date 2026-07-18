@@ -2,10 +2,16 @@
 // settings-run-health：附加在途/心跳收尸指标（只读）
 import { existsSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { inArray } from 'drizzle-orm';
-import type { SettingsCheck, SettingsRunHealth, SettingsStatusResponse } from '@ma/shared';
+import { eq, inArray } from 'drizzle-orm';
+import type {
+  SettingsAutomationHealth,
+  SettingsCheck,
+  SettingsRunHealth,
+  SettingsStatusResponse,
+  SettingsWikiHealth,
+} from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns } from '../db/schema.js';
+import { agentRuns, automationRules, automationRuns, wikiIngestJobs } from '../db/schema.js';
 import {
   STALE_QUEUED_MS,
   STALE_RUNNING_MS,
@@ -72,6 +78,50 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
       sweepIntervalMs: STALE_SWEEP_INTERVAL_MS,
     },
     atRisk: { runningNearStale, queuedNearStale },
+  };
+}
+
+function buildWikiHealth(llmConfigured: boolean): SettingsWikiHealth {
+  const rows = db
+    .select({ status: wikiIngestJobs.status })
+    .from(wikiIngestJobs)
+    .all();
+  let dead = 0;
+  let pending = 0;
+  let running = 0;
+  for (const r of rows) {
+    if (r.status === 'dead') dead += 1;
+    else if (r.status === 'pending') pending += 1;
+    else if (r.status === 'running') running += 1;
+  }
+  return { dead, pending, running, llmConfigured };
+}
+
+function buildAutomationHealth(): SettingsAutomationHealth {
+  const rows = db.select().from(automationRules).all();
+  let enabled = 0;
+  for (const r of rows) {
+    if (r.enabled) enabled += 1;
+  }
+  // 失败规则：存在 status=failed 的 automation_run（与 list API failCount 同源）
+  const failRuns = db
+    .select()
+    .from(automationRuns)
+    .where(eq(automationRuns.status, 'failed'))
+    .all();
+  const failedRuleIds = new Set(failRuns.map((r) => r.ruleId));
+  let lastFailedAtMs: number | null = null;
+  for (const r of failRuns) {
+    if (lastFailedAtMs === null || r.createdAt > lastFailedAtMs) {
+      lastFailedAtMs = r.createdAt;
+    }
+  }
+  return {
+    total: rows.length,
+    enabled,
+    failedRules: failedRuleIds.size,
+    lastFailedAt:
+      lastFailedAtMs != null ? new Date(lastFailedAtMs).toISOString() : null,
   };
 }
 
@@ -218,6 +268,8 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     },
     server: { port },
     runHealth: buildRunHealth(),
+    wikiHealth: buildWikiHealth(wikiOk),
+    automationHealth: buildAutomationHealth(),
   };
 }
 
