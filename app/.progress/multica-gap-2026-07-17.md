@@ -41,6 +41,8 @@
 | Runtimes ↔ agents/runs | ✅ | runtimes-recovery-links |
 | 优先级/来源深链 + pills/CmdK | ✅ | board-meta-deeplinks / board-priority-ops |
 | 看板状态列聚焦 | ✅ | board-status-focus |
+| 详情状态 → 看板聚焦 | ✅ | issue-status-board-link |
+| 运行表/Agent Runs 行内筛选 | ✅ | runs-table-deeplinks / agent-runs-deeplinks |
 
 ## 仍弱（非完成态原因）
 
