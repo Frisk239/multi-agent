@@ -39,6 +39,8 @@
 | 指派就绪恢复链 | ✅ | assignee-recovery-links |
 | 派活/建 Issue cwd 恢复链 | ✅ | dispatch-cwd-recovery |
 | Runtimes ↔ agents/runs | ✅ | runtimes-recovery-links |
+| 优先级/来源深链 + pills/CmdK | ✅ | board-meta-deeplinks / board-priority-ops |
+| 看板状态列聚焦 | ✅ | board-status-focus |
 
 ## 仍弱（非完成态原因）
 
