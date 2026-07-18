@@ -137,14 +137,20 @@ function MemoryPageInner() {
           </div>
         </div>
         <div className="page-actions">
-          <Link href="/settings" className="btn-secondary btn-sm">
+          <Link href="/" className="btn-ghost btn-sm" data-testid="memory-to-board">
+            看板
+          </Link>
+          <Link href="/wiki" className="btn-ghost btn-sm" data-testid="memory-to-wiki">
+            Wiki
+          </Link>
+          <Link href="/settings" className="btn-secondary btn-sm" data-testid="memory-to-settings">
             环境诊断
           </Link>
         </div>
       </div>
 
       {showUnavailable ? (
-        <div className="wiki-ops-banner" role="status">
+        <div className="wiki-ops-banner" role="status" data-testid="memory-unavailable-banner">
           <div className="wiki-ops-banner-main">
             <strong>记忆 provider 不可用</strong>
             <p className="text-sm">
@@ -152,9 +158,14 @@ function MemoryPageInner() {
               {embedOk === false ? '（embedding 可能未配置）' : ''}。
             </p>
           </div>
-          <Link href="/settings" className="btn-secondary btn-sm">
-            打开设置
-          </Link>
+          <div className="wiki-ops-banner-actions">
+            <Link href="/settings" className="btn-secondary btn-sm" data-testid="memory-unavailable-settings">
+              打开设置
+            </Link>
+            <Link href="/wiki" className="btn-ghost btn-sm" data-testid="memory-unavailable-wiki">
+              先看 Wiki
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -402,7 +413,21 @@ function MemoryPageInner() {
                       </div>
                     </div>
                   ) : (
-                    '还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。'
+                    <div data-testid="memory-empty">
+                      <div>还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。</div>
+                      <div className="memory-empty-actions" style={{ marginTop: 8 }}>
+                        <Link href="/" className="btn-secondary btn-sm" data-testid="memory-empty-board">
+                          去看板
+                        </Link>
+                        <Link
+                          href="/inbox"
+                          className="btn-ghost btn-sm"
+                          data-testid="memory-empty-inbox"
+                        >
+                          Inbox
+                        </Link>
+                      </div>
+                    </div>
                   )}
                 </td>
               </tr>
