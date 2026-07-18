@@ -1483,6 +1483,7 @@ a.issue-status-board-link:hover {
 
 .run-trace-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -1491,6 +1492,21 @@ a.issue-status-board-link:hover {
 
 .run-trace-header h3 {
   margin: 0;
+}
+
+.run-trace-header-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.run-trace-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .run-trace-live-badge {

@@ -51,9 +51,21 @@ export function WikiHealthPanel({
               。结构检查仍可离线使用。
             </p>
           </div>
-          <Link href="/settings" className="btn-secondary btn-sm">
-            环境诊断
-          </Link>
+          <div className="wiki-ops-banner-actions" data-testid="wiki-llm-banner-actions">
+            <Link href="/settings" className="btn-secondary btn-sm" data-testid="wiki-health-to-settings">
+              环境诊断
+            </Link>
+            <Link
+              href="/wiki?jobStatus=dead"
+              className="btn-ghost btn-sm"
+              data-testid="wiki-health-to-dead"
+            >
+              dead 任务
+            </Link>
+            <Link href="/memory" className="btn-ghost btn-sm" data-testid="wiki-health-to-memory">
+              记忆
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -77,6 +89,16 @@ export function WikiHealthPanel({
         >
           {lint.isPending ? '语义检查中…' : '语义检查'}
         </button>
+        <Link
+          href="/wiki?jobStatus=dead"
+          className="btn-ghost btn-sm"
+          data-testid="wiki-health-jobs-dead"
+        >
+          编译任务
+        </Link>
+        <Link href="/settings" className="btn-ghost btn-sm" data-testid="wiki-health-settings">
+          设置
+        </Link>
         {health.data ? (
           <span
             className={`wiki-health-badge${issueCount > 0 ? ' wiki-health-badge--warn' : ' wiki-health-badge--ok'}`}
@@ -120,15 +142,25 @@ export function WikiHealthPanel({
                     <td>{o.title}</td>
                     <td className="text-dim">0 入链</td>
                     <td>
-                      {onSelectPage && (
+                      {onSelectPage ? (
                         <button
                           type="button"
                           className="btn-ghost btn-sm"
+                          data-testid="wiki-health-jump"
+                          data-slug={o.slug}
                           onClick={() => onSelectPage(o.slug)}
                         >
                           跳转
                         </button>
-                      )}
+                      ) : null}
+                      <Link
+                        href={`/wiki?slug=${encodeURIComponent(o.slug)}`}
+                        className="btn-ghost btn-sm"
+                        data-testid="wiki-health-share"
+                        data-slug={o.slug}
+                      >
+                        分享
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -140,15 +172,25 @@ export function WikiHealthPanel({
                     <td>{b.from}</td>
                     <td className="text-dim">→ {b.to}（不存在）</td>
                     <td>
-                      {onSelectPage && (
+                      {onSelectPage ? (
                         <button
                           type="button"
                           className="btn-ghost btn-sm"
+                          data-testid="wiki-health-jump"
+                          data-slug={b.from}
                           onClick={() => onSelectPage(b.from)}
                         >
                           跳转
                         </button>
-                      )}
+                      ) : null}
+                      <Link
+                        href={`/wiki?slug=${encodeURIComponent(b.from)}`}
+                        className="btn-ghost btn-sm"
+                        data-testid="wiki-health-share"
+                        data-slug={b.from}
+                      >
+                        分享
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -160,15 +202,25 @@ export function WikiHealthPanel({
                     <td>{s.title}</td>
                     <td className="text-dim">{s.bodyChars} 字</td>
                     <td>
-                      {onSelectPage && (
+                      {onSelectPage ? (
                         <button
                           type="button"
                           className="btn-ghost btn-sm"
+                          data-testid="wiki-health-jump"
+                          data-slug={s.slug}
                           onClick={() => onSelectPage(s.slug)}
                         >
                           跳转
                         </button>
-                      )}
+                      ) : null}
+                      <Link
+                        href={`/wiki?slug=${encodeURIComponent(s.slug)}`}
+                        className="btn-ghost btn-sm"
+                        data-testid="wiki-health-share"
+                        data-slug={s.slug}
+                      >
+                        分享
+                      </Link>
                     </td>
                   </tr>
                 ))}

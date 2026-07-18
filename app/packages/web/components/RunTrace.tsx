@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
 import { useRunMessages } from '@/lib/api';
 import { useRunProgressStore } from '@/lib/ws';
@@ -16,6 +17,7 @@ export function RunTrace({
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const isLive = run?.status === 'queued' || run?.status === 'running';
+  const isFailed = run?.status === 'failed' || Boolean(run?.error);
 
   if (!runId || !run) return null;
 
@@ -37,6 +39,33 @@ export function RunTrace({
             live · {run.status}
           </span>
         ) : null}
+        <div className="run-trace-header-links" data-testid="run-trace-header-links">
+          <Link
+            href={`/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status)}`}
+            className="btn-ghost btn-sm"
+            data-testid="run-trace-to-runs"
+          >
+            运行列表
+          </Link>
+          {run.agentId ? (
+            <Link
+              href={`/agents/${run.agentId}`}
+              className="btn-ghost btn-sm"
+              data-testid="run-trace-to-agent"
+            >
+              智能体
+            </Link>
+          ) : null}
+          {isFailed ? (
+            <Link
+              href="/settings"
+              className="btn-ghost btn-sm"
+              data-testid="run-trace-to-settings"
+            >
+              环境
+            </Link>
+          ) : null}
+        </div>
       </div>
       {isLive && progress ? (
         <p
@@ -48,11 +77,42 @@ export function RunTrace({
         </p>
       ) : null}
       {messages.length === 0 ? (
-        <p className="run-trace-empty" data-testid="run-trace-empty">
-          {isLive
-            ? '执行中…（部分 runtime 如 opencode 执行期间无实时轨迹，结束时才会有摘要，属正常）'
-            : '无轨迹消息'}
-        </p>
+        <div className="run-trace-empty" data-testid="run-trace-empty">
+          <p>
+            {isLive
+              ? '执行中…（部分 runtime 如 opencode 执行期间无实时轨迹，结束时才会有摘要，属正常）'
+              : isFailed
+                ? '无轨迹消息。可再执行或先检查环境/运行时。'
+                : '无轨迹消息'}
+          </p>
+          {isFailed ? (
+            <div className="run-trace-empty-actions" data-testid="run-trace-empty-actions">
+              <Link
+                href="/runs?status=failed"
+                className="btn-secondary btn-sm"
+                data-testid="run-trace-empty-failed"
+              >
+                失败运行
+              </Link>
+              <Link
+                href="/settings"
+                className="btn-ghost btn-sm"
+                data-testid="run-trace-empty-settings"
+              >
+                环境诊断
+              </Link>
+              {run.agentId ? (
+                <Link
+                  href={`/agents/${run.agentId}`}
+                  className="btn-ghost btn-sm"
+                  data-testid="run-trace-empty-agent"
+                >
+                  智能体
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : (
         <ul className="run-trace-list">
           {messages.map((m) => (
