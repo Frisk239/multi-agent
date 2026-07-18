@@ -115,13 +115,15 @@
 - **已推：** `env-banner-ops`（`0d17920`）  
 - **已推：** `qc-assignee-readiness`（`a58aea4`）  
 - **已推：** `new-issue-assignee-readiness`（`e0ddc8c`）  
-- **本刀：** `inbox-bulk-api` — 服务端 bulk 已读/归档 + 列表归档  
-- **closeout：** `app/.progress/inbox-bulk-api-impl-1.md`  
+- **已推：** `inbox-bulk-api`（`8db1440`）  
+- **本刀：** `agents-readiness-bulk` — 批量 readiness API，去 N+1  
+- **closeout：** `app/.progress/agents-readiness-bulk-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 执行可靠性；cwd 持久化 ADR  
+
 
 
 

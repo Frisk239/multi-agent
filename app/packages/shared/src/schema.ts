@@ -532,6 +532,20 @@ export const AgentReadiness = z.object({
 });
 export type AgentReadiness = z.infer<typeof AgentReadiness>;
 
+/** GET /api/agents/readiness?ids=a,b 或 POST body {ids} */
+export const AgentsReadinessMap = z.record(BusinessId, AgentReadiness.nullable());
+export type AgentsReadinessMap = z.infer<typeof AgentsReadinessMap>;
+
+export const AgentsReadinessQuery = z.object({
+  ids: z
+    .union([z.string().min(1), z.array(BusinessId).min(1)])
+    .transform((v) => {
+      const raw = Array.isArray(v) ? v : v.split(',');
+      return [...new Set(raw.map((s) => s.trim()).filter(Boolean))].slice(0, 100);
+    }),
+});
+export type AgentsReadinessQuery = z.infer<typeof AgentsReadinessQuery>;
+
 // S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
 // skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
 export const SkillInfo = z.object({

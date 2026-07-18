@@ -801,28 +801,26 @@ export function useAgentReadiness(agentId: string) {
   });
 }
 
-/** 批量 readiness（CmdK 等）：并行拉每个 agent，失败则跳过 */
+/** 批量 readiness：GET /api/agents/readiness?ids=…（单请求，避免 N+1） */
 export function useAgentsReadinessMap(agentIds: string[]) {
-  const key = agentIds.slice().sort().join(',');
+  const unique = [...new Set(agentIds.filter(Boolean))];
+  const key = unique.slice().sort().join(',');
   return useQuery({
     queryKey: ['agents-readiness-map', key],
     queryFn: async () => {
-      const entries = await Promise.all(
-        agentIds.map(async (id) => {
-          try {
-            const res = await fetch(`${API}/agents/${encodeURIComponent(id)}/readiness`);
-            if (!res.ok) return [id, null] as const;
-            const body = (await res.json()) as AgentReadiness;
-            return [id, body] as const;
-          } catch {
-            return [id, null] as const;
-          }
-        }),
-      );
-      return Object.fromEntries(entries) as Record<string, AgentReadiness | null>;
+      if (unique.length === 0) return {} as Record<string, AgentReadiness | null>;
+      const qs = unique.map((id) => encodeURIComponent(id)).join(',');
+      const res = await fetch(`${API}/agents/readiness?ids=${qs}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载批量 readiness 失败'));
+      const body = (await res.json()) as Record<string, AgentReadiness | null>;
+      // 保证请求的 id 都有键（缺失填 null）
+      const out: Record<string, AgentReadiness | null> = {};
+      for (const id of unique) out[id] = body[id] ?? null;
+      return out;
     },
-    enabled: agentIds.length > 0,
+    enabled: unique.length > 0,
     staleTime: 10_000,
+    refetchInterval: 15_000,
   });
 }
 

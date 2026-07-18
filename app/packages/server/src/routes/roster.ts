@@ -41,6 +41,26 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     return rows.map(toAgentSummary);
   });
 
+  // 批量 readiness（须在 /:id 之前；避免 N+1）
+  app.get('/api/agents/readiness', async (req, reply) => {
+    const q = req.query as { ids?: string };
+    const raw = (q.ids ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const ids = [...new Set(raw)].slice(0, 100);
+    if (ids.length === 0) {
+      return reply.status(400).send({ error: 'ids required (comma-separated)' });
+    }
+    const out: Record<string, Awaited<ReturnType<typeof computeAgentReadiness>>> = {};
+    await Promise.all(
+      ids.map(async (id) => {
+        out[id] = await computeAgentReadiness(id);
+      }),
+    );
+    return out;
+  });
+
   // S05：单 agent 详情（agent 详情页 profile + MCP Tab 回填用）
   // bu02：含 instructions
   app.get('/api/agents/:id', async (req, reply) => {
