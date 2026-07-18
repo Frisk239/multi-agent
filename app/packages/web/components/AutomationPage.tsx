@@ -765,8 +765,43 @@ function AutomationPageInner() {
                     </td>
                     <td className="text-sm">
                       <span className="automation-assignee-chip">
-                        {rule.assigneeType === 'agent' ? '智能体' : '小队'} ·{' '}
-                        {assigneeLabel(rule)}
+                        {rule.assigneeType === 'agent' ? (
+                          <>
+                            <Link
+                              href={`/agents/${rule.assigneeId}`}
+                              data-testid="automation-assignee-detail"
+                              title="打开智能体"
+                            >
+                              智能体 · {assigneeLabel(rule)}
+                            </Link>
+                            <Link
+                              href={`/?assignee=agent:${encodeURIComponent(rule.assigneeId)}`}
+                              className="runs-inline-filter"
+                              data-testid="automation-assignee-board"
+                              title="看板筛选此智能体"
+                            >
+                              看板
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              href={`/squads/${rule.assigneeId}`}
+                              data-testid="automation-assignee-detail"
+                              title="打开小队"
+                            >
+                              小队 · {assigneeLabel(rule)}
+                            </Link>
+                            <Link
+                              href={`/?assignee=squad:${encodeURIComponent(rule.assigneeId)}`}
+                              className="runs-inline-filter"
+                              data-testid="automation-assignee-board"
+                              title="看板筛选此小队"
+                            >
+                              看板
+                            </Link>
+                          </>
+                        )}
                       </span>
                     </td>
                     <td
@@ -789,19 +824,42 @@ function AutomationPageInner() {
                     </td>
                     <td className="text-sm" data-testid="automation-run-stats">
                       {(rule.failCount ?? 0) > 0 ? (
-                        <span
-                          className="automation-fail-count"
+                        <Link
+                          href="/automation?failed=1"
+                          className="automation-fail-count automation-fail-count--link"
                           data-testid="automation-fail-count"
                           data-count={String(rule.failCount ?? 0)}
-                          title={`失败 ${rule.failCount} 次 · 最近 ${rule.lastRunStatus ?? '—'}`}
+                          title={`失败 ${rule.failCount} 次 · 筛选失败规则`}
                         >
                           失败 {rule.failCount}
-                        </span>
+                        </Link>
                       ) : (
                         <span className="text-dim" data-testid="automation-fail-count" data-count="0">
                           {rule.lastRunStatus ? `最近 ${rule.lastRunStatus}` : '—'}
                         </span>
                       )}
+                      <div className="automation-row-links">
+                        <Link
+                          href="/?origin=automation"
+                          className="runs-inline-filter"
+                          data-testid="automation-row-board-origin"
+                          title="看板：自动化 Issue"
+                        >
+                          看板来源
+                        </Link>
+                        <Link
+                          href={
+                            rule.enabled
+                              ? '/automation?enabled=on'
+                              : '/automation?enabled=off'
+                          }
+                          className="runs-inline-filter"
+                          data-testid="automation-row-enabled-filter"
+                          title="筛选同启用状态"
+                        >
+                          {rule.enabled ? '已启用' : '已停用'}
+                        </Link>
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <button

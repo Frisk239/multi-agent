@@ -4148,12 +4148,29 @@ button.wiki-job-status-filter:hover code {
 }
 
 .automation-assignee-chip {
-  display: inline-block;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   padding: 1px 8px;
   border-radius: 999px;
   background: var(--bg-elevated, var(--bg-muted, transparent));
   border: 1px solid var(--border-subtle);
   font-size: var(--text-xs);
+}
+.automation-assignee-chip a {
+  color: inherit;
+  text-decoration: none;
+}
+.automation-assignee-chip a:hover {
+  text-decoration: underline;
+  color: var(--accent);
+}
+.automation-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .automation-template-hint {
@@ -4438,6 +4455,13 @@ a.timeline-status-board-link:hover {
   font-weight: 700;
   background: color-mix(in srgb, #ef4444 18%, transparent);
   color: color-mix(in srgb, #ef4444 80%, var(--text));
+}
+a.automation-fail-count--link {
+  text-decoration: none;
+}
+a.automation-fail-count--link:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
 }
 
 .issue-origin-badge {
