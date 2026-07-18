@@ -112,14 +112,14 @@ export function IssueCard({
           ) : null}
           {issue.originType === 'automation' || issue.originType === 'quick_create' ? (
             <Link
-              href={`/issues/${issue.id}`}
+              href={`/?origin=${encodeURIComponent(issue.originType)}`}
               className="issue-card-origin"
               data-testid="issue-card-origin"
               data-origin={issue.originType}
               title={
                 issue.originType === 'automation'
-                  ? '自动化创建 · 打开详情'
-                  : '快速派活创建 · 打开详情'
+                  ? '看板筛选：自动化 Issue'
+                  : '看板筛选：快速派活 Issue'
               }
               onClick={(e) => e.stopPropagation()}
               draggable={false}
@@ -128,13 +128,21 @@ export function IssueCard({
             </Link>
           ) : null}
           {issue.priority !== 'none' && (
-            <span className="issue-card-priority">
+            <Link
+              href={`/?priority=${encodeURIComponent(issue.priority)}`}
+              className="issue-card-priority issue-card-priority--link"
+              title={`看板筛选优先级：${PRIORITY_LABEL[issue.priority]}`}
+              data-testid="issue-card-priority-link"
+              data-priority={issue.priority}
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
+            >
               <span
                 className="priority-dot"
                 style={{ background: PRIORITY_COLOR[issue.priority] }}
               />
               {PRIORITY_LABEL[issue.priority]}
-            </span>
+            </Link>
           )}
         </span>
       </div>

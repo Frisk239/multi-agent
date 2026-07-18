@@ -592,6 +592,40 @@ body {
   align-items: center;
   gap: 4px;
 }
+a.issue-card-priority--link {
+  text-decoration: none;
+  cursor: pointer;
+}
+a.issue-card-priority--link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.issue-origin-badge-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+a.issue-origin-side-link {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+a.issue-origin-side-link:hover {
+  text-decoration: underline;
+}
+.issue-priority-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+a.issue-priority-board-link {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+a.issue-priority-board-link:hover {
+  text-decoration: underline;
+}
 
 .priority-dot {
   width: 7px;

@@ -33,6 +33,12 @@
 | Settings cwd/wiki/runtime 回跳 | ✅ | settings-cwd/wiki/ops-recovery |
 | CmdK 运营恢复 | ✅ | cmdk-ops-recovery |
 | Inbox 批量已读 | ✅ | inbox-bulk-read |
+| Agent/小队详情恢复链 | ✅ | agent/squad-readiness-recovery |
+| Issue 失败条运营闭环 | ✅ | issue-fail-recovery-links |
+| 侧栏失败芯片 | ✅ | sidebar-fail-chip |
+| 指派就绪恢复链 | ✅ | assignee-recovery-links |
+| 派活/建 Issue cwd 恢复链 | ✅ | dispatch-cwd-recovery |
+| Runtimes ↔ agents/runs | ✅ | runtimes-recovery-links |
 
 ## 仍弱（非完成态原因）
 

@@ -98,35 +98,47 @@ export function IssueHeader({ issue }: { issue: Issue }) {
         </Link>
         <span className="issue-id">{issue.identifier}</span>
         {issue.originType === 'automation' ? (
-          <Link
-            href="/automation"
-            className="issue-origin-badge"
-            data-testid="issue-origin-badge"
-            data-origin="automation"
-            title={issue.originRuleId ? `规则 ${issue.originRuleId}` : '自动化创建'}
-          >
-            来源 · 自动化
-          </Link>
-        ) : issue.originType === 'quick_create' ? (
-          issue.originRunId ? (
+          <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
             <Link
-              href={`/runs?run=${encodeURIComponent(issue.originRunId)}&status=all`}
+              href="/?origin=automation"
+              className="issue-origin-badge"
+              data-testid="issue-origin-badge"
+              data-origin="automation"
+              title="看板筛选：自动化 Issue"
+            >
+              来源 · 自动化
+            </Link>
+            <Link
+              href="/automation"
+              className="issue-origin-side-link"
+              data-testid="issue-origin-to-automation"
+              title={issue.originRuleId ? `规则 ${issue.originRuleId}` : '打开自动化'}
+            >
+              规则
+            </Link>
+          </span>
+        ) : issue.originType === 'quick_create' ? (
+          <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
+            <Link
+              href="/?origin=quick_create"
               className="issue-origin-badge"
               data-testid="issue-origin-badge"
               data-origin="quick_create"
-              title={`QC run ${issue.originRunId}`}
+              title="看板筛选：快速派活 Issue"
             >
               来源 · 快速派活
             </Link>
-          ) : (
-            <span
-              className="issue-origin-badge"
-              data-testid="issue-origin-badge"
-              data-origin="quick_create"
-            >
-              来源 · 快速派活
-            </span>
-          )
+            {issue.originRunId ? (
+              <Link
+                href={`/runs?run=${encodeURIComponent(issue.originRunId)}&status=all`}
+                className="issue-origin-side-link"
+                data-testid="issue-origin-to-run"
+                title={`QC run ${issue.originRunId}`}
+              >
+                运行
+              </Link>
+            ) : null}
+          </span>
         ) : null}
         <select
           className="status-select"
@@ -246,6 +258,17 @@ export function IssueHeader({ issue }: { issue: Issue }) {
               </option>
             ))}
           </select>
+          {issue.priority !== 'none' ? (
+            <Link
+              href={`/?priority=${encodeURIComponent(issue.priority)}`}
+              className="issue-priority-board-link"
+              data-testid="issue-priority-board-link"
+              data-priority={issue.priority}
+              title="看板筛选此优先级"
+            >
+              看板
+            </Link>
+          ) : null}
         </label>
         <span className="issue-assignee-label">
           指派：
