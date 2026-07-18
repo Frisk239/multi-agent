@@ -3019,6 +3019,26 @@ body {
   text-decoration: none;
 }
 
+.sidebar-fail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #fecaca;
+  background: color-mix(in srgb, #ef4444 22%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 45%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sidebar-fail-chip:hover {
+  filter: brightness(1.08);
+  text-decoration: none;
+}
+
 .active-runs-chip--hot {
   color: color-mix(in srgb, #3b82f6 75%, var(--text));
   font-weight: 600;

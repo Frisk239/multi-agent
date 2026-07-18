@@ -278,6 +278,17 @@ export function Sidebar() {
             在途 0
           </span>
         )}
+        {unreadFailCount > 0 ? (
+          <Link
+            href="/inbox?kind=run_failed&read=unread"
+            className="sidebar-fail-chip"
+            data-testid="sidebar-fail-chip"
+            data-count={String(unreadFailCount)}
+            title={`${unreadFailCount} 条未读失败 · 打开 Inbox`}
+          >
+            失败 {unreadFailCount > 99 ? '99+' : unreadFailCount}
+          </Link>
+        ) : null}
       </div>
 
       <div className="sidebar-actions">
