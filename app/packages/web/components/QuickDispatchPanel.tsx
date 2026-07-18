@@ -149,14 +149,40 @@ export function QuickDispatchPanel({
                 。仍可派发，但 run 很可能立刻失败。
               </p>
             </div>
-            <Link
-              href="/settings"
-              className="btn-secondary btn-sm"
-              data-testid="quick-dispatch-settings"
-              onClick={onClose}
-            >
-              环境诊断
-            </Link>
+            <div className="quick-dispatch-cwd-actions" data-testid="quick-dispatch-cwd-actions">
+              <Link
+                href="/settings"
+                className="btn-secondary btn-sm"
+                data-testid="quick-dispatch-settings"
+                onClick={onClose}
+              >
+                环境诊断
+              </Link>
+              <Link
+                href="/agents?ready=cwd_missing"
+                className="btn-ghost btn-sm"
+                data-testid="quick-dispatch-agents-cwd"
+                onClick={onClose}
+              >
+                智能体 cwd
+              </Link>
+              <Link
+                href="/runs?status=failed"
+                className="btn-ghost btn-sm"
+                data-testid="quick-dispatch-failed-runs"
+                onClick={onClose}
+              >
+                失败运行
+              </Link>
+              <Link
+                href="/inbox?kind=run_failed&read=unread"
+                className="btn-ghost btn-sm"
+                data-testid="quick-dispatch-inbox-fails"
+                onClick={onClose}
+              >
+                Inbox 失败
+              </Link>
+            </div>
           </div>
         ) : null}
         <form className="quick-dispatch-form" onSubmit={handleSubmit}>

@@ -942,6 +942,7 @@ body {
 .new-issue-cwd-banner {
   flex: 1 1 100%;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
@@ -954,6 +955,13 @@ body {
 
 .new-issue-cwd-banner strong {
   margin-right: 6px;
+}
+
+.new-issue-cwd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .new-issue-input {
@@ -3169,9 +3177,9 @@ body {
 
 .quick-dispatch-cwd-banner {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
   margin: 0 0 var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-md, 8px);
@@ -3186,6 +3194,13 @@ body {
 
 .quick-dispatch-cwd-banner p {
   margin: 0;
+}
+
+.quick-dispatch-cwd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .quick-dispatch-hint {

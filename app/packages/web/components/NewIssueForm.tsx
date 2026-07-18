@@ -95,9 +95,25 @@ export function NewIssueForm() {
             <strong>工作区未就绪</strong>
             {cwdDetail} — 指派后 run 可能立刻失败。
           </span>
-          <Link href="/settings" className="btn-secondary btn-sm" data-testid="new-issue-settings">
-            环境诊断
-          </Link>
+          <div className="new-issue-cwd-actions" data-testid="new-issue-cwd-actions">
+            <Link href="/settings" className="btn-secondary btn-sm" data-testid="new-issue-settings">
+              环境诊断
+            </Link>
+            <Link
+              href="/agents?ready=cwd_missing"
+              className="btn-ghost btn-sm"
+              data-testid="new-issue-agents-cwd"
+            >
+              智能体 cwd
+            </Link>
+            <Link
+              href="/runs?status=failed"
+              className="btn-ghost btn-sm"
+              data-testid="new-issue-failed-runs"
+            >
+              失败运行
+            </Link>
+          </div>
         </div>
       ) : null}
       <input

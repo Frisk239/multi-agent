@@ -95,13 +95,15 @@
 - **已推：** `squad-readiness-recovery`（`87da737`）  
 - **已推：** `issue-fail-recovery-links`（`dfe4787`）  
 - **已推：** `sidebar-fail-chip`（`89e9c69`）  
-- **本刀：** `assignee-recovery-links` — 指派就绪提示恢复链加厚  
-- **closeout：** `app/.progress/assignee-recovery-links-impl-1.md`  
+- **已推：** `assignee-recovery-links`（`58d7cd3`）  
+- **本刀：** `dispatch-cwd-recovery` — 派活/建 Issue cwd 门禁恢复链  
+- **closeout：** `app/.progress/dispatch-cwd-recovery-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 
