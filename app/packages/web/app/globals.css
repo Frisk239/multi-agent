@@ -484,6 +484,13 @@ body {
   background: color-mix(in srgb, var(--label-color, var(--accent)) 18%, transparent);
 }
 
+.kanban-priority-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
 .kanban-failed-toggle.active {
   border-color: var(--danger, #e35d6a);
   color: var(--danger, #e35d6a);

@@ -97,13 +97,15 @@
 - **已推：** `sidebar-fail-chip`（`89e9c69`）  
 - **已推：** `assignee-recovery-links`（`58d7cd3`）  
 - **已推：** `dispatch-cwd-recovery`（`3e430ba`）  
-- **本刀：** `board-meta-deeplinks` — 优先级/来源可分享看板筛选深链  
-- **closeout：** `app/.progress/board-meta-deeplinks-impl-1.md`  
+- **已推：** `board-meta-deeplinks`（`0e48897`）  
+- **本刀：** `board-priority-ops` — 优先级 pills + CmdK 筛选  
+- **closeout：** `app/.progress/board-priority-ops-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

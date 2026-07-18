@@ -321,6 +321,7 @@ function KanbanBoardInner() {
           value={priorityQuery ?? ''}
           onChange={(e) => setPriorityFilter(e.target.value)}
           aria-label="按优先级筛选"
+          data-testid="kanban-priority-filter"
         >
           {PRIORITY_OPTIONS.map((o) => (
             <option key={o.value || 'all'} value={o.value}>
@@ -328,6 +329,28 @@ function KanbanBoardInner() {
             </option>
           ))}
         </select>
+        <div className="kanban-priority-pills" role="toolbar" aria-label="快捷优先级" data-testid="kanban-priority-pills">
+          {(
+            [
+              { value: 'urgent', label: '紧急' },
+              { value: 'high', label: '高' },
+              { value: 'medium', label: '中' },
+            ] as const
+          ).map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              className={`kanban-filter-pill${priorityQuery === p.value ? ' active' : ''}`}
+              data-testid={`kanban-priority-pill-${p.value}`}
+              aria-pressed={priorityQuery === p.value}
+              onClick={() =>
+                setPriorityFilter(priorityQuery === p.value ? '' : p.value)
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         <select
           className="kanban-origin-select"
           value={originQuery ?? ''}

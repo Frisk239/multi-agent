@@ -578,6 +578,51 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ]
       : [];
 
+    const priorityHit =
+      q &&
+      ['优先级', 'priority', '紧急', 'urgent', '高优', 'p0', 'p1', 'high', 'medium', 'low'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const priorityCmds = priorityHit
+      ? [
+          {
+            id: 'board-priority-urgent',
+            label: '看板：紧急',
+            hint: '/?priority=urgent',
+            group: '看板',
+            run: () => router.push('/?priority=urgent'),
+          },
+          {
+            id: 'board-priority-high',
+            label: '看板：高',
+            hint: '/?priority=high',
+            group: '看板',
+            run: () => router.push('/?priority=high'),
+          },
+          {
+            id: 'board-priority-medium',
+            label: '看板：中',
+            hint: '/?priority=medium',
+            group: '看板',
+            run: () => router.push('/?priority=medium'),
+          },
+          {
+            id: 'board-priority-low',
+            label: '看板：低',
+            hint: '/?priority=low',
+            group: '看板',
+            run: () => router.push('/?priority=low'),
+          },
+          {
+            id: 'board-priority-none',
+            label: '看板：无优先级',
+            hint: '/?priority=none',
+            group: '看板',
+            run: () => router.push('/?priority=none'),
+          },
+        ]
+      : [];
+
     const agentOpsHit =
       !q ||
       ['agent', '智能体', 'cwd', '就绪', 'readiness', 'blocked', 'runtime'].some((k) =>
@@ -712,6 +757,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...activeCmds,
         ...failedCmds,
         ...originCmds,
+        ...priorityCmds,
         ...automationCmds,
         ...issueCmds,
         ...squadOpsCmds,
