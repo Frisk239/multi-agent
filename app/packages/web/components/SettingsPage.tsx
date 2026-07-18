@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
-import { useRecoverStuckRuns, useSettingsStatus } from '@/lib/api';
+import { useRecoverStuckRuns, useSetWorkspaceCwd, useSettingsStatus } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
@@ -68,9 +68,12 @@ export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
   const recoverStuck = useRecoverStuckRuns();
+  const setCwd = useSetWorkspaceCwd();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [cwdDraft, setCwdDraft] = useState('');
+  const [cwdDraftReady, setCwdDraftReady] = useState(false);
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
@@ -81,6 +84,12 @@ export function SettingsPage() {
     () => (data ? buildEnvSnippet(data.checks) : ''),
     [data],
   );
+
+  useEffect(() => {
+    if (cwdDraftReady || !data) return;
+    setCwdDraft(data.cwd?.persistedPath ?? data.cwd?.path ?? 'D:/code/multi-agent');
+    setCwdDraftReady(true);
+  }, [data, cwdDraftReady]);
 
   const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
   const wikiExportLine = 'export WIKI_LLM_API_KEY=""  # required for wiki ingest/query/lint';
@@ -182,6 +191,46 @@ export function SettingsPage() {
         </div>
       </div>
 
+      <section
+        className="settings-cwd-guide"
+        data-testid="settings-cwd-persist"
+        aria-label="工作区路径持久化"
+      >
+        <div className="settings-cwd-guide-title">
+          <strong>工作区路径</strong>
+          <span className="text-dim text-sm">
+            {data.cwd
+              ? `生效: ${data.cwd.path ?? '—'} · 来源 ${data.cwd.source}${data.cwd.exists ? '' : ' · 路径无效'}`
+              : '未加载'}
+          </span>
+          {cwdBlocked ? <span className="settings-cwd-guide-badge">阻塞派活</span> : null}
+        </div>
+        <p className="text-dim text-sm" style={{ marginBottom: 8 }}>
+          保存到本地 DB（非密钥）。优先级：环境变量覆盖 DB。保存后立即生效，无需 shell export。
+        </p>
+        <div className="settings-cwd-guide-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <input
+            type="text"
+            className="input"
+            style={{ minWidth: 280, flex: 1 }}
+            value={cwdDraft}
+            onChange={(e) => setCwdDraft(e.target.value)}
+            placeholder="D:/code/multi-agent"
+            data-testid="settings-cwd-input"
+            aria-label="工作区绝对路径"
+          />
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            data-testid="settings-cwd-save"
+            disabled={setCwd.isPending || !cwdDraft.trim()}
+            onClick={() => setCwd.mutate(cwdDraft.trim())}
+          >
+            {setCwd.isPending ? '保存中…' : '保存路径'}
+          </button>
+        </div>
+      </section>
+
       {cwdBlocked ? (
         <section
           className="settings-cwd-guide"
@@ -194,10 +243,10 @@ export function SettingsPage() {
           </div>
           <ol className="settings-cwd-steps">
             <li>
-              把仓库根目录导出为 <code>MA_WORKSPACE_CWD</code>（Git Bash / zsh）
+              优先用上方「保存路径」写入本地 DB（推荐）；或导出 <code>MA_WORKSPACE_CWD</code>
             </li>
             <li>
-              在同一终端重启 <code>pnpm dev</code>（只改页面不够，server 进程要吃到 env）
+              若用 env：在同一终端重启 <code>pnpm dev</code>（server 进程要吃到 env）
             </li>
             <li>回到本页点「刷新」，cwd 应为 ok；再去快速派活 / 指派</li>
           </ol>

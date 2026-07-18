@@ -3,11 +3,14 @@ import type { AgentReadiness, RuntimeId } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents, agentRuns } from '../db/schema.js';
 import { getBackend } from '../runtime/registry.js';
+import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 
 // bu02：agent readiness = runtime detect + 并发槽 + cwd 配置
 export async function computeAgentReadiness(agentId: string): Promise<AgentReadiness | null> {
   const row = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!row) return null;
+
+  const cwd = resolveWorkspaceCwd();
 
   let det = { installed: false, path: null as string | null, version: null as string | null };
   try {
@@ -23,7 +26,7 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
       concurrency: row.concurrency,
       runningCount: 0,
       slotsAvailable: row.concurrency,
-      cwdConfigured: Boolean(process.env.MA_WORKSPACE_CWD),
+      cwdConfigured: cwd.configured && cwd.exists,
       status: 'error',
       detail: e instanceof Error ? e.message : String(e),
     };
@@ -36,14 +39,16 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
       .where(and(eq(agentRuns.agentId, agentId), eq(agentRuns.status, 'running')))
       .get()?.cnt ?? 0;
 
-  const cwdConfigured = Boolean(process.env.MA_WORKSPACE_CWD);
+  const cwdConfigured = cwd.configured && cwd.exists;
   const slotsAvailable = Math.max(0, row.concurrency - runningCount);
 
   let status: AgentReadiness['status'] = 'ready';
   let detail: string | null = null;
   if (!cwdConfigured) {
     status = 'cwd_missing';
-    detail = '未配置 MA_WORKSPACE_CWD';
+    detail = cwd.configured
+      ? `工作区路径无效: ${cwd.path}`
+      : '未配置工作区目录（Settings 保存或 MA_WORKSPACE_CWD）';
   } else if (!det.installed) {
     status = 'runtime_missing';
     detail = `runtime ${row.runtime} 未安装或不在 PATH`;

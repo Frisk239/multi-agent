@@ -935,6 +935,24 @@ export const SettingsAutomationHealth = z.object({
 });
 export type SettingsAutomationHealth = z.infer<typeof SettingsAutomationHealth>;
 
+export const SettingsCwdSource = z.enum(['env', 'db', 'none']);
+export type SettingsCwdSource = z.infer<typeof SettingsCwdSource>;
+
+export const SettingsCwdInfo = z.object({
+  path: z.string().nullable(),
+  source: SettingsCwdSource,
+  exists: z.boolean(),
+  configured: z.boolean(),
+  /** DB 持久化值（可能与当前生效 path 不同，若 env 覆盖） */
+  persistedPath: z.string().nullable(),
+});
+export type SettingsCwdInfo = z.infer<typeof SettingsCwdInfo>;
+
+export const SetWorkspaceCwdInput = z.object({
+  path: z.string().min(1).max(1024),
+});
+export type SetWorkspaceCwdInput = z.infer<typeof SetWorkspaceCwdInput>;
+
 export const SettingsStatusResponse = z.object({
   overall: SettingsOverall,
   summary: z.object({
@@ -953,6 +971,7 @@ export const SettingsStatusResponse = z.object({
   runHealth: SettingsRunHealth.optional(),
   wikiHealth: SettingsWikiHealth.optional(),
   automationHealth: SettingsAutomationHealth.optional(),
+  cwd: SettingsCwdInfo.optional(),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
 

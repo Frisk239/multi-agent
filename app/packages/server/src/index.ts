@@ -36,6 +36,14 @@ async function initMemoryProvider(): Promise<void> {
 }
 
 async function main() {
+  // ADR 0003：DB root_path → 注入 MA_WORKSPACE_CWD（env 优先，已在 resolve 内处理）
+  const { applyWorkspaceCwdToProcess } = await import('./workspace-cwd.js');
+  const cwd = applyWorkspaceCwdToProcess();
+  if (cwd.configured) {
+    console.log(`[cwd] source=${cwd.source} path=${cwd.path}${cwd.exists ? '' : ' (missing on disk)'}`);
+  } else {
+    console.warn('[cwd] not configured — set via Settings or MA_WORKSPACE_CWD');
+  }
   // S05：启动时扫 skill 目录建内存索引（spec §5.2，照 hermes 零足迹，不进 DB）
   scanSkills();
   // S06：确保 wiki/ 目录 + 初始 index.md/log.md 存在（spec §3.7）

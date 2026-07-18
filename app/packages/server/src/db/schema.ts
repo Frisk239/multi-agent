@@ -11,10 +11,12 @@ import {
 import { sql } from 'drizzle-orm';
 
 // —— workspace（spec §3.1，单行）——
+// ADR 0003：root_path 持久化本机工作区目录（非密钥）；env MA_WORKSPACE_CWD 仍可覆盖
 export const workspaces = sqliteTable('workspace', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description'),
+  rootPath: text('root_path'),
   createdAt: integer('created_at').notNull(),
 });
 

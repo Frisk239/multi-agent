@@ -60,19 +60,21 @@
 | 在途 run 批量取消 | ✅ | runs-bulk-cancel |
 | Settings 运行健康 / 心跳阈值可见 | ✅ | settings-run-health |
 | Settings Wiki/自动化健康摘要 | ✅ | settings-wiki-auto-health |
+| 工作区 cwd 持久化（Settings 可配） | ✅ | workspace-cwd-persist · ADR 0003 |
 	
 ## 仍弱（非完成态原因）
-
+	
 | 缺口 | 说明 |
 |---|---|
-| 首次 cwd 仍依赖人 export env | 有引导，但无系统级持久配置 UI（刻意不写密钥/磁盘） |
+| Wiki LLM / embedding 密钥仍 env | 刻意不写密钥到 DB/UI |
 | webhook / 云事件 | 宪法不做 |
 | 与 Multica daemon 协议 1:1 | Backend adapter 差异保留 |
+| Multica `waiting_local_directory` 路径锁 | 本仓单 cwd 足够日常 |
 | 大规模生产运营报表 | 非本阶段 |
-
+	
 ## 达标判断
-
+	
 **主航道日常可用：是。**  
-**宣称「Multica 本地魔改完成态」：否** — 边界能力与运营纵深仍可演进，但已具备对标本地控制台的可天天用闭环。
-
-继续策略：缺口驱动的短/厚切片 + 本表滚动更新。
+**宣称「Multica 本地魔改完成态」：有条件接近** — 派活/追踪/恢复/健康/cwd 持久化已闭环；密钥与 daemon 协议差异为刻意边界，非未做完的主航道债。
+	
+继续策略：缺口驱动的短/厚切片 + 本表滚动更新；人可判定是否收官。

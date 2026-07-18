@@ -81,9 +81,20 @@ async function tick(): Promise<void> {
 // executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
 // bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
 async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
-  const cwd = process.env.MA_WORKSPACE_CWD;
-  if (!cwd) {
-    await failRun(runRow.id, '未配置 MA_WORKSPACE_CWD');
+  // ADR 0003：env 优先，否则 DB root_path（apply 后通常已在 env）
+  const { resolveWorkspaceCwd, applyWorkspaceCwdToProcess } = await import('../workspace-cwd.js');
+  let cwdInfo = resolveWorkspaceCwd();
+  if (!cwdInfo.configured || !cwdInfo.exists) {
+    cwdInfo = applyWorkspaceCwdToProcess();
+  }
+  const cwd = cwdInfo.path;
+  if (!cwd || !cwdInfo.exists) {
+    await failRun(
+      runRow.id,
+      cwdInfo.configured
+        ? `工作区路径无效: ${cwdInfo.path}`
+        : '未配置 MA_WORKSPACE_CWD（可在 Settings 保存工作区路径）',
+    );
     return;
   }
   // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt

@@ -1207,6 +1207,42 @@ export function useSettingsStatus() {
   });
 }
 
+/** POST /api/settings/workspace-cwd —— 持久化本机工作区路径 */
+export function useSetWorkspaceCwd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (path: string) => {
+      const res = await fetch(`${API}/settings/workspace-cwd`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '保存工作区路径失败'));
+      return res.json() as Promise<{
+        ok: true;
+        cwd: {
+          path: string | null;
+          source: string;
+          exists: boolean;
+          configured: boolean;
+          persistedPath: string | null;
+        };
+      }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['settings-status'] });
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.invalidateQueries({ queryKey: ['agents-readiness'] });
+      qc.invalidateQueries({ queryKey: ['runtimes'] });
+      toastSuccess(`工作区已保存（${r.cwd.source}）`, {
+        action: { label: '环境诊断', href: '/settings' },
+        durationMs: 6000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '保存工作区路径失败')),
+  });
+}
+
 // GET /api/memory?q= — 空 q 为最近 N 条
 export function useMemoryList(q: string) {
   return useQuery({

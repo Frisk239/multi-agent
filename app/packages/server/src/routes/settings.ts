@@ -1,14 +1,14 @@
-// bu04 G0：只读环境诊断（不写 env、不回传密钥）
-// settings-run-health：附加在途/心跳收尸指标（只读）
-import { existsSync } from 'node:fs';
+// bu04 G0：只读环境诊断（不写密钥）
+// settings-run-health / wiki-auto / ADR0003 cwd 持久化
 import type { FastifyInstance } from 'fastify';
 import { eq, inArray } from 'drizzle-orm';
-import type {
-  SettingsAutomationHealth,
-  SettingsCheck,
-  SettingsRunHealth,
-  SettingsStatusResponse,
-  SettingsWikiHealth,
+import {
+  SetWorkspaceCwdInput,
+  type SettingsAutomationHealth,
+  type SettingsCheck,
+  type SettingsRunHealth,
+  type SettingsStatusResponse,
+  type SettingsWikiHealth,
 } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, automationRules, automationRuns, wikiIngestJobs } from '../db/schema.js';
@@ -19,6 +19,11 @@ import {
 } from '../orchestration/stale-runs.js';
 import { allBackends } from '../runtime/registry.js';
 import { memoryManager } from '../memory/manager.js';
+import {
+  readDbRootPath,
+  resolveWorkspaceCwd,
+  setWorkspaceRootPath,
+} from '../workspace-cwd.js';
 
 function envNonEmpty(name: string): boolean {
   const v = process.env[name];
@@ -128,24 +133,25 @@ function buildAutomationHealth(): SettingsAutomationHealth {
 export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   const checks: SettingsCheck[] = [];
 
-  // --- cwd ---
-  const cwd = process.env.MA_WORKSPACE_CWD?.trim() || null;
-  if (!cwd) {
+  // --- cwd（env > DB root_path）---
+  const resolved = resolveWorkspaceCwd();
+  const persistedPath = readDbRootPath();
+  if (!resolved.configured) {
     checks.push({
       id: 'cwd',
       label: '工作区目录',
       status: 'error',
-      detail: '未配置 MA_WORKSPACE_CWD',
-      hint: '启动 server 前设置环境变量 MA_WORKSPACE_CWD 为项目根目录',
+      detail: '未配置工作区路径',
+      hint: '在下方表单保存绝对路径，或设置环境变量 MA_WORKSPACE_CWD',
       href: null,
     });
-  } else if (!existsSync(cwd)) {
+  } else if (!resolved.exists) {
     checks.push({
       id: 'cwd',
       label: '工作区目录',
       status: 'error',
-      detail: `路径不存在: ${cwd}`,
-      hint: '检查 MA_WORKSPACE_CWD 是否指向有效目录',
+      detail: `路径不存在: ${resolved.path}`,
+      hint: '检查路径是否有效，或重新在 Settings 保存',
       href: null,
     });
   } else {
@@ -153,7 +159,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       id: 'cwd',
       label: '工作区目录',
       status: 'ok',
-      detail: cwd,
+      detail: `${resolved.path}（来源: ${resolved.source}）`,
       href: null,
     });
   }
@@ -270,9 +276,36 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     runHealth: buildRunHealth(),
     wikiHealth: buildWikiHealth(wikiOk),
     automationHealth: buildAutomationHealth(),
+    cwd: {
+      path: resolved.path,
+      source: resolved.source,
+      exists: resolved.exists,
+      configured: resolved.configured,
+      persistedPath,
+    },
   };
 }
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/settings/status', async () => buildSettingsStatus());
+
+  // POST /api/settings/workspace-cwd —— 持久化本机路径（非密钥）并立即生效
+  app.post('/api/settings/workspace-cwd', async (req, reply) => {
+    const parsed = SetWorkspaceCwdInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+    }
+    const res = setWorkspaceRootPath(parsed.data.path);
+    if (!res.ok) return reply.status(400).send({ error: res.error });
+    return {
+      ok: true as const,
+      cwd: {
+        path: res.resolved.path,
+        source: res.resolved.source,
+        exists: res.resolved.exists,
+        configured: res.resolved.configured,
+        persistedPath: readDbRootPath(),
+      },
+    };
+  });
 }

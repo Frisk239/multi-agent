@@ -28,7 +28,7 @@ export async function runtimeRoutes(app: FastifyInstance) {
         id: 'machine-local' as const,
         name: '林远 本机',
         status: 'online' as const,
-        cwd: process.env.MA_WORKSPACE_CWD ?? null,
+        cwd: (await import('../workspace-cwd.js')).resolveWorkspaceCwd().path,
       },
       runtimes,
     };
