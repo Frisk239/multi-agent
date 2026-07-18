@@ -5,6 +5,7 @@ import { Suspense, useCallback, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useArchiveInbox,
+  useArchiveInboxMany,
   useInbox,
   useMarkInboxRead,
   useMarkInboxReadMany,
@@ -143,6 +144,7 @@ function InboxPageInner() {
   const markRead = useMarkInboxRead();
   const markReadMany = useMarkInboxReadMany();
   const archive = useArchiveInbox();
+  const archiveMany = useArchiveInboxMany();
 
   const readFilter = parseReadFilter(searchParams.get('read'));
   const kindFilter = parseKindFilter(searchParams.get('kind'));
@@ -244,12 +246,28 @@ function InboxPageInner() {
               type="button"
               className="btn-secondary btn-sm"
               data-testid="inbox-mark-visible-read"
-              disabled={markReadMany.isPending}
+              disabled={markReadMany.isPending || archiveMany.isPending}
               onClick={() => markReadMany.mutate(unreadVisibleIds)}
             >
               {markReadMany.isPending
                 ? '标记中…'
                 : `当前列表标已读 · ${unreadVisibleIds.length}`}
+            </button>
+          ) : null}
+          {items.length > 0 ? (
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              data-testid="inbox-archive-visible"
+              disabled={archiveMany.isPending || markReadMany.isPending}
+              onClick={() => {
+                const ids = items.map((i) => i.id);
+                if (ids.length === 0) return;
+                if (!window.confirm(`归档当前列表 ${ids.length} 条通知？`)) return;
+                archiveMany.mutate(ids);
+              }}
+            >
+              {archiveMany.isPending ? '归档中…' : `归档当前列表 · ${items.length}`}
             </button>
           ) : null}
         </div>

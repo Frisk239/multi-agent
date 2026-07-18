@@ -228,35 +228,65 @@ export function useMarkInboxRead() {
   });
 }
 
-/** 客户端批量已读：逐条 POST /api/inbox/:id/read（无服务端 bulk 端点） */
+/** 批量已读：POST /api/inbox/read-many */
 export function useMarkInboxReadMany() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
       const unique = [...new Set(ids.filter(Boolean))];
-      let ok = 0;
-      let failed = 0;
-      for (const id of unique) {
-        try {
-          const res = await fetch(`${API}/inbox/${encodeURIComponent(id)}/read`, {
-            method: 'POST',
-          });
-          if (!res.ok) failed += 1;
-          else ok += 1;
-        } catch {
-          failed += 1;
-        }
+      if (unique.length === 0) {
+        return { requested: 0, updated: 0, unreadCount: 0 };
       }
-      return { ok, failed, total: unique.length };
+      const res = await fetch(`${API}/inbox/read-many`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unique }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '批量已读失败'));
+      return res.json() as Promise<{
+        requested: number;
+        updated: number;
+        unreadCount: number;
+      }>;
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['inbox'] });
       qc.invalidateQueries({ queryKey: ['inbox-unread'] });
-      if (r.total === 0) return;
-      if (r.failed === 0) toastSuccess(`已标记 ${r.ok} 条已读`);
-      else toastSuccess(`已读 ${r.ok} 条 · 失败 ${r.failed}`);
+      if (r.requested === 0) return;
+      toastSuccess(`已标记 ${r.updated}/${r.requested} 条已读`);
     },
     onError: (err) => toastError(errMessage(err, '批量已读失败')),
+  });
+}
+
+/** 批量归档：POST /api/inbox/archive-many */
+export function useArchiveInboxMany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) {
+        return { requested: 0, updated: 0, unreadCount: 0 };
+      }
+      const res = await fetch(`${API}/inbox/archive-many`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unique }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '批量归档失败'));
+      return res.json() as Promise<{
+        requested: number;
+        updated: number;
+        unreadCount: number;
+      }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+      if (r.requested === 0) return;
+      toastSuccess(`已归档 ${r.updated}/${r.requested} 条`);
+    },
+    onError: (err) => toastError(errMessage(err, '批量归档失败')),
   });
 }
 

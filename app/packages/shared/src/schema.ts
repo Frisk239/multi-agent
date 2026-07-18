@@ -753,6 +753,32 @@ export const InboxListResponse = z.object({
 });
 export type InboxListResponse = z.infer<typeof InboxListResponse>;
 
+/** POST /api/inbox/read-many — 批量已读（本地单人收件箱） */
+export const MarkInboxReadManyInput = z.object({
+  ids: z.array(BusinessId).min(1).max(200),
+});
+export type MarkInboxReadManyInput = z.infer<typeof MarkInboxReadManyInput>;
+
+export const MarkInboxReadManyResponse = z.object({
+  requested: z.number().int().nonnegative(),
+  updated: z.number().int().nonnegative(),
+  unreadCount: z.number().int().nonnegative(),
+});
+export type MarkInboxReadManyResponse = z.infer<typeof MarkInboxReadManyResponse>;
+
+/** POST /api/inbox/archive-many — 批量归档 */
+export const ArchiveInboxManyInput = z.object({
+  ids: z.array(BusinessId).min(1).max(200),
+});
+export type ArchiveInboxManyInput = z.infer<typeof ArchiveInboxManyInput>;
+
+export const ArchiveInboxManyResponse = z.object({
+  requested: z.number().int().nonnegative(),
+  updated: z.number().int().nonnegative(),
+  unreadCount: z.number().int().nonnegative(),
+});
+export type ArchiveInboxManyResponse = z.infer<typeof ArchiveInboxManyResponse>;
+
 export const InboxItemEvent = z.object({
   type: z.literal('inbox:item'),
   item: InboxItem,

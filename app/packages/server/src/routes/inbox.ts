@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import {
+  ArchiveInboxManyInput,
+  MarkInboxReadManyInput,
+} from '@ma/shared';
 import { db } from '../db/client.js';
 import { inboxItems, issues } from '../db/schema.js';
 import { toInboxItem } from '../db/reshape.js';
@@ -82,6 +86,46 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
 
     return {
       items,
+      unreadCount: unreadCountForRecipient(),
+    };
+  });
+
+  // 批量已读（须在 /:id 之前注册）
+  app.post('/api/inbox/read-many', async (req, reply) => {
+    const parsed = MarkInboxReadManyInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+    }
+    const ids = [...new Set(parsed.data.ids)];
+    const result = db
+      .update(inboxItems)
+      .set({ read: 1 })
+      .where(and(recipientFilter(), inArray(inboxItems.id, ids), eq(inboxItems.read, 0)))
+      .run();
+    return {
+      requested: ids.length,
+      updated: result.changes ?? 0,
+      unreadCount: unreadCountForRecipient(),
+    };
+  });
+
+  // 批量归档
+  app.post('/api/inbox/archive-many', async (req, reply) => {
+    const parsed = ArchiveInboxManyInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+    }
+    const ids = [...new Set(parsed.data.ids)];
+    const result = db
+      .update(inboxItems)
+      .set({ archived: 1, read: 1 })
+      .where(
+        and(recipientFilter(), inArray(inboxItems.id, ids), eq(inboxItems.archived, 0)),
+      )
+      .run();
+    return {
+      requested: ids.length,
+      updated: result.changes ?? 0,
       unreadCount: unreadCountForRecipient(),
     };
   });
