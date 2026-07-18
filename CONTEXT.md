@@ -108,13 +108,15 @@
 - **已推：** `skills-url-filters`（`b6644a3`）  
 - **已推：** `mention-ops-links`（`01ed2ce`）  
 - **已推：** `memory-ops-links`（`9e036be`）  
-- **本刀：** `wiki-ops-links` — Wiki 列表搜索 + 运营回跳  
-- **closeout：** `app/.progress/wiki-ops-links-impl-1.md`  
+- **已推：** `wiki-ops-links`（`cfd566b`）  
+- **本刀：** `inbox-kind-ops` — Inbox 类型 chip 筛选 + 快捷动作  
+- **closeout：** `app/.progress/inbox-kind-ops-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

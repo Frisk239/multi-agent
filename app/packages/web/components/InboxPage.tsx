@@ -399,6 +399,31 @@ function InboxPageInner() {
               ? '当前筛选无结果，试试「全部」或换类型。'
               : '评论、指派与 Run 终态会出现在这里'
           }
+          action={
+            allItems.length > 0 ? (
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                data-testid="inbox-empty-clear-filters"
+                onClick={() => replaceParams({ read: null, kind: null })}
+              >
+                清除筛选
+              </button>
+            ) : (
+              <div className="inbox-empty-actions" data-testid="inbox-empty-actions">
+                <Link href="/" className="btn-secondary btn-sm" data-testid="inbox-empty-board">
+                  去看板
+                </Link>
+                <Link
+                  href="/runs?status=failed"
+                  className="btn-ghost btn-sm"
+                  data-testid="inbox-empty-runs"
+                >
+                  失败运行
+                </Link>
+              </div>
+            )
+          }
         />
       ) : (
         <ul className="inbox-list">
@@ -414,7 +439,32 @@ function InboxPageInner() {
                   className="inbox-row-main"
                   onClick={() => void openItem(item)}
                 >
-                  <span className={kindClass(item.kind)}>{kindLabel(item.kind)}</span>
+                  <span
+                    className={kindClass(item.kind)}
+                    data-testid="inbox-kind-chip"
+                    title="筛选此类型"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      replaceParams({
+                        kind: item.kind,
+                        read: readFilter === 'all' ? null : readFilter,
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        replaceParams({
+                          kind: item.kind,
+                          read: readFilter === 'all' ? null : readFilter,
+                        });
+                      }
+                    }}
+                    role="link"
+                    tabIndex={0}
+                  >
+                    {kindLabel(item.kind)}
+                  </span>
                   <span className="inbox-body">
                     <span className="inbox-summary">{item.summary}</span>
                     <span className="inbox-meta">
@@ -447,6 +497,32 @@ function InboxPageInner() {
                       }}
                     >
                       环境
+                    </Link>
+                  ) : null}
+                  {(item.kind === 'assigned' || item.type === 'assigned') && item.issueId ? (
+                    <Link
+                      href={`/?assignee=any`}
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-assigned-board"
+                      title="看板：已指派"
+                      onClick={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    >
+                      已指派板
+                    </Link>
+                  ) : null}
+                  {(item.kind === 'comment' || item.type === 'comment') && item.issueId ? (
+                    <Link
+                      href={`/issues/${item.issueId}`}
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-comment-issue"
+                      title="打开评论所在 Issue"
+                      onClick={() => {
+                        if (!item.read) markRead.mutate(item.id);
+                      }}
+                    >
+                      看评论
                     </Link>
                   ) : null}
                   {!item.read && (
