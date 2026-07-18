@@ -893,6 +893,30 @@ export const SettingsCheck = z.object({
 });
 export type SettingsCheck = z.infer<typeof SettingsCheck>;
 
+/** Settings 运行健康：在途计数 + 收尸阈值（settings-run-health） */
+export const SettingsRunHealth = z.object({
+  active: z.object({
+    total: z.number().int().nonnegative(),
+    queued: z.number().int().nonnegative(),
+    running: z.number().int().nonnegative(),
+  }),
+  oldestQueuedAgeMs: z.number().int().nonnegative().nullable(),
+  oldestRunningAgeMs: z.number().int().nonnegative().nullable(),
+  oldestRunningHeartbeatAgeMs: z.number().int().nonnegative().nullable(),
+  thresholds: z.object({
+    staleRunningMs: z.number().int().positive(),
+    staleQueuedMs: z.number().int().positive(),
+    sweepIntervalMs: z.number().int().positive(),
+  }),
+  atRisk: z.object({
+    /** running 心跳龄 ≥ 阈值的 70%（接近收尸） */
+    runningNearStale: z.number().int().nonnegative(),
+    /** queued 龄 ≥ 阈值的 70% */
+    queuedNearStale: z.number().int().nonnegative(),
+  }),
+});
+export type SettingsRunHealth = z.infer<typeof SettingsRunHealth>;
+
 export const SettingsStatusResponse = z.object({
   overall: SettingsOverall,
   summary: z.object({
@@ -907,6 +931,8 @@ export const SettingsStatusResponse = z.object({
   server: z.object({
     port: z.number().int().optional(),
   }),
+  /** 可选：旧客户端忽略；新 Settings 展示运行健康 */
+  runHealth: SettingsRunHealth.optional(),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
 

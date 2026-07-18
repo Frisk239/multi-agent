@@ -118,14 +118,15 @@
 - **已推：** `inbox-bulk-api`（`8db1440`）  
 - **已推：** `agents-readiness-bulk`（`51e4aaa`）  
 - **已推：** `runs-recover-stuck`（`b302ca2`）  
-- **上一刀 intake：** `runs-recover-stuck` **通过** — `app/.progress/runs-recover-stuck-intake.md`  
-- **本刀：** `runs-bulk-cancel` — 批量取消当前列表在途 run（API + Runs UI）  
-- **closeout：** `app/.progress/runs-bulk-cancel-impl-1.md`  
+- **已推：** `runs-bulk-cancel`（`00fb07d`）  
+- **上一刀 intake：** `runs-bulk-cancel` **通过** — `app/.progress/runs-bulk-cancel-intake.md`  
+- **本刀：** `settings-run-health` — Settings 在途/心跳/收尸阈值可见  
+- **closeout：** `app/.progress/settings-run-health-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
-- **再下一刀建议：** cwd 持久化 ADR；Settings heartbeat / 收尸指标可见性  
+- **再下一刀建议：** cwd 持久化 ADR；Wiki/Automation 健康指标对称卡片  
 
 
 

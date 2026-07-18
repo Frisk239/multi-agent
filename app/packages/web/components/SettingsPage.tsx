@@ -53,6 +53,17 @@ function buildEnvSnippet(checks: SettingsCheck[]): string {
   return `${lines.join('\n')}\n`;
 }
 
+function formatAgeMs(ms: number | null | undefined): string {
+  if (ms == null) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ${sec % 60}s`;
+  const hr = Math.floor(min / 60);
+  return `${hr}h ${min % 60}m`;
+}
+
 export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
@@ -358,6 +369,82 @@ export function SettingsPage() {
             >
               Inbox 失败
             </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {/* 运行健康：在途 + 心跳/排队收尸阈值（settings-run-health） */}
+      {data.runHealth ? (
+        <section
+          className="settings-ops-recovery"
+          data-testid="settings-run-health"
+          aria-label="运行健康"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>运行健康</strong>
+            <span className="text-dim text-sm">
+              在途 {data.runHealth.active.total}
+              {data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale > 0
+                ? ` · 近收尸 ${data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale}`
+                : ''}
+            </span>
+          </div>
+          <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }} data-testid="settings-run-health-stats">
+            <li>
+              在途：queued <strong>{data.runHealth.active.queued}</strong> · running{' '}
+              <strong>{data.runHealth.active.running}</strong>
+            </li>
+            <li>
+              最老 queued 龄期：{' '}
+              <strong>{formatAgeMs(data.runHealth.oldestQueuedAgeMs)}</strong>
+              {' · '}
+              最老 running 心跳龄：{' '}
+              <strong>{formatAgeMs(data.runHealth.oldestRunningHeartbeatAgeMs)}</strong>
+            </li>
+            <li>
+              收尸阈值：running 心跳{' '}
+              <code>{Math.round(data.runHealth.thresholds.staleRunningMs / 1000)}s</code>
+              {' · '}
+              queued{' '}
+              <code>{Math.round(data.runHealth.thresholds.staleQueuedMs / 60000)}min</code>
+              {' · '}
+              扫描间隔{' '}
+              <code>{Math.round(data.runHealth.thresholds.sweepIntervalMs / 1000)}s</code>
+            </li>
+            {(data.runHealth.atRisk.runningNearStale > 0 ||
+              data.runHealth.atRisk.queuedNearStale > 0) && (
+              <li>
+                接近收尸：running{' '}
+                <strong>{data.runHealth.atRisk.runningNearStale}</strong> · queued{' '}
+                <strong>{data.runHealth.atRisk.queuedNearStale}</strong>
+              </li>
+            )}
+          </ul>
+          <div className="settings-cwd-recovery-links" data-testid="settings-run-health-actions">
+            <Link
+              className="btn-secondary btn-sm"
+              href="/runs?status=active"
+              data-testid="settings-run-health-to-active"
+            >
+              在途运行
+            </Link>
+            <Link
+              className="btn-secondary btn-sm"
+              href="/runs?status=failed"
+              data-testid="settings-run-health-to-failed"
+            >
+              失败运行
+            </Link>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              data-testid="settings-run-health-recover"
+              disabled={recoverStuck.isPending}
+              onClick={() => recoverStuck.mutate()}
+              title="收尸 orphan running / 心跳超时 / 缺 agent 排队 / 排队过久"
+            >
+              {recoverStuck.isPending ? '收尸中…' : '收尸卡住 run'}
+            </button>
           </div>
         </section>
       ) : null}

@@ -1,13 +1,78 @@
 // bu04 G0：只读环境诊断（不写 env、不回传密钥）
+// settings-run-health：附加在途/心跳收尸指标（只读）
 import { existsSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import type { SettingsCheck, SettingsStatusResponse } from '@ma/shared';
+import { inArray } from 'drizzle-orm';
+import type { SettingsCheck, SettingsRunHealth, SettingsStatusResponse } from '@ma/shared';
+import { db } from '../db/client.js';
+import { agentRuns } from '../db/schema.js';
+import {
+  STALE_QUEUED_MS,
+  STALE_RUNNING_MS,
+  STALE_SWEEP_INTERVAL_MS,
+} from '../orchestration/stale-runs.js';
 import { allBackends } from '../runtime/registry.js';
 import { memoryManager } from '../memory/manager.js';
 
 function envNonEmpty(name: string): boolean {
   const v = process.env[name];
   return Boolean(v && v.trim());
+}
+
+function buildRunHealth(now = Date.now()): SettingsRunHealth {
+  const rows = db
+    .select()
+    .from(agentRuns)
+    .where(inArray(agentRuns.status, ['queued', 'running']))
+    .all();
+
+  let queued = 0;
+  let running = 0;
+  let oldestQueuedAgeMs: number | null = null;
+  let oldestRunningAgeMs: number | null = null;
+  let oldestRunningHeartbeatAgeMs: number | null = null;
+  let runningNearStale = 0;
+  let queuedNearStale = 0;
+  const runNear = Math.floor(STALE_RUNNING_MS * 0.7);
+  const queueNear = Math.floor(STALE_QUEUED_MS * 0.7);
+
+  for (const row of rows) {
+    if (row.status === 'queued') {
+      queued += 1;
+      const age = Math.max(0, now - row.createdAt);
+      if (oldestQueuedAgeMs === null || age > oldestQueuedAgeMs) oldestQueuedAgeMs = age;
+      if (age >= queueNear) queuedNearStale += 1;
+    } else if (row.status === 'running') {
+      running += 1;
+      const started = row.startedAt ?? row.createdAt;
+      const runAge = Math.max(0, now - started);
+      if (oldestRunningAgeMs === null || runAge > oldestRunningAgeMs) {
+        oldestRunningAgeMs = runAge;
+      }
+      const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
+      const hbAge = Math.max(0, now - hb);
+      if (
+        oldestRunningHeartbeatAgeMs === null ||
+        hbAge > oldestRunningHeartbeatAgeMs
+      ) {
+        oldestRunningHeartbeatAgeMs = hbAge;
+      }
+      if (hbAge >= runNear) runningNearStale += 1;
+    }
+  }
+
+  return {
+    active: { total: queued + running, queued, running },
+    oldestQueuedAgeMs,
+    oldestRunningAgeMs,
+    oldestRunningHeartbeatAgeMs,
+    thresholds: {
+      staleRunningMs: STALE_RUNNING_MS,
+      staleQueuedMs: STALE_QUEUED_MS,
+      sweepIntervalMs: STALE_SWEEP_INTERVAL_MS,
+    },
+    atRisk: { runningNearStale, queuedNearStale },
+  };
 }
 
 export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
@@ -152,6 +217,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       embeddingConfigured: embedOk,
     },
     server: { port },
+    runHealth: buildRunHealth(),
   };
 }
 
