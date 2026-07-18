@@ -96,6 +96,19 @@ export const RunsActiveCount = z.object({
 });
 export type RunsActiveCount = z.infer<typeof RunsActiveCount>;
 
+/** POST /api/runs/cancel-many —— 批量取消 active runs */
+export const CancelRunsManyInput = z.object({
+  ids: z.array(BusinessId).min(1).max(100),
+});
+export type CancelRunsManyInput = z.infer<typeof CancelRunsManyInput>;
+
+export const CancelRunsManyResponse = z.object({
+  requested: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+export type CancelRunsManyResponse = z.infer<typeof CancelRunsManyResponse>;
+
 // run-observability：POST /api/issues/:id/rerun body（Multica task_id → runId）
 export const RerunIssueInput = z.object({
   runId: BusinessId.optional(),

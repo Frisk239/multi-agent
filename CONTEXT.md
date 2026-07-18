@@ -117,13 +117,15 @@
 - **已推：** `new-issue-assignee-readiness`（`e0ddc8c`）  
 - **已推：** `inbox-bulk-api`（`8db1440`）  
 - **已推：** `agents-readiness-bulk`（`51e4aaa`）  
-- **本刀：** `runs-recover-stuck` — 卡死 run 收尸（queued/missing agent）+ 运维入口  
-- **closeout：** `app/.progress/runs-recover-stuck-impl-1.md`  
+- **已推：** `runs-recover-stuck`（`b302ca2`）  
+- **上一刀 intake：** `runs-recover-stuck` **通过** — `app/.progress/runs-recover-stuck-intake.md`  
+- **本刀：** `runs-bulk-cancel` — 批量取消当前列表在途 run（API + Runs UI）  
+- **closeout：** `app/.progress/runs-bulk-cancel-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
-- **再下一刀建议：** cwd 持久化 ADR；runs bulk cancel  
+- **再下一刀建议：** cwd 持久化 ADR；Settings heartbeat / 收尸指标可见性  
 
 
 

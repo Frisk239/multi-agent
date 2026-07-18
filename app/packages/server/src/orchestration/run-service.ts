@@ -50,6 +50,29 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
   return { ok: true, run };
 }
 
+/** 批量取消：逐 id 走 cancelRunById，保证 abort 与事件一致 */
+export function cancelRunsMany(ids: string[]): {
+  requested: number;
+  cancelled: number;
+  skipped: number;
+  runs: AgentRun[];
+} {
+  const unique = [...new Set(ids.filter(Boolean))].slice(0, 100);
+  let cancelled = 0;
+  let skipped = 0;
+  const runs: AgentRun[] = [];
+  for (const id of unique) {
+    const res = cancelRunById(id);
+    if (res.ok && res.run) {
+      cancelled += 1;
+      runs.push(res.run);
+    } else {
+      skipped += 1;
+    }
+  }
+  return { requested: unique.length, cancelled, skipped, runs };
+}
+
 // enqueueAgentRun —— 指派 agent 时插入 queued run（spec §6.1）。
 // S04：去重改 per-(issue,agent)（spec §6.1）——同一 agent 同一 issue 不重复排，
 //   不同 agent 可并存。熔断见 checkAndEnqueue（spec §7.4 R1）。

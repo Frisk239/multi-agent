@@ -1,10 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, desc, asc, and, inArray, type SQL } from 'drizzle-orm';
-import { ListRunsQuery, type RunsActiveCount } from '@ma/shared';
+import {
+  CancelRunsManyInput,
+  ListRunsQuery,
+  type RunsActiveCount,
+} from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages } from '../db/schema.js';
 import { toAgentRun, toRunMessage } from '../db/reshape.js';
-import { cancelRunById, retryRun } from '../orchestration/run-service.js';
+import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-service.js';
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 
 const ACTIVE_STATUSES = ['queued', 'running'] as const;
@@ -62,6 +66,20 @@ export async function runRoutes(app: FastifyInstance) {
   // POST /api/runs/recover-stuck —— 运维：立即收尸 orphan/stale/missing-agent（须在 :runId 前）
   app.post('/api/runs/recover-stuck', async () => {
     return recoverStuckRuns();
+  });
+
+  // POST /api/runs/cancel-many —— 批量取消 active runs（须在 :runId 前）
+  app.post('/api/runs/cancel-many', async (req, reply) => {
+    const parsed = CancelRunsManyInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+    }
+    const result = cancelRunsMany(parsed.data.ids);
+    return {
+      requested: result.requested,
+      cancelled: result.cancelled,
+      skipped: result.skipped,
+    };
   });
 
   // GET /api/runs/:runId —— 单条

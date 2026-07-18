@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
   useAgents,
+  useCancelRunsMany,
   useRecoverStuckRuns,
   useRetryRun,
   useSquads,
@@ -118,6 +119,7 @@ function RunsPageInner() {
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const recoverStuck = useRecoverStuckRuns();
+  const cancelMany = useCancelRunsMany();
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
     agentId: agentId || undefined,
@@ -133,6 +135,12 @@ function RunsPageInner() {
   }, [agents]);
 
   const visibleRuns = runs;
+  const activeVisibleIds = useMemo(() => {
+    if (!visibleRuns) return [] as string[];
+    return visibleRuns
+      .filter((r) => r.status === 'queued' || r.status === 'running')
+      .map((r) => r.id);
+  }, [visibleRuns]);
 
   // 高亮行滚入视口
   useEffect(() => {
@@ -203,6 +211,28 @@ function RunsPageInner() {
           >
             Inbox 失败
           </Link>
+          {activeVisibleIds.length > 0 ? (
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="runs-cancel-visible-active"
+              disabled={cancelMany.isPending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `取消当前列表中 ${activeVisibleIds.length} 条在途 run（queued/running）？`,
+                  )
+                ) {
+                  return;
+                }
+                cancelMany.mutate(activeVisibleIds);
+              }}
+            >
+              {cancelMany.isPending
+                ? '取消中…'
+                : `取消在途 · ${activeVisibleIds.length}`}
+            </button>
+          ) : null}
           <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
             刷新
           </button>
@@ -254,6 +284,45 @@ function RunsPageInner() {
             >
               不可用智能体
             </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {activeVisibleIds.length > 0 ? (
+        <div className="fail-recovery-banner" data-testid="runs-active-cancel-banner" role="status">
+          <div className="fail-recovery-banner-text">
+            当前列表有 <strong>{activeVisibleIds.length}</strong> 条在途 run（queued/running）。可批量取消，避免排队积压。
+          </div>
+          <div className="fail-recovery-banner-actions">
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              data-testid="runs-cancel-visible-active-banner"
+              disabled={cancelMany.isPending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `取消当前列表中 ${activeVisibleIds.length} 条在途 run（queued/running）？`,
+                  )
+                ) {
+                  return;
+                }
+                cancelMany.mutate(activeVisibleIds);
+              }}
+            >
+              {cancelMany.isPending
+                ? '取消中…'
+                : `取消在途 · ${activeVisibleIds.length}`}
+            </button>
+            {status !== 'active' ? (
+              <Link
+                href="/runs?status=active"
+                className="btn-secondary btn-sm"
+                data-testid="runs-active-cancel-to-active"
+              >
+                仅看在途
+              </Link>
+            ) : null}
           </div>
         </div>
       ) : null}

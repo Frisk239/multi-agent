@@ -801,6 +801,40 @@ export function useAgentReadiness(agentId: string) {
   });
 }
 
+/** POST /api/runs/cancel-many —— 批量取消 active runs */
+export function useCancelRunsMany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) {
+        return { requested: 0, cancelled: 0, skipped: 0 };
+      }
+      const res = await fetch(`${API}/runs/cancel-many`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unique }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '批量取消失败'));
+      return res.json() as Promise<{
+        requested: number;
+        cancelled: number;
+        skipped: number;
+      }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+      if (r.requested === 0) return;
+      toastSuccess(`已取消 ${r.cancelled}/${r.requested} 条在途 run`, {
+        action: { label: '运行列表', href: '/runs?status=active' },
+        durationMs: 7000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '批量取消失败')),
+  });
+}
+
 /** POST /api/runs/recover-stuck —— 收尸 orphan/stale/missing-agent runs */
 export function useRecoverStuckRuns() {
   const qc = useQueryClient();
