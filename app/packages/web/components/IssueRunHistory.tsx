@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
 
 function shortId(id: string): string {
@@ -30,6 +31,9 @@ export function IssueRunHistory({
 }) {
   if (runs.length === 0) return null;
 
+  const failedCount = runs.filter((r) => r.status === 'failed').length;
+  const issueId = runs.find((r) => r.issueId)?.issueId;
+
   return (
     <section
       className="issue-run-history"
@@ -41,6 +45,27 @@ export function IssueRunHistory({
         <span className="count" data-testid="issue-run-history-count">
           {runs.length}
         </span>
+        <div className="issue-run-history-links" data-testid="issue-run-history-links">
+          {issueId ? (
+            <Link
+              href={`/runs?status=all`}
+              className="btn-ghost btn-sm"
+              data-testid="issue-run-history-workspace"
+              title="打开工作区运行页"
+            >
+              工作区运行
+            </Link>
+          ) : null}
+          {failedCount > 0 ? (
+            <Link
+              href="/runs?status=failed"
+              className="btn-secondary btn-sm"
+              data-testid="issue-run-history-failed"
+            >
+              失败 · {failedCount}
+            </Link>
+          ) : null}
+        </div>
       </div>
       <div className="data-table-wrap">
         <table className="data-table issue-run-history-table">
@@ -50,6 +75,7 @@ export function IssueRunHistory({
               <th>Runtime</th>
               <th>Run</th>
               <th>创建</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -84,11 +110,41 @@ export function IssueRunHistory({
                       </span>
                     ) : null}
                   </td>
-                  <td className="text-sm">{r.runtime}</td>
+                  <td className="text-sm">
+                    <Link
+                      href={`/agents?runtime=${encodeURIComponent(r.runtime)}`}
+                      className="runs-inline-filter"
+                      data-testid="issue-run-history-runtime"
+                      title="筛选同 runtime 智能体"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {r.runtime}
+                    </Link>
+                  </td>
                   <td>
                     <code className="text-sm">{shortId(r.id)}</code>
                   </td>
                   <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
+                  <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      href={`/runs?run=${encodeURIComponent(r.id)}&status=${encodeURIComponent(r.status)}`}
+                      className="runs-inline-filter"
+                      data-testid="issue-run-history-open-runs"
+                      title="在运行列表高亮"
+                    >
+                      列表
+                    </Link>
+                    {r.agentId ? (
+                      <Link
+                        href={`/agents/${r.agentId}`}
+                        className="runs-inline-filter"
+                        data-testid="issue-run-history-open-agent"
+                        title="打开执行智能体"
+                      >
+                        智能体
+                      </Link>
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}

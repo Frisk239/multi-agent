@@ -1637,7 +1637,8 @@ a.issue-status-board-link:hover {
 
 .issue-run-history-header {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
 }
@@ -1646,6 +1647,19 @@ a.issue-status-board-link:hover {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+.issue-run-history-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.issue-run-history-table td.text-right {
+  text-align: right;
+  white-space: nowrap;
 }
 
 .issue-run-history-row {
