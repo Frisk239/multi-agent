@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { IssueStatus, Priority } from '@ma/shared';
-import { Priority as PriorityEnum } from '@ma/shared';
+import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
   useAgents,
   useAgentsReadinessMap,
@@ -68,6 +68,8 @@ function KanbanBoardInner() {
   const originFromUrl = searchParams.get('origin') ?? '';
   // URL 可分享：?failed=1 仅显示最近有 failed run 的 issue
   const failedOnly = searchParams.get('failed') === '1';
+  // URL 可分享：?status= 仅显示该列（cancelled 不建列）
+  const statusFromUrl = searchParams.get('status') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   const { data: agents = [] } = useAgents();
@@ -153,6 +155,20 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const setStatusFilter = useCallback(
+    (value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (value && value !== 'cancelled' && (IssueStatusEnum.options as string[]).includes(value)) {
+        sp.set('status', value);
+      } else {
+        sp.delete('status');
+      }
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const assigneeQuery = useMemo(
     () => parseAssigneeParam(assigneeFromUrl || null),
     [assigneeFromUrl],
@@ -218,14 +234,44 @@ function KanbanBoardInner() {
     return s;
   }, [runningRuns, queuedRuns]);
 
-  if (isLoading) return <div className="kanban-loading">加载中…</div>;
+  const statusQuery = useMemo(() => {
+    if (!statusFromUrl) return undefined;
+    if (statusFromUrl === 'cancelled') return undefined;
+    const ok = (IssueStatusEnum.options as string[]).includes(statusFromUrl);
+    return ok ? (statusFromUrl as IssueStatus) : undefined;
+  }, [statusFromUrl]);
 
-  // cancelled 不渲染；服务端已按 q/label/assignee 过滤；failed=1 客户端再滤
-  const visible = (issues ?? []).filter((i) => {
-    if (i.status === 'cancelled') return false;
-    if (failedOnly && !failedIssueIds.has(i.id)) return false;
-    return true;
-  });
+  // cancelled 不渲染；服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤
+  const visible = useMemo(() => {
+    return (issues ?? []).filter((i) => {
+      if (i.status === 'cancelled') return false;
+      if (failedOnly && !failedIssueIds.has(i.id)) return false;
+      if (statusQuery && i.status !== statusQuery) return false;
+      return true;
+    });
+  }, [issues, failedOnly, failedIssueIds, statusQuery]);
+
+  const selectValue = assigneeFromUrl || '';
+  const failedCount = failedIssueIds.size;
+  const visibleCount = visible.length;
+  const hasActiveFilters = Boolean(
+    qFromUrl.trim() ||
+      labelFilter ||
+      assigneeFromUrl ||
+      priorityQuery ||
+      originQuery ||
+      failedOnly ||
+      statusQuery,
+  );
+  const visibleColumns = statusQuery
+    ? COLUMNS.filter((c) => c.status === statusQuery)
+    : COLUMNS;
+  const statusChipLabel =
+    statusQuery != null
+      ? COLUMNS.find((c) => c.status === statusQuery)?.title ?? statusQuery
+      : '';
+
+  if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
   function handleDrop(targetStatus: IssueStatus) {
     if (!dragId) return;
@@ -237,18 +283,6 @@ function KanbanBoardInner() {
     update.mutate({ id: dragId, input: { status: targetStatus } });
     setDragId(null);
   }
-
-  const selectValue = assigneeFromUrl || '';
-  const failedCount = failedIssueIds.size;
-  const visibleCount = visible.length;
-  const hasActiveFilters = Boolean(
-    qFromUrl.trim() ||
-      labelFilter ||
-      assigneeFromUrl ||
-      priorityQuery ||
-      originQuery ||
-      failedOnly,
-  );
 
   const assigneeChipLabel = (() => {
     if (!assigneeFromUrl) return '';
@@ -277,6 +311,7 @@ function KanbanBoardInner() {
       className="kanban-board"
       data-failed-only={failedOnly ? '1' : '0'}
       data-origin-filter={originQuery ?? ''}
+      data-status-filter={statusQuery ?? ''}
       data-visible-count={visibleCount}
       data-testid="kanban-board"
     >
@@ -361,6 +396,20 @@ function KanbanBoardInner() {
           <option value="">全部来源</option>
           <option value="automation">自动化</option>
           <option value="quick_create">快速派活</option>
+        </select>
+        <select
+          className="kanban-status-select"
+          value={statusQuery ?? ''}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="按状态聚焦列"
+          data-testid="kanban-status-filter"
+        >
+          <option value="">全部列</option>
+          {COLUMNS.map((c) => (
+            <option key={c.status} value={c.status}>
+              {c.title}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -472,6 +521,16 @@ function KanbanBoardInner() {
               优先级 · {priorityChip} ×
             </button>
           ) : null}
+          {statusQuery ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-status"
+              onClick={() => setStatusFilter('')}
+            >
+              状态 · {statusChipLabel} ×
+            </button>
+          ) : null}
           {originQuery ? (
             <button
               type="button"
@@ -551,8 +610,8 @@ function KanbanBoardInner() {
           />
         </div>
       ) : null}
-      <div className="kanban-columns">
-        {COLUMNS.map((col) => (
+      <div className="kanban-columns" data-status-focus={statusQuery ?? ''}>
+        {visibleColumns.map((col) => (
           <KanbanColumn
             key={col.status}
             title={col.title}

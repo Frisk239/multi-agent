@@ -544,6 +544,18 @@ body {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+a.kanban-column-focus {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 0.75;
+}
+a.kanban-column-focus:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .kanban-column-dot {
   width: 8px;
   height: 8px;

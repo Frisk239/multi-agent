@@ -42,6 +42,19 @@ export function KanbanColumn({
         <span className="kanban-column-dot" style={{ background: color }} />
         <strong>{title}</strong>
         <span className="kanban-column-count">{issues.length}</span>
+        <a
+          href={`/?status=${encodeURIComponent(status)}`}
+          className="kanban-column-focus"
+          data-testid="kanban-column-focus"
+          data-status={status}
+          title={`仅显示 ${title} 列`}
+          onClick={(e) => {
+            // allow middle-click etc; default navigation is fine
+            e.stopPropagation();
+          }}
+        >
+          聚焦
+        </a>
       </header>
       {issues.length === 0 ? (
         <EmptyState title="暂无 issue" description="拖入或新建" className="empty-state--column" />

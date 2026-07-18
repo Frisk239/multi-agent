@@ -623,6 +623,68 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ]
       : [];
 
+    const statusHit =
+      q &&
+      [
+        '状态',
+        'status',
+        '列',
+        'backlog',
+        'todo',
+        'blocked',
+        'done',
+        'in progress',
+        'in_progress',
+        'review',
+        '阻塞',
+      ].some((k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k));
+    const statusCmds = statusHit
+      ? [
+          {
+            id: 'board-status-blocked',
+            label: '看板：仅 Blocked',
+            hint: '/?status=blocked',
+            group: '看板',
+            run: () => router.push('/?status=blocked'),
+          },
+          {
+            id: 'board-status-in-progress',
+            label: '看板：仅 In Progress',
+            hint: '/?status=in_progress',
+            group: '看板',
+            run: () => router.push('/?status=in_progress'),
+          },
+          {
+            id: 'board-status-todo',
+            label: '看板：仅 Todo',
+            hint: '/?status=todo',
+            group: '看板',
+            run: () => router.push('/?status=todo'),
+          },
+          {
+            id: 'board-status-done',
+            label: '看板：仅 Done',
+            hint: '/?status=done',
+            group: '看板',
+            run: () => router.push('/?status=done'),
+          },
+          {
+            id: 'board-status-backlog',
+            label: '看板：仅 Backlog',
+            hint: '/?status=backlog',
+            group: '看板',
+            run: () => router.push('/?status=backlog'),
+          },
+          {
+            id: 'board-status-in-review',
+            label: '看板：仅 In Review',
+            hint: '/?status=in_review',
+            group: '看板',
+            run: () => router.push('/?status=in_review'),
+          },
+        ]
+      : [];
+
     const agentOpsHit =
       !q ||
       ['agent', '智能体', 'cwd', '就绪', 'readiness', 'blocked', 'runtime'].some((k) =>
@@ -758,6 +820,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...failedCmds,
         ...originCmds,
         ...priorityCmds,
+        ...statusCmds,
         ...automationCmds,
         ...issueCmds,
         ...squadOpsCmds,
