@@ -48,6 +48,8 @@
 | 小队/Wiki 任务深链 | ✅ | squad-wiki-run-links |
 | Mention 看板/运行链 | ✅ | mention-ops-links |
 | Memory/Wiki 运营回跳与列表搜索 | ✅ | memory-ops-links / wiki-ops-links |
+| Inbox 类型 chip 筛选 | ✅ | inbox-kind-ops |
+| Wiki 健康 / RunTrace 恢复 | ✅ | wiki-health-run-trace-ops |
 
 ## 仍弱（非完成态原因）
 
