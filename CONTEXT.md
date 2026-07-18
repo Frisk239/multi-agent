@@ -112,13 +112,15 @@
 - **已推：** `inbox-kind-ops`（`6ac5acb`）  
 - **已推：** `wiki-health-run-trace-ops`（`14c5305`）  
 - **已推：** `issue-run-history-links`（`920c9c6`）  
-- **本刀：** `env-banner-ops` — 全局环境横幅分级恢复链  
-- **closeout：** `app/.progress/env-banner-ops-impl-1.md`  
+- **已推：** `env-banner-ops`（`0d17920`）  
+- **本刀：** `qc-assignee-readiness` — 快速派活指派就绪恢复链  
+- **closeout：** `app/.progress/qc-assignee-readiness-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

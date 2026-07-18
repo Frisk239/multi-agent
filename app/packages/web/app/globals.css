@@ -3352,6 +3352,23 @@ button.wiki-job-status-filter:hover code {
   gap: 6px;
   align-items: center;
 }
+.quick-dispatch-assignee-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--color-orange, #f97316) 45%, transparent);
+  background: color-mix(in srgb, var(--color-orange, #f97316) 10%, transparent);
+}
+.quick-dispatch-assignee-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.quick-dispatch-assignee-banner p {
+  margin: 0;
+}
 
 .quick-dispatch-hint {
   margin: 0;
