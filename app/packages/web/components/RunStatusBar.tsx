@@ -130,7 +130,19 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
             <strong>{failure.title}</strong>
             <p className="text-sm">{failure.hint}</p>
             {active.error ? <pre className="run-error-pre">{active.error}</pre> : null}
-            <div className="run-failure-actions">
+            <div className="run-failure-actions" data-testid="run-failure-actions">
+              {canRerun ? (
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  data-testid="run-fail-rerun"
+                  disabled={rerunIssue.isPending}
+                  onClick={() => rerunIssue.mutate({})}
+                  title="按当前 Issue 指派再排队"
+                >
+                  {rerunIssue.isPending ? '排队中…' : '再执行'}
+                </button>
+              ) : null}
               {failure.settingsHref ? (
                 <Link
                   href={failure.settingsHref}
@@ -155,21 +167,42 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
               >
                 在运行列表中查看
               </Link>
-              {canRerun ? (
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  data-testid="run-fail-rerun"
-                  disabled={rerunIssue.isPending}
-                  onClick={() => rerunIssue.mutate({})}
-                  title="按当前 Issue 指派再排队"
+              <Link
+                href="/?failed=1"
+                className="btn-ghost btn-sm"
+                data-testid="run-fail-open-board"
+              >
+                看板仅失败
+              </Link>
+              <Link
+                href="/inbox?kind=run_failed&read=unread"
+                className="btn-ghost btn-sm"
+                data-testid="run-fail-open-inbox"
+              >
+                Inbox 失败
+              </Link>
+              {active.agentId ? (
+                <Link
+                  href={`/agents/${encodeURIComponent(active.agentId)}`}
+                  className="btn-ghost btn-sm"
+                  data-testid="run-fail-open-agent"
                 >
-                  {rerunIssue.isPending ? '排队中…' : '再执行'}
-                </button>
+                  执行智能体
+                </Link>
+              ) : null}
+              {active.squadId ? (
+                <Link
+                  href={`/squads/${encodeURIComponent(active.squadId)}`}
+                  className="btn-ghost btn-sm"
+                  data-testid="run-fail-open-squad"
+                >
+                  小队
+                </Link>
               ) : null}
               <button
                 type="button"
                 className="btn-secondary btn-sm"
+                data-testid="run-fail-copy-error"
                 onClick={() => {
                   if (active.error) void navigator.clipboard?.writeText(active.error);
                 }}
