@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
-import { useRecoverStuckRuns, useSetWorkspaceCwd, useSettingsStatus } from '@/lib/api';
+import {
+  useRecoverStuckRuns,
+  useRetryAllDeadWikiJobs,
+  useSetWorkspaceCwd,
+  useSettingsStatus,
+} from '@/lib/api';
 import { EmptyState } from './EmptyState';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
@@ -68,6 +73,7 @@ export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
   const recoverStuck = useRecoverStuckRuns();
+  const retryAllDeadWiki = useRetryAllDeadWikiJobs();
   const setCwd = useSetWorkspaceCwd();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
@@ -463,6 +469,28 @@ export function SettingsPage() {
             ) : null}
           </ul>
           <div className="settings-cwd-recovery-links" data-testid="settings-wiki-auto-actions">
+            {data.wikiHealth && data.wikiHealth.dead > 0 ? (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                data-testid="settings-wiki-auto-retry-dead"
+                disabled={retryAllDeadWiki.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `重试全部 ${data.wikiHealth!.dead} 条 dead Wiki 编译任务？`,
+                    )
+                  ) {
+                    return;
+                  }
+                  retryAllDeadWiki.mutate();
+                }}
+              >
+                {retryAllDeadWiki.isPending
+                  ? '重试中…'
+                  : `全部重试 dead · ${data.wikiHealth.dead}`}
+              </button>
+            ) : null}
             <Link
               className="btn-secondary btn-sm"
               href="/wiki?jobStatus=dead"

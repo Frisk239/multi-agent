@@ -122,13 +122,14 @@
 - **已推：** `settings-run-health`（`3a1d2c9`）  
 - **已推：** `settings-wiki-auto-health`（`e91d9c8`）  
 - **上一刀 intake：** `settings-wiki-auto-health` **通过**  
-- **本刀：** `workspace-cwd-persist` — Settings 持久化工作区路径（ADR 0003）  
-- **closeout：** `app/.progress/workspace-cwd-persist-impl-1.md`  
+- **已推：** `workspace-cwd-persist`（`49efb20`）  
+- **本刀：** `wiki-dead-bulk-retry` — Wiki dead 批量重试  
+- **closeout：** `app/.progress/wiki-dead-bulk-retry-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **判断：** 主航道日常可用；cwd 已可 DB 持久化（密钥仍 env）  
-- **再下一刀建议：** 无 env 冷启动回归；或收官/人定新北星  
+- **判断：** 主航道日常可用；完成态边界 = 密钥 env / daemon 非 1:1  
+- **再下一刀建议：** 人定新北星；或无 env 冷启动 cwd 回归  
 
 
 

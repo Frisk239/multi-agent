@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyWikiIngestFailure, type WikiIngestJob } from '@ma/shared';
-import { useRetryWikiJob, useSettingsStatus, useWikiJobs } from '@/lib/api';
+import {
+  useRetryAllDeadWikiJobs,
+  useRetryWikiJob,
+  useSettingsStatus,
+  useWikiJobs,
+} from '@/lib/api';
 
 type StatusFilter = '' | 'dead' | 'pending' | 'running' | 'completed' | 'failed';
 
@@ -65,6 +70,7 @@ export function WikiJobsPanel() {
 
 
   const { data: settings } = useSettingsStatus();
+  const retryAllDead = useRetryAllDeadWikiJobs();
   const { data: jobs, isLoading, isError, error, refetch, isFetching } = useWikiJobs(
     status || undefined,
   );
@@ -110,6 +116,20 @@ export function WikiJobsPanel() {
                 onClick={() => setStatus('dead')}
               >
                 只看 dead
+              </button>
+            ) : null}
+            {deadCount > 0 ? (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                data-testid="wiki-jobs-retry-all-dead"
+                disabled={retryAllDead.isPending}
+                onClick={() => {
+                  if (!window.confirm(`重试全部 ${deadCount} 条 dead Wiki 编译任务？`)) return;
+                  retryAllDead.mutate();
+                }}
+              >
+                {retryAllDead.isPending ? '重试中…' : `全部重试 · ${deadCount}`}
               </button>
             ) : null}
             {wikiLlmOk ? (

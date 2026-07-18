@@ -61,6 +61,7 @@
 | Settings 运行健康 / 心跳阈值可见 | ✅ | settings-run-health |
 | Settings Wiki/自动化健康摘要 | ✅ | settings-wiki-auto-health |
 | 工作区 cwd 持久化（Settings 可配） | ✅ | workspace-cwd-persist · ADR 0003 |
+| Wiki dead 批量重试 | ✅ | wiki-dead-bulk-retry |
 	
 ## 仍弱（非完成态原因）
 	

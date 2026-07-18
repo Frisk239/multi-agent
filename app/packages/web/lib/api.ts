@@ -1145,6 +1145,31 @@ export function useRetryWikiJob() {
   });
 }
 
+/** POST /api/wiki/jobs/retry-dead —— 批量重试全部 dead */
+export function useRetryAllDeadWikiJobs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API}/wiki/jobs/retry-dead`, { method: 'POST' });
+      if (!res.ok) throw new Error(await apiError(res, '批量重试失败'));
+      return res.json() as Promise<{ requested: number; retried: number; skipped: number }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
+      qc.invalidateQueries({ queryKey: ['wiki-pages'] });
+      qc.invalidateQueries({ queryKey: ['settings-status'] });
+      if (r.retried === 0) toastSuccess('没有可重试的 dead 任务');
+      else {
+        toastSuccess(`已重试 ${r.retried}/${r.requested} 条 dead Wiki 任务`, {
+          action: { label: 'Wiki 任务', href: '/wiki?jobStatus=pending' },
+          durationMs: 7000,
+        });
+      }
+    },
+    onError: (err) => toastError(errMessage(err, '批量重试失败')),
+  });
+}
+
 // POST /api/wiki/pages — 存回 wiki 页（spec §5.5）
 export function useCreateWikiPage() {
   const qc = useQueryClient();

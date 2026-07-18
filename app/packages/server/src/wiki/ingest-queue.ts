@@ -131,6 +131,28 @@ export function retryWikiIngestJob(id: string): boolean {
   return true;
 }
 
+/** 批量重试全部 dead（上限 100） */
+export function retryAllDeadWikiIngestJobs(limit = 100): {
+  requested: number;
+  retried: number;
+  skipped: number;
+} {
+  const dead = db
+    .select()
+    .from(wikiIngestJobs)
+    .where(eq(wikiIngestJobs.status, 'dead'))
+    .orderBy(asc(wikiIngestJobs.createdAt))
+    .limit(Math.max(1, Math.min(limit, 100)))
+    .all();
+  let retried = 0;
+  let skipped = 0;
+  for (const row of dead) {
+    if (retryWikiIngestJob(row.id)) retried += 1;
+    else skipped += 1;
+  }
+  return { requested: dead.length, retried, skipped };
+}
+
 // 启动 recovery：卡在 running 的 job 回收为 pending
 export function recoverStuckRunningJobs(): number {
   const now = Date.now();

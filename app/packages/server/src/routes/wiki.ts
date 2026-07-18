@@ -97,6 +97,14 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     return toWikiIngestJob(row);
   });
 
+  // 须在 :id 路由前：批量重试全部 dead
+  app.post('/api/wiki/jobs/retry-dead', async () => {
+    const { retryAllDeadWikiIngestJobs } = await import('../wiki/ingest-queue.js');
+    const result = retryAllDeadWikiIngestJobs();
+    if (result.retried > 0) wakeWikiIngestWorker();
+    return result;
+  });
+
   app.post('/api/wiki/jobs/:id/retry', async (req, reply) => {
     const { id } = req.params as { id: string };
     const ok = retryWikiIngestJob(id);
