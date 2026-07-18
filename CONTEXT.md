@@ -91,13 +91,15 @@
 - **已推：** `cmdk-ops-recovery`（`6746e52`）  
 - **已推：** `inbox-bulk-read`（`9ee539b`）  
 - **已推：** `runtimes-recovery-links`（`c251a71`）  
-- **本刀：** `agent-readiness-recovery` — Agent 详情非就绪恢复链  
-- **closeout：** `app/.progress/agent-readiness-recovery-impl-1.md`  
+- **已推：** `agent-readiness-recovery`（`777f2b0`）  
+- **本刀：** `squad-readiness-recovery` — 小队队长阻塞恢复链  
+- **closeout：** `app/.progress/squad-readiness-recovery-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

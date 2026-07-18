@@ -190,15 +190,86 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
               ) : null}
             </div>
             {leaderBlocked ? (
-              <p className="squad-readiness-alert" data-testid="squad-leader-blocked">
-                队长不可执行（{readinessLabel(leaderRd)}
-                {leaderRd?.detail ? ` · ${leaderRd.detail}` : ''}）。
-                {leaderRd?.status === 'runtime_missing' ? (
-                  <Link href="/runtimes">打开运行时</Link>
-                ) : (
-                  <Link href="/settings">环境诊断</Link>
-                )}
-              </p>
+              <div className="squad-readiness-alert" data-testid="squad-leader-blocked">
+                <p style={{ margin: '0 0 8px' }}>
+                  队长不可执行（{readinessLabel(leaderRd)}
+                  {leaderRd?.detail ? ` · ${leaderRd.detail}` : ''}）。
+                </p>
+                <div
+                  className="agent-readiness-recovery"
+                  data-testid="squad-leader-recovery"
+                  data-status={leaderRd?.status ?? 'unknown'}
+                >
+                  {leaderRd?.status === 'runtime_missing' ? (
+                    <Link
+                      href="/runtimes"
+                      className="btn btn-secondary btn-sm"
+                      data-testid="squad-recovery-runtimes"
+                    >
+                      运行时探测
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/settings"
+                      className="btn btn-secondary btn-sm"
+                      data-testid="squad-recovery-settings"
+                    >
+                      配置 cwd / 环境
+                    </Link>
+                  )}
+                  {squad.leaderId ? (
+                    <Link
+                      href={`/agents/${squad.leaderId}`}
+                      className="btn btn-ghost btn-sm"
+                      data-testid="squad-recovery-leader"
+                    >
+                      队长详情
+                    </Link>
+                  ) : null}
+                  {leaderRd?.status ? (
+                    <Link
+                      href={`/squads?ready=${encodeURIComponent(leaderRd.status)}`}
+                      className="btn btn-ghost btn-sm"
+                      data-testid="squad-recovery-same-status"
+                    >
+                      同态小队
+                    </Link>
+                  ) : null}
+                  <Link
+                    href={`/?assignee=squad:${encodeURIComponent(squadId)}`}
+                    className="btn btn-ghost btn-sm"
+                    data-testid="squad-recovery-board"
+                  >
+                    看板
+                  </Link>
+                  <Link
+                    href={`/runs?squad=${encodeURIComponent(squadId)}&status=failed`}
+                    className="btn btn-ghost btn-sm"
+                    data-testid="squad-recovery-failed-runs"
+                  >
+                    失败运行
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+            {summary.bad > 0 && !leaderBlocked ? (
+              <div
+                className="agent-readiness-recovery"
+                data-testid="squad-members-recovery"
+                style={{ marginTop: 8 }}
+              >
+                <span className="text-sm text-dim">有成员阻塞：</span>
+                <Link href="/settings" className="btn btn-ghost btn-sm" data-testid="squad-members-to-settings">
+                  环境
+                </Link>
+                <Link
+                  href="/agents?ready=blocked"
+                  className="btn btn-ghost btn-sm"
+                  data-testid="squad-members-to-agents"
+                >
+                  不可用智能体
+                </Link>
+              </div>
             ) : null}
             <ul className="squad-roster-list" data-testid="squad-roster-readiness">
               {roster.map((r) => {
