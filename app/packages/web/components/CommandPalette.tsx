@@ -472,6 +472,36 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       ['自动化', 'automation', '定时', 'schedule', 'cron', '规则', '巡检'].some(
         (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
       );
+    const skillsHit =
+      q &&
+      ['skill', 'skills', '技能', '项目级', '用户级', 'source'].some(
+        (k) => q.includes(k.toLowerCase()) || debouncedQ.toLowerCase().includes(k),
+      );
+    const skillsCmds = skillsHit
+      ? [
+          {
+            id: 'skills-open',
+            label: '打开 Skills',
+            hint: '/skills',
+            group: 'Skills',
+            run: () => router.push('/skills'),
+          },
+          {
+            id: 'skills-source-project',
+            label: 'Skills：项目级',
+            hint: '/skills?source=project',
+            group: 'Skills',
+            run: () => router.push('/skills?source=project'),
+          },
+          {
+            id: 'skills-source-user',
+            label: 'Skills：用户级',
+            hint: '/skills?source=user',
+            group: 'Skills',
+            run: () => router.push('/skills?source=user'),
+          },
+        ]
+      : [];
 
     const failedCmds = failedHit
       ? [
@@ -822,6 +852,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...priorityCmds,
         ...statusCmds,
         ...automationCmds,
+        ...skillsCmds,
         ...issueCmds,
         ...squadOpsCmds,
         ...squadCmds,
