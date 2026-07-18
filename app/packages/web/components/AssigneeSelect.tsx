@@ -274,12 +274,35 @@ export function AssigneeSelect({
             当前指派就绪：<strong>{readinessHint(currentRd)}</strong>
             {currentRd?.detail ? ` · ${currentRd.detail}` : ''}
           </span>
-          <span className="assignee-readiness-links">
+          <span className="assignee-readiness-links" data-testid="assignee-recovery-links">
             {currentRd?.status === 'runtime_missing' ? (
-              <Link href="/runtimes">运行时</Link>
+              <Link href="/runtimes" data-testid="assignee-recovery-runtimes">
+                运行时
+              </Link>
             ) : (
-              <Link href="/settings">环境诊断</Link>
+              <Link href="/settings" data-testid="assignee-recovery-settings">
+                环境诊断
+              </Link>
             )}
+            {currentAgentId ? (
+              <Link href={`/agents/${currentAgentId}`} data-testid="assignee-recovery-agent">
+                智能体详情
+              </Link>
+            ) : null}
+            {currentRd?.status && currentRd.status !== 'ready' && currentRd.status !== 'busy' ? (
+              <Link
+                href={`/agents?ready=${encodeURIComponent(currentRd.status)}`}
+                data-testid="assignee-recovery-same-status"
+              >
+                同态列表
+              </Link>
+            ) : null}
+            <Link
+              href="/runs?status=failed"
+              data-testid="assignee-recovery-failed-runs"
+            >
+              失败运行
+            </Link>
           </span>
         </div>
       ) : null}
@@ -297,15 +320,37 @@ export function AssigneeSelect({
               ? `（${currentSquadSummary.labels.slice(0, 3).join('、')}）`
               : ''}
           </span>
-          <span className="assignee-readiness-links">
+          <span className="assignee-readiness-links" data-testid="assignee-squad-recovery-links">
             {currentAssignee?.type === 'squad' ? (
-              <Link href={`/squads/${currentAssignee.id}`}>小队详情</Link>
+              <Link href={`/squads/${currentAssignee.id}`} data-testid="assignee-recovery-squad">
+                小队详情
+              </Link>
             ) : null}
             {currentRd?.status === 'runtime_missing' ? (
-              <Link href="/runtimes">运行时</Link>
+              <Link href="/runtimes" data-testid="assignee-recovery-runtimes">
+                运行时
+              </Link>
             ) : (
-              <Link href="/settings">环境诊断</Link>
+              <Link href="/settings" data-testid="assignee-recovery-settings">
+                环境诊断
+              </Link>
             )}
+            {currentRd?.status && currentRd.status !== 'ready' && currentRd.status !== 'busy' ? (
+              <Link
+                href={`/squads?ready=${encodeURIComponent(currentRd.status)}`}
+                data-testid="assignee-recovery-squads-same"
+              >
+                同态小队
+              </Link>
+            ) : null}
+            {currentAssignee?.type === 'squad' ? (
+              <Link
+                href={`/runs?squad=${encodeURIComponent(currentAssignee.id)}&status=failed`}
+                data-testid="assignee-recovery-squad-failed-runs"
+              >
+                失败运行
+              </Link>
+            ) : null}
           </span>
         </div>
       ) : null}
