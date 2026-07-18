@@ -140,20 +140,33 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             ) : null}
           </span>
         ) : null}
-        <select
-          className="status-select"
-          value={issue.status}
-          onChange={(e) =>
-            update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
-          }
-          aria-label="状态"
-        >
-          {ALL_STATUS.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_ZH[s]}
-            </option>
-          ))}
-        </select>
+        <span className="issue-status-field">
+          <select
+            className="status-select"
+            value={issue.status}
+            onChange={(e) =>
+              update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
+            }
+            aria-label="状态"
+          >
+            {ALL_STATUS.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_ZH[s]}
+              </option>
+            ))}
+          </select>
+          {issue.status !== 'cancelled' ? (
+            <Link
+              href={`/?status=${encodeURIComponent(issue.status)}`}
+              className="issue-status-board-link"
+              data-testid="issue-status-board-link"
+              data-status={issue.status}
+              title={`看板聚焦：${STATUS_ZH[issue.status]}`}
+            >
+              看板
+            </Link>
+          ) : null}
+        </span>
       </div>
 
       {editingTitle ? (

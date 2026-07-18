@@ -645,6 +645,19 @@ a.issue-priority-board-link {
 a.issue-priority-board-link:hover {
   text-decoration: underline;
 }
+.issue-status-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+a.issue-status-board-link {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+a.issue-status-board-link:hover {
+  text-decoration: underline;
+}
 
 .priority-dot {
   width: 7px;
