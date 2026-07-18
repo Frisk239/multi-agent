@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import type { Comment, IssueStatus } from '@ma/shared';
 import { StatusChangeBody } from '@ma/shared';
 import { MarkdownBody } from './MarkdownBody';
@@ -24,9 +25,11 @@ function formatTime(iso: string) {
 export function TimelineItemView({ item }: { item: Comment }) {
   if (item.type === 'status_change') {
     let text = item.body;
+    let toStatus: string | null = null;
     try {
       const parsed = StatusChangeBody.safeParse(JSON.parse(item.body));
       if (parsed.success) {
+        toStatus = parsed.data.to;
         text = `${item.authorLabel} 将状态从 ${STATUS_ZH[parsed.data.from]} 改为 ${STATUS_ZH[parsed.data.to]}`;
       }
     } catch {
@@ -38,6 +41,17 @@ export function TimelineItemView({ item }: { item: Comment }) {
           <span className="timeline-author">{item.authorLabel}</span>
           <span className="timeline-time">{formatTime(item.createdAt)}</span>
           <span className="timeline-badge">状态变更</span>
+          {toStatus && toStatus !== 'cancelled' ? (
+            <Link
+              href={`/?status=${encodeURIComponent(toStatus)}`}
+              className="timeline-status-board-link"
+              data-testid="timeline-status-board-link"
+              data-status={toStatus}
+              title={`看板聚焦：${STATUS_ZH[toStatus as keyof typeof STATUS_ZH] ?? toStatus}`}
+            >
+              看板
+            </Link>
+          ) : null}
         </div>
         <div className="timeline-body timeline-body--status">{text}</div>
       </div>

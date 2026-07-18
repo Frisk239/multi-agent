@@ -459,38 +459,88 @@ function RunsPageInner() {
                   >
                     <td>
                       <div className="runs-status-cell">
-                        <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
+                        <Link
+                          href={`/runs?status=${encodeURIComponent(r.status)}`}
+                          className={`run-pill run-pill--${r.status} run-pill--link`}
+                          data-testid="runs-status-filter-link"
+                          data-status={r.status}
+                          title={`筛选状态：${r.status}`}
+                        >
+                          {r.status}
+                        </Link>
                         {r.isLeader ? (
-                          <span className="leader-badge runs-leader-badge" title="小队 leader run">
+                          <Link
+                            href="/runs?leader=1"
+                            className="leader-badge runs-leader-badge"
+                            data-testid="runs-leader-filter-link"
+                            title="仅队长 run"
+                          >
                             队长
-                          </span>
+                          </Link>
                         ) : null}
                       </div>
                     </td>
                     <td>
-                      <Link href={`/agents/${r.agentId}`}>
+                      <Link
+                        href={`/agents/${r.agentId}`}
+                        data-testid="runs-agent-detail-link"
+                      >
                         {agentName.get(r.agentId) ?? shortId(r.agentId)}
+                      </Link>{' '}
+                      <Link
+                        href={`/runs?agent=${encodeURIComponent(r.agentId)}`}
+                        className="runs-inline-filter"
+                        data-testid="runs-agent-filter-link"
+                        title="筛选此 Agent 的运行"
+                      >
+                        筛
                       </Link>
                     </td>
                     <td>
                       <div className="runs-kind-cell">
                         <code>{r.kind}</code>
                         {r.squadId ? (
-                          <Link
-                            href={`/squads/${r.squadId}`}
-                            className="runs-squad-link"
-                            title="打开小队"
-                          >
-                            小队
-                          </Link>
+                          <>
+                            <Link
+                              href={`/squads/${r.squadId}`}
+                              className="runs-squad-link"
+                              title="打开小队"
+                              data-testid="runs-squad-detail-link"
+                            >
+                              小队
+                            </Link>
+                            <Link
+                              href={`/runs?squad=${encodeURIComponent(r.squadId)}`}
+                              className="runs-inline-filter"
+                              data-testid="runs-squad-filter-link"
+                              title="筛选此小队运行"
+                            >
+                              筛
+                            </Link>
+                          </>
                         ) : null}
                       </div>
                     </td>
                     <td>
                       {r.issueId ? (
-                        <Link href={`/issues/${r.issueId}`}>
-                          <code>{shortId(r.issueId)}</code>
-                        </Link>
+                        <span className="runs-issue-cell">
+                          <Link
+                            href={`/issues/${r.issueId}`}
+                            data-testid="runs-issue-link"
+                          >
+                            <code>{shortId(r.issueId)}</code>
+                          </Link>
+                          {(r.status === 'failed' || r.status === 'running' || r.status === 'queued') ? (
+                            <Link
+                              href={`/issues/${r.issueId}#run-trace`}
+                              className="runs-inline-filter"
+                              data-testid="runs-issue-trace-link"
+                              title="Issue 轨迹"
+                            >
+                              轨迹
+                            </Link>
+                          ) : null}
+                        </span>
                       ) : (
                         <span className="text-dim">—</span>
                       )}
@@ -502,11 +552,35 @@ function RunsPageInner() {
                           <div className="text-dim text-sm" title={r.error ?? ''}>
                             {cls.hint}
                           </div>
-                          {cls.settingsHref ? (
-                            <Link href={cls.settingsHref} className="text-sm">
-                              打开诊断
+                          <div className="runs-fail-links">
+                            {cls.settingsHref ? (
+                              <Link
+                                href={cls.settingsHref}
+                                className="text-sm"
+                                data-testid="runs-fail-diag"
+                              >
+                                打开诊断
+                              </Link>
+                            ) : (
+                              <Link href="/settings" className="text-sm" data-testid="runs-fail-diag">
+                                打开诊断
+                              </Link>
+                            )}
+                            <Link
+                              href="/?failed=1"
+                              className="text-sm"
+                              data-testid="runs-fail-board"
+                            >
+                              看板仅失败
                             </Link>
-                          ) : null}
+                            <Link
+                              href="/inbox?kind=run_failed&read=unread"
+                              className="text-sm"
+                              data-testid="runs-fail-inbox"
+                            >
+                              Inbox
+                            </Link>
+                          </div>
                         </>
                       ) : (
                         <span className="text-dim">—</span>

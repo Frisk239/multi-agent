@@ -100,13 +100,15 @@
 - **已推：** `board-meta-deeplinks`（`0e48897`）  
 - **已推：** `board-priority-ops`（`0cc2eb1`）  
 - **已推：** `board-status-focus`（`6794908`）  
-- **本刀：** `issue-status-board-link` — 详情状态 → 看板列聚焦  
-- **closeout：** `app/.progress/issue-status-board-link-impl-1.md`  
+- **已推：** `issue-status-board-link`（`5c0b3cd`）  
+- **本刀：** `runs-table-deeplinks` — 运行表行内筛选 + 失败恢复链  
+- **closeout：** `app/.progress/runs-table-deeplinks-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；非 Multica 本地完成态（cwd 仍依赖 export）  
 - **再下一刀建议：** 人指定主题；cwd 持久化需 ADR  
+
 
 
 

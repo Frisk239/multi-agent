@@ -4278,12 +4278,56 @@ a.issue-status-board-link:hover {
 .runs-squad-link:hover {
   text-decoration: underline;
 }
+a.runs-inline-filter {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-left: 4px;
+}
+a.runs-inline-filter:hover {
+  text-decoration: underline;
+}
+.runs-issue-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.runs-fail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+a.run-pill--link {
+  text-decoration: none;
+  display: inline-block;
+}
+a.run-pill--link:hover {
+  filter: brightness(1.08);
+  text-decoration: underline;
+}
+a.runs-leader-badge {
+  text-decoration: none;
+}
+a.runs-leader-badge:hover {
+  text-decoration: underline;
+}
 .runs-row--highlight td {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .runs-fail-cell {
   max-width: 22rem;
+}
+a.timeline-status-board-link {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-left: 6px;
+}
+a.timeline-status-board-link:hover {
+  text-decoration: underline;
 }
 .runs-empty-actions {
   display: flex;
