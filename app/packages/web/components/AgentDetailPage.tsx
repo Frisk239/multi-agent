@@ -272,11 +272,51 @@ function RunsTab({ agentId }: { agentId: string }) {
     );
   }
   if (!runs || runs.length === 0) {
-    return <p className="skill-assign-empty">暂无运行记录。指派该 agent 后会出现在此。</p>;
+    return (
+      <div className="skill-assign-empty" data-testid="agent-runs-empty">
+        <p>暂无运行记录。指派该 agent 后会出现在此。</p>
+        <div className="agent-runs-empty-actions">
+          <Link
+            href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
+            className="btn-secondary btn-sm"
+            data-testid="agent-runs-empty-board"
+          >
+            看板指派
+          </Link>
+          <Link
+            href={`/runs?agent=${encodeURIComponent(agentId)}`}
+            className="btn-ghost btn-sm"
+            data-testid="agent-runs-empty-workspace"
+          >
+            工作区运行
+          </Link>
+        </div>
+      </div>
+    );
   }
 
+  const failedCount = runs.filter((r) => r.status === 'failed').length;
+
   return (
-    <div className="data-table-wrap">
+    <div className="data-table-wrap" data-testid="agent-runs-table">
+      <div className="agent-runs-toolbar" data-testid="agent-runs-toolbar">
+        <Link
+          href={`/runs?agent=${encodeURIComponent(agentId)}`}
+          className="btn-ghost btn-sm"
+          data-testid="agent-runs-workspace-all"
+        >
+          工作区全部
+        </Link>
+        {failedCount > 0 ? (
+          <Link
+            href={`/runs?agent=${encodeURIComponent(agentId)}&status=failed`}
+            className="btn-secondary btn-sm"
+            data-testid="agent-runs-workspace-failed"
+          >
+            工作区失败 · {failedCount}
+          </Link>
+        ) : null}
+      </div>
       <table className="data-table">
         <thead>
           <tr>
@@ -294,18 +334,37 @@ function RunsTab({ agentId }: { agentId: string }) {
             const canRetry =
               (r.status === 'failed' || r.status === 'cancelled') && !!r.issueId;
             return (
-              <tr key={r.id}>
+              <tr key={r.id} data-run-id={r.id} data-run-status={r.status}>
                 <td>
-                  <code>{r.status}</code>
+                  <Link
+                    href={`/runs?agent=${encodeURIComponent(agentId)}&status=${encodeURIComponent(r.status)}`}
+                    className={`run-pill run-pill--${r.status} run-pill--link`}
+                    data-testid="agent-run-status-link"
+                    data-status={r.status}
+                    title="在工作区运行中筛选"
+                  >
+                    {r.status}
+                  </Link>
                 </td>
                 <td>
                   <code>{r.kind === 'quick_create' ? 'quick_create' : 'issue'}</code>
                 </td>
                 <td>
                   {r.issueId ? (
-                    <Link href={`/issues/${r.issueId}`}>
-                      <code>{r.issueId.slice(0, 8)}…</code>
-                    </Link>
+                    <span className="runs-issue-cell">
+                      <Link href={`/issues/${r.issueId}`} data-testid="agent-run-issue-link">
+                        <code>{r.issueId.slice(0, 8)}…</code>
+                      </Link>
+                      {(r.status === 'failed' || r.status === 'running' || r.status === 'queued') ? (
+                        <Link
+                          href={`/issues/${r.issueId}#run-trace`}
+                          className="runs-inline-filter"
+                          data-testid="agent-run-trace-link"
+                        >
+                          轨迹
+                        </Link>
+                      ) : null}
+                    </span>
                   ) : (
                     <span className="text-dim">
                       {r.kind === 'quick_create' ? '（无 Issue）' : '—'}
@@ -313,7 +372,13 @@ function RunsTab({ agentId }: { agentId: string }) {
                   )}
                 </td>
                 <td>
-                  <code>{r.runtime}</code>
+                  <Link
+                    href={`/agents?runtime=${encodeURIComponent(r.runtime)}`}
+                    data-testid="agent-run-runtime-link"
+                    title="筛选同 runtime 智能体"
+                  >
+                    <code>{r.runtime}</code>
+                  </Link>
                 </td>
                 <td className="text-dim text-sm">{r.createdAt}</td>
                 <td className="text-dim text-sm">

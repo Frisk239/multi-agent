@@ -4329,6 +4329,20 @@ a.timeline-status-board-link {
 a.timeline-status-board-link:hover {
   text-decoration: underline;
 }
+.agent-runs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.agent-runs-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
 .runs-empty-actions {
   display: flex;
   flex-wrap: wrap;
