@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { CreateIssueInput, Priority } from '@ma/shared';
 import {
   useAgents,
+  useAgentsReadinessMap,
   useCreateIssue,
   useSettingsStatus,
   useSquads,
@@ -26,6 +27,8 @@ export function NewIssueForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
+  const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
 
   const cwdBlocked = useMemo(() => {
     const cwd = settings?.checks?.find((c) => c.id === 'cwd');
@@ -37,6 +40,40 @@ export function NewIssueForm() {
   }, [settings]);
   const willEnqueue = Boolean(assigneeValue);
   const showCwdWarn = cwdBlocked && willEnqueue;
+
+  const selectedAssignee = useMemo(() => {
+    if (assigneeValue.startsWith('agent:')) {
+      const id = assigneeValue.slice('agent:'.length);
+      const ag = agents.find((a) => a.id === id);
+      const rd = readinessMap[id];
+      return {
+        type: 'agent' as const,
+        id,
+        name: ag?.name ?? id,
+        status: rd?.status,
+        detail: rd?.detail,
+      };
+    }
+    if (assigneeValue.startsWith('squad:')) {
+      const id = assigneeValue.slice('squad:'.length);
+      const sq = squads.find((s) => s.id === id);
+      const leaderId = sq?.leaderId;
+      const rd = leaderId ? readinessMap[leaderId] : undefined;
+      return {
+        type: 'squad' as const,
+        id,
+        name: sq?.name ?? id,
+        status: rd?.status,
+        detail: rd?.detail,
+      };
+    }
+    return null;
+  }, [assigneeValue, agents, squads, readinessMap]);
+
+  const assigneeBlocked =
+    selectedAssignee?.status != null &&
+    selectedAssignee.status !== 'ready' &&
+    selectedAssignee.status !== 'busy';
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -145,29 +182,109 @@ export function NewIssueForm() {
       >
         <option value="">未指派</option>
         <optgroup label="智能体">
-          {agents.map((a) => (
-            <option key={a.id} value={`agent:${a.id}`}>
-              {a.name} · {a.runtime}
-            </option>
-          ))}
+          {agents.map((a) => {
+            const st = readinessMap[a.id]?.status;
+            const hint = st && st !== 'ready' && st !== 'busy' ? ` · ${st}` : '';
+            return (
+              <option key={a.id} value={`agent:${a.id}`}>
+                {a.name} · {a.runtime}
+                {hint}
+              </option>
+            );
+          })}
         </optgroup>
         <optgroup label="小队">
-          {squads.map((s) => (
-            <option key={s.id} value={`squad:${s.id}`}>
-              {s.name}
-            </option>
-          ))}
+          {squads.map((s) => {
+            const st = s.leaderId ? readinessMap[s.leaderId]?.status : undefined;
+            const hint =
+              st && st !== 'ready' && st !== 'busy' ? ` · 队长 ${st}` : '';
+            return (
+              <option key={s.id} value={`squad:${s.id}`}>
+                {s.name}
+                {hint}
+              </option>
+            );
+          })}
         </optgroup>
       </select>
+      {selectedAssignee && assigneeBlocked ? (
+        <div
+          className="new-issue-assignee-banner"
+          data-testid="new-issue-assignee-banner"
+          data-status={selectedAssignee.status ?? 'unknown'}
+          role="status"
+        >
+          <span>
+            <strong>指派方可能无法执行</strong>
+            {selectedAssignee.type === 'agent' ? '智能体' : '小队队长'}「
+            {selectedAssignee.name}」：{selectedAssignee.status}
+            {selectedAssignee.detail ? ` · ${selectedAssignee.detail}` : ''}
+          </span>
+          <div className="new-issue-cwd-actions" data-testid="new-issue-assignee-actions">
+            {selectedAssignee.status === 'runtime_missing' ? (
+              <Link
+                href="/runtimes"
+                className="btn-secondary btn-sm"
+                data-testid="new-issue-assignee-runtimes"
+              >
+                运行时
+              </Link>
+            ) : (
+              <Link
+                href="/settings"
+                className="btn-secondary btn-sm"
+                data-testid="new-issue-assignee-settings"
+              >
+                环境
+              </Link>
+            )}
+            <Link
+              href={
+                selectedAssignee.type === 'agent'
+                  ? `/agents/${selectedAssignee.id}`
+                  : `/squads/${selectedAssignee.id}`
+              }
+              className="btn-ghost btn-sm"
+              data-testid="new-issue-assignee-detail"
+            >
+              详情
+            </Link>
+            {selectedAssignee.status ? (
+              <Link
+                href={
+                  selectedAssignee.type === 'agent'
+                    ? `/agents?ready=${encodeURIComponent(selectedAssignee.status)}`
+                    : `/squads?ready=${encodeURIComponent(selectedAssignee.status)}`
+                }
+                className="btn-ghost btn-sm"
+                data-testid="new-issue-assignee-same"
+              >
+                同态列表
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <button
         type="submit"
         className="btn-primary"
         data-testid="new-issue-submit"
         data-cwd-blocked={showCwdWarn ? '1' : '0'}
-        title={showCwdWarn ? '工作区未就绪，指派后 run 可能失败' : undefined}
+        data-assignee-blocked={assigneeBlocked ? '1' : '0'}
+        title={
+          showCwdWarn
+            ? '工作区未就绪，指派后 run 可能失败'
+            : assigneeBlocked
+              ? '指派方可能无法执行'
+              : undefined
+        }
         disabled={create.isPending || !title.trim()}
       >
-        {create.isPending ? '提交中…' : showCwdWarn ? '仍要创建' : '提交'}
+        {create.isPending
+          ? '提交中…'
+          : showCwdWarn || assigneeBlocked
+            ? '仍要创建'
+            : '提交'}
       </button>
       <button type="button" className="btn-ghost" onClick={reset}>
         取消
