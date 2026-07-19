@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useCallback, useEffect, useMemo } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useArchiveInbox,
@@ -140,11 +140,12 @@ function InboxPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data, isLoading, isError, error } = useInbox();
+  const { data, isLoading, isError, error } = useInbox({ includeArchived: true });
   const markRead = useMarkInboxRead();
   const markReadMany = useMarkInboxReadMany();
   const archive = useArchiveInbox();
   const archiveMany = useArchiveInboxMany();
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const readFilter = parseReadFilter(searchParams.get('read'));
   const kindFilter = parseKindFilter(searchParams.get('kind'));
@@ -164,9 +165,17 @@ function InboxPageInner() {
 
   const allItems = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;
+  const activeAll = useMemo(
+    () => allItems.filter((i) => !i.archived),
+    [allItems],
+  );
+  const archivedAll = useMemo(
+    () => allItems.filter((i) => i.archived),
+    [allItems],
+  );
 
   const failedAgg = useMemo(() => {
-    const fails = allItems.filter(
+    const fails = activeAll.filter(
       (i) => !i.read && (i.kind === 'run_failed' || i.type === 'run_failed'),
     );
     const issueIds = new Set(
@@ -177,16 +186,24 @@ function InboxPageInner() {
       issueCount: issueIds.size,
       latest: fails[0] ?? null,
     };
-  }, [allItems]);
+  }, [activeAll]);
 
   const items = useMemo(() => {
-    return allItems.filter((item) => {
+    return activeAll.filter((item) => {
       if (readFilter === 'unread' && item.read) return false;
       if (readFilter === 'read' && !item.read) return false;
       if (kindFilter && item.kind !== kindFilter) return false;
       return true;
     });
-  }, [allItems, readFilter, kindFilter]);
+  }, [activeAll, readFilter, kindFilter]);
+  const archivedItems = useMemo(() => {
+    return archivedAll.filter((item) => {
+      if (readFilter === 'unread' && item.read) return false;
+      if (readFilter === 'read' && !item.read) return false;
+      if (kindFilter && item.kind !== kindFilter) return false;
+      return true;
+    });
+  }, [archivedAll, readFilter, kindFilter]);
 
   const unreadVisibleIds = useMemo(
     () => items.filter((i) => !i.read).map((i) => i.id),
@@ -194,16 +211,20 @@ function InboxPageInner() {
   );
   const unreadFailIds = useMemo(
     () =>
-      allItems
+      activeAll
         .filter((i) => !i.read && (i.kind === 'run_failed' || i.type === 'run_failed'))
         .map((i) => i.id),
-    [allItems],
+    [activeAll],
   );
 
   const selectedId = searchParams.get('item') ?? '';
   const selected = useMemo(
-    () => items.find((i) => i.id === selectedId) ?? allItems.find((i) => i.id === selectedId) ?? null,
-    [items, allItems, selectedId],
+    () =>
+      items.find((i) => i.id === selectedId) ??
+      archivedItems.find((i) => i.id === selectedId) ??
+      allItems.find((i) => i.id === selectedId) ??
+      null,
+    [items, archivedItems, allItems, selectedId],
   );
 
   // 选中项若被筛选掉，仍保留详情（从 allItems 取）
@@ -441,12 +462,12 @@ function InboxPageInner() {
             <EmptyState
               title="暂无动态"
               description={
-                allItems.length > 0
+                activeAll.length > 0 || archivedAll.length > 0
                   ? '当前筛选无结果，试试「全部」或换类型。'
                   : '评论、指派与 Run 终态会出现在这里'
               }
               action={
-                allItems.length > 0 ? (
+                activeAll.length > 0 || archivedAll.length > 0 ? (
                   <button
                     type="button"
                     className="btn-secondary btn-sm"
@@ -472,69 +493,66 @@ function InboxPageInner() {
               }
             />
           ) : (
-            <ul className="inbox-list">
-              {items.map((item) => {
-                const active = item.id === selectedId;
-                return (
-                  <li key={item.id}>
-                    <div
-                      className={`inbox-row${item.read ? '' : ' inbox-row--unread'}${
-                        active ? ' inbox-row--active' : ''
-                      }`}
-                      data-inbox-read={item.read ? '1' : '0'}
-                      data-inbox-kind={item.kind}
-                      data-inbox-active={active ? '1' : '0'}
-                    >
-                      <button
-                        type="button"
-                        className="inbox-row-main"
-                        data-testid="inbox-row-select"
-                        onClick={() => void selectItem(item)}
-                      >
-                        <span
-                          className={kindClass(item.kind)}
-                          data-testid="inbox-kind-chip"
-                          title="筛选此类型"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            replaceParams({
-                              kind: item.kind,
-                              read: readFilter === 'all' ? null : readFilter,
-                            });
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              replaceParams({
-                                kind: item.kind,
-                                read: readFilter === 'all' ? null : readFilter,
-                              });
-                            }
-                          }}
-                          role="link"
-                          tabIndex={0}
-                        >
-                          {kindLabel(item.kind)}
-                        </span>
-                        <span className="inbox-body">
-                          <span className="inbox-summary">{item.summary}</span>
-                          <span className="inbox-meta">
-                            <Icon name="issues" size={12} className="nav-icon-svg" />
-                            {item.issueIdentifier ?? item.issueId ?? '—'}
-                            {item.issueTitle ? ` · ${item.issueTitle}` : ''}
-                          </span>
-                        </span>
-                        <time className="inbox-time" dateTime={item.createdAt}>
-                          {relativeTime(item.createdAt)}
-                        </time>
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
+            <ul className="inbox-list" data-testid="inbox-active-list">
+              {items.map((item) => (
+                <InboxRow
+                  key={item.id}
+                  item={item}
+                  active={item.id === selectedId}
+                  onSelect={() => void selectItem(item)}
+                  onKindFilter={(kind) =>
+                    replaceParams({
+                      kind,
+                      read: readFilter === 'all' ? null : readFilter,
+                    })
+                  }
+                />
+              ))}
             </ul>
           )}
+
+          {archivedAll.length > 0 ? (
+            <div className="inbox-archive-section" data-testid="inbox-archive-section">
+              <button
+                type="button"
+                className="inbox-archive-toggle"
+                data-testid="inbox-archive-toggle"
+                aria-expanded={archiveOpen}
+                onClick={() => setArchiveOpen((v) => !v)}
+              >
+                <span className="inbox-archive-chevron" aria-hidden>
+                  {archiveOpen ? '▾' : '▸'}
+                </span>
+                已归档 {archivedAll.length}
+                {archivedItems.length !== archivedAll.length
+                  ? ` · 筛选后 ${archivedItems.length}`
+                  : ''}
+              </button>
+              {archiveOpen ? (
+                archivedItems.length === 0 ? (
+                  <p className="inbox-archive-empty text-dim text-sm">当前筛选下无归档项</p>
+                ) : (
+                  <ul className="inbox-list inbox-list--archived" data-testid="inbox-archive-list">
+                    {archivedItems.map((item) => (
+                      <InboxRow
+                        key={item.id}
+                        item={item}
+                        active={item.id === selectedId}
+                        archived
+                        onSelect={() => void selectItem(item)}
+                        onKindFilter={(kind) =>
+                          replaceParams({
+                            kind,
+                            read: readFilter === 'all' ? null : readFilter,
+                          })
+                        }
+                      />
+                    ))}
+                  </ul>
+                )
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <aside className="inbox-split-detail" data-testid="inbox-split-detail">
@@ -652,6 +670,74 @@ function InboxPageInner() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function InboxRow({
+  item,
+  active,
+  archived,
+  onSelect,
+  onKindFilter,
+}: {
+  item: InboxItem;
+  active: boolean;
+  archived?: boolean;
+  onSelect: () => void;
+  onKindFilter: (kind: InboxItem['kind']) => void;
+}) {
+  return (
+    <li>
+      <div
+        className={`inbox-row${item.read ? '' : ' inbox-row--unread'}${
+          active ? ' inbox-row--active' : ''
+        }${archived ? ' inbox-row--archived' : ''}`}
+        data-inbox-read={item.read ? '1' : '0'}
+        data-inbox-kind={item.kind}
+        data-inbox-active={active ? '1' : '0'}
+        data-inbox-archived={archived ? '1' : '0'}
+      >
+        <button
+          type="button"
+          className="inbox-row-main"
+          data-testid="inbox-row-select"
+          onClick={onSelect}
+        >
+          <span
+            className={kindClass(item.kind)}
+            data-testid="inbox-kind-chip"
+            title="筛选此类型"
+            onClick={(e) => {
+              e.stopPropagation();
+              onKindFilter(item.kind);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onKindFilter(item.kind);
+              }
+            }}
+            role="link"
+            tabIndex={0}
+          >
+            {kindLabel(item.kind)}
+          </span>
+          <span className="inbox-body">
+            <span className="inbox-summary">{item.summary}</span>
+            <span className="inbox-meta">
+              <Icon name="issues" size={12} className="nav-icon-svg" />
+              {item.issueIdentifier ?? item.issueId ?? '—'}
+              {item.issueTitle ? ` · ${item.issueTitle}` : ''}
+              {archived ? ' · 已归档' : ''}
+            </span>
+          </span>
+          <time className="inbox-time" dateTime={item.createdAt}>
+            {relativeTime(item.createdAt)}
+          </time>
+        </button>
+      </div>
+    </li>
   );
 }
 

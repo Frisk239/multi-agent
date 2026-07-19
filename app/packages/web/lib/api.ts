@@ -188,11 +188,16 @@ export function useSquad(id: string) {
 }
 
 // GET /api/inbox —— bu01 真表 InboxListResponse
-export function useInbox() {
+export function useInbox(opts?: { includeArchived?: boolean }) {
+  const includeArchived = opts?.includeArchived !== false;
   return useQuery<InboxListResponse>({
-    queryKey: ['inbox'],
+    queryKey: ['inbox', includeArchived ? 'all' : 'active'],
     queryFn: async () => {
-      const res = await fetch(`${API}/inbox`);
+      const sp = new URLSearchParams();
+      if (includeArchived) sp.set('includeArchived', '1');
+      // 归档区需要足够窗口；200 为 API 上限
+      sp.set('limit', '200');
+      const res = await fetch(`${API}/inbox?${sp.toString()}`);
       if (!res.ok) throw new Error('加载 Inbox 失败');
       return res.json();
     },

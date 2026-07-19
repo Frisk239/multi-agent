@@ -6476,3 +6476,50 @@ a.issue-card-run-fail--link:hover {
 .agents-working-link:hover {
   text-decoration: underline;
 }
+
+/* inbox-archive-section */
+.inbox-archive-section {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+.inbox-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+.inbox-archive-toggle:hover {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  color: var(--text-primary);
+}
+
+.inbox-archive-chevron {
+  width: 1rem;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.inbox-archive-empty {
+  margin: 0;
+  padding: 4px 10px 8px;
+}
+
+.inbox-list--archived .inbox-row {
+  opacity: 0.78;
+}
+
+.inbox-row--archived .inbox-summary {
+  color: var(--text-muted);
+}
