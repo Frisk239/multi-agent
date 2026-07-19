@@ -1,0 +1,11 @@
+### Ran Playwright code
+```js
+await page.goto('https://multica.ai/frisk239-s-coding-workspace/settings');
+```
+### Page
+- Page URL: https://multica.ai/frisk239-s-coding-workspace/settings
+- Page Title: Multica — Project Management for Human + Agent Teams
+### Snapshot
+- [Snapshot](.playwright-cli\page-2026-07-19T05-58-49-435Z.yml)
+### Events
+- New console entries: .playwright-cli\console-2026-07-19T05-58-48-645Z.log#L1-L3
