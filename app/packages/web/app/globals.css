@@ -3711,6 +3711,114 @@ button.wiki-job-status-filter:hover code {
   padding-top: 2px;
 }
 
+/* —— inbox-tri-pane：列表 + 详情（对齐 Multica 收件箱左+中） —— */
+.inbox-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.15fr);
+  gap: 0;
+  min-height: 420px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.inbox-split-list {
+  min-width: 0;
+  border-right: 1px solid var(--border-subtle);
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.inbox-split-list .inbox-list {
+  border: 0;
+  border-radius: 0;
+}
+
+.inbox-split-detail {
+  min-width: 0;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+  background: var(--bg-base, var(--bg-elevated));
+}
+
+.inbox-row--active {
+  background: color-mix(in srgb, var(--accent, #5b8def) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent, #5b8def);
+}
+
+.inbox-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 280px;
+  padding: var(--space-6);
+}
+
+.inbox-detail {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.inbox-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.inbox-detail-title {
+  margin: 0;
+  font-size: var(--text-lg, 1.1rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.inbox-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.inbox-detail-body {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-ui, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: min(50vh, 480px);
+  overflow: auto;
+}
+
+.inbox-detail-actions {
+  padding-left: 0;
+}
+
+@media (max-width: 900px) {
+  .inbox-split {
+    grid-template-columns: 1fr;
+  }
+  .inbox-split-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    max-height: 40vh;
+  }
+  .inbox-split-detail {
+    max-height: none;
+  }
+}
+
 /* —— bu02 Agent / Squad 运营表单 —— */
 .ops-form {
   margin-bottom: var(--space-5);

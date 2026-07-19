@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useCallback, useMemo } from 'react';
+import { Suspense, useCallback, useEffect, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useArchiveInbox,
@@ -200,7 +200,33 @@ function InboxPageInner() {
     [allItems],
   );
 
-  async function openItem(item: InboxItem) {
+  const selectedId = searchParams.get('item') ?? '';
+  const selected = useMemo(
+    () => items.find((i) => i.id === selectedId) ?? allItems.find((i) => i.id === selectedId) ?? null,
+    [items, allItems, selectedId],
+  );
+
+  // 选中项若被筛选掉，仍保留详情（从 allItems 取）
+  useEffect(() => {
+    if (!selectedId || selected) return;
+    // id 不存在则清 URL
+    if (allItems.length > 0 && !allItems.some((i) => i.id === selectedId)) {
+      replaceParams({ item: null });
+    }
+  }, [selectedId, selected, allItems, replaceParams]);
+
+  async function selectItem(item: InboxItem) {
+    replaceParams({ item: item.id });
+    if (!item.read) {
+      try {
+        await markRead.mutateAsync(item.id);
+      } catch {
+        /* mutation toast */
+      }
+    }
+  }
+
+  async function openItemNavigate(item: InboxItem) {
     if (!item.read) {
       try {
         await markRead.mutateAsync(item.id);
@@ -225,7 +251,7 @@ function InboxPageInner() {
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container inbox-page" data-testid="inbox-page">
       <div className="page-header">
         <div>
           <div className="page-title">
@@ -237,7 +263,7 @@ function InboxPageInner() {
             )}
           </div>
           <div className="page-desc">
-            筛选同步 URL（?read=&kind=）；失败优先开 Issue 轨迹，亦可进运行列表
+            列表 + 详情双栏（对齐 Multica 收件箱阅读）；?item= 可分享选中；筛选 ?read=&kind=
           </div>
         </div>
         <div className="page-actions">
@@ -409,200 +435,222 @@ function InboxPageInner() {
         </div>
       ) : null}
 
-      {items.length === 0 ? (
-        <EmptyState
-          title="暂无动态"
-          description={
-            allItems.length > 0
-              ? '当前筛选无结果，试试「全部」或换类型。'
-              : '评论、指派与 Run 终态会出现在这里'
-          }
-          action={
-            allItems.length > 0 ? (
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                data-testid="inbox-empty-clear-filters"
-                onClick={() => replaceParams({ read: null, kind: null })}
-              >
-                清除筛选
-              </button>
-            ) : (
-              <div className="inbox-empty-actions" data-testid="inbox-empty-actions">
-                <Link href="/" className="btn-secondary btn-sm" data-testid="inbox-empty-board">
-                  去看板
-                </Link>
-                <Link
-                  href="/runs?status=failed"
-                  className="btn-ghost btn-sm"
-                  data-testid="inbox-empty-runs"
-                >
-                  失败运行
-                </Link>
-              </div>
-            )
-          }
-        />
-      ) : (
-        <ul className="inbox-list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <div
-                className={`inbox-row${item.read ? '' : ' inbox-row--unread'}`}
-                data-inbox-read={item.read ? '1' : '0'}
-                data-inbox-kind={item.kind}
-              >
-                <button
-                  type="button"
-                  className="inbox-row-main"
-                  onClick={() => void openItem(item)}
-                >
-                  <span
-                    className={kindClass(item.kind)}
-                    data-testid="inbox-kind-chip"
-                    title="筛选此类型"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      replaceParams({
-                        kind: item.kind,
-                        read: readFilter === 'all' ? null : readFilter,
-                      });
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        replaceParams({
-                          kind: item.kind,
-                          read: readFilter === 'all' ? null : readFilter,
-                        });
-                      }
-                    }}
-                    role="link"
-                    tabIndex={0}
+      <div className="inbox-split" data-testid="inbox-split">
+        <div className="inbox-split-list" data-testid="inbox-split-list">
+          {items.length === 0 ? (
+            <EmptyState
+              title="暂无动态"
+              description={
+                allItems.length > 0
+                  ? '当前筛选无结果，试试「全部」或换类型。'
+                  : '评论、指派与 Run 终态会出现在这里'
+              }
+              action={
+                allItems.length > 0 ? (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    data-testid="inbox-empty-clear-filters"
+                    onClick={() => replaceParams({ read: null, kind: null })}
                   >
-                    {kindLabel(item.kind)}
+                    清除筛选
+                  </button>
+                ) : (
+                  <div className="inbox-empty-actions" data-testid="inbox-empty-actions">
+                    <Link href="/" className="btn-secondary btn-sm" data-testid="inbox-empty-board">
+                      去看板
+                    </Link>
+                    <Link
+                      href="/runs?status=failed"
+                      className="btn-ghost btn-sm"
+                      data-testid="inbox-empty-runs"
+                    >
+                      失败运行
+                    </Link>
+                  </div>
+                )
+              }
+            />
+          ) : (
+            <ul className="inbox-list">
+              {items.map((item) => {
+                const active = item.id === selectedId;
+                return (
+                  <li key={item.id}>
+                    <div
+                      className={`inbox-row${item.read ? '' : ' inbox-row--unread'}${
+                        active ? ' inbox-row--active' : ''
+                      }`}
+                      data-inbox-read={item.read ? '1' : '0'}
+                      data-inbox-kind={item.kind}
+                      data-inbox-active={active ? '1' : '0'}
+                    >
+                      <button
+                        type="button"
+                        className="inbox-row-main"
+                        data-testid="inbox-row-select"
+                        onClick={() => void selectItem(item)}
+                      >
+                        <span
+                          className={kindClass(item.kind)}
+                          data-testid="inbox-kind-chip"
+                          title="筛选此类型"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            replaceParams({
+                              kind: item.kind,
+                              read: readFilter === 'all' ? null : readFilter,
+                            });
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              replaceParams({
+                                kind: item.kind,
+                                read: readFilter === 'all' ? null : readFilter,
+                              });
+                            }
+                          }}
+                          role="link"
+                          tabIndex={0}
+                        >
+                          {kindLabel(item.kind)}
+                        </span>
+                        <span className="inbox-body">
+                          <span className="inbox-summary">{item.summary}</span>
+                          <span className="inbox-meta">
+                            <Icon name="issues" size={12} className="nav-icon-svg" />
+                            {item.issueIdentifier ?? item.issueId ?? '—'}
+                            {item.issueTitle ? ` · ${item.issueTitle}` : ''}
+                          </span>
+                        </span>
+                        <time className="inbox-time" dateTime={item.createdAt}>
+                          {relativeTime(item.createdAt)}
+                        </time>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <aside className="inbox-split-detail" data-testid="inbox-split-detail">
+          {!selected ? (
+            <div className="inbox-detail-empty" data-testid="inbox-detail-empty">
+              <p className="text-dim">选择一条通知查看详情</p>
+              <p className="text-dim text-sm">对齐 Multica 收件箱：列表点选即可阅读正文，无需先跳走。</p>
+            </div>
+          ) : (
+            <div className="inbox-detail" data-testid="inbox-detail" data-inbox-id={selected.id}>
+              <div className="inbox-detail-head">
+                <span className={kindClass(selected.kind)}>{kindLabel(selected.kind)}</span>
+                <time className="inbox-time" dateTime={selected.createdAt}>
+                  {relativeTime(selected.createdAt)}
+                </time>
+              </div>
+              <h2 className="inbox-detail-title" data-testid="inbox-detail-title">
+                {selected.title || selected.summary}
+              </h2>
+              <div className="inbox-detail-meta text-dim text-sm">
+                {selected.issueIdentifier || selected.issueId ? (
+                  <span>
+                    Issue {selected.issueIdentifier ?? selected.issueId}
+                    {selected.issueTitle ? ` · ${selected.issueTitle}` : ''}
                   </span>
-                  <span className="inbox-body">
-                    <span className="inbox-summary">{item.summary}</span>
-                    <span className="inbox-meta">
-                      <Icon name="issues" size={12} className="nav-icon-svg" />
-                      {item.issueIdentifier ?? item.issueId ?? '—'}
-                      {item.issueTitle ? ` · ${item.issueTitle}` : ''}
-                    </span>
-                  </span>
-                  <time className="inbox-time" dateTime={item.createdAt}>
-                    {relativeTime(item.createdAt)}
-                  </time>
-                </button>
-                <div className="inbox-actions">
-                  {isFailItem(item) && item.runId ? (
-                    <InboxRetryButton
-                      item={item}
-                      onDone={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    />
-                  ) : null}
-                  {isFailItem(item) && isCwdFailBody(item.body ?? item.summary) ? (
-                    <Link
-                      href="/settings"
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-fail-settings"
-                      title="失败信息像 cwd 问题"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      环境
-                    </Link>
-                  ) : null}
-                  {(item.kind === 'assigned' || item.type === 'assigned') && item.issueId ? (
-                    <Link
-                      href={`/?assignee=any`}
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-assigned-board"
-                      title="看板：已指派"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      已指派板
-                    </Link>
-                  ) : null}
-                  {(item.kind === 'comment' || item.type === 'comment') && item.issueId ? (
-                    <Link
-                      href={`/issues/${item.issueId}`}
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-comment-issue"
-                      title="打开评论所在 Issue"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      看评论
-                    </Link>
-                  ) : null}
-                  {!item.read && (
-                    <button
-                      type="button"
-                      className="inbox-action-btn"
-                      disabled={markRead.isPending}
-                      onClick={() => markRead.mutate(item.id)}
-                    >
-                      已读
-                    </button>
-                  )}
+                ) : (
+                  <span>无关联 Issue</span>
+                )}
+                {selected.runId ? <span> · run {selected.runId.slice(0, 8)}…</span> : null}
+                <span> · {selected.read ? '已读' : '未读'}</span>
+              </div>
+              <pre className="inbox-detail-body" data-testid="inbox-detail-body">
+                {selected.body?.trim() || selected.summary || '（无正文）'}
+              </pre>
+              <div className="inbox-actions inbox-detail-actions" data-testid="inbox-detail-actions">
+                {isFailItem(selected) && selected.runId ? (
+                  <InboxRetryButton
+                    item={selected}
+                    onDone={() => {
+                      if (!selected.read) markRead.mutate(selected.id);
+                    }}
+                  />
+                ) : null}
+                {isFailItem(selected) && isCwdFailBody(selected.body ?? selected.summary) ? (
+                  <Link
+                    href="/settings"
+                    className="inbox-action-btn inbox-action-link"
+                    data-testid="inbox-fail-settings"
+                  >
+                    环境
+                  </Link>
+                ) : null}
+                {!selected.read ? (
                   <button
                     type="button"
                     className="inbox-action-btn"
-                    disabled={archive.isPending}
-                    onClick={() => archive.mutate(item.id)}
+                    disabled={markRead.isPending}
+                    onClick={() => markRead.mutate(selected.id)}
                   >
-                    归档
+                    已读
                   </button>
-                  {issueHref(item) ? (
-                    <Link
-                      href={issueHref(item)!}
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-open-issue"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      Issue
-                    </Link>
-                  ) : null}
-                  {runListHref(item) ? (
-                    <Link
-                      href={runListHref(item)!}
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-open-run"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      运行
-                    </Link>
-                  ) : null}
-                  {!issueHref(item) && !runListHref(item) && primaryHrefForItem(item) ? (
-                    <Link
-                      href={primaryHrefForItem(item)!}
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-open-fallback"
-                      onClick={() => {
-                        if (!item.read) markRead.mutate(item.id);
-                      }}
-                    >
-                      打开
-                    </Link>
-                  ) : null}
-                </div>
+                ) : null}
+                <button
+                  type="button"
+                  className="inbox-action-btn"
+                  disabled={archive.isPending}
+                  data-testid="inbox-detail-archive"
+                  onClick={() => {
+                    archive.mutate(selected.id, {
+                      onSuccess: () => replaceParams({ item: null }),
+                    });
+                  }}
+                >
+                  归档
+                </button>
+                {issueHref(selected) ? (
+                  <Link
+                    href={issueHref(selected)!}
+                    className="inbox-action-btn inbox-action-link"
+                    data-testid="inbox-open-issue"
+                  >
+                    打开 Issue
+                  </Link>
+                ) : null}
+                {runListHref(selected) ? (
+                  <Link
+                    href={runListHref(selected)!}
+                    className="inbox-action-btn inbox-action-link"
+                    data-testid="inbox-open-run"
+                  >
+                    打开运行
+                  </Link>
+                ) : null}
+                {primaryHrefForItem(selected) ? (
+                  <button
+                    type="button"
+                    className="inbox-action-btn inbox-action-btn--primary"
+                    data-testid="inbox-detail-goto"
+                    onClick={() => void openItemNavigate(selected)}
+                  >
+                    跳转目标
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="inbox-action-btn"
+                  data-testid="inbox-detail-close"
+                  onClick={() => replaceParams({ item: null })}
+                >
+                  关闭详情
+                </button>
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+          )}
+        </aside>
+      </div>
     </div>
   );
 }

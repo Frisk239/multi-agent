@@ -81,7 +81,7 @@
 
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
-| G7 | Inbox **三栏详情**（列表+正文，不必先上 Helper） | P0 | `inbox-tri-pane` |
+| G7 | Inbox **三栏详情**（列表+正文，不必先上 Helper） | P0 → ✅ 双栏 | `inbox-tri-pane`（2026-07-19；Helper 仍缺） |
 | G8 | Inbox **归档区**折叠与真站交互对齐 | P2 | `inbox-archive-section` |
 
 ---
