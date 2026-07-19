@@ -212,6 +212,23 @@ export class MemoryManager {
     if (!removed) return { ok: false, status: 404, error: '记忆不存在' };
     return { ok: true };
   }
+
+  /** memory-bulk-delete：逐 id 删除，上限 100 */
+  async deleteMany(ids: string[]): Promise<{
+    requested: number;
+    deleted: number;
+    skipped: number;
+  }> {
+    const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))].slice(0, 100);
+    let deleted = 0;
+    let skipped = 0;
+    for (const id of unique) {
+      const res = await this.deleteById(id);
+      if (res.ok) deleted += 1;
+      else skipped += 1;
+    }
+    return { requested: unique.length, deleted, skipped };
+  }
 }
 
 export const memoryManager = new MemoryManager();

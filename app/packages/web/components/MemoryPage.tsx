@@ -8,6 +8,7 @@ import {
   useMemoryList,
   useCreateMemory,
   useDeleteMemory,
+  useDeleteMemoryMany,
   useSettingsStatus,
 } from '@/lib/api';
 
@@ -32,10 +33,12 @@ function MemoryPageInner() {
   const { data, isFetching, isError, error } = useMemoryList(qFromUrl);
   const create = useCreateMemory();
   const del = useDeleteMemory();
+  const delMany = useDeleteMemoryMany();
   const [draft, setDraft] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [copyId, setCopyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -101,6 +104,25 @@ function MemoryPageInner() {
     if (!kindFilter) return list;
     return list.filter((m) => inferKind(m.text) === kindFilter);
   }, [data, kindFilter]);
+
+  const selectedIds = useMemo(
+    () => visibleMemories.filter((m) => selected[m.id]).map((m) => m.id),
+    [visibleMemories, selected],
+  );
+  const allVisibleSelected =
+    visibleMemories.length > 0 && selectedIds.length === visibleMemories.length;
+
+  useEffect(() => {
+    // 列表变化时丢掉不可见选中
+    setSelected((prev) => {
+      const next: Record<string, boolean> = {};
+      const allow = new Set(visibleMemories.map((m) => m.id));
+      for (const [id, on] of Object.entries(prev)) {
+        if (on && allow.has(id)) next[id] = true;
+      }
+      return next;
+    });
+  }, [visibleMemories]);
 
   async function handleCreate() {
     const text = draft.trim();
@@ -308,10 +330,69 @@ function MemoryPageInner() {
         </div>
       ) : null}
 
+      {selectedIds.length > 0 ? (
+        <div
+          className="memory-bulk-bar"
+          data-testid="memory-bulk-bar"
+          role="status"
+          style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}
+        >
+          <span className="text-sm">
+            已选 <strong>{selectedIds.length}</strong> 条
+          </span>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            data-testid="memory-bulk-delete"
+            disabled={delMany.isPending}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `删除所选 ${selectedIds.length} 条记忆？不可恢复。`,
+                )
+              ) {
+                return;
+              }
+              delMany.mutate(selectedIds, {
+                onSuccess: () => setSelected({}),
+              });
+            }}
+          >
+            {delMany.isPending ? '删除中…' : `删除所选 · ${selectedIds.length}`}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="memory-bulk-clear-selection"
+            onClick={() => setSelected({})}
+          >
+            取消选择
+          </button>
+        </div>
+      ) : null}
+
       <div className="data-table-wrap">
         <table className="data-table" data-testid="memory-table">
           <thead>
             <tr>
+              <th style={{ width: 36 }}>
+                <input
+                  type="checkbox"
+                  data-testid="memory-select-all"
+                  aria-label="全选当前列表"
+                  checked={allVisibleSelected}
+                  disabled={visibleMemories.length === 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const next: Record<string, boolean> = {};
+                      for (const m of visibleMemories) next[m.id] = true;
+                      setSelected(next);
+                    } else {
+                      setSelected({});
+                    }
+                  }}
+                />
+              </th>
               <th>类型</th>
               <th>内容</th>
               <th>Issue</th>
@@ -323,7 +404,7 @@ function MemoryPageInner() {
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
                   {error instanceof Error ? error.message : '加载失败'}
                   {' · '}
                   <Link href="/settings">打开设置诊断</Link>
@@ -335,6 +416,23 @@ function MemoryPageInner() {
                 const kind = inferKind(m.text);
                 return (
                   <tr key={m.id} data-memory-id={m.id} data-memory-kind={kind}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        data-testid="memory-select-row"
+                        aria-label={`选择 ${m.id}`}
+                        checked={!!selected[m.id]}
+                        onChange={(e) => {
+                          const on = e.target.checked;
+                          setSelected((prev) => {
+                            const next = { ...prev };
+                            if (on) next[m.id] = true;
+                            else delete next[m.id];
+                            return next;
+                          });
+                        }}
+                      />
+                    </td>
                     <td>
                       <span
                         className={`memory-kind-chip memory-kind-chip--${kind}`}
@@ -391,7 +489,7 @@ function MemoryPageInner() {
               })}
             {!isError && visibleMemories.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
                   {isFetching ? (
                     '加载中…'
                   ) : showUnavailable ? (
@@ -455,7 +553,7 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
                   加载中…
                 </td>
               </tr>

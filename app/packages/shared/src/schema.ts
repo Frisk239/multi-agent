@@ -830,6 +830,19 @@ export const CreateMemoryInput = z.object({
 });
 export type CreateMemoryInput = z.infer<typeof CreateMemoryInput>;
 
+/** POST /api/memory/delete-many —— 批量删除记忆 */
+export const DeleteMemoryManyInput = z.object({
+  ids: z.array(BusinessId).min(1).max(100),
+});
+export type DeleteMemoryManyInput = z.infer<typeof DeleteMemoryManyInput>;
+
+export const DeleteMemoryManyResponse = z.object({
+  requested: z.number().int().nonnegative(),
+  deleted: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+export type DeleteMemoryManyResponse = z.infer<typeof DeleteMemoryManyResponse>;
+
 export const MemoryStatus = z.object({
   provider: z.string().nullable(),
   available: z.boolean(),

@@ -4,7 +4,7 @@
 // POST /api/memory         curated 写入 body CreateMemoryInput（R9：依赖 addRaw 返回值）
 // DELETE /api/memory/:id   memory-item-delete
 import type { FastifyInstance } from 'fastify';
-import { CreateMemoryInput } from '@ma/shared';
+import { CreateMemoryInput, DeleteMemoryManyInput } from '@ma/shared';
 import { memoryManager } from '../memory/manager.js';
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
@@ -43,6 +43,16 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       return reply.status(500).send({ error: String(e) });
     }
+  });
+
+  // 须在 :id 前：批量删除
+  app.post('/api/memory/delete-many', async (req, reply) => {
+    const parsed = DeleteMemoryManyInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+    }
+    const result = await memoryManager.deleteMany(parsed.data.ids);
+    return result;
   });
 
   app.delete('/api/memory/:id', async (req, reply) => {

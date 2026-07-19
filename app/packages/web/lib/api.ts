@@ -1327,6 +1327,40 @@ export function useDeleteMemory() {
   });
 }
 
+/** POST /api/memory/delete-many */
+export function useDeleteMemoryMany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) {
+        return { requested: 0, deleted: 0, skipped: 0 };
+      }
+      const res = await fetch(`${API}/memory/delete-many`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unique }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '批量删除失败'));
+      return res.json() as Promise<{
+        requested: number;
+        deleted: number;
+        skipped: number;
+      }>;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['memory'] });
+      qc.invalidateQueries({ queryKey: ['settings-status'] });
+      if (r.requested === 0) return;
+      toastSuccess(`已删除 ${r.deleted}/${r.requested} 条记忆`, {
+        action: { label: '记忆列表', href: '/memory' },
+        durationMs: 6000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '批量删除失败')),
+  });
+}
+
 // —— bu03 Quick Create hooks ——
 
 export function useCreateQuickRun() {
