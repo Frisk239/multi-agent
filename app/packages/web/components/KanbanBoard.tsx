@@ -29,13 +29,14 @@ const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
 ];
 
 // spec §7.2：6 列，cancelled 不建列
+// G5：展示名对齐 Multica 中文产品列；status 枚举不变
 const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
-  { title: 'Backlog', status: 'backlog', color: 'var(--status-backlog)' },
-  { title: 'Todo', status: 'todo', color: 'var(--status-todo)' },
-  { title: 'In Progress', status: 'in_progress', color: 'var(--status-in-progress)' },
-  { title: 'In Review', status: 'in_review', color: 'var(--status-in-review)' },
-  { title: 'Done', status: 'done', color: 'var(--status-done)' },
-  { title: 'Blocked', status: 'blocked', color: 'var(--status-blocked)' },
+  { title: '待规划', status: 'backlog', color: 'var(--status-backlog)' },
+  { title: '待办', status: 'todo', color: 'var(--status-todo)' },
+  { title: '进行中', status: 'in_progress', color: 'var(--status-in-progress)' },
+  { title: '审核中', status: 'in_review', color: 'var(--status-in-review)' },
+  { title: '已完成', status: 'done', color: 'var(--status-done)' },
+  { title: '阻塞', status: 'blocked', color: 'var(--status-blocked)' },
 ];
 
 /** URL `assignee=` → IssuesQuery 字段 */

@@ -260,7 +260,7 @@ export function Sidebar() {
           <span className="ws-chip-dot" aria-hidden="true" />
           {wsLabel(wsStatus)}
         </span>
-        <span className="working-count" title="In Progress / In Review">
+        <span className="working-count" title="进行中 / 审核中">
           工作中 {workingCount}
         </span>
         {(activeRuns?.count ?? 0) > 0 ? (

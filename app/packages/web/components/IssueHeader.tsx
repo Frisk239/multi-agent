@@ -18,13 +18,13 @@ const ALL_STATUS = IssueStatusEnum.options;
 const ALL_PRIORITY = PriorityEnum.options;
 
 const STATUS_ZH: Record<IssueStatus, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
-  in_progress: 'In Progress',
-  in_review: 'In Review',
-  done: 'Done',
-  blocked: 'Blocked',
-  cancelled: 'Cancelled',
+  backlog: '待规划',
+  todo: '待办',
+  in_progress: '进行中',
+  in_review: '审核中',
+  done: '已完成',
+  blocked: '阻塞',
+  cancelled: '已取消',
 };
 
 const PRIORITY_ZH: Record<Priority, string> = {

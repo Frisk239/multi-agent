@@ -16,8 +16,8 @@ const STATUS_ZH: Record<ProjectStatus, string> = {
 };
 
 const ISSUE_STATUS_ZH: Record<string, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
+  backlog: '待规划',
+  todo: '待办',
   in_progress: '进行中',
   in_review: '审核中',
   done: '已完成',

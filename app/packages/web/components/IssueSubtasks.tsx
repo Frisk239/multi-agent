@@ -6,8 +6,8 @@ import type { Issue, IssueStatus } from '@ma/shared';
 import { useCreateIssue, useIssueChildren } from '@/lib/api';
 
 const STATUS_ZH: Record<IssueStatus, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
+  backlog: '待规划',
+  todo: '待办',
   in_progress: '进行中',
   in_review: '审核中',
   done: '已完成',

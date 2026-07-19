@@ -62,7 +62,7 @@
 | G2 | Issue **订阅**（关注/取消） | P2 → ✅ | `issue-subscribe`（2026-07-19） |
 | G3 | 详情 **PR 关联**（分支/标题引用） | P2 → ✅ URL | `issue-pr-link`（2026-07-19；无 GitHub 集成） |
 | G4 | 详情 **Token/用量** 摘要 | P1 → ✅ 次数/耗时 | `issue-run-usage`（2026-07-19；token 本地 null） |
-| G5 | 看板列文案/顺序可选 Multica 中文产品列 | P3 | `board-column-i18n` |
+| G5 | 看板列文案/顺序可选 Multica 中文产品列 | P3 → ✅ 文案 | `board-column-i18n`（2026-07-19；顺序仍本仓 6 列） |
 | G6 | 「N 个智能体工作中」全局状态条 | P2 → ✅ | `agents-working-banner`（2026-07-19；看板顶栏） |
 
 ---
