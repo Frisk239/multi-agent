@@ -428,6 +428,61 @@ export function SettingsPage() {
         </section>
       ) : null}
 
+      {/* 记忆层健康（settings-memory-health） */}
+      {data.memoryHealth ? (
+        <section
+          className="settings-ops-recovery"
+          data-testid="settings-memory-health"
+          aria-label="记忆层健康"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>记忆层</strong>
+            <span className="text-dim text-sm">
+              {data.memoryHealth.available ? '可用' : '不可用'}
+              {' · '}
+              {data.memoryHealth.provider ?? 'none'}
+              {' · '}
+              {data.memoryHealth.total} 条
+            </span>
+          </div>
+          <ul
+            className="settings-cwd-steps"
+            style={{ listStyle: 'disc' }}
+            data-testid="settings-memory-health-stats"
+          >
+            <li>
+              provider <strong>{data.memoryHealth.provider ?? '—'}</strong> · backend{' '}
+              <code>{data.memoryHealth.backend}</code>
+            </li>
+            <li>
+              条目 <strong>{data.memoryHealth.total}</strong> · curated{' '}
+              <strong>{data.memoryHealth.curated}</strong> · ambient{' '}
+              <strong>{data.memoryHealth.ambient}</strong>
+            </li>
+            <li>
+              最近写入：{' '}
+              <strong>
+                {data.memoryHealth.latestAt
+                  ? new Date(data.memoryHealth.latestAt).toLocaleString()
+                  : '—'}
+              </strong>
+            </li>
+          </ul>
+          <div className="settings-cwd-recovery-links" data-testid="settings-memory-health-actions">
+            <Link className="btn-secondary btn-sm" href="/memory" data-testid="settings-memory-to-list">
+              打开记忆
+            </Link>
+            <Link
+              className="btn-ghost btn-sm"
+              href="/memory?kind=ambient"
+              data-testid="settings-memory-to-ambient"
+            >
+              ambient
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       {/* Wiki / 自动化健康摘要（settings-wiki-auto-health） */}
       {data.wikiHealth || data.automationHealth ? (
         <section

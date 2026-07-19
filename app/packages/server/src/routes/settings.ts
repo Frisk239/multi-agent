@@ -6,12 +6,19 @@ import {
   SetWorkspaceCwdInput,
   type SettingsAutomationHealth,
   type SettingsCheck,
+  type SettingsMemoryHealth,
   type SettingsRunHealth,
   type SettingsStatusResponse,
   type SettingsWikiHealth,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, automationRules, automationRuns, wikiIngestJobs } from '../db/schema.js';
+import {
+  agentRuns,
+  automationRules,
+  automationRuns,
+  memoryItems,
+  wikiIngestJobs,
+} from '../db/schema.js';
 import {
   STALE_QUEUED_MS,
   STALE_RUNNING_MS,
@@ -127,6 +134,27 @@ function buildAutomationHealth(): SettingsAutomationHealth {
     failedRules: failedRuleIds.size,
     lastFailedAt:
       lastFailedAtMs != null ? new Date(lastFailedAtMs).toISOString() : null,
+  };
+}
+
+function buildMemoryHealth(): SettingsMemoryHealth {
+  const st = memoryManager.getStatus();
+  const rows = db.select({ text: memoryItems.text, createdAt: memoryItems.createdAt }).from(memoryItems).all();
+  let ambient = 0;
+  let latestAtMs: number | null = null;
+  for (const r of rows) {
+    if (r.text.includes('[ambient:') || r.text.startsWith('ambient:')) ambient += 1;
+    if (latestAtMs === null || r.createdAt > latestAtMs) latestAtMs = r.createdAt;
+  }
+  const total = rows.length;
+  return {
+    provider: st.provider,
+    available: st.available,
+    backend: st.backend,
+    total,
+    ambient,
+    curated: Math.max(0, total - ambient),
+    latestAt: latestAtMs != null ? new Date(latestAtMs).toISOString() : null,
   };
 }
 
@@ -276,6 +304,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     runHealth: buildRunHealth(),
     wikiHealth: buildWikiHealth(wikiOk),
     automationHealth: buildAutomationHealth(),
+    memoryHealth: buildMemoryHealth(),
     cwd: {
       path: resolved.path,
       source: resolved.source,

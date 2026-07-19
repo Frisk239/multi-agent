@@ -935,6 +935,18 @@ export const SettingsAutomationHealth = z.object({
 });
 export type SettingsAutomationHealth = z.infer<typeof SettingsAutomationHealth>;
 
+/** Settings 记忆层摘要（settings-memory-health） */
+export const SettingsMemoryHealth = z.object({
+  provider: z.string().nullable(),
+  available: z.boolean(),
+  backend: z.enum(['sqlite', 'pgvector', 'none']),
+  total: z.number().int().nonnegative(),
+  ambient: z.number().int().nonnegative(),
+  curated: z.number().int().nonnegative(),
+  latestAt: z.string().datetime().nullable(),
+});
+export type SettingsMemoryHealth = z.infer<typeof SettingsMemoryHealth>;
+
 export const SettingsCwdSource = z.enum(['env', 'db', 'none']);
 export type SettingsCwdSource = z.infer<typeof SettingsCwdSource>;
 
@@ -971,6 +983,7 @@ export const SettingsStatusResponse = z.object({
   runHealth: SettingsRunHealth.optional(),
   wikiHealth: SettingsWikiHealth.optional(),
   automationHealth: SettingsAutomationHealth.optional(),
+  memoryHealth: SettingsMemoryHealth.optional(),
   cwd: SettingsCwdInfo.optional(),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
