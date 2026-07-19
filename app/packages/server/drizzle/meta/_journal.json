@@ -127,6 +127,13 @@
       "when": 1785504000000,
       "tag": "0017_issue_subtasks",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1785590400000,
+      "tag": "0018_projects_mvp",
+      "breakpoints": true
     }
   ]
 }

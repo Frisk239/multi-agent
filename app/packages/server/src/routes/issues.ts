@@ -17,7 +17,9 @@ import {
   loadLabelsByIssueIds,
   loadChildProgressByParentIds,
   loadParentIdentifiers,
+  loadProjectTitles,
 } from '../db/reshape.js';
+import { projects } from '../db/schema.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import {
   cancelActiveRunsForIssue,
@@ -43,11 +45,13 @@ function issueWithLabels(row: typeof issues.$inferSelect) {
   const parentIds = row.parentIssueId ? [row.parentIssueId] : [];
   const parentMap = loadParentIdentifiers(parentIds);
   const progressMap = loadChildProgressByParentIds([row.id]);
+  const projectMap = loadProjectTitles(row.projectId ? [row.projectId] : []);
   return toIssue(row, labels, {
     parentIdentifier: row.parentIssueId
       ? (parentMap.get(row.parentIssueId) ?? null)
       : null,
     childProgress: progressMap.get(row.id) ?? null,
+    projectTitle: row.projectId ? (projectMap.get(row.projectId) ?? null) : null,
   });
 }
 
@@ -57,12 +61,16 @@ function issuesWithRelations(rows: (typeof issues.$inferSelect)[]) {
     rows.map((r) => r.parentIssueId).filter((id): id is string => Boolean(id)),
   );
   const progressMap = loadChildProgressByParentIds(rows.map((r) => r.id));
+  const projectMap = loadProjectTitles(
+    rows.map((r) => r.projectId).filter((id): id is string => Boolean(id)),
+  );
   return rows.map((r) =>
     toIssue(r, labelMap.get(r.id) ?? [], {
       parentIdentifier: r.parentIssueId
         ? (parentMap.get(r.parentIssueId) ?? null)
         : null,
       childProgress: progressMap.get(r.id) ?? null,
+      projectTitle: r.projectId ? (projectMap.get(r.projectId) ?? null) : null,
     }),
   );
 }
@@ -80,6 +88,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       status,
       priority,
       originType,
+      projectId,
       assigneeType,
       assigneeId,
       unassigned,
@@ -106,6 +115,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     if (originType) {
       rows = rows.filter((r) => r.originType === originType);
+    }
+
+    if (projectId) {
+      rows = rows.filter((r) => r.projectId === projectId);
     }
 
     if (labelId) {
@@ -192,6 +205,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       originRunId: input.originRunId ?? null,
       originRuleId: input.originRuleId ?? null,
       parentIssueId: input.parentIssueId ?? null,
+      projectId: input.projectId ?? null,
       enqueue: true,
     });
     if (!result.ok) {
@@ -231,6 +245,21 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (input.assignee !== undefined) {
       updates.assigneeType = input.assignee?.type ?? null;
       updates.assigneeId = input.assignee?.id ?? null;
+    }
+    if (input.projectId !== undefined) {
+      if (input.projectId === null) {
+        updates.projectId = null;
+      } else {
+        const proj = db
+          .select()
+          .from(projects)
+          .where(and(eq(projects.id, input.projectId), eq(projects.workspaceId, WS_ID)))
+          .get();
+        if (!proj) {
+          return reply.status(400).send({ error: 'project 不存在' });
+        }
+        updates.projectId = input.projectId;
+      }
     }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;

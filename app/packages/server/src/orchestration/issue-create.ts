@@ -1,7 +1,7 @@
 import { eq, sql, and } from 'drizzle-orm';
 import type { Issue, Priority } from '@ma/shared';
 import { db } from '../db/client.js';
-import { issues, agentRuns } from '../db/schema.js';
+import { issues, agentRuns, projects } from '../db/schema.js';
 import { toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { enqueueAgentRun, enqueueLeaderRun } from './run-service.js';
@@ -21,6 +21,8 @@ export type CreateIssueCoreInput = {
   originRuleId?: string | null;
   /** issue-subtasks：父 issue id（仅一层） */
   parentIssueId?: string | null;
+  /** projects-mvp：可选项目 */
+  projectId?: string | null;
   /** 默认 true：有 assignee 则 enqueue */
   enqueue?: boolean;
 };
@@ -44,6 +46,8 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
   const shouldEnqueue = input.enqueue !== false;
   let parentIssueId: string | null = input.parentIssueId?.trim() || null;
   let parentIdentifier: string | null = null;
+  let projectId: string | null = input.projectId?.trim() || null;
+  let projectTitle: string | null = null;
 
   // bu03：先校验 origin run，再建卡（失败不留半成品 issue）
   if (originType === 'quick_create' && originRunId) {
@@ -85,6 +89,18 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
     parentIdentifier = parent.identifier;
   }
 
+  if (projectId) {
+    const proj = db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.workspaceId, WS_ID)))
+      .get();
+    if (!proj) {
+      return { ok: false, status: 404, error: 'project 不存在' };
+    }
+    projectTitle = proj.title;
+  }
+
   // identifier 生成：MAX(SUBSTR(identifier,5))+1
   // 注意 SUBSTR 是 1-based：FRI-11 的数字从第 5 字符开始（F=1,R=2,I=3,-=4,1=5）
   const maxRow = db
@@ -124,6 +140,7 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
       originRunId,
       originRuleId,
       parentIssueId,
+      projectId,
       createdAt: now,
       updatedAt: now,
     })
@@ -146,6 +163,7 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
   const issue = toIssue(row!, [], {
     parentIdentifier,
     childProgress: null,
+    projectTitle,
   });
   eventBus.publish({ type: 'issue:created', issue });
 

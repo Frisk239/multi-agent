@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
-import { useUpdateIssue } from '@/lib/api';
+import { useProjects, useUpdateIssue } from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
 import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { MarkdownBody } from './MarkdownBody';
@@ -32,6 +32,7 @@ const PRIORITY_ZH: Record<Priority, string> = {
 
 export function IssueHeader({ issue }: { issue: Issue }) {
   const update = useUpdateIssue();
+  const { data: projects = [] } = useProjects();
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(issue.title);
@@ -321,6 +322,38 @@ export function IssueHeader({ issue }: { issue: Issue }) {
           )}
         </span>
         <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
+        <label className="issue-project-field" data-testid="issue-project-field">
+          <span>项目</span>
+          <select
+            className="priority-select"
+            value={issue.projectId ?? ''}
+            aria-label="所属项目"
+            onChange={(e) => {
+              const v = e.target.value;
+              update.mutate({
+                id: issue.id,
+                input: { projectId: v ? v : null },
+              });
+            }}
+          >
+            <option value="">无项目</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          {issue.projectId ? (
+            <Link
+              href={`/projects/${issue.projectId}`}
+              className="issue-priority-board-link"
+              data-testid="issue-project-link"
+              title={issue.projectTitle ?? '打开项目'}
+            >
+              打开
+            </Link>
+          ) : null}
+        </label>
       </div>
       <IssueLabelsEditor issue={issue} />
     </header>

@@ -24,6 +24,7 @@ import {
   automationRuns,
   issueLabels,
   issueToLabels,
+  projects,
 } from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 
@@ -125,6 +126,20 @@ export function loadParentIdentifiers(
   return map;
 }
 
+/** 批量装载项目 title */
+export function loadProjectTitles(projectIds: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const unique = [...new Set(projectIds.filter(Boolean))];
+  if (unique.length === 0) return map;
+  const rows = db
+    .select({ id: projects.id, title: projects.title })
+    .from(projects)
+    .where(inArray(projects.id, unique))
+    .all();
+  for (const r of rows) map.set(r.id, r.title);
+  return map;
+}
+
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
 export function toIssue(
   row: IssueRow,
@@ -132,6 +147,7 @@ export function toIssue(
   extras?: {
     parentIdentifier?: string | null;
     childProgress?: { total: number; done: number } | null;
+    projectTitle?: string | null;
   },
 ): Issue {
   let assignee: Assignee = null;
@@ -144,6 +160,7 @@ export function toIssue(
       ? row.originType
       : null;
   const parentIssueId = row.parentIssueId ?? null;
+  const projectId = row.projectId ?? null;
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -167,6 +184,8 @@ export function toIssue(
       extras?.childProgress && extras.childProgress.total > 0
         ? extras.childProgress
         : null,
+    projectId,
+    projectTitle: projectId ? (extras?.projectTitle ?? null) : null,
     labels,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),

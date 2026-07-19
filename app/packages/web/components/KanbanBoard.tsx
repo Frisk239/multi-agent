@@ -9,6 +9,7 @@ import {
   useAgentsReadinessMap,
   useIssues,
   useLabels,
+  useProjects,
   useSquads,
   useUpdateIssue,
   useWorkspaceRuns,
@@ -66,6 +67,7 @@ function KanbanBoardInner() {
   const assigneeFromUrl = searchParams.get('assignee') ?? '';
   const priorityFromUrl = searchParams.get('priority') ?? '';
   const originFromUrl = searchParams.get('origin') ?? '';
+  const projectFromUrl = searchParams.get('project') ?? '';
   // URL 可分享：?failed=1 仅显示最近有 failed run 的 issue
   const failedOnly = searchParams.get('failed') === '1';
   // URL 可分享：?status= 仅显示该列（cancelled 不建列）
@@ -74,6 +76,7 @@ function KanbanBoardInner() {
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: projects = [] } = useProjects();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   // 轻量：最近失败 run，用于卡片「失败」标记与「仅失败」筛选（limit 内即可）
@@ -155,6 +158,17 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const setProjectFilter = useCallback(
+    (value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (value) sp.set('project', value);
+      else sp.delete('project');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const setStatusFilter = useCallback(
     (value: string) => {
       const sp = new URLSearchParams(searchParams.toString());
@@ -190,6 +204,7 @@ function KanbanBoardInner() {
     labelId: labelFilter || undefined,
     priority: priorityQuery,
     originType: originQuery,
+    projectId: projectFromUrl || undefined,
     ...assigneeQuery,
   });
   const { data: labels } = useLabels();
@@ -260,9 +275,13 @@ function KanbanBoardInner() {
       assigneeFromUrl ||
       priorityQuery ||
       originQuery ||
+      projectFromUrl ||
       failedOnly ||
       statusQuery,
   );
+  const projectChipName = projectFromUrl
+    ? projects.find((p) => p.id === projectFromUrl)?.title ?? '项目'
+    : '';
   const visibleColumns = statusQuery
     ? COLUMNS.filter((c) => c.status === statusQuery)
     : COLUMNS;
@@ -396,6 +415,20 @@ function KanbanBoardInner() {
           <option value="">全部来源</option>
           <option value="automation">自动化</option>
           <option value="quick_create">快速派活</option>
+        </select>
+        <select
+          className="kanban-project-select"
+          value={projectFromUrl}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          aria-label="按项目筛选"
+          data-testid="kanban-project-filter"
+        >
+          <option value="">全部项目</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
         </select>
         <select
           className="kanban-status-select"
@@ -539,6 +572,16 @@ function KanbanBoardInner() {
               onClick={() => setOriginFilter('')}
             >
               来源 · {originQuery === 'automation' ? '自动化' : '快速派活'} ×
+            </button>
+          ) : null}
+          {projectFromUrl ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="kanban-chip-project"
+              onClick={() => setProjectFilter('')}
+            >
+              项目 · {projectChipName} ×
             </button>
           ) : null}
           {failedOnly ? (

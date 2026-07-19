@@ -73,46 +73,72 @@ export const squads = sqliteTable('squad', {
 });
 
 // S05（spec §3.2b / R6）：删 S01 的 skill 死表——skill 改文件系统真源 + 内存索引，
-// 不再进 DB。分配关系见上方 agentSkills。
+  // 不再进 DB。分配关系见上方 agentSkills。
 
-// —— issue（spec §3.2，照 multica 001_init.up.sql:52-72）——
-// bu03：+ origin_type / origin_run_id（快速派活溯源）
-// bu05：+ origin_rule_id（自动化规则溯源）；origin_type 含 automation
-export const issues = sqliteTable(
-  'issue',
-  {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    identifier: text('identifier').notNull(),
-    title: text('title').notNull(),
-    description: text('description'),
-    status: text('status', { enum: ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled'] })
-      .notNull()
-      .default('backlog'),
-    priority: text('priority', { enum: ['urgent', 'high', 'medium', 'low', 'none'] })
-      .notNull()
-      .default('none'),
-    assigneeType: text('assignee_type', { enum: ['member', 'agent', 'squad'] }),
-    assigneeId: text('assignee_id'),
-    creatorType: text('creator_type', { enum: ['member', 'agent'] }).notNull(),
-    creatorId: text('creator_id').notNull(),
-    position: real('position').notNull().default(0),
-    originType: text('origin_type'), // 'quick_create' | 'automation' | null
-    originRunId: text('origin_run_id'),
-    originRuleId: text('origin_rule_id'),
-    // issue-subtasks：学 Multica parent_issue_id；仅一层（子不可再挂孙）
-    parentIssueId: text('parent_issue_id'),
-    createdAt: integer('created_at').notNull(),
-    updatedAt: integer('updated_at').notNull(),
-  },
-  (t) => ({
-    statusWorkspaceIdx: index('idx_issue_status_workspace').on(t.workspaceId, t.status),
-    assigneeIdx: index('idx_issue_assignee').on(t.assigneeType, t.assigneeId),
-    parentIdx: index('idx_issue_parent').on(t.parentIssueId),
-  }),
-);
+  // —— project（projects-mvp：学 Multica project 容器；本仓精简 status/title）——
+  export const projects = sqliteTable(
+    'project',
+    {
+      id: text('id').primaryKey(),
+      workspaceId: text('workspace_id')
+        .notNull()
+        .references(() => workspaces.id),
+      title: text('title').notNull(),
+      description: text('description'),
+      status: text('status', {
+        enum: ['planned', 'active', 'completed', 'cancelled'],
+      })
+        .notNull()
+        .default('active'),
+      createdAt: integer('created_at').notNull(),
+      updatedAt: integer('updated_at').notNull(),
+    },
+    (t) => ({
+      workspaceIdx: index('idx_project_workspace').on(t.workspaceId),
+    }),
+  );
+
+  // —— issue（spec §3.2，照 multica 001_init.up.sql:52-72）——
+  // bu03：+ origin_type / origin_run_id（快速派活溯源）
+  // bu05：+ origin_rule_id（自动化规则溯源）；origin_type 含 automation
+  export const issues = sqliteTable(
+    'issue',
+    {
+      id: text('id').primaryKey(),
+      workspaceId: text('workspace_id')
+        .notNull()
+        .references(() => workspaces.id),
+      identifier: text('identifier').notNull(),
+      title: text('title').notNull(),
+      description: text('description'),
+      status: text('status', { enum: ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled'] })
+        .notNull()
+        .default('backlog'),
+      priority: text('priority', { enum: ['urgent', 'high', 'medium', 'low', 'none'] })
+        .notNull()
+        .default('none'),
+      assigneeType: text('assignee_type', { enum: ['member', 'agent', 'squad'] }),
+      assigneeId: text('assignee_id'),
+      creatorType: text('creator_type', { enum: ['member', 'agent'] }).notNull(),
+      creatorId: text('creator_id').notNull(),
+      position: real('position').notNull().default(0),
+      originType: text('origin_type'), // 'quick_create' | 'automation' | null
+      originRunId: text('origin_run_id'),
+      originRuleId: text('origin_rule_id'),
+      // issue-subtasks：学 Multica parent_issue_id；仅一层（子不可再挂孙）
+      parentIssueId: text('parent_issue_id'),
+      // projects-mvp：可选归属项目
+      projectId: text('project_id'),
+      createdAt: integer('created_at').notNull(),
+      updatedAt: integer('updated_at').notNull(),
+    },
+    (t) => ({
+      statusWorkspaceIdx: index('idx_issue_status_workspace').on(t.workspaceId, t.status),
+      assigneeIdx: index('idx_issue_assignee').on(t.assigneeType, t.assigneeId),
+      parentIdx: index('idx_issue_parent').on(t.parentIssueId),
+      projectIdx: index('idx_issue_project').on(t.projectId),
+    }),
+  );
 
 // —— issue_label / issue_to_label（issue-labels：学 multica 001 简化，仅 Issue）——
 export const issueLabels = sqliteTable(

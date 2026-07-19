@@ -114,6 +114,18 @@ export function IssueCard({
               {issue.childProgress.done}/{issue.childProgress.total}
             </span>
           ) : null}
+          {issue.projectTitle ? (
+            <Link
+              href={`/?project=${encodeURIComponent(issue.projectId ?? '')}`}
+              className="issue-card-project"
+              title={`项目：${issue.projectTitle}`}
+              data-testid="issue-card-project"
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
+            >
+              {issue.projectTitle}
+            </Link>
+          ) : null}
           {runActive ? (
             <span className="issue-card-run-active" title="运行中 / 排队中">
               运行中

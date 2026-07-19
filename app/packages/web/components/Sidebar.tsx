@@ -41,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
   { id: 'chat', label: '聊天', icon: 'user', section: 'workspace', href: '/chat' },
+  { id: 'projects', label: '项目', icon: 'project', section: 'workspace', href: '/projects' },
   // 有活跃 run 时 href 会被替换为 /runs?status=active
   { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },

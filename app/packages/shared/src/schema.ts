@@ -319,6 +319,8 @@ export const ListIssuesQuery = z
     priority: Priority.optional(),
     // board-origin-filter：automation | quick_create
     originType: z.enum(['quick_create', 'automation']).optional(),
+    // projects-mvp：按项目筛
+    projectId: BusinessId.optional(),
     // 具体指派：须成对
     assigneeType: z.enum(['agent', 'squad']).optional(),
     assigneeId: BusinessId.optional(),
@@ -354,6 +356,48 @@ export const ListIssuesQuery = z
     }
   });
 export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
+
+// —— Project（projects-mvp）——
+export const ProjectStatus = z.enum(['planned', 'active', 'completed', 'cancelled']);
+export type ProjectStatus = z.infer<typeof ProjectStatus>;
+
+export const ProjectIssueStats = z.object({
+  total: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+});
+export type ProjectIssueStats = z.infer<typeof ProjectIssueStats>;
+
+export const Project = z.object({
+  id: BusinessId,
+  workspaceId: BusinessId,
+  title: z.string(),
+  description: z.string().nullable(),
+  status: ProjectStatus,
+  issueStats: ProjectIssueStats.optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type Project = z.infer<typeof Project>;
+
+export const CreateProjectInput = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  status: ProjectStatus.optional().default('active'),
+});
+export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
+
+export const UpdateProjectInput = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  status: ProjectStatus.optional(),
+});
+export type UpdateProjectInput = z.infer<typeof UpdateProjectInput>;
+
+export function validateUpdateProject(d: UpdateProjectInput): boolean {
+  return (
+    d.title !== undefined || d.description !== undefined || d.status !== undefined
+  );
+}
 
 // issue-find：GET /api/labels?includeArchived=1
 export const ListLabelsQuery = z.object({
@@ -391,6 +435,9 @@ export const Issue = z.object({
   parentIssueId: BusinessId.nullable().optional(),
   parentIdentifier: z.string().nullable().optional(),
   childProgress: IssueChildProgress.nullable().optional(),
+  // projects-mvp
+  projectId: BusinessId.nullable().optional(),
+  projectTitle: z.string().nullable().optional(),
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
   createdAt: z.string().datetime(),
@@ -417,6 +464,8 @@ export const CreateIssueInput = z
     originRuleId: BusinessId.optional(),
     // issue-subtasks：挂到父 issue 下
     parentIssueId: BusinessId.optional(),
+    // projects-mvp：创建时归属
+    projectId: BusinessId.optional(),
   })
   .superRefine((o, ctx) => {
     if (o.originType === 'quick_create') {
@@ -456,6 +505,8 @@ export const UpdateIssueInput = z.object({
     .object({ type: AssigneeType, id: BusinessId })
     .nullable()
     .optional(),
+  // projects-mvp：设/清项目（null 清除）
+  projectId: BusinessId.nullable().optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueInput>;
 
@@ -466,7 +517,8 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
     d.status !== undefined ||
     d.priority !== undefined ||
     d.position !== undefined ||
-    d.assignee !== undefined
+    d.assignee !== undefined ||
+    d.projectId !== undefined
   );
 }
 

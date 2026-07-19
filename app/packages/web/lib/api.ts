@@ -43,6 +43,9 @@ import type {
   ChatThread,
   ChatMessage,
   CreateChatThreadInput,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -69,6 +72,8 @@ export type IssuesQuery = {
   priority?: string;
   /** automation | quick_create */
   originType?: 'automation' | 'quick_create';
+  /** projects-mvp */
+  projectId?: string;
   /** agent | squad — 须与 assigneeId 成对 */
   assigneeType?: 'agent' | 'squad';
   assigneeId?: string;
@@ -86,6 +91,7 @@ function issuesQueryKey(params?: IssuesQuery) {
     params?.status || '',
     params?.priority || '',
     params?.originType || '',
+    params?.projectId || '',
     params?.assigneeType || '',
     params?.assigneeId || '',
     params?.unassigned ? '1' : '',
@@ -100,6 +106,7 @@ function buildIssuesUrl(params?: IssuesQuery) {
   if (params?.status) sp.set('status', params.status);
   if (params?.priority) sp.set('priority', params.priority);
   if (params?.originType) sp.set('originType', params.originType);
+  if (params?.projectId) sp.set('projectId', params.projectId);
   if (params?.assigneeType && params?.assigneeId) {
     sp.set('assigneeType', params.assigneeType);
     sp.set('assigneeId', params.assigneeId);
@@ -331,6 +338,10 @@ export function useCreateIssue() {
         qc.invalidateQueries({ queryKey: ['issue-children', issue.parentIssueId] });
         qc.invalidateQueries({ queryKey: ['issue', issue.parentIssueId] });
       }
+      if (issue.projectId) {
+        qc.invalidateQueries({ queryKey: ['projects'] });
+        qc.invalidateQueries({ queryKey: ['project', issue.projectId] });
+      }
       toastSuccess(`已创建 ${issue.identifier}`, {
         action: { label: '打开', href: `/issues/${issue.id}` },
         durationMs: 6000,
@@ -350,6 +361,73 @@ export function useIssueChildren(issueId: string) {
       return res.json();
     },
     enabled: !!issueId,
+  });
+}
+
+export function useProjects() {
+  return useQuery<Project[]>({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/projects`);
+      if (!res.ok) throw new Error(await apiError(res, '加载项目失败'));
+      return res.json();
+    },
+  });
+}
+
+export function useProject(id: string) {
+  return useQuery<Project>({
+    queryKey: ['project', id],
+    queryFn: async () => {
+      const res = await fetch(`${API}/projects/${id}`);
+      if (!res.ok) throw new Error(await apiError(res, 'project 不存在'));
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateProjectInput) => {
+      const res = await fetch(`${API}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建项目失败'));
+      return res.json() as Promise<Project>;
+    },
+    onSuccess: (project) => {
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      toastSuccess(`已创建项目「${project.title}」`, {
+        action: { label: '打开', href: `/projects/${project.id}` },
+        durationMs: 6000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '创建项目失败')),
+  });
+}
+
+export function useUpdateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateProjectInput }) => {
+      const res = await fetch(`${API}/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新项目失败'));
+      return res.json() as Promise<Project>;
+    },
+    onSuccess: (project) => {
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.setQueryData(['project', project.id], project);
+      qc.invalidateQueries({ queryKey: ['issues'] });
+    },
+    onError: (err) => toastError(errMessage(err, '更新项目失败')),
   });
 }
 
@@ -441,6 +519,11 @@ export function useUpdateIssue() {
         qc.invalidateQueries({ queryKey: ['issue', issue.parentIssueId] });
       }
       qc.invalidateQueries({ queryKey: ['issue-children', issue.id] });
+      // projects-mvp：归属变更刷新项目列表/详情
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      if (issue.projectId) {
+        qc.invalidateQueries({ queryKey: ['project', issue.projectId] });
+      }
     },
   });
 }
