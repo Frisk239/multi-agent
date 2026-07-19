@@ -11,7 +11,7 @@
 | 多 Backend 执行 + run 列表/轨迹/再执行 | ✅ | S03 · run-observability |
 | 小队 leader + briefing + mention | ✅ | S04 · mention-* · leader-* |
 | Wiki 编译 / dead 重试 / 健康 | ✅ | S06–S08 · wiki-* · wiki-dead-bulk-retry |
-| Memory 可插拔 + 列表/搜索/删除 | ✅ | S09–S11 · memory-* · memory-item-delete |
+| Memory 可插拔 + 列表/搜索/单条与批量删除 | ✅ | S09–S11 · memory-item-delete · memory-bulk-delete |
 | Inbox / 失败恢复 / bulk 已读 | ✅ | bu01 · inbox-* |
 | Agent readiness / 运营恢复链 | ✅ | bu02 · *-readiness · *-recovery |
 | Quick-create / Automation | ✅ | bu03 · bu05 |
@@ -23,8 +23,7 @@
 
 | 缺口 | 说明 |
 |---|---|
-| Memory 批量删除 / 清理策略 | 已有单条删除 |
-| Automation 失败深运营报表 | 已有规则失败筛选与健康摘要 |
+| Automation 失败深运营 / run 明细 | 已有规则失败筛选与健康摘要 |
 | 无 env 全进程冷启动 e2e 剧本 | resolve 冷读已覆盖；可再写一键脚本 |
 | UI 密度 / 空态文案 | 持续打磨 |
 
