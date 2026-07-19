@@ -588,6 +588,55 @@ export const IssueRunUsage = z.object({
 });
 export type IssueRunUsage = z.infer<typeof IssueRunUsage>;
 
+/**
+ * GET /api/usage?days=30 —— 工作区用量中心（G17）
+ * 本地 CLI 无 token/费用：token* 与 cost 为 null；以 run 次数 / 成功率 / 时长为主。
+ */
+export const UsageAgentRow = z.object({
+  agentId: BusinessId,
+  agentName: z.string(),
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  successRate: z.number().min(0).max(1).nullable(),
+  totalDurationMs: z.number().nonnegative().nullable(),
+  avgDurationMs: z.number().nonnegative().nullable(),
+});
+export type UsageAgentRow = z.infer<typeof UsageAgentRow>;
+
+export const UsageDayRow = z.object({
+  /** YYYY-MM-DD（本地日） */
+  day: z.string(),
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  durationMs: z.number().nonnegative(),
+});
+export type UsageDayRow = z.infer<typeof UsageDayRow>;
+
+export const WorkspaceUsage = z.object({
+  windowDays: z.number().int().positive(),
+  since: z.string().datetime(),
+  until: z.string().datetime(),
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  successRate: z.number().min(0).max(1).nullable(),
+  totalDurationMs: z.number().nonnegative().nullable(),
+  avgDurationMs: z.number().nonnegative().nullable(),
+  /** 本地无 token 计量 */
+  tokensInput: z.number().nonnegative().nullable(),
+  tokensOutput: z.number().nonnegative().nullable(),
+  costUsd: z.number().nonnegative().nullable(),
+  byAgent: z.array(UsageAgentRow),
+  byDay: z.array(UsageDayRow),
+});
+export type WorkspaceUsage = z.infer<typeof WorkspaceUsage>;
+
 /** GET /api/agents/readiness?ids=a,b 或 POST body {ids} */
 export const AgentsReadinessMap = z.record(BusinessId, AgentReadiness.nullable());
 export type AgentsReadinessMap = z.infer<typeof AgentsReadinessMap>;

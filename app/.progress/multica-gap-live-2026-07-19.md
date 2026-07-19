@@ -152,7 +152,7 @@
 |---|---|---|---|
 | G15 | Automation **模板画廊**冷启动 | P1 → ✅ | `automation-templates`（2026-07-19；6 预设+预填，无 webhook） |
 | G16 | **Project** 容器（issue 归属） | P2 | `projects-mvp` |
-| G17 | **用量中心**（聚合 run token/时长） | P1 | `usage-dashboard` |
+| G17 | **用量中心**（聚合 run token/时长） | P1 → ✅ 次数/时长 | `usage-dashboard`（2026-07-19；token/费用 null） |
 
 ---
 

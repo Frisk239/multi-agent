@@ -5746,3 +5746,68 @@ a.issue-card-run-fail--link:hover {
   text-decoration: none;
   color: var(--accent);
 }
+
+/* G17 usage dashboard */
+.usage-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.usage-day-chips {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.usage-section {
+  margin-bottom: 20px;
+}
+
+.usage-day-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 720px;
+}
+
+.usage-day-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 36px 28px;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--text-xs);
+}
+
+.usage-day-label {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-day-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.usage-day-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+  min-width: 2px;
+}
+
+.usage-day-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.usage-day-fail {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-red);
+  min-height: 1em;
+}

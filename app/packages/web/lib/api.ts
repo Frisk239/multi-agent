@@ -14,6 +14,7 @@ import type {
   AgentReadiness,
   AgentWorkStats,
   IssueRunUsage,
+  WorkspaceUsage,
   CreateAgentInput,
   UpdateAgentInput,
   CreateSquadInput,
@@ -940,6 +941,19 @@ export function useAgentWorkStats(agentId: string, days: number | 'all' = 30) {
       return res.json();
     },
     enabled: !!agentId,
+    staleTime: 15_000,
+  });
+}
+
+/** G17：工作区用量中心 */
+export function useWorkspaceUsage(days = 30) {
+  return useQuery<WorkspaceUsage>({
+    queryKey: ['workspace-usage', days],
+    queryFn: async () => {
+      const res = await fetch(`${API}/usage?days=${encodeURIComponent(String(days))}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载用量失败'));
+      return res.json();
+    },
     staleTime: 15_000,
   });
 }

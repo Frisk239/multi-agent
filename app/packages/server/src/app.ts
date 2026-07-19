@@ -16,6 +16,7 @@ import { settingsRoutes } from './routes/settings.js';
 import { automationRoutes } from './routes/automation.js';
 import { labelRoutes } from './routes/labels.js';
 import { chatRoutes } from './routes/chat.js';
+import { usageRoutes } from './routes/usage.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 
@@ -44,6 +45,7 @@ export async function buildApp() {
   await app.register(settingsRoutes);
   await app.register(automationRoutes);
   await app.register(chatRoutes);
+  await app.register(usageRoutes);
   await app.register(wsRoutes);
 
   return app;

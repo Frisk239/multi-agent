@@ -45,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
+  { id: 'usage', label: '用量', icon: 'usage', section: 'workspace', href: '/usage' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },
   { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },
   { id: 'automation', label: '自动化', icon: 'automation', section: 'config', href: '/automation' },
