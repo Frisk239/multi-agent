@@ -37,6 +37,9 @@ import type {
   AutomationRun,
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
+  ChatThread,
+  ChatMessage,
+  CreateChatThreadInput,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -1391,6 +1394,85 @@ export function useCreateQuickRun() {
       }
     },
     onError: (err) => toastError(errMessage(err, '快速派活失败')),
+  });
+}
+
+// —— agent-chat ——
+export function useChatThreads() {
+  return useQuery<ChatThread[]>({
+    queryKey: ['chat-threads'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/chat/threads`);
+      if (!res.ok) throw new Error(await apiError(res, '加载会话失败'));
+      return res.json();
+    },
+    refetchInterval: 5_000,
+  });
+}
+
+export function useChatMessages(threadId: string | undefined) {
+  return useQuery<ChatMessage[]>({
+    queryKey: ['chat-messages', threadId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/chat/threads/${encodeURIComponent(threadId!)}/messages`);
+      if (!res.ok) throw new Error(await apiError(res, '加载消息失败'));
+      return res.json();
+    },
+    enabled: !!threadId,
+    refetchInterval: 2_500,
+  });
+}
+
+export function useCreateChatThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateChatThreadInput) => {
+      const res = await fetch(`${API}/chat/threads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '创建会话失败'));
+      return res.json() as Promise<ChatThread>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+    },
+    onError: (err) => toastError(errMessage(err, '创建会话失败')),
+  });
+}
+
+export function usePostChatMessage(threadId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: string) => {
+      if (!threadId) throw new Error('无会话');
+      const res = await fetch(
+        `${API}/chat/threads/${encodeURIComponent(threadId)}/messages`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body }),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '发送失败'));
+      return res.json() as Promise<{ message: ChatMessage; run: AgentRun }>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['chat-messages', threadId] });
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+      if (data.run?.id) {
+        toastSuccess(`已发送 · run ${data.run.id.slice(0, 8)}…`, {
+          action: {
+            label: '查看运行',
+            href: `/runs?run=${encodeURIComponent(data.run.id)}&status=all`,
+          },
+        });
+      }
+    },
+    onError: (err) => toastError(errMessage(err, '发送失败')),
   });
 }
 

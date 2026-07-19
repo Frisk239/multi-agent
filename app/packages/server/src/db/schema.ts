@@ -179,8 +179,12 @@ export const agentRuns = sqliteTable(
     status: text('status', {
       enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
     }).notNull(),
-    kind: text('kind', { enum: ['issue', 'quick_create'] }).notNull().default('issue'),
+    kind: text('kind', { enum: ['issue', 'quick_create', 'chat'] })
+      .notNull()
+      .default('issue'),
     quickPrompt: text('quick_prompt'),
+    // agent-chat：可选关联会话
+    chatThreadId: text('chat_thread_id'),
     // S04：is_leader + squad_id（照 multica 090/127 migration，标记 squad-leader run）
     isLeader: integer('is_leader').notNull().default(0),
     squadId: text('squad_id'),
@@ -277,6 +281,38 @@ export const memoryItems = sqliteTable(
   (t) => ({
     createdIdx: index('idx_memory_item_created').on(t.createdAt),
     issueIdx: index('idx_memory_item_issue').on(t.issueId),
+  }),
+);
+
+// —— chat_thread / chat_message（agent-chat：人↔agent 会话，对齐 Multica /chat）——
+export const chatThreads = sqliteTable(
+  'chat_thread',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id').notNull(),
+    title: text('title').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => ({
+    updatedIdx: index('idx_chat_thread_updated').on(t.updatedAt),
+  }),
+);
+
+export const chatMessages = sqliteTable(
+  'chat_message',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
+    body: text('body').notNull(),
+    runId: text('run_id'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    threadCreatedIdx: index('idx_chat_message_thread_created').on(t.threadId, t.createdAt),
   }),
 );
 

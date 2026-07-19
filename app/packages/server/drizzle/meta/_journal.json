@@ -113,6 +113,13 @@
       "when": 1785331200000,
       "tag": "0015_workspace_root_path",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1785417600000,
+      "tag": "0016_agent_chat",
+      "breakpoints": true
     }
   ]
 }

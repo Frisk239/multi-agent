@@ -38,7 +38,21 @@ function serverUrlFromEnv(): string {
 export async function resolveRunPrompt(
   runRow: typeof agentRuns.$inferSelect,
 ): Promise<string | null> {
-  const kind = (runRow.kind as 'issue' | 'quick_create') ?? 'issue';
+  const kind = (runRow.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue';
+  if (kind === 'chat') {
+    const userText = runRow.quickPrompt?.trim();
+    if (!userText) return null;
+    const agent = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
+    const name = agent?.name ?? runRow.agentId;
+    const instructions = agent?.instructions?.trim();
+    const parts = [
+      `你是智能体「${name}」，正在与用户进行一对一聊天（非 Issue 任务）。`,
+      instructions ? `你的指令：\n${instructions}` : null,
+      '请直接、简洁地回答用户。不要擅自改仓库代码，除非用户明确要求。',
+      `用户说：\n${userText}`,
+    ];
+    return parts.filter(Boolean).join('\n\n');
+  }
   if (kind === 'quick_create') {
     const prompt = runRow.quickPrompt?.trim();
     if (!prompt) return null;

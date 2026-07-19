@@ -1,6 +1,14 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, runMessages, comments, agents, issues } from '../db/schema.js';
+import {
+  agentRuns,
+  runMessages,
+  comments,
+  agents,
+  issues,
+  chatMessages,
+  chatThreads,
+} from '../db/schema.js';
 import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
@@ -103,7 +111,11 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     const kind = (runRow.kind as string) ?? 'issue';
     await failRun(
       runRow.id,
-      kind === 'quick_create' ? 'quick_create: 缺少 prompt' : 'issue 不存在',
+      kind === 'quick_create'
+        ? 'quick_create: 缺少 prompt'
+        : kind === 'chat'
+          ? 'chat: 缺少消息'
+          : 'issue 不存在',
     );
     return;
   }
@@ -209,7 +221,8 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     }
 
     // bu03：QC completed 但 issue 仍未 Link → 失败收口
-    const kind = (runRow.kind as 'issue' | 'quick_create') ?? 'issue';
+    // agent-chat：chat 允许无 issue 完成
+    const kind = (runRow.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue';
     if (kind === 'quick_create') {
       const fresh = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get();
       if (!fresh?.issueId) {
@@ -233,6 +246,25 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     // 重新读 run（QC 可能已 Link issueId）
     const freshRun = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!;
     const linkedIssueId = freshRun.issueId;
+
+    // agent-chat：回写 assistant 消息到会话
+    if (kind === 'chat' && freshRun.chatThreadId) {
+      const mid = crypto.randomUUID();
+      db.insert(chatMessages)
+        .values({
+          id: mid,
+          threadId: freshRun.chatThreadId,
+          role: 'assistant',
+          body: finalText,
+          runId: runRow.id,
+          createdAt: finishedAt,
+        })
+        .run();
+      db.update(chatThreads)
+        .set({ updatedAt: finishedAt })
+        .where(eq(chatThreads.id, freshRun.chatThreadId))
+        .run();
+    }
 
     if (linkedIssueId) {
       const cid = crypto.randomUUID();

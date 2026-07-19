@@ -34,8 +34,8 @@ export const AgentRunStatus = z.enum([
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
-// bu03：run 种类——issue 工作 run vs 无 Issue 的 quick_create
-export const AgentRunKind = z.enum(['issue', 'quick_create']);
+// bu03：run 种类——issue 工作 run vs 无 Issue 的 quick_create；agent-chat 增加 chat
+export const AgentRunKind = z.enum(['issue', 'quick_create', 'chat']);
 export type AgentRunKind = z.infer<typeof AgentRunKind>;
 
 export const RunMessageKind = z.enum([
@@ -50,10 +50,11 @@ export const AgentRun = z.object({
   agentId: BusinessId,
   runtime: RuntimeId,
   status: AgentRunStatus,
-  // bu03：issue | quick_create
+  // bu03 / agent-chat：issue | quick_create | chat
   kind: AgentRunKind.default('issue'),
-  // bu03：仅 quick_create 使用；issue run 为 null
+  // bu03 / chat：quick_create|chat 使用；issue run 为 null
   quickPrompt: z.string().nullable(),
+  chatThreadId: BusinessId.nullable().optional(),
   error: z.string().nullable(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
@@ -848,6 +849,41 @@ export const MemoryStatus = z.object({
   available: z.boolean(),
 });
 export type MemoryStatus = z.infer<typeof MemoryStatus>;
+
+// —— agent-chat：人↔agent 会话 ——
+export const ChatMessageRole = z.enum(['user', 'assistant', 'system']);
+export type ChatMessageRole = z.infer<typeof ChatMessageRole>;
+
+export const ChatThread = z.object({
+  id: BusinessId,
+  agentId: BusinessId,
+  title: z.string(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  lastMessagePreview: z.string().nullable().optional(),
+});
+export type ChatThread = z.infer<typeof ChatThread>;
+
+export const ChatMessage = z.object({
+  id: BusinessId,
+  threadId: BusinessId,
+  role: ChatMessageRole,
+  body: z.string(),
+  runId: BusinessId.nullable().optional(),
+  createdAt: z.string().datetime(),
+});
+export type ChatMessage = z.infer<typeof ChatMessage>;
+
+export const CreateChatThreadInput = z.object({
+  agentId: BusinessId,
+  title: z.string().min(1).max(200).optional(),
+});
+export type CreateChatThreadInput = z.infer<typeof CreateChatThreadInput>;
+
+export const PostChatMessageInput = z.object({
+  body: z.string().min(1).max(20000),
+});
+export type PostChatMessageInput = z.infer<typeof PostChatMessageInput>;
 
 // —— Run 生命周期 / 进度 / 消息 事件（S03）——
 export const RunLifecycleEvent = z.object({

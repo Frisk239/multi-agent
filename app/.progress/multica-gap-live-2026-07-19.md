@@ -100,7 +100,7 @@
 
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
-| G9 | **Chat 会话**（人↔指定 agent，持久消息） | P0 | `agent-chat` |
+| G9 | **Chat 会话**（人↔指定 agent，持久消息） | P0 → ✅ MVP | `agent-chat`（2026-07-19；Helper/流式仍弱） |
 | G10 | **Helper 侧栏**（可先绑固定 agent + 离线队列提示） | P1 | `helper-rail` |
 | G11 | Agent **私信入口**与 Chat 打通 | P1 | 随 G9 |
 
