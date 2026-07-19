@@ -565,6 +565,29 @@ export const AgentWorkStats = z.object({
 });
 export type AgentWorkStats = z.infer<typeof AgentWorkStats>;
 
+/**
+ * GET /api/issues/:id/run-usage —— Issue 详情用量摘要（G4）
+ * 本仓 run 无 token 字段：以次数 / 成功率 / 耗时为主；token* 固定 null。
+ */
+export const IssueRunUsage = z.object({
+  issueId: BusinessId,
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  successRate: z.number().min(0).max(1).nullable(),
+  avgDurationMs: z.number().nonnegative().nullable(),
+  totalDurationMs: z.number().nonnegative().nullable(),
+  lastRunAt: z.string().datetime().nullable(),
+  /** 本地 CLI 路径暂无 token 计量 */
+  tokensInput: z.number().nonnegative().nullable(),
+  tokensOutput: z.number().nonnegative().nullable(),
+  tokensCacheRead: z.number().nonnegative().nullable(),
+  tokensCacheWrite: z.number().nonnegative().nullable(),
+});
+export type IssueRunUsage = z.infer<typeof IssueRunUsage>;
+
 /** GET /api/agents/readiness?ids=a,b 或 POST body {ids} */
 export const AgentsReadinessMap = z.record(BusinessId, AgentReadiness.nullable());
 export type AgentsReadinessMap = z.infer<typeof AgentsReadinessMap>;

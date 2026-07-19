@@ -13,6 +13,7 @@ import type {
   AgentDetail,
   AgentReadiness,
   AgentWorkStats,
+  IssueRunUsage,
   CreateAgentInput,
   UpdateAgentInput,
   CreateSquadInput,
@@ -542,6 +543,22 @@ export function useRuns(issueId: string) {
       return res.json();
     },
     enabled: !!issueId,
+  });
+}
+
+/** G4：Issue 详情 run 用量摘要 */
+export function useIssueRunUsage(issueId: string) {
+  return useQuery<IssueRunUsage>({
+    queryKey: ['issue-run-usage', issueId],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API}/issues/${encodeURIComponent(issueId)}/run-usage`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载用量失败'));
+      return res.json();
+    },
+    enabled: !!issueId,
+    staleTime: 10_000,
   });
 }
 

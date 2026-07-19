@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useComments, useIssue, useRuns } from '@/lib/api';
+import { useComments, useIssue, useIssueRunUsage, useRuns } from '@/lib/api';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
@@ -22,6 +22,7 @@ export function IssueDetail({ id }: { id: string }) {
   const { data: issue, isLoading: il, error: ie } = useIssue(id);
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: runs = [] } = useRuns(id);
+  const { data: usage } = useIssueRunUsage(id);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
 
   const defaultRunId = useMemo(() => pickDefaultRunId(runs), [runs]);
@@ -68,6 +69,7 @@ export function IssueDetail({ id }: { id: string }) {
         runs={runs}
         selectedRunId={selectedRunId}
         onSelect={setSelectedRunId}
+        usage={usage}
       />
       <RunTrace run={selectedRun} />
       <Timeline items={comments ?? []} />

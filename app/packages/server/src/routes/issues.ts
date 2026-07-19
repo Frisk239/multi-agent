@@ -7,9 +7,10 @@ import {
   SetIssueLabelsInput,
   ListIssuesQuery,
   validateUpdateIssue,
+  type IssueRunUsage,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
-import { issues, comments, issueLabels, issueToLabels } from '../db/schema.js';
+import { issues, comments, issueLabels, issueToLabels, agentRuns } from '../db/schema.js';
 import { toIssue, toComment, loadLabelsByIssueIds } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import {
@@ -330,6 +331,58 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const res = rerunIssue(id, parsed.data.runId);
     if (!res.ok) return reply.status(res.status).send({ error: res.error });
     return reply.status(201).send(res.run);
+  });
+
+  // G4：GET /api/issues/:id/run-usage —— 详情侧栏用量摘要
+  app.get('/api/issues/:id/run-usage', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const issue = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!issue) return reply.status(404).send({ error: 'issue 不存在' });
+
+    const rows = db.select().from(agentRuns).where(eq(agentRuns.issueId, id)).all();
+    let completed = 0;
+    let failed = 0;
+    let cancelled = 0;
+    let active = 0;
+    let durationSum = 0;
+    let durationN = 0;
+    let lastRunAtMs: number | null = null;
+
+    for (const r of rows) {
+      if (lastRunAtMs == null || r.createdAt > lastRunAtMs) lastRunAtMs = r.createdAt;
+      if (r.status === 'completed') {
+        completed += 1;
+        if (r.startedAt != null && r.finishedAt != null && r.finishedAt >= r.startedAt) {
+          durationSum += r.finishedAt - r.startedAt;
+          durationN += 1;
+        }
+      } else if (r.status === 'failed') {
+        failed += 1;
+      } else if (r.status === 'cancelled') {
+        cancelled += 1;
+      } else if (r.status === 'queued' || r.status === 'running') {
+        active += 1;
+      }
+    }
+
+    const terminal = completed + failed;
+    const usage: IssueRunUsage = {
+      issueId: id,
+      total: rows.length,
+      completed,
+      failed,
+      cancelled,
+      active,
+      successRate: terminal > 0 ? completed / terminal : null,
+      avgDurationMs: durationN > 0 ? Math.round(durationSum / durationN) : null,
+      totalDurationMs: durationN > 0 ? durationSum : null,
+      lastRunAt: lastRunAtMs != null ? new Date(lastRunAtMs).toISOString() : null,
+      tokensInput: null,
+      tokensOutput: null,
+      tokensCacheRead: null,
+      tokensCacheWrite: null,
+    };
+    return usage;
   });
 }
 

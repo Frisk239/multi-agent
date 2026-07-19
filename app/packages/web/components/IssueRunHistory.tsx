@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { AgentRun } from '@ma/shared';
+import type { AgentRun, IssueRunUsage } from '@ma/shared';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -20,19 +20,45 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+function formatDurationMs(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  if (min < 60) return rem ? `${min}m ${rem}s` : `${min}m`;
+  const hr = Math.floor(min / 60);
+  return `${hr}h ${min % 60}m`;
+}
+
+function runDurationMs(r: AgentRun): number | null {
+  if (!r.startedAt || !r.finishedAt) return null;
+  const a = new Date(r.startedAt).getTime();
+  const b = new Date(r.finishedAt).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
+  return b - a;
+}
+
 export function IssueRunHistory({
   runs,
   selectedRunId,
   onSelect,
+  usage,
 }: {
   runs: AgentRun[];
   selectedRunId: string | undefined;
   onSelect: (runId: string) => void;
+  usage?: IssueRunUsage | null;
 }) {
   if (runs.length === 0) return null;
 
   const failedCount = runs.filter((r) => r.status === 'failed').length;
-  const issueId = runs.find((r) => r.issueId)?.issueId;
+  const issueId = runs.find((r) => r.issueId)?.issueId ?? usage?.issueId;
+  const rateLabel =
+    usage?.successRate == null
+      ? null
+      : `${Math.round(usage.successRate * 1000) / 10}%`;
 
   return (
     <section
@@ -67,6 +93,45 @@ export function IssueRunHistory({
           ) : null}
         </div>
       </div>
+
+      {usage ? (
+        <div className="issue-run-usage" data-testid="issue-run-usage" aria-label="运行用量">
+          <div className="issue-run-usage-grid">
+            <div className="issue-run-usage-item">
+              <span className="issue-run-usage-label">运行次数</span>
+              <span className="issue-run-usage-value" data-testid="issue-usage-total">
+                {usage.total}
+              </span>
+            </div>
+            <div className="issue-run-usage-item">
+              <span className="issue-run-usage-label">成功率</span>
+              <span className="issue-run-usage-value" data-testid="issue-usage-rate">
+                {rateLabel ?? '—'}
+              </span>
+            </div>
+            <div className="issue-run-usage-item">
+              <span className="issue-run-usage-label">平均耗时</span>
+              <span className="issue-run-usage-value" data-testid="issue-usage-avg">
+                {formatDurationMs(usage.avgDurationMs)}
+              </span>
+            </div>
+            <div className="issue-run-usage-item">
+              <span className="issue-run-usage-label">累计耗时</span>
+              <span className="issue-run-usage-value" data-testid="issue-usage-total-dur">
+                {formatDurationMs(usage.totalDurationMs)}
+              </span>
+            </div>
+          </div>
+          <div className="issue-run-usage-meta text-dim text-sm" data-testid="issue-usage-meta">
+            completed {usage.completed} · failed {usage.failed}
+            {usage.active > 0 ? ` · 在途 ${usage.active}` : ''}
+            {usage.cancelled > 0 ? ` · 取消 ${usage.cancelled}` : ''}
+            {' · '}
+            Token 计量本地 CLI 暂不可用
+          </div>
+        </div>
+      ) : null}
+
       <div className="data-table-wrap">
         <table className="data-table issue-run-history-table">
           <thead>
@@ -74,6 +139,7 @@ export function IssueRunHistory({
               <th>状态</th>
               <th>Runtime</th>
               <th>Run</th>
+              <th>耗时</th>
               <th>创建</th>
               <th />
             </tr>
@@ -82,6 +148,7 @@ export function IssueRunHistory({
             {runs.map((r) => {
               const selected = r.id === selectedRunId;
               const live = r.status === 'queued' || r.status === 'running';
+              const dur = runDurationMs(r);
               return (
                 <tr
                   key={r.id}
@@ -123,6 +190,9 @@ export function IssueRunHistory({
                   </td>
                   <td>
                     <code className="text-sm">{shortId(r.id)}</code>
+                  </td>
+                  <td className="text-dim text-sm" data-testid="issue-run-history-duration">
+                    {formatDurationMs(dur)}
                   </td>
                   <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
                   <td className="text-right" onClick={(e) => e.stopPropagation()}>
