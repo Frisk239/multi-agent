@@ -114,6 +114,18 @@ function AgentsPageInner() {
   const agentIds = useMemo(() => (data ?? []).map((a) => a.id), [data]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
 
+  const readinessSummary = useMemo(() => {
+    const s = { ready: 0, busy: 0, blocked: 0, unknown: 0 };
+    for (const id of agentIds) {
+      const st = readinessMap[id]?.status;
+      if (st === 'ready') s.ready += 1;
+      else if (st === 'busy') s.busy += 1;
+      else if (!st) s.unknown += 1;
+      else s.blocked += 1;
+    }
+    return s;
+  }, [agentIds, readinessMap]);
+
   const runtimeFilter =
     runtimeFromUrl === 'claude-code' ||
     runtimeFromUrl === 'opencode' ||
@@ -193,16 +205,24 @@ function AgentsPageInner() {
   const agents = data ?? [];
 
   return (
-    <div className="page-container" data-testid="agents-page">
+    <div className="page-container collection-page" data-testid="agents-page">
       <div className="page-header">
         <div>
-          <div className="page-title">
-            智能体{' '}
+          <Icon name="agent" size={16} className="page-header-icon" />
+          <h1 className="page-title">
+            智能体
             <span className="count" data-testid="agents-visible-count">
               {hasActiveFilters ? `${visible.length}/${agents.length}` : agents.length}
             </span>
-          </div>
-          <div className="page-desc">配置 runtime / 指令 / 并发，指派执行</div>
+          </h1>
+          <p className="page-desc">
+            runtime · 指令 · 并发
+            {agents.length > 0
+              ? ` · ready ${readinessSummary.ready}` +
+                (readinessSummary.busy ? ` · busy ${readinessSummary.busy}` : '') +
+                (readinessSummary.blocked ? ` · 阻塞 ${readinessSummary.blocked}` : '')
+              : ''}
+          </p>
         </div>
         <div className="page-actions">
           <Link href="/runtimes" className="btn btn-ghost btn-sm" data-testid="agents-to-runtimes">
@@ -211,9 +231,12 @@ function AgentsPageInner() {
           <Link href="/settings" className="btn btn-ghost btn-sm" data-testid="agents-to-settings">
             环境
           </Link>
+          <Link href="/chat" className="btn btn-ghost btn-sm" data-testid="agents-to-chat">
+            聊天
+          </Link>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => setOpen((v) => !v)}
           >
             {open ? '收起' : '新建智能体'}
@@ -221,8 +244,9 @@ function AgentsPageInner() {
         </div>
       </div>
 
+      <div className="page-body">
       {open && (
-        <form className="ops-form" onSubmit={submit}>
+        <form className="ops-form surface-card" onSubmit={submit}>
           <div className="ops-form-grid">
             <label className="ops-field">
               <span>名称</span>
@@ -291,7 +315,49 @@ function AgentsPageInner() {
         </form>
       )}
 
-      <div className="agents-filters" data-testid="agents-filters">
+      {agents.length > 0 ? (
+        <div className="agents-ready-summary collection-toolbar" data-testid="agents-ready-summary">
+          <button
+            type="button"
+            className={`memory-kind-chip${readyFromUrl === '' ? ' is-active' : ''}`}
+            data-testid="agents-ready-chip-all"
+            onClick={() => replaceParams({ ready: null })}
+          >
+            全部 {agents.length}
+          </button>
+          <button
+            type="button"
+            className={`memory-kind-chip memory-kind-chip--curated${readyFromUrl === 'ready' ? ' is-active' : ''}`}
+            data-testid="agents-ready-chip-ready"
+            onClick={() => replaceParams({ ready: readyFromUrl === 'ready' ? null : 'ready' })}
+          >
+            ready {readinessSummary.ready}
+          </button>
+          <button
+            type="button"
+            className={`memory-kind-chip${readyFromUrl === 'busy' ? ' is-active' : ''}`}
+            data-testid="agents-ready-chip-busy"
+            onClick={() => replaceParams({ ready: readyFromUrl === 'busy' ? null : 'busy' })}
+          >
+            busy {readinessSummary.busy}
+          </button>
+          <button
+            type="button"
+            className={`memory-kind-chip memory-kind-chip--other${readyFromUrl === 'blocked' ? ' is-active' : ''}`}
+            data-testid="agents-ready-chip-blocked"
+            onClick={() => replaceParams({ ready: readyFromUrl === 'blocked' ? null : 'blocked' })}
+          >
+            阻塞 {readinessSummary.blocked}
+          </button>
+          {readinessSummary.blocked > 0 ? (
+            <Link href="/settings" className="btn-ghost btn-sm" data-testid="agents-blocked-to-settings">
+              修环境
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="agents-filters collection-toolbar" data-testid="agents-filters">
         <div className="table-search memory-search-wrap">
           <input
             type="search"
@@ -453,7 +519,7 @@ function AgentsPageInner() {
                     <td>
                       <Link
                         href={`/agents?runtime=${encodeURIComponent(ag.runtime)}`}
-                        className="agents-runtime-link"
+                        className="agents-runtime-link table-link"
                         data-testid="agent-list-runtime"
                         title={`筛选 runtime：${ag.runtime}`}
                       >
@@ -477,6 +543,14 @@ function AgentsPageInner() {
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <Link
+                        href={`/chat?agent=${encodeURIComponent(ag.id)}`}
+                        className="btn btn-ghost btn-sm"
+                        data-testid="agent-list-chat"
+                        title="打开聊天并预选此智能体"
+                      >
+                        私信
+                      </Link>{' '}
+                      <Link
                         href={`/?assignee=agent:${encodeURIComponent(ag.id)}`}
                         className="btn btn-ghost btn-sm"
                         data-testid="agent-list-board"
@@ -498,6 +572,7 @@ function AgentsPageInner() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
