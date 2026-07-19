@@ -130,7 +130,7 @@
 |---|---|---|---|
 | G12 | Agent 详情 **工作历史 + 成功率仪表** | P1 → ✅ | `agent-work-dashboard`（2026-07-19） |
 | G13 | Agent **能力/设置** Tab 与 Skills 绑定可视化 | P2 → ✅ | `agent-capability-tabs`（2026-07-19；能力=Skills+MCP） |
-| G14 | Runtime 文案分层：本机 CLI vs（可选）远程机器 | P3 | docs + UI 命名，避免用户误解 |
+| G14 | Runtime 文案分层：本机 CLI vs（可选）远程机器 | P3 → ✅ 文案 | `runtime-cli-naming`（2026-07-19） |
 
 ---
 

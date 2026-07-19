@@ -53,12 +53,12 @@
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **真站对照 gap（产品壳）：** `app/.progress/multica-gap-live-2026-07-19.md` — Chat/Helper、Inbox 三栏、用量、项目、Issue 作业面
 - **判断：** 本地运维主航道 **可用**；与 **multica.ai 产品壳** 仍有明确体验差（见 live gap 队列 G7→G17）
-- **已推：** 真站体验队列含 G1–G3/G5–G10/G12–G13/G15–G18 等（见 git log）  
-- **本刀：** `user-profile-brief`（G18：Settings 关于你 → prompt 注入）  
-- **closeout：** `app/.progress/user-profile-brief-impl-1.md`  
+- **已推：** 真站体验队列 **G1–G3 / G5–G10 / G12–G18** 等（见 git log · 2026-07-19 会话）  
+- **本刀：** `runtime-cli-naming`（G14：本机 CLI vs daemon 文案）  
+- **closeout：** `app/.progress/runtime-cli-naming-impl-1.md` · 会话汇总 `app/.progress/session-2026-07-19-live-gap-push.md`  
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）  
-- **再下一刀建议：** G14 runtime 文案分层 / G19 local-api-token / G20 settings 叙事  
-- **判断：** live gap 高价值项大多已落地；剩余偏 P3/可选  
+- **再下一刀建议：** 可选 G19 local-api-token / G20 settings 叙事 / 密度打磨；**非 blocker**  
+- **判断：** 本地主航道 + 真站产品壳体验 **已足够日用完善**；刻意不做云 webhook/daemon 1:1  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

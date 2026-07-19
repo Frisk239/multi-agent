@@ -13,19 +13,19 @@ export function RuntimesPage() {
   return (
     <div className="runtime-layout" data-testid="runtimes-page">
       <aside className="machine-list">
-        <div className="machine-list-header">运行时 {runtimes.length}</div>
+        <div className="machine-list-header">本机 CLI {runtimes.length}</div>
         <div className="machine-filters">
           <button type="button" className="machine-filter active">
-            全部 {installed}
+            全部 {runtimes.length}
           </button>
           <button type="button" className="machine-filter">
-            在线 {installed}
+            已安装 {installed}
           </button>
         </div>
-        <div className="machine-section-label">本机</div>
+        <div className="machine-section-label">执行宿主</div>
         <div className="machine-item active">
           <div className="machine-item-name">{machine.name}</div>
-          <div className="machine-item-meta">{runtimes.length} 个运行时</div>
+          <div className="machine-item-meta">{runtimes.length} 个 CLI 适配器</div>
           <span className="machine-tag">本机</span>
         </div>
       </aside>
@@ -33,10 +33,15 @@ export function RuntimesPage() {
       <section className="runtime-detail">
         <div className="runtime-detail-title">
           <span className="status-dot-green" /> {machine.name}{' '}
-          <span className="runtime-detail-status">在线</span>
+          <span className="runtime-detail-status">本机可用</span>
         </div>
+        <p className="runtime-product-note text-dim text-sm" data-testid="runtimes-product-note">
+          本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor），不是 Multica
+          云端的「电脑 / daemon 机器」列表。智能体绑定这些 CLI 后在本地 cwd 执行。
+        </p>
         <div className="runtime-meta">
-          {runtimes.length} 个运行时 · {installed} 个在线 · cwd={machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
+          {runtimes.length} 个 CLI · {installed} 个已安装 · cwd=
+          {machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
         </div>
         <div className="runtime-actions">
           <button
@@ -59,7 +64,7 @@ export function RuntimesPage() {
             className="btn-ghost btn-sm"
             data-testid="runtimes-to-agents-missing"
           >
-            runtime 缺失
+            CLI 缺失
           </Link>
           <Link
             href="/runs?status=failed"
@@ -72,7 +77,7 @@ export function RuntimesPage() {
         {!machine.cwd ? (
           <div className="runtime-cwd-banner" data-testid="runtimes-cwd-banner" role="status">
             <strong>工作区 cwd 未配置</strong>
-            <span className="text-sm"> 运行时即使在线，派活仍可能立刻失败。</span>
+            <span className="text-sm"> CLI 即使已安装，派活仍可能立刻失败。</span>
             <div className="runtime-banner-actions">
               <Link href="/settings" className="btn-secondary btn-sm" data-testid="runtimes-cwd-to-settings">
                 去设置
@@ -96,7 +101,7 @@ export function RuntimesPage() {
         ) : null}
         {runtimes.some((r) => !r.installed) ? (
           <div className="runtime-missing-banner" data-testid="runtimes-missing-banner" role="status">
-            <strong>有 CLI 未检测到</strong>
+            <strong>有本机 CLI 未检测到</strong>
             <span className="text-sm">
               {' '}
               {runtimes.filter((r) => !r.installed).map((r) => r.label).join('、')}
@@ -121,26 +126,31 @@ export function RuntimesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>运行时</th>
-                <th>健康度</th>
+                <th>本机 CLI</th>
+                <th>探测</th>
                 <th>智能体</th>
                 <th>费用 - 7天</th>
-                <th>CLI</th>
+                <th>版本 / 路径</th>
               </tr>
             </thead>
             <tbody>
               {runtimes.map((rt) => (
-                <tr key={rt.id} data-testid="runtime-row" data-runtime={rt.id} data-installed={rt.installed ? "1" : "0"}>
+                <tr
+                  key={rt.id}
+                  data-testid="runtime-row"
+                  data-runtime={rt.id}
+                  data-installed={rt.installed ? '1' : '0'}
+                >
                   <td>
                     <span className="runtime-type-icon">
                       <Icon name="bot" size={14} />
                     </span>
-                    {rt.label} <span className="runtime-internal">[内置]</span>
+                    {rt.label} <span className="runtime-internal">[适配器]</span>
                   </td>
                   <td>
                     {rt.installed ? (
                       <span className="status-online">
-                        <span className="status-dot-green" /> 在线
+                        <span className="status-dot-green" /> 已安装
                       </span>
                     ) : (
                       <span className="status-offline">未检测到</span>
