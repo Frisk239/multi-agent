@@ -82,8 +82,58 @@ export function loadLabelsByIssueIds(issueIds: string[]): Map<string, IssueLabel
   return map;
 }
 
+/** 批量装载子 issue 进度（done|cancelled 计完成） */
+export function loadChildProgressByParentIds(
+  parentIds: string[],
+): Map<string, { total: number; done: number }> {
+  const map = new Map<string, { total: number; done: number }>();
+  for (const id of parentIds) map.set(id, { total: 0, done: 0 });
+  if (parentIds.length === 0) return map;
+
+  const children = db
+    .select({
+      parentIssueId: issues.parentIssueId,
+      status: issues.status,
+    })
+    .from(issues)
+    .where(inArray(issues.parentIssueId, parentIds))
+    .all();
+
+  for (const c of children) {
+    if (!c.parentIssueId) continue;
+    const slot = map.get(c.parentIssueId);
+    if (!slot) continue;
+    slot.total += 1;
+    if (c.status === 'done' || c.status === 'cancelled') slot.done += 1;
+  }
+  return map;
+}
+
+/** 批量装载父 identifier */
+export function loadParentIdentifiers(
+  parentIds: string[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const unique = [...new Set(parentIds.filter(Boolean))];
+  if (unique.length === 0) return map;
+  const rows = db
+    .select({ id: issues.id, identifier: issues.identifier })
+    .from(issues)
+    .where(inArray(issues.id, unique))
+    .all();
+  for (const r of rows) map.set(r.id, r.identifier);
+  return map;
+}
+
 // DB 扁平行 → API 嵌套 Issue（spec §3.3 + §4.2 R2 label）
-export function toIssue(row: IssueRow, labels: IssueLabel[] = []): Issue {
+export function toIssue(
+  row: IssueRow,
+  labels: IssueLabel[] = [],
+  extras?: {
+    parentIdentifier?: string | null;
+    childProgress?: { total: number; done: number } | null;
+  },
+): Issue {
   let assignee: Assignee = null;
   if (row.assigneeType && row.assigneeId) {
     const label = resolveAssigneeLabel(row.assigneeType, row.assigneeId);
@@ -93,6 +143,7 @@ export function toIssue(row: IssueRow, labels: IssueLabel[] = []): Issue {
     row.originType === 'quick_create' || row.originType === 'automation'
       ? row.originType
       : null;
+  const parentIssueId = row.parentIssueId ?? null;
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -108,6 +159,14 @@ export function toIssue(row: IssueRow, labels: IssueLabel[] = []): Issue {
     originType,
     originRunId: row.originRunId ?? null,
     originRuleId: row.originRuleId ?? null,
+    parentIssueId,
+    parentIdentifier: parentIssueId
+      ? (extras?.parentIdentifier ?? null)
+      : null,
+    childProgress:
+      extras?.childProgress && extras.childProgress.total > 0
+        ? extras.childProgress
+        : null,
     labels,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),

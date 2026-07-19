@@ -322,17 +322,34 @@ export function useCreateIssue() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error('创建失败');
+      if (!res.ok) throw new Error(await apiError(res, '创建失败'));
       return res.json() as Promise<Issue>;
     },
     onSuccess: (issue) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
+      if (issue.parentIssueId) {
+        qc.invalidateQueries({ queryKey: ['issue-children', issue.parentIssueId] });
+        qc.invalidateQueries({ queryKey: ['issue', issue.parentIssueId] });
+      }
       toastSuccess(`已创建 ${issue.identifier}`, {
         action: { label: '打开', href: `/issues/${issue.id}` },
         durationMs: 6000,
       });
     },
     onError: (err) => toastError(errMessage(err, '创建失败')),
+  });
+}
+
+/** GET /api/issues/:id/children —— 子 issue 列表 */
+export function useIssueChildren(issueId: string) {
+  return useQuery<Issue[]>({
+    queryKey: ['issue-children', issueId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/issues/${issueId}/children`);
+      if (!res.ok) throw new Error(await apiError(res, '加载子 issue 失败'));
+      return res.json();
+    },
+    enabled: !!issueId,
   });
 }
 
@@ -418,6 +435,12 @@ export function useUpdateIssue() {
       qc.setQueryData<Issue>(['issue', issue.id], issue);
       // 时间线条等 WS comment:created；也可 invalidate 兜底
       qc.invalidateQueries({ queryKey: ['comments', issue.id] });
+      // issue-subtasks：子状态变 → 父进度；父列表刷新
+      if (issue.parentIssueId) {
+        qc.invalidateQueries({ queryKey: ['issue-children', issue.parentIssueId] });
+        qc.invalidateQueries({ queryKey: ['issue', issue.parentIssueId] });
+      }
+      qc.invalidateQueries({ queryKey: ['issue-children', issue.id] });
     },
   });
 }

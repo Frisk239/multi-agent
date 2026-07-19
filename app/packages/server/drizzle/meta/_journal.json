@@ -120,6 +120,13 @@
       "when": 1785417600000,
       "tag": "0016_agent_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1785504000000,
+      "tag": "0017_issue_subtasks",
+      "breakpoints": true
     }
   ]
 }

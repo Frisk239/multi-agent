@@ -19,13 +19,15 @@ export type CreateIssueCoreInput = {
   originType?: 'quick_create' | 'automation' | null;
   originRunId?: string | null;
   originRuleId?: string | null;
+  /** issue-subtasks：父 issue id（仅一层） */
+  parentIssueId?: string | null;
   /** 默认 true：有 assignee 则 enqueue */
   enqueue?: boolean;
 };
 
 export type CreateIssueCoreResult =
   | { ok: true; issue: Issue }
-  | { ok: false; status: 400 | 409; error: string; issueId?: string };
+  | { ok: false; status: 400 | 404 | 409; error: string; issueId?: string };
 
 /**
  * 内部建 Issue 核心路径（bu05）：供 POST /api/issues 与 automation dispatch 共用。
@@ -40,6 +42,8 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
   const originRunId = input.originRunId ?? null;
   const originRuleId = input.originRuleId ?? null;
   const shouldEnqueue = input.enqueue !== false;
+  let parentIssueId: string | null = input.parentIssueId?.trim() || null;
+  let parentIdentifier: string | null = null;
 
   // bu03：先校验 origin run，再建卡（失败不留半成品 issue）
   if (originType === 'quick_create' && originRunId) {
@@ -59,6 +63,26 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
         issueId: run.issueId,
       };
     }
+  }
+
+  // issue-subtasks：校验父存在、同 workspace、禁止孙级
+  if (parentIssueId) {
+    const parent = db
+      .select()
+      .from(issues)
+      .where(and(eq(issues.id, parentIssueId), eq(issues.workspaceId, WS_ID)))
+      .get();
+    if (!parent) {
+      return { ok: false, status: 404, error: '父 issue 不存在' };
+    }
+    if (parent.parentIssueId) {
+      return {
+        ok: false,
+        status: 400,
+        error: '不支持多层子 issue：父级本身已是子 issue',
+      };
+    }
+    parentIdentifier = parent.identifier;
   }
 
   // identifier 生成：MAX(SUBSTR(identifier,5))+1
@@ -99,6 +123,7 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
       originType,
       originRunId,
       originRuleId,
+      parentIssueId,
       createdAt: now,
       updatedAt: now,
     })
@@ -118,7 +143,10 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
   }
 
   const row = db.select().from(issues).where(eq(issues.id, id)).get();
-  const issue = toIssue(row!);
+  const issue = toIssue(row!, [], {
+    parentIdentifier,
+    childProgress: null,
+  });
   eventBus.publish({ type: 'issue:created', issue });
 
   ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'creator');

@@ -58,7 +58,7 @@
 ### 差距优先级
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
-| G1 | Issue **子 issue**（树/父级） | P1 | `issue-subtasks` |
+| G1 | Issue **子 issue**（树/父级） | P1 → ✅ 一层 | `issue-subtasks`（2026-07-19；无多层/无 project 继承） |
 | G2 | Issue **订阅**（关注/取消） | P2 | `issue-subscribe` |
 | G3 | 详情 **PR 关联**（分支/标题引用） | P2 | `issue-pr-link`（本地可只做 URL/编号字段） |
 | G4 | 详情 **Token/用量** 摘要 | P1 → ✅ 次数/耗时 | `issue-run-usage`（2026-07-19；token 本地 null） |

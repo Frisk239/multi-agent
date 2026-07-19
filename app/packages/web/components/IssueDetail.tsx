@@ -8,6 +8,7 @@ import { CommentComposer } from './CommentComposer';
 import { RunStatusBar } from './RunStatusBar';
 import { RunTrace } from './RunTrace';
 import { IssueRunHistory } from './IssueRunHistory';
+import { IssueSubtasks } from './IssueSubtasks';
 
 function pickDefaultRunId(
   runs: { id: string; status: string }[],
@@ -64,6 +65,7 @@ export function IssueDetail({ id }: { id: string }) {
   return (
     <div className="issue-detail" data-testid="issue-detail">
       <IssueHeader issue={issue} />
+      <IssueSubtasks parent={issue} />
       <RunStatusBar issueId={id} />
       <IssueRunHistory
         runs={runs}

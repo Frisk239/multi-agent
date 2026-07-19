@@ -93,6 +93,27 @@ export function IssueCard({
           {issue.identifier}
         </span>
         <span className="issue-card-top-right">
+          {issue.parentIdentifier ? (
+            <Link
+              href={`/issues/${issue.parentIssueId}`}
+              className="issue-card-parent"
+              title={`父 issue：${issue.parentIdentifier}`}
+              data-testid="issue-card-parent"
+              onClick={(e) => e.stopPropagation()}
+              draggable={false}
+            >
+              ↳ {issue.parentIdentifier}
+            </Link>
+          ) : null}
+          {issue.childProgress && issue.childProgress.total > 0 ? (
+            <span
+              className="issue-card-children"
+              title={`子 issue ${issue.childProgress.done}/${issue.childProgress.total} 完成`}
+              data-testid="issue-card-children"
+            >
+              {issue.childProgress.done}/{issue.childProgress.total}
+            </span>
+          ) : null}
           {runActive ? (
             <span className="issue-card-run-active" title="运行中 / 排队中">
               运行中

@@ -1275,6 +1275,206 @@ a.issue-status-board-link:hover {
   padding: var(--space-5) var(--space-4);
 }
 
+.issue-parent-crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.issue-parent-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: var(--font-mono);
+}
+
+.issue-parent-link:hover {
+  text-decoration: underline;
+}
+
+.issue-parent-sep {
+  opacity: 0.5;
+}
+
+.issue-parent-current {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.issue-subtasks {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.issue-subtasks-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.issue-subtasks-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.issue-subtasks-progress {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.issue-subtasks-empty {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.issue-subtasks-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.issue-subtasks-row {
+  display: grid;
+  grid-template-columns: 10px auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.issue-subtasks-row:hover {
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.issue-subtasks-row--done .issue-subtasks-row-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.issue-subtasks-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-backlog);
+}
+
+.issue-subtasks-status[data-status='todo'] {
+  background: var(--status-todo);
+}
+.issue-subtasks-status[data-status='in_progress'] {
+  background: var(--status-in-progress);
+}
+.issue-subtasks-status[data-status='in_review'] {
+  background: var(--status-in-review);
+}
+.issue-subtasks-status[data-status='done'] {
+  background: var(--status-done);
+}
+.issue-subtasks-status[data-status='blocked'] {
+  background: var(--status-blocked);
+}
+.issue-subtasks-status[data-status='cancelled'] {
+  background: var(--status-cancelled);
+}
+
+.issue-subtasks-id {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.issue-subtasks-id:hover {
+  text-decoration: underline;
+}
+
+.issue-subtasks-row-title {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-subtasks-row-title:hover {
+  color: var(--accent);
+}
+
+.issue-subtasks-assignee {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-subtasks-form {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.issue-subtasks-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--page-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  font-family: var(--font-ui);
+}
+
+.issue-subtasks-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow: var(--focus-ring);
+}
+
+.issue-subtasks-add {
+  flex-shrink: 0;
+}
+
+.issue-card-parent {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+}
+
+.issue-card-parent:hover {
+  color: var(--accent);
+}
+
+.issue-card-children {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
 .issue-header-top {
   display: flex;
   gap: var(--space-3);

@@ -364,6 +364,13 @@ export const ListLabelsQuery = z.object({
 export type ListLabelsQuery = z.infer<typeof ListLabelsQuery>;
 
 // —— Issue ——
+/** 子 issue 进度（学 Multica ChildIssueProgress：done+cancelled 计完成） */
+export const IssueChildProgress = z.object({
+  total: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+});
+export type IssueChildProgress = z.infer<typeof IssueChildProgress>;
+
 export const Issue = z.object({
   id: BusinessId,
   workspaceId: BusinessId,
@@ -380,6 +387,10 @@ export const Issue = z.object({
   originType: z.enum(['quick_create', 'automation']).nullable().optional(),
   originRunId: BusinessId.nullable().optional(),
   originRuleId: BusinessId.nullable().optional(),
+  // issue-subtasks：父 issue（仅一层）
+  parentIssueId: BusinessId.nullable().optional(),
+  parentIdentifier: z.string().nullable().optional(),
+  childProgress: IssueChildProgress.nullable().optional(),
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
   createdAt: z.string().datetime(),
@@ -404,6 +415,8 @@ export const CreateIssueInput = z
     originType: z.enum(['quick_create', 'automation']).optional(),
     originRunId: BusinessId.optional(),
     originRuleId: BusinessId.optional(),
+    // issue-subtasks：挂到父 issue 下
+    parentIssueId: BusinessId.optional(),
   })
   .superRefine((o, ctx) => {
     if (o.originType === 'quick_create') {

@@ -102,12 +102,15 @@ export const issues = sqliteTable(
     originType: text('origin_type'), // 'quick_create' | 'automation' | null
     originRunId: text('origin_run_id'),
     originRuleId: text('origin_rule_id'),
+    // issue-subtasks：学 Multica parent_issue_id；仅一层（子不可再挂孙）
+    parentIssueId: text('parent_issue_id'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => ({
     statusWorkspaceIdx: index('idx_issue_status_workspace').on(t.workspaceId, t.status),
     assigneeIdx: index('idx_issue_assignee').on(t.assigneeType, t.assigneeId),
+    parentIdx: index('idx_issue_parent').on(t.parentIssueId),
   }),
 );
 

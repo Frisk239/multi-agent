@@ -91,6 +91,17 @@ export function IssueHeader({ issue }: { issue: Issue }) {
 
   return (
     <header className="issue-header">
+      {issue.parentIssueId ? (
+        <div className="issue-parent-crumb" data-testid="issue-parent-crumb">
+          <Link href={`/issues/${issue.parentIssueId}`} className="issue-parent-link">
+            {issue.parentIdentifier ?? '父 issue'}
+          </Link>
+          <span className="issue-parent-sep" aria-hidden>
+            /
+          </span>
+          <span className="issue-parent-current">{issue.identifier}</span>
+        </div>
+      ) : null}
       <div className="issue-header-top">
         <Link href="/" className="back-link">
           <Icon name="arrow-left" size={16} />

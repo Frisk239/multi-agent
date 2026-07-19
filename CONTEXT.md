@@ -53,11 +53,11 @@
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **真站对照 gap（产品壳）：** `app/.progress/multica-gap-live-2026-07-19.md` — Chat/Helper、Inbox 三栏、用量、项目、Issue 作业面
 - **判断：** 本地运维主航道 **可用**；与 **multica.ai 产品壳** 仍有明确体验差（见 live gap 队列 G7→G17）
-- **已推：** `inbox-tri-pane`（`543eb0c`）  
-- **本刀：** `agent-chat` + `ui-multica-tokens`（聊天 MVP + Multica surface token 对齐）  
-- **closeout：** `app/.progress/agent-chat-impl-1.md` · `app/.progress/ui-multica-tokens-impl-1.md`  
+- **已推：** 真站体验队列 G7–G10/G12/G15/G17 + helper-rail 等（见 git log）  
+- **本刀：** `issue-subtasks`（G1：一层子 issue · 详情区 + 看板 badge）  
+- **closeout：** `app/.progress/issue-subtasks-impl-1.md` · intake 上一刀 `helper-rail-intake.md`  
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）  
-- **再下一刀建议：** `helper-rail` → `issue-run-usage` / `agent-work-dashboard`
+- **再下一刀建议：** `projects-mvp`（G16）/ `agents-working-banner`（G6）/ `inbox-archive-section`（G8）  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

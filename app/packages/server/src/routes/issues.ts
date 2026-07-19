@@ -11,7 +11,13 @@ import {
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
 import { issues, comments, issueLabels, issueToLabels, agentRuns } from '../db/schema.js';
-import { toIssue, toComment, loadLabelsByIssueIds } from '../db/reshape.js';
+import {
+  toIssue,
+  toComment,
+  loadLabelsByIssueIds,
+  loadChildProgressByParentIds,
+  loadParentIdentifiers,
+} from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import {
   cancelActiveRunsForIssue,
@@ -34,7 +40,31 @@ const WS_ID = 'ws-local';
 
 function issueWithLabels(row: typeof issues.$inferSelect) {
   const labels = loadLabelsByIssueIds([row.id]).get(row.id) ?? [];
-  return toIssue(row, labels);
+  const parentIds = row.parentIssueId ? [row.parentIssueId] : [];
+  const parentMap = loadParentIdentifiers(parentIds);
+  const progressMap = loadChildProgressByParentIds([row.id]);
+  return toIssue(row, labels, {
+    parentIdentifier: row.parentIssueId
+      ? (parentMap.get(row.parentIssueId) ?? null)
+      : null,
+    childProgress: progressMap.get(row.id) ?? null,
+  });
+}
+
+function issuesWithRelations(rows: (typeof issues.$inferSelect)[]) {
+  const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));
+  const parentMap = loadParentIdentifiers(
+    rows.map((r) => r.parentIssueId).filter((id): id is string => Boolean(id)),
+  );
+  const progressMap = loadChildProgressByParentIds(rows.map((r) => r.id));
+  return rows.map((r) =>
+    toIssue(r, labelMap.get(r.id) ?? [], {
+      parentIdentifier: r.parentIssueId
+        ? (parentMap.get(r.parentIssueId) ?? null)
+        : null,
+      childProgress: progressMap.get(r.id) ?? null,
+    }),
+  );
 }
 
 export async function issueRoutes(app: FastifyInstance): Promise<void> {
@@ -121,8 +151,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       );
     }
 
-    const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));
-    return rows.map((r) => toIssue(r, labelMap.get(r.id) ?? []));
+    return issuesWithRelations(rows);
   });
 
   // GET /api/issues/:id —— 与 list 共用 toIssue（R6）
@@ -131,6 +160,20 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     if (!row) return reply.status(404).send({ error: 'issue 不存在' });
     return issueWithLabels(row);
+  });
+
+  // GET /api/issues/:id/children —— 子 issue 列表（创建序）
+  app.get('/api/issues/:id/children', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parent = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!parent) return reply.status(404).send({ error: 'issue 不存在' });
+    const rows = db
+      .select()
+      .from(issues)
+      .where(eq(issues.parentIssueId, id))
+      .orderBy(sql`CAST(SUBSTR(${issues.identifier}, 5) AS INTEGER) ASC`)
+      .all();
+    return issuesWithRelations(rows);
   });
 
   // POST /api/issues —— spec §5.2；bu03/bu05：createIssueCore（origin + enqueue）
@@ -148,6 +191,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       originType: input.originType ?? null,
       originRunId: input.originRunId ?? null,
       originRuleId: input.originRuleId ?? null,
+      parentIssueId: input.parentIssueId ?? null,
       enqueue: true,
     });
     if (!result.ok) {
