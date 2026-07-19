@@ -9,10 +9,13 @@
 
 **产品一句话：** 本机编码 CLI 的编排控制台——派活、小队、追踪、Wiki、记忆，全部本地、可天天用。
 
+**目标定位：** **复刻本地版 Multica 控制台体验**（看板派活、小队、run 可观测/恢复、Wiki/Memory、Settings 诊断），**不是** Multica Go 栈 / daemon 协议 / 云托管的 1:1 移植。
+
 **架构一句话（可写论文，但不驱动路线）：** 四层（编排-执行-知识-记忆），「编译式项目 Wiki」+「可插拔记忆」。
 
-**工程状态。** S01–S12 + 补1–5 已合 main（含最小自动化 PR #16）。  
-**补充阶段已收官**（[phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)，**不开补6**）。**当前主线：产品演进切片**——日常可用、对标 Multica；**工作流 = 自动迭代 Slice Owner**（可主动调研、自行选题与拍板选项、Playwright 关刀、main 直推）。见 §工程模式 · [workflow.md](docs/agents/workflow.md) · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)。
+**工程状态。** S01–S12 + 补1–5 已合 main；补充阶段已收官（phase4b，**不开补6**）。  
+**主航道（本地控制台日用路径）已可用**——cwd 可 DB 持久化（[ADR 0003](docs/adr/0003-workspace-cwd-persistence.md)）、run 收尸/批量取消、Settings 健康、Wiki/Memory 运维闭环。  
+**当前主线：** 体验加深的厚切片（非答辩清单、非自动 S 编号）；**工作流 = 自动迭代 Slice Owner**（调研 → 选题拍板 → Playwright → main 直推）。见 §工程模式 · [workflow.md](docs/agents/workflow.md) · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · 差距表 [app/.progress/multica-gap-2026-07-17.md](app/.progress/multica-gap-2026-07-17.md)。
 
 ## 目录地图
 
@@ -75,6 +78,8 @@
 
 6. **Footprint Ladder 扩展哲学。** 新能力优先 CLI+Skill > gated tool > plugin > MCP > core tool。同类 3+ PR 就抽象成 ABC + orchestrator（学 hermes）。
 
+7. **工作区路径可持久化；密钥不落库。** `workspace.root_path` + `resolveWorkspaceCwd`（env 覆盖 DB，见 [ADR 0003](docs/adr/0003-workspace-cwd-persistence.md)）。Wiki LLM / embedding **密钥仅 env**，Settings 只做检测与引导，不写密钥到 DB/UI。
+
 ## 改代码前必读（按任务）
 
 | 要做的事 | 先读 |
@@ -96,10 +101,11 @@
 - ✅ **补1–4** 可靠性+Inbox · Agent/Squad 运营 · Quick-create · Settings 诊断（PR #12–#15）
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
-- ▶ **产品演进主线** — 当真实产品继续切片；主题由人指定（非答辩清单、非自动 S 编号）
-- ▶ **工程编排** — Slice Owner；调研子代理；**默认可 main 直推** + Playwright 关刀；Multica 对照调方向（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · [merge.md](docs/agents/merge.md)）
+- ✅ **本地 Multica 主航道日用路径** — 派活/小队/run 观测与恢复/cwd 持久化/Settings 健康/Wiki·Memory 运维（持续加深中）
+- ▶ **产品演进主线** — 体验对标本地 Multica；**不必** daemon/云协议 1:1；主题可由 Owner 按差距表自选（人可否决）
+- ▶ **工程编排** — Slice Owner；调研子代理；**默认可 main 直推** + Playwright 关刀（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · [merge.md](docs/agents/merge.md)）
 
-**产品/阶段真源：** [phase4b](docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)（补充已收官）· [roadmap](design/roadmap.md) · [CONTEXT.md](CONTEXT.md)
+**产品/阶段真源：** [CONTEXT.md](CONTEXT.md)（方位）· [workflow.md](docs/agents/workflow.md)（北星）· [multica-gap](app/.progress/multica-gap-2026-07-17.md)（对照）· phase4b / [roadmap](design/roadmap.md)（历史阶段，不挡现行排期）
 
 ## 不可破坏的约束
 

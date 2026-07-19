@@ -1,12 +1,14 @@
 # 开发路线图
 
-> 更新：2026-07-08 · 工程模式见 [AGENTS.md §工程模式](../AGENTS.md) · 架构见 [architecture.md](architecture.md) · 技术选型见 [synthesis.md](synthesis.md)
+> **历史文档（2026-07-08 起骨架）。** 现行工程模式 / 北星 / 方位真源：  
+> [AGENTS.md](../AGENTS.md) · [docs/agents/workflow.md](../docs/agents/workflow.md) · [CONTEXT.md](../CONTEXT.md) · [multica-gap](../app/.progress/multica-gap-2026-07-17.md)  
+> 下文中的「计划者-执行者」「S03 进行中」「答辩 FRI-11 驱动」等**不驱动** 2026-07-17 后的排期；产品演进走 Slice Owner + 语义 slug。
 
-## 工程模式
+## 工程模式（现行摘要）
 
-**垂直切片 × 计划者-执行者。** 详见 [AGENTS.md](../AGENTS.md) §工程模式。
+**垂直切片 × Slice Owner（自动迭代）。** 详见 [AGENTS.md](../AGENTS.md) §工程模式 · [workflow.md](../docs/agents/workflow.md)。
 
-核心：每个垂直切片 = 一个计划者主会话 + 多个顺序执行的执行者子会话，靠 handoff 文档交接。切片端到端可跑，不做水平分层。
+核心：一刀 = 可演示用户路径（契约+API+UI）；Playwright 关刀；默认可 main 直推。目标 = **本地 Multica 控制台体验**，非 daemon 1:1。
 
 ---
 

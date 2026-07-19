@@ -9,11 +9,13 @@
 
 **产品立场：** 本仓按**真实产品**建设与演进。答辩、论文、seed 样例（如 FRI-11）可作回归锚点或并行材料，**不是**路线图与切片优先级的真源。
 
+**目标定位：** **复刻本地版 Multica 控制台体验**（派活、小队、run 观测/恢复、Wiki/Memory、Settings），**不是** Multica daemon/云协议 1:1。
+
 ## 术语表（优先用这些词）
 
 | 术语 | 含义 | 避免说成 |
 |---|---|---|
-| **Issue** | 看板上的工作项；可指派 agent/squad | task  alone（易与 agent_run 混） |
+| **Issue** | 看板上的工作项；可指派 agent/squad | task alone（易与 agent_run 混） |
 | **Agent** | 可指派的执行身份，绑定一种 RuntimeBackend | bot、机器人（可口语，文档用 Agent） |
 | **Squad** | 以 leader agent 执行 + briefing + @mention 委派的小队 | 小组任务表、fan-out 任务 |
 | **Agent Run / Run** | 一次 CLI 执行实例（`agent_run`） | job（保留给 wiki ingest job） |
@@ -21,9 +23,11 @@
 | **Wiki** | 编译式项目知识库（filesystem `wiki/` + ingest） | 仅 RAG 语料 |
 | **Memory** | 可插拔记忆（MemoryProvider；sqlite-text / pgvector） | 与 Wiki 混用 |
 | **Inbox** | 落库通知（inbox_item），非合成 feed | 邮件 |
-| **Automation** | 定时/立即按模板建 Issue 的规则（补5） | Autopilot 全集（无 webhook 本阶段） |
+| **Automation** | 定时/立即按模板建 Issue 的规则（补5） | Autopilot 全集（无 webhook） |
 | **Quick-create** | 无 Issue 先 QC run，agent 经 `ma issue create` 建卡（补3） | 与 Automation 混淆 |
 | **补充阶段 / 补N** | MVP 后可运营补齐刀（bu01…），非论文创新主线 | S13+ 前推编号（已弃） |
+| **Workspace cwd** | 工作区根路径：`env MA_WORKSPACE_CWD` 覆盖 `workspace.root_path`（ADR 0003） | 「只能 export 才能跑」 |
+| **Run Health** | Settings/运行页：在途计数、心跳/排队收尸阈值、近收尸风险 | 仅看 failed 列表 |
 
 ## 架构钉死（勿在实现里推翻）
 
@@ -33,150 +37,23 @@
 4. Squad = leader + briefing + mention  
 5. 纯本地 — 无 Redis / 多节点 / 云托管  
 6. 不改 `references/repos/` 上游 clone  
+7. 工作区路径可 DB 持久化；**密钥不落库**（ADR 0003）  
 
-## 当前方位（2026-07-17）
+## 完成边界（本地 Multica）
 
-- **已合 main：** S01–S12；补1–5；产品演进 `run-observability`（PR #17）、`wiki-memory-ops`（PR #18）、`issue-labels`（PR #19）、`issue-find`（PR #20）  
-- **补充阶段：已收官**（phase4b 退出清单勾满；**不开补6**）  
-- **主线：产品演进 · 自动迭代** — Owner 可按日常价值与 Multica 差距**自行选题**（人可不每刀点名；可随时否决）  
-- **已合 main（续）：** `issue-assignee-desk`（PR #21）、`board-priority-triage`（PR #22）  
-- **上一刀 intake：** `board-priority-triage` **通过**（已合 main PR #22）— `app/.progress/board-priority-triage-intake.md`  
-- **已合 / 已推 main：** `issue-detail-edit`（PR #23 / `0433bb0`）；流程简化 docs（`ecb9da4` main 直推）  
-- **已推：** `mention-dispatch-visibility`（`10f2b91`）  
-- **已推：** `leader-briefing-preview`（`e0394af`）  
-- **已推：** `runs-leader-badge`（`124bce3`）  
-- **已推：** `runs-leader-api-nav`（`603e0e6`）  
-- **已推：** `runs-url-mirror`（`9fc996a`）  
-- **已推：** `inbox-run-nav`（`94ae27b`）  
-- **已推：** `inbox-filter-url`（`b529e69`）  
-- **已推：** `memory-search-url`（`2b51cdb`）  
-- **已推：** `wiki-slug-url`（`d7bbe02`）  
-- **已推：** `cmdk-wiki-memory`（`0b58387`）  
-- **已推：** `cmdk-squad-settings`（`c073750`）  
-- **已推：** `cmdk-agent-readiness`（`6e8dea8`）  
-- **已推：** `assign-readiness-fail-diag`（`7d1c6cf`）  
-- **已推：** `board-card-readiness`（`47871fb`）  
-- **已推：** `board-failed-filter`（`28b414f`）  
-- **已推：** `squad-readiness-summary`（`cbbcaeb`）  
-- **已推：** `cmdk-failed-board`（`beb3b83`）  
-- **已推：** `assign-squad-member-readiness`（`6a58b85`）  
-- **已推：** `inbox-fail-strip`（`eee76ed`）  
-- **已推：** `sidebar-inbox-fail-cue`（`4e8801a`）  
-- **已推：** `env-cwd-banner`（`be8de2d`）  
-- **已推：** `runs-failed-board-link`（`8f06822`）  
-- **已推：** `board-run-active-pulse`（`5788704`）  
-- **已推：** `board-failed-filter-note`（`4456f9e`）  
-- **已推：** `agents-list-readiness`（`eb311e1`）  
-- **已推：** `issue-live-progress`（`fc87b9c`）  
-- **已推：** `settings-env-copy`（`5556177`）  
-- **已推：** `board-live-trace-anchor`（`cc3ebbe`）  
-- **已推：** `memory-ops-deepen`（`f0cecb5`）  
-- **已推：** `wiki-health-entry`（`fdbfaf0`）  
-- **上一刀 intake：** `wiki-health-entry` **通过** — `app/.progress/wiki-health-entry-intake.md`  
-- **已推/本地：** `runs-active-nav`（`a3538f2`；push 曾受 GitHub 网络影响）  
-- **已推：** `automation-next-run`（`bd6ec14`）  
-- **已推：** `cmdk-active-runs` · `sidebar-active-chip` · `automation-template-preview`（`62c5fc8`）  
-- **上一刀 intake：** `automation-template-preview` **通过**  
-- **已推：** `runtimes-ops-links`（`c538523`）  
-- **已推：** `skills-ops-links`（`9001467`）  
-- **已推：** `label-board-links`（`d8c1d1a`）  
-- **已推：** `agents-list-filters`（`d0a8001`）  
-- **已推：** `squads-list-filters`（`3fe60a9`）  
-- **已推：** `automation-rule-filters`（`ccebb36`）  
-- **已推：** `fail-recovery-cues`（`1490425`）  
-- **已推：** `inbox-fail-retry`（`8d04451`）  
-- **已推：** `settings-cwd-recovery`（`611c486`）  
-- **已推：** `settings-wiki-recovery`（`19e2a7a`）  
-- **已推：** `settings-ops-recovery`（`e87ae9e`）  
-- **已推：** `cmdk-ops-recovery`（`6746e52`）  
-- **已推：** `inbox-bulk-read`（`9ee539b`）  
-- **已推：** `runtimes-recovery-links`（`c251a71`）  
-- **已推：** `agent-readiness-recovery`（`777f2b0`）  
-- **已推：** `squad-readiness-recovery`（`87da737`）  
-- **已推：** `issue-fail-recovery-links`（`dfe4787`）  
-- **已推：** `sidebar-fail-chip`（`89e9c69`）  
-- **已推：** `assignee-recovery-links`（`58d7cd3`）  
-- **已推：** `dispatch-cwd-recovery`（`3e430ba`）  
-- **已推：** `board-meta-deeplinks`（`0e48897`）  
-- **已推：** `board-priority-ops`（`0cc2eb1`）  
-- **已推：** `board-status-focus`（`6794908`）  
-- **已推：** `issue-status-board-link`（`5c0b3cd`）  
-- **已推：** `runs-table-deeplinks`（`5c4ce25`）  
-- **已推：** `agent-runs-deeplinks`（`1943292`）  
-- **已推：** `squad-wiki-run-links`（`daac058`）  
-- **已推：** `automation-row-links`（`2957040`）  
-- **已推：** `skills-url-filters`（`b6644a3`）  
-- **已推：** `mention-ops-links`（`01ed2ce`）  
-- **已推：** `memory-ops-links`（`9e036be`）  
-- **已推：** `wiki-ops-links`（`cfd566b`）  
-- **已推：** `inbox-kind-ops`（`6ac5acb`）  
-- **已推：** `wiki-health-run-trace-ops`（`14c5305`）  
-- **已推：** `issue-run-history-links`（`920c9c6`）  
-- **已推：** `env-banner-ops`（`0d17920`）  
-- **已推：** `qc-assignee-readiness`（`a58aea4`）  
-- **已推：** `new-issue-assignee-readiness`（`e0ddc8c`）  
-- **已推：** `inbox-bulk-api`（`8db1440`）  
-- **已推：** `agents-readiness-bulk`（`51e4aaa`）  
-- **已推：** `runs-recover-stuck`（`b302ca2`）  
-- **已推：** `runs-bulk-cancel`（`00fb07d`）  
-- **已推：** `settings-run-health`（`3a1d2c9`）  
-- **已推：** `settings-wiki-auto-health`（`e91d9c8`）  
-- **上一刀 intake：** `settings-wiki-auto-health` **通过**  
-- **已推：** `workspace-cwd-persist`（`49efb20`）  
-- **已推：** `wiki-dead-bulk-retry`（`63d1c5c`）  
-- **已推：** `cwd-resolve-unify`（`c21efa8`）  
-- **已推：** `settings-memory-health`（`0b0354b`）  
-- **上一刀 intake：** `settings-memory-health` **通过**  
-- **本刀：** `memory-item-delete` — Memory 单条删除（API+UI）  
-- **closeout：** `app/.progress/memory-item-delete-impl-1.md`  
-- **对照：** `app/.progress/multica-gap-2026-07-17.md`  
-- **工程：** main 直推 · 自动迭代 · Playwright 关刀  
-- **北星：** 纯本地 · 对标 Multica  
-- **判断：** 主航道日常可用；完成态边界 = 密钥 env / daemon 非 1:1 / 无云 webhook  
-- **再下一刀建议：** 人定收官；或 memory 批量删除  
+**要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
+**不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
+## 当前方位（2026-07-19）
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-- **工作流：** 自动迭代 Slice Owner · main 直推 · [workflow.md](docs/agents/workflow.md) · [merge.md](docs/agents/merge.md)  
-- **工单 / 交接：** `.scratch/` · `app/.progress/*-impl|intake` · `/handoff`  
-
+- **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用**
+- **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [multica-gap](app/.progress/multica-gap-2026-07-17.md)
+- **工程：** 自动迭代 Slice Owner · Playwright 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
+- **最近交付：** `workspace-cwd-persist` · `cwd-resolve-unify` · `settings-*-health` · `wiki-dead-bulk-retry` · `memory-item-delete`（`365fafd`）
+- **上一刀：** `memory-item-delete` — closeout `app/.progress/memory-item-delete-impl-1.md`
+- **判断：** 本地 Multica **体验边界内完成态 = 是**；后续 = 体验加深（如 memory 批量删除），非补阶段债
+- **再下一刀建议：** memory 批量删除；或 Automation/Inbox 运营密度
+- **历史流水：** 更早 commit 以 `git log` / `app/.progress/*-impl-*.md` 为准
 
 ## 相关入口
 
@@ -184,5 +61,6 @@
 |---|---|
 | 项目宪法 | `AGENTS.md` |
 | 技术选型 | `design/synthesis.md` |
-| 补充阶段池 | `docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md`（历史真源，仍有效） |
+| 差距表 | `app/.progress/multica-gap-2026-07-17.md` |
+| 补充阶段池（历史） | `docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md` |
 | Skills 配置 | `docs/agents/` |
