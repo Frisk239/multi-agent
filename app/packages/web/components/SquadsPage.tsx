@@ -214,16 +214,17 @@ function SquadsPageInner() {
   const squads = data ?? [];
 
   return (
-    <div className="page-container" data-testid="squads-page">
+    <div className="page-container collection-page" data-testid="squads-page">
       <div className="page-header">
         <div>
-          <div className="page-title">
-            小队{' '}
+          <Icon name="squad" size={16} className="page-header-icon" />
+          <h1 className="page-title">
+            小队
             <span className="count" data-testid="squads-visible-count">
               {hasActiveFilters ? `${visible.length}/${squads.length}` : squads.length}
             </span>
-          </div>
-          <div className="page-desc">leader 执行 + briefing 注入 + mention 闭环</div>
+          </h1>
+          <p className="page-desc">leader 执行 · briefing · mention 闭环</p>
         </div>
         <div className="page-actions">
           <Link href="/agents" className="btn btn-ghost btn-sm" data-testid="squads-to-agents">
@@ -234,7 +235,7 @@ function SquadsPageInner() {
           </Link>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => setOpen((v) => !v)}
             disabled={agents.length === 0}
           >
@@ -243,8 +244,9 @@ function SquadsPageInner() {
         </div>
       </div>
 
+      <div className="page-body">
       {open && (
-        <form className="ops-form" onSubmit={submit}>
+        <form className="ops-form surface-card" onSubmit={submit}>
           <div className="ops-form-grid">
             <label className="ops-field">
               <span>名称</span>
@@ -333,7 +335,7 @@ function SquadsPageInner() {
         />
       ) : (
         <>
-          <div className="agents-filters" data-testid="squads-filters">
+          <div className="agents-filters collection-toolbar" data-testid="squads-filters">
             <div className="table-search memory-search-wrap">
               <input
                 type="search"
@@ -551,6 +553,7 @@ function SquadsPageInner() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

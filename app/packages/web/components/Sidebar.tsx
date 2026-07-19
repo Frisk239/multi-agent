@@ -15,6 +15,7 @@ import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { CommandPalette } from './CommandPalette';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
+import { useTheme } from '@/lib/theme';
 
 type NavItem = {
   id: string;
@@ -150,6 +151,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { theme, toggleTheme } = useTheme();
   const wsStatus = useWsStore((s) => s.status);
   const { data: issues = [] } = useIssues();
   const { data: inboxUnread } = useInboxUnreadCount();
@@ -342,6 +344,17 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="sidebar-footer">
+        <button
+          type="button"
+          className="help-btn theme-toggle"
+          title={theme === 'dark' ? '切换浅色' : '切换深色'}
+          aria-label={theme === 'dark' ? '切换浅色主题' : '切换深色主题'}
+          data-testid="theme-toggle"
+          data-theme={theme}
+          onClick={toggleTheme}
+        >
+          {theme === 'dark' ? '浅' : '深'}
+        </button>
         <button type="button" className="help-btn" title="帮助" aria-label="帮助">
           <Icon name="help" size={16} />
         </button>

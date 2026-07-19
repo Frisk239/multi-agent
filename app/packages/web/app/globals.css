@@ -1,40 +1,39 @@
-/* Design tokens — Multica-aligned (refs: packages/ui/styles/tokens.css + docs/design.md)
-   原则：克制、中性 surface 层级、颜色只作信号；本地仍用 CSS 变量 + 手写组件。 */
+/* Design tokens — Multica-aligned
+   refs: packages/ui/styles/tokens.css · docs/design.md · views/layout/collection-page.tsx
+   默认浅色（真站默认）；html.dark 为暗色。 */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* Multica dark surface ladder (approx from oklch → sRGB for no-build CSS) */
-  --app-shell: #1a1a1d;
-  --page-canvas: #1f1f23;
-  --surface: #2a2a2f;
-  --surface-raised: #313138;
-  --surface-hover: #36363d;
-  --surface-selected: #3c3c44;
-  --surface-border: rgba(255, 255, 255, 0.1);
-  --surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.16);
-  --floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.46), 0 4px 12px rgba(0, 0, 0, 0.28);
+  /* Multica light surface ladder */
+  --app-shell: #f3f3f4;
+  --page-canvas: #fbfbfb;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f4f4f5;
+  --surface-selected: #ececef;
+  --surface-border: #e4e4e7;
+  --surface-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 1px rgb(15 23 42 / 0.03);
+  --floating-shadow: 0 16px 40px rgb(15 23 42 / 0.14), 0 3px 10px rgb(15 23 42 / 0.08);
 
-  /* Semantic aliases used across existing CSS (keep names stable) */
   --color-bg-base: var(--page-canvas);
   --color-bg-panel: var(--app-shell);
   --color-bg-elevated: var(--surface);
   --color-bg-hover: var(--surface-hover);
   --color-bg-active: var(--surface-selected);
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-text: #f5f5f6;
-  --color-text-muted: #a1a1aa;
-  --color-text-dim: #71717a;
-  /* Multica brand ≈ oklch(0.65 0.16 255) */
-  --color-accent: #4f7cf0;
-  --color-accent-hover: #6b93f5;
-  --color-green: #3ecf7a;
-  --color-yellow: #e5b53a;
-  --color-orange: #f08a3a;
-  --color-red: #f07167;
-  --color-blue: #4f7cf0;
-  --color-purple: #a78bfa;
+  --color-border: #e8e8ec;
+  --color-border-subtle: #f0f0f3;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+  --color-text-dim: #a1a1aa;
+  --color-accent: #3b6ded;
+  --color-accent-hover: #2f5ad4;
+  --color-green: #16a34a;
+  --color-yellow: #ca8a04;
+  --color-orange: #ea580c;
+  --color-red: #dc2626;
+  --color-blue: #3b6ded;
+  --color-purple: #7c3aed;
 
   --bg-primary: var(--page-canvas);
   --bg-secondary: var(--app-shell);
@@ -51,7 +50,6 @@
   --accent-hover: var(--color-accent-hover);
   --brand: var(--color-accent);
 
-  /* Status columns — muted, not rainbow noise */
   --status-planning: var(--color-text-dim);
   --status-todo: var(--color-text-muted);
   --status-in-progress: var(--color-yellow);
@@ -61,18 +59,16 @@
   --status-blocked: var(--color-orange);
   --status-cancelled: var(--color-text-dim);
 
-  /* Typography — Multica: 主用 sm/xs，避免过大标题 */
   --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei",
     "Noto Sans CJK SC", sans-serif;
   --font-mono: "Geist Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
-  --text-xs: 0.75rem; /* 12 */
-  --text-sm: 0.875rem; /* 14 — UI 主力 */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
   --text-base: 0.875rem;
   --text-lg: 0.9375rem;
-  --text-xl: 1rem; /* 页面标题收紧，对齐 Multica「不用大字号」 */
+  --text-xl: 1rem;
   --text-2xl: 1.125rem;
 
-  /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -81,7 +77,6 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Layout — Multica radius ~0.625rem */
   --sidebar-width: 232px;
   --tabbar-height: 40px;
   --radius: 0.625rem;
@@ -89,9 +84,39 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  /* Component */
-  --focus-ring: 0 0 0 2px var(--page-canvas), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+  --focus-ring: 0 0 0 2px var(--page-canvas), 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent);
   --shadow-modal: var(--floating-shadow);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --app-shell: #1a1a1d;
+  --page-canvas: #1f1f23;
+  --surface: #2a2a2f;
+  --surface-raised: #313138;
+  --surface-hover: #36363d;
+  --surface-selected: #3c3c44;
+  --surface-border: rgba(255, 255, 255, 0.1);
+  --surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.16);
+  --floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.46), 0 4px 12px rgba(0, 0, 0, 0.28);
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-text: #f5f5f6;
+  --color-text-muted: #a1a1aa;
+  --color-text-dim: #71717a;
+  --color-accent: #4f7cf0;
+  --color-accent-hover: #6b93f5;
+  --color-green: #3ecf7a;
+  --color-yellow: #e5b53a;
+  --color-orange: #f08a3a;
+  --color-red: #f07167;
+  --color-blue: #4f7cf0;
+  --color-purple: #a78bfa;
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
 }
 
 * {
@@ -114,10 +139,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* 细滚动条（Multica scrollbar tokens 精神） */
+/* 细滚动条 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* ============================================================
@@ -302,6 +327,9 @@ body {
   margin-top: auto;
   padding: var(--space-3);
   border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .help-btn {
@@ -320,6 +348,22 @@ body {
 .help-btn:hover {
   background: var(--bg-hover);
   color: var(--text-muted);
+}
+
+.theme-toggle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  width: auto;
+  min-width: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.theme-toggle:hover {
+  border-color: var(--border);
+  color: var(--text-primary);
 }
 
 /* —— 右内容区 —— */
@@ -2147,11 +2191,22 @@ a.mention-side-link:hover {
 }
 
 .data-table-wrap {
-  margin-top: var(--space-4);
+  margin-top: 0;
   overflow: auto;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+/* 记忆/运行/小队等 collection 表：更扁、更克制 */
+.page-container[data-testid='memory-page'] .data-table-wrap,
+.page-container[data-testid='runs-page'] .data-table-wrap,
+.page-container[data-testid='squads-page'] .data-table-wrap {
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .data-table {
@@ -2162,18 +2217,20 @@ a.mention-side-link:hover {
 
 .data-table th {
   text-align: left;
-  padding: var(--space-2) var(--space-3);
-  color: var(--text-dim);
+  padding: 8px 12px;
+  color: var(--text-muted);
   font-weight: 500;
   font-size: var(--text-xs);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--surface-border);
   white-space: nowrap;
+  background: transparent;
 }
 
 .data-table td {
-  padding: var(--space-3);
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
+  color: var(--text-primary);
 }
 
 .data-table tr:last-child td {
@@ -2181,12 +2238,13 @@ a.mention-side-link:hover {
 }
 
 .data-table tr:hover td {
-  background: var(--bg-hover);
+  background: var(--surface-hover);
 }
 
 .data-table code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 .runtime-cli {
@@ -2209,47 +2267,101 @@ a.mention-side-link:hover {
    ============================================================ */
 
 .page-container {
-  padding: var(--space-5) var(--space-6);
+  padding: 0;
   max-width: none;
   width: 100%;
   min-height: 100%;
   background: var(--page-canvas);
 }
 
+/* Collection header — Multica CollectionPageHeader: icon+title+count 一行，描述内联 */
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 20px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--page-canvas);
+}
+
+.page-header > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.page-header-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .page-title {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  line-height: 1.3;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.25;
+  margin: 0;
 }
 
 .page-title .count {
-  color: var(--text-dim);
-  font-size: var(--text-sm);
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+  font-size: var(--text-xs);
   font-weight: 400;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .page-desc {
   color: var(--text-muted);
-  font-size: var(--text-sm);
-  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(48vw, 420px);
 }
 
 .page-actions {
   display: flex;
-  gap: var(--space-2);
+  gap: 8px;
   flex-shrink: 0;
+  align-items: center;
+}
+
+.page-body {
+  padding: 16px 20px 24px;
+}
+
+/* 列表页工具条：筛选 chips 一行 */
+.collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.collection-page .memory-create.surface-card,
+.collection-page .ops-form.surface-card {
+  box-shadow: none;
 }
 
 .table-search {
@@ -3004,10 +3116,14 @@ button.wiki-job-status-filter:hover code {
    ============================================================ */
 
 .memory-create {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.collection-page .memory-create {
+  margin-bottom: 12px;
 }
 
 .memory-textarea {
@@ -4274,6 +4390,48 @@ button.wiki-job-status-filter:hover code {
   flex-wrap: wrap;
 }
 
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 920px;
+}
+
+/* Multica SettingsSection + SettingsCard */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.settings-section-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-section-desc {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
 .settings-overall {
   display: inline-flex;
   align-items: center;
@@ -4287,29 +4445,29 @@ button.wiki-job-status-filter:hover code {
 }
 
 .settings-overall--ok {
-  color: #0f7b3a;
-  background: color-mix(in srgb, var(--color-green) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-green) 40%, transparent);
+  color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-green) 35%, transparent);
 }
 
 .settings-overall--degraded {
-  color: #9a6700;
-  background: color-mix(in srgb, var(--color-yellow) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-yellow) 45%, transparent);
+  color: var(--color-yellow);
+  background: color-mix(in srgb, var(--color-yellow) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-yellow) 35%, transparent);
 }
 
 .settings-overall--blocked {
-  color: #b42318;
-  background: color-mix(in srgb, var(--color-red) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-red) 40%, transparent);
+  color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-red) 35%, transparent);
 }
 
 .settings-check-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -4401,11 +4559,22 @@ button.wiki-job-status-filter:hover code {
 
 
 .settings-cwd-guide {
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md, 8px);
-  border: 1px solid color-mix(in srgb, var(--color-orange, #f97316) 50%, transparent);
-  background: color-mix(in srgb, var(--color-orange, #f97316) 10%, transparent);
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+}
+
+.settings-cwd-guide.settings-card {
+  border-color: var(--surface-border);
+}
+
+.settings-page .settings-cwd-guide[data-testid='settings-cwd-guide'],
+.settings-page .settings-wiki-guide,
+.settings-page .settings-runtime-guide {
+  border-color: color-mix(in srgb, var(--color-orange, #f97316) 40%, var(--surface-border));
+  background: color-mix(in srgb, var(--color-orange, #f97316) 8%, var(--surface));
 }
 .settings-cwd-guide-title {
   display: flex;
@@ -4442,11 +4611,11 @@ button.wiki-job-status-filter:hover code {
   margin: 0 0 var(--space-2);
 }
 .settings-ops-recovery {
-  margin: var(--space-4) 0;
-  padding: var(--space-3);
-  border: 1px solid var(--border);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated, var(--bg-secondary));
+  background: var(--surface);
 }
 .settings-ops-recovery .settings-cwd-guide-title {
   margin-bottom: var(--space-2);
@@ -4464,11 +4633,11 @@ button.wiki-job-status-filter:hover code {
 }
 
 .settings-env-snippet {
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
+  margin-bottom: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated, var(--bg-secondary));
+  background: var(--surface);
 }
 
 .settings-env-snippet--warn {
@@ -4697,14 +4866,14 @@ button.wiki-job-status-filter:hover code {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   align-items: flex-end;
 }
 .runs-filters label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 .runs-filter-check {
@@ -4717,6 +4886,13 @@ button.wiki-job-status-filter:hover code {
 }
 .runs-filters select {
   min-width: 10rem;
+  height: 32px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  padding: 0 8px;
 }
 .runs-status-cell,
 .runs-kind-cell {

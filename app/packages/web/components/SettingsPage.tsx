@@ -10,6 +10,7 @@ import {
   useSettingsStatus,
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
+import { Icon } from './Icon';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
   error: 0,
@@ -170,10 +171,11 @@ export function SettingsPage() {
   const runtimeBlocked = data.checks.filter((c) => c.id.startsWith('runtime:') && c.status === 'error');
 
   return (
-    <div className="page-container settings-page" data-testid="settings-page">
+    <div className="page-container settings-page collection-page" data-testid="settings-page">
       <div className="page-header">
         <div>
-          <div className="page-title">
+          <Icon name="settings" size={16} className="page-header-icon" />
+          <h1 className="page-title">
             环境诊断
             <span
               className={`settings-overall settings-overall--${overall}`}
@@ -181,10 +183,10 @@ export function SettingsPage() {
             >
               {OVERALL_LABEL[overall]}
             </span>
-          </div>
-          <div className="page-desc">
+          </h1>
+          <p className="page-desc">
             {summary.errors} 项错误 · {summary.warnings} 项警告
-          </div>
+          </p>
         </div>
         <div className="page-actions">
           <button
@@ -198,8 +200,14 @@ export function SettingsPage() {
         </div>
       </div>
 
+      <div className="page-body settings-body">
+      <section className="settings-section" data-testid="settings-workspace-section">
+        <div className="settings-section-head">
+          <h2 className="settings-section-title">工作区</h2>
+          <p className="settings-section-desc">路径持久化与派活前置条件</p>
+        </div>
       <section
-        className="settings-cwd-guide"
+        className="settings-card settings-cwd-guide"
         data-testid="settings-cwd-persist"
         aria-label="工作区路径持久化"
       >
@@ -240,7 +248,7 @@ export function SettingsPage() {
 
       {cwdBlocked ? (
         <section
-          className="settings-cwd-guide"
+          className="settings-card settings-cwd-guide"
           data-testid="settings-cwd-guide"
           aria-label="工作区配置引导"
         >
@@ -312,127 +320,143 @@ export function SettingsPage() {
           </p>
         </section>
       ) : null}
+      </section>
 
-      {wikiLlmBlocked ? (
-        <section
-          className="settings-wiki-guide"
-          data-testid="settings-wiki-llm-guide"
-          aria-label="Wiki LLM 配置引导"
-        >
-          <div className="settings-cwd-guide-title">
-            <strong>Wiki 编译需要 LLM 密钥</strong>
-            <span className="settings-wiki-guide-badge">阻塞编译</span>
+      {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
+        <section className="settings-section" data-testid="settings-guides-section">
+          <div className="settings-section-head">
+            <h2 className="settings-section-title">阻塞修复</h2>
+            <p className="settings-section-desc">按优先级先清阻塞再派活</p>
           </div>
-          <ol className="settings-cwd-steps">
-            <li>
-              导出 <code>WIKI_LLM_API_KEY</code>（以及如需要的 base URL / model 变量）
-            </li>
-            <li>同一终端重启 server 后再回本页刷新</li>
-            <li>
-              到 <a href="/wiki?jobStatus=dead">Wiki dead 任务</a> 点「重试」恢复编译
-            </li>
-          </ol>
-          <div className="settings-cwd-guide-actions">
-            <code className="settings-cwd-line" data-testid="settings-wiki-llm-line">
-              {wikiExportLine}
-            </code>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              data-testid="settings-copy-wiki-llm"
-              onClick={() => void copyWikiLine()}
+
+          {wikiLlmBlocked ? (
+            <section
+              className="settings-card settings-wiki-guide"
+              data-testid="settings-wiki-llm-guide"
+              aria-label="Wiki LLM 配置引导"
             >
-              {wikiCopyState === 'ok'
-                ? '已复制 wiki 行'
-                : wikiCopyState === 'err'
-                  ? '复制失败'
-                  : '复制 wiki 行'}
-            </button>
-          </div>
-          <div className="settings-cwd-recovery-links" data-testid="settings-wiki-recovery">
-            <span className="text-dim text-sm">修好后：</span>
-            <Link
-              className="btn-secondary btn-sm"
-              href="/wiki?jobStatus=dead"
-              data-testid="settings-wiki-dead-link"
+              <div className="settings-cwd-guide-title">
+                <strong>Wiki 编译需要 LLM 密钥</strong>
+                <span className="settings-wiki-guide-badge">阻塞编译</span>
+              </div>
+              <ol className="settings-cwd-steps">
+                <li>
+                  导出 <code>WIKI_LLM_API_KEY</code>（以及如需要的 base URL / model 变量）
+                </li>
+                <li>同一终端重启 server 后再回本页刷新</li>
+                <li>
+                  到 <a href="/wiki?jobStatus=dead">Wiki dead 任务</a> 点「重试」恢复编译
+                </li>
+              </ol>
+              <div className="settings-cwd-guide-actions">
+                <code className="settings-cwd-line" data-testid="settings-wiki-llm-line">
+                  {wikiExportLine}
+                </code>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  data-testid="settings-copy-wiki-llm"
+                  onClick={() => void copyWikiLine()}
+                >
+                  {wikiCopyState === 'ok'
+                    ? '已复制 wiki 行'
+                    : wikiCopyState === 'err'
+                      ? '复制失败'
+                      : '复制 wiki 行'}
+                </button>
+              </div>
+              <div className="settings-cwd-recovery-links" data-testid="settings-wiki-recovery">
+                <span className="text-dim text-sm">修好后：</span>
+                <Link
+                  className="btn-secondary btn-sm"
+                  href="/wiki?jobStatus=dead"
+                  data-testid="settings-wiki-dead-link"
+                >
+                  dead 任务 · 重试
+                </Link>
+                <Link className="btn-ghost btn-sm" href="/wiki" data-testid="settings-wiki-home">
+                  Wiki 首页
+                </Link>
+                <Link
+                  className="btn-ghost btn-sm"
+                  href="/wiki?jobStatus=pending"
+                  data-testid="settings-wiki-pending"
+                >
+                  pending 队列
+                </Link>
+              </div>
+            </section>
+          ) : null}
+
+          {runtimeBlocked.length > 0 ? (
+            <section
+              className="settings-card settings-runtime-guide"
+              data-testid="settings-runtime-guide"
+              aria-label="运行时缺失引导"
             >
-              dead 任务 · 重试
-            </Link>
-            <Link className="btn-ghost btn-sm" href="/wiki" data-testid="settings-wiki-home">
-              Wiki 首页
-            </Link>
-            <Link
-              className="btn-ghost btn-sm"
-              href="/wiki?jobStatus=pending"
-              data-testid="settings-wiki-pending"
-            >
-              pending 队列
-            </Link>
-          </div>
+              <div className="settings-cwd-guide-title">
+                <strong>有运行时 CLI 不可用</strong>
+                <span className="settings-runtime-guide-badge">阻塞执行</span>
+              </div>
+              <p className="text-sm" style={{ marginTop: 0 }}>
+                {runtimeBlocked.map((c) => c.label).join('、')} 探测失败。安装/修复 PATH 后重启 server，再到运行时页确认。
+              </p>
+              <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }}>
+                {runtimeBlocked.map((c) => (
+                  <li key={c.id}>
+                    <strong>{c.label}</strong>
+                    {c.detail ? ` · ${c.detail}` : ''}
+                    {c.hint ? ` — ${c.hint}` : ''}
+                  </li>
+                ))}
+              </ul>
+              <div className="settings-cwd-guide-actions">
+                <Link className="btn-primary btn-sm" href="/runtimes" data-testid="settings-open-runtimes">
+                  打开运行时探测
+                </Link>
+                <Link className="btn-ghost btn-sm" href="/agents" data-testid="settings-open-agents">
+                  查看智能体
+                </Link>
+              </div>
+              <div className="settings-cwd-recovery-links" data-testid="settings-runtime-recovery">
+                <span className="text-dim text-sm">修好后：</span>
+                <Link
+                  className="btn-secondary btn-sm"
+                  href="/agents?ready=runtime_missing"
+                  data-testid="settings-runtime-to-agents"
+                >
+                  runtime 缺失智能体
+                </Link>
+                <Link
+                  className="btn-ghost btn-sm"
+                  href="/runs?status=failed"
+                  data-testid="settings-runtime-to-failed-runs"
+                >
+                  失败运行
+                </Link>
+                <Link
+                  className="btn-ghost btn-sm"
+                  href="/inbox?kind=run_failed&read=unread"
+                  data-testid="settings-runtime-to-inbox"
+                >
+                  Inbox 失败
+                </Link>
+              </div>
+            </section>
+          ) : null}
         </section>
       ) : null}
 
-      {runtimeBlocked.length > 0 ? (
-        <section
-          className="settings-runtime-guide"
-          data-testid="settings-runtime-guide"
-          aria-label="运行时缺失引导"
-        >
-          <div className="settings-cwd-guide-title">
-            <strong>有运行时 CLI 不可用</strong>
-            <span className="settings-runtime-guide-badge">阻塞执行</span>
-          </div>
-          <p className="text-sm" style={{ marginTop: 0 }}>
-            {runtimeBlocked.map((c) => c.label).join('、')} 探测失败。安装/修复 PATH 后重启 server，再到运行时页确认。
-          </p>
-          <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }}>
-            {runtimeBlocked.map((c) => (
-              <li key={c.id}>
-                <strong>{c.label}</strong>
-                {c.detail ? ` · ${c.detail}` : ''}
-                {c.hint ? ` — ${c.hint}` : ''}
-              </li>
-            ))}
-          </ul>
-          <div className="settings-cwd-guide-actions">
-            <Link className="btn-primary btn-sm" href="/runtimes" data-testid="settings-open-runtimes">
-              打开运行时探测
-            </Link>
-            <Link className="btn-ghost btn-sm" href="/agents" data-testid="settings-open-agents">
-              查看智能体
-            </Link>
-          </div>
-          <div className="settings-cwd-recovery-links" data-testid="settings-runtime-recovery">
-            <span className="text-dim text-sm">修好后：</span>
-            <Link
-              className="btn-secondary btn-sm"
-              href="/agents?ready=runtime_missing"
-              data-testid="settings-runtime-to-agents"
-            >
-              runtime 缺失智能体
-            </Link>
-            <Link
-              className="btn-ghost btn-sm"
-              href="/runs?status=failed"
-              data-testid="settings-runtime-to-failed-runs"
-            >
-              失败运行
-            </Link>
-            <Link
-              className="btn-ghost btn-sm"
-              href="/inbox?kind=run_failed&read=unread"
-              data-testid="settings-runtime-to-inbox"
-            >
-              Inbox 失败
-            </Link>
-          </div>
-        </section>
-      ) : null}
+      <section className="settings-section" data-testid="settings-health-section">
+        <div className="settings-section-head">
+          <h2 className="settings-section-title">健康摘要</h2>
+          <p className="settings-section-desc">记忆 · Wiki · 自动化 · 运行</p>
+        </div>
 
       {/* 记忆层健康（settings-memory-health） */}
       {data.memoryHealth ? (
         <section
-          className="settings-ops-recovery"
+          className="settings-card settings-ops-recovery"
           data-testid="settings-memory-health"
           aria-label="记忆层健康"
         >
@@ -487,7 +511,7 @@ export function SettingsPage() {
       {/* Wiki / 自动化健康摘要（settings-wiki-auto-health） */}
       {data.wikiHealth || data.automationHealth ? (
         <section
-          className="settings-ops-recovery"
+          className="settings-card settings-ops-recovery"
           data-testid="settings-wiki-auto-health"
           aria-label="Wiki 与自动化健康"
         >
@@ -578,7 +602,7 @@ export function SettingsPage() {
       {/* 运行健康：在途 + 心跳/排队收尸阈值（settings-run-health） */}
       {data.runHealth ? (
         <section
-          className="settings-ops-recovery"
+          className="settings-card settings-ops-recovery"
           data-testid="settings-run-health"
           aria-label="运行健康"
         >
@@ -650,10 +674,16 @@ export function SettingsPage() {
           </div>
         </section>
       ) : null}
+      </section>
 
       {/* 常驻运营回跳：不依赖阻塞态，方便从诊断页跳失败闭环 */}
+      <section className="settings-section" data-testid="settings-ops-section">
+        <div className="settings-section-head">
+          <h2 className="settings-section-title">运营与诊断</h2>
+          <p className="settings-section-desc">失败闭环 · env 片段 · 检查项</p>
+        </div>
       <section
-        className="settings-ops-recovery"
+        className="settings-card settings-ops-recovery"
         data-testid="settings-ops-recovery"
         aria-label="运营恢复入口"
       >
@@ -698,7 +728,7 @@ export function SettingsPage() {
       </section>
 
       <section
-        className={`settings-env-snippet${cwdBlocked || wikiLlmBlocked || runtimeBlocked.length > 0 ? ' settings-env-snippet--warn' : ''}`}
+        className={`settings-card settings-env-snippet${cwdBlocked || wikiLlmBlocked || runtimeBlocked.length > 0 ? ' settings-env-snippet--warn' : ''}`}
         data-testid="settings-env-snippet"
       >
         <div className="settings-env-snippet-head">
@@ -722,7 +752,7 @@ export function SettingsPage() {
         </pre>
       </section>
 
-      <ul className="settings-check-list" aria-label="诊断项">
+      <ul className="settings-check-list settings-card" aria-label="诊断项">
         {sortedChecks.map((check) => (
           <li
             key={check.id}
@@ -757,6 +787,8 @@ export function SettingsPage() {
         <code>MA_WORKSPACE_CWD</code>、<code>WIKI_LLM_API_KEY</code>
         ）。不在此写入密钥或 env。
       </p>
+      </section>
+      </div>
     </div>
   );
 }

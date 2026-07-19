@@ -11,6 +11,7 @@ import {
   useDeleteMemoryMany,
   useSettingsStatus,
 } from '@/lib/api';
+import { Icon } from './Icon';
 
 function inferKind(text: string): 'curated' | 'ambient' | 'other' {
   const t = text.trim();
@@ -150,16 +151,17 @@ function MemoryPageInner() {
   }
 
   return (
-    <div className="page-container" data-testid="memory-page">
+    <div className="page-container collection-page" data-testid="memory-page">
       <div className="page-header">
         <div>
-          <div className="page-title">
-            记忆 <span className="count">{data?.length ?? 0}</span>
-          </div>
-          <div className="page-desc">
-            工作区经验记忆（curated + ambient）。搜索同步 URL（?q=）。provider：
-            {statusLabel}
-          </div>
+          <Icon name="memory" size={16} className="page-header-icon" />
+          <h1 className="page-title">
+            记忆
+            <span className="count">{data?.length ?? 0}</span>
+          </h1>
+          <p className="page-desc">
+            curated + ambient · provider {statusLabel}
+          </p>
         </div>
         <div className="page-actions">
           <Link href="/" className="btn-ghost btn-sm" data-testid="memory-to-board">
@@ -174,6 +176,7 @@ function MemoryPageInner() {
         </div>
       </div>
 
+      <div className="page-body">
       {showUnavailable ? (
         <div className="wiki-ops-banner" role="status" data-testid="memory-unavailable-banner">
           <div className="wiki-ops-banner-main">
@@ -194,7 +197,7 @@ function MemoryPageInner() {
         </div>
       ) : null}
 
-      <div className="memory-create">
+      <div className="memory-create surface-card">
         <textarea
           className="memory-textarea"
           rows={3}
@@ -215,7 +218,7 @@ function MemoryPageInner() {
           )}
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             data-testid="memory-create-submit"
             onClick={() => void handleCreate()}
             disabled={create.isPending || !draft.trim() || showUnavailable}
@@ -225,7 +228,7 @@ function MemoryPageInner() {
         </div>
       </div>
 
-      <div className="memory-toolbar">
+      <div className="memory-toolbar collection-toolbar">
         <div className="table-search memory-search-wrap">
           <input
             type="search"
@@ -560,6 +563,7 @@ function MemoryPageInner() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

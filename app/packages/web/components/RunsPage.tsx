@@ -169,16 +169,17 @@ function RunsPageInner() {
   }, [status, visibleRuns]);
 
   return (
-    <div className="page-container" data-testid="runs-page" data-status={status || 'all'}>
+    <div className="page-container collection-page" data-testid="runs-page" data-status={status || 'all'}>
       <div className="page-header">
         <div>
-          <div className="page-title">
-            <Icon name="usage" size={18} /> 运行{' '}
+          <Icon name="usage" size={16} className="page-header-icon" />
+          <h1 className="page-title">
+            运行
             <span className="count">{visibleRuns?.length ?? 0}</span>
-          </div>
-          <div className="page-desc">
-            筛选同步 URL（可分享）；status=active 为 queued+running 在途列表。
-          </div>
+          </h1>
+          <p className="page-desc">
+            URL 可分享筛选 · active = queued+running
+          </p>
         </div>
         <div className="page-actions runs-page-actions">
           {status === 'failed' ? (
@@ -233,12 +234,13 @@ function RunsPageInner() {
                 : `取消在途 · ${activeVisibleIds.length}`}
             </button>
           ) : null}
-          <button type="button" className="btn-secondary" onClick={() => refetch()} disabled={isFetching}>
+          <button type="button" className="btn-secondary btn-sm" onClick={() => refetch()} disabled={isFetching}>
             刷新
           </button>
         </div>
       </div>
 
+      <div className="page-body">
       {status === 'failed' && (visibleRuns?.length ?? 0) > 0 ? (
         <div className="fail-recovery-banner" data-testid="runs-fail-recovery" role="status">
           <div className="fail-recovery-banner-text">
@@ -327,7 +329,7 @@ function RunsPageInner() {
         </div>
       ) : null}
 
-      <div className="runs-filters">
+      <div className="runs-filters collection-toolbar">
         <label>
           状态
           <select
@@ -683,6 +685,7 @@ function RunsPageInner() {
           </table>
         </div>
       )}
+      </div>
     </div>
   );
 }
