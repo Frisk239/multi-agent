@@ -50,17 +50,24 @@ export async function runRoutes(app: FastifyInstance) {
   // GET /api/runs/active-count —— 侧栏「运行」角标（须在 :runId 前注册）
   app.get('/api/runs/active-count', async (): Promise<RunsActiveCount> => {
     const rows = db
-      .select({ status: agentRuns.status })
+      .select({ status: agentRuns.status, agentId: agentRuns.agentId })
       .from(agentRuns)
       .where(inArray(agentRuns.status, [...ACTIVE_STATUSES]))
       .all();
     let queued = 0;
     let running = 0;
+    const agents = new Set<string>();
     for (const r of rows) {
       if (r.status === 'queued') queued += 1;
       else if (r.status === 'running') running += 1;
+      if (r.agentId) agents.add(r.agentId);
     }
-    return { count: queued + running, queued, running };
+    return {
+      count: queued + running,
+      queued,
+      running,
+      agentsWorking: agents.size,
+    };
   });
 
   // POST /api/runs/recover-stuck —— 运维：立即收尸 orphan/stale/missing-agent（须在 :runId 前）

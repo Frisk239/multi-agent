@@ -89,11 +89,13 @@ export const ListRunsQuery = z.object({
 });
 export type ListRunsQuery = z.infer<typeof ListRunsQuery>;
 
-// GET /api/runs/active-count —— 侧栏「运行」角标
+// GET /api/runs/active-count —— 侧栏「运行」角标 + agents-working-banner
 export const RunsActiveCount = z.object({
   count: z.number().int(),
   queued: z.number().int(),
   running: z.number().int(),
+  /** 有 queued|running run 的去重 agent 数（Multica「N 个智能体工作中」） */
+  agentsWorking: z.number().int().nonnegative().default(0),
 });
 export type RunsActiveCount = z.infer<typeof RunsActiveCount>;
 

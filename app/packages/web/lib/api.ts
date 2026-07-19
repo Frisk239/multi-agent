@@ -212,14 +212,30 @@ export function useInboxUnreadCount() {
   });
 }
 
-// GET /api/runs/active-count —— 侧栏「运行」在途角标
+// GET /api/runs/active-count —— 侧栏「运行」在途角标 + agentsWorking
 export function useRunsActiveCount() {
-  return useQuery<{ count: number; queued: number; running: number }>({
+  return useQuery<{
+    count: number;
+    queued: number;
+    running: number;
+    agentsWorking: number;
+  }>({
     queryKey: ['runs-active-count'],
     queryFn: async () => {
       const res = await fetch(`${API}/runs/active-count`);
       if (!res.ok) throw new Error(await apiError(res, '加载活跃运行数失败'));
-      return res.json();
+      const data = (await res.json()) as {
+        count: number;
+        queued: number;
+        running: number;
+        agentsWorking?: number;
+      };
+      return {
+        count: data.count,
+        queued: data.queued,
+        running: data.running,
+        agentsWorking: data.agentsWorking ?? 0,
+      };
     },
     refetchInterval: 15_000,
   });

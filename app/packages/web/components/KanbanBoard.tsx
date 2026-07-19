@@ -17,6 +17,7 @@ import {
 import { KanbanColumn } from './KanbanColumn';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
+import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -334,6 +335,7 @@ function KanbanBoardInner() {
       data-visible-count={visibleCount}
       data-testid="kanban-board"
     >
+      <AgentsWorkingBanner />
       <div className="kanban-toolbar">
         <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
           <NewIssueForm />
