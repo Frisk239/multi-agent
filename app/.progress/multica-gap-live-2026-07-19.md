@@ -102,7 +102,7 @@
 |---|---|---|---|
 | G9 | **Chat 会话**（人↔指定 agent，持久消息） | P0 → ✅ MVP | `agent-chat`（2026-07-19；Helper/流式仍弱） |
 | G10 | **Helper 侧栏**（可先绑固定 agent + 离线队列提示） | P1 | `helper-rail` |
-| G11 | Agent **私信入口**与 Chat 打通 | P1 | 随 G9 |
+| G11 | Agent **私信入口**与 Chat 打通 | P1 → ✅ | `agent-work-dashboard` 侧栏私信（2026-07-19） |
 
 **源码提示：** Multica chat 与 task 队列分离；Helper 是特殊 agent。本仓可用现有 run/quick_create 做「发一条即 enqueue」MVP，消息落 comment 或独立 chat_message 表。
 
@@ -128,7 +128,7 @@
 
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
-| G12 | Agent 详情 **工作历史 + 成功率仪表** | P1 | `agent-work-dashboard` |
+| G12 | Agent 详情 **工作历史 + 成功率仪表** | P1 → ✅ | `agent-work-dashboard`（2026-07-19） |
 | G13 | Agent **能力/设置** Tab 与 Skills 绑定可视化 | P2 | `agent-capability-tabs` |
 | G14 | Runtime 文案分层：本机 CLI vs（可选）远程机器 | P3 | docs + UI 命名，避免用户误解 |
 

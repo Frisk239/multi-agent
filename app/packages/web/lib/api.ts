@@ -12,6 +12,7 @@ import type {
   AgentSummary,
   AgentDetail,
   AgentReadiness,
+  AgentWorkStats,
   CreateAgentInput,
   UpdateAgentInput,
   CreateSquadInput,
@@ -907,6 +908,22 @@ export function useAgentRuns(agentId: string, limit = 20) {
       return res.json();
     },
     enabled: !!agentId,
+  });
+}
+
+export function useAgentWorkStats(agentId: string, days: number | 'all' = 30) {
+  const daysKey = days === 'all' ? 'all' : String(days);
+  return useQuery<AgentWorkStats>({
+    queryKey: ['agent-work-stats', agentId, daysKey],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API}/agents/${encodeURIComponent(agentId)}/work-stats?days=${encodeURIComponent(daysKey)}`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载工作统计失败'));
+      return res.json();
+    },
+    enabled: !!agentId,
+    staleTime: 15_000,
   });
 }
 

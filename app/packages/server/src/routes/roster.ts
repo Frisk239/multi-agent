@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import {
   CreateAgentInput,
   CreateSquadInput,
   UpdateAgentInput,
   UpdateSquadInput,
+  type AgentWorkStats,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
 import { agents, agentRuns, issues, squadMembers, squads } from '../db/schema.js';
@@ -177,6 +178,73 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .limit(limit)
       .all();
     return rows.map(toAgentRun);
+  });
+
+  // G12：GET /api/agents/:id/work-stats?days=30
+  app.get('/api/agents/:id/work-stats', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const agent = db.select().from(agents).where(eq(agents.id, id)).get();
+    if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+
+    const q = req.query as { days?: string };
+    let windowDays: number | null = 30;
+    if (q.days === 'all' || q.days === '0') {
+      windowDays = null;
+    } else if (q.days != null && q.days !== '') {
+      const n = Number(q.days);
+      if (Number.isFinite(n) && n > 0) windowDays = Math.min(Math.floor(n), 365);
+    }
+
+    const sinceMs =
+      windowDays == null ? null : Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    const rows =
+      sinceMs == null
+        ? db.select().from(agentRuns).where(eq(agentRuns.agentId, id)).all()
+        : db
+            .select()
+            .from(agentRuns)
+            .where(and(eq(agentRuns.agentId, id), gte(agentRuns.createdAt, sinceMs)))
+            .all();
+
+    let completed = 0;
+    let failed = 0;
+    let cancelled = 0;
+    let active = 0;
+    let durationSum = 0;
+    let durationN = 0;
+    let lastRunAtMs: number | null = null;
+
+    for (const r of rows) {
+      if (lastRunAtMs == null || r.createdAt > lastRunAtMs) lastRunAtMs = r.createdAt;
+      if (r.status === 'completed') {
+        completed += 1;
+        if (r.startedAt != null && r.finishedAt != null && r.finishedAt >= r.startedAt) {
+          durationSum += r.finishedAt - r.startedAt;
+          durationN += 1;
+        }
+      } else if (r.status === 'failed') {
+        failed += 1;
+      } else if (r.status === 'cancelled') {
+        cancelled += 1;
+      } else if (r.status === 'queued' || r.status === 'running') {
+        active += 1;
+      }
+    }
+
+    const terminal = completed + failed;
+    const stats: AgentWorkStats = {
+      agentId: id,
+      windowDays,
+      total: rows.length,
+      completed,
+      failed,
+      cancelled,
+      active,
+      successRate: terminal > 0 ? completed / terminal : null,
+      avgDurationMs: durationN > 0 ? Math.round(durationSum / durationN) : null,
+      lastRunAt: lastRunAtMs != null ? new Date(lastRunAtMs).toISOString() : null,
+    };
+    return stats;
   });
 
   // —— Squads ——

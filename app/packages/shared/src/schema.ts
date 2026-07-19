@@ -546,6 +546,25 @@ export const AgentReadiness = z.object({
 });
 export type AgentReadiness = z.infer<typeof AgentReadiness>;
 
+/** GET /api/agents/:id/work-stats —— 近窗工作仪表（G12 agent-work-dashboard） */
+export const AgentWorkStats = z.object({
+  agentId: BusinessId,
+  /** 统计窗口天数（createdAt 起算）；null 表示全量 */
+  windowDays: z.number().int().positive().nullable(),
+  total: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  cancelled: z.number().int().nonnegative(),
+  active: z.number().int().nonnegative(),
+  /** completed / (completed+failed)；无终态样本时 null */
+  successRate: z.number().min(0).max(1).nullable(),
+  /** 有 startedAt+finishedAt 的 completed 平均耗时 ms */
+  avgDurationMs: z.number().nonnegative().nullable(),
+  /** 最近一次 run 创建时间 ISO；无 run 时 null */
+  lastRunAt: z.string().datetime().nullable(),
+});
+export type AgentWorkStats = z.infer<typeof AgentWorkStats>;
+
 /** GET /api/agents/readiness?ids=a,b 或 POST body {ids} */
 export const AgentsReadinessMap = z.record(BusinessId, AgentReadiness.nullable());
 export type AgentsReadinessMap = z.infer<typeof AgentsReadinessMap>;

@@ -8,6 +8,8 @@ import {
   useAgent,
   useAgentReadiness,
   useAgentRuns,
+  useAgentWorkStats,
+  useCreateChatThread,
   useDeleteAgent,
   useSkills,
   useAgentSkills,
@@ -19,14 +21,15 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 
-// bu02：profile 可编辑 + readiness；Tabs = runs / skills / mcp / instructions
-type TabId = 'runs' | 'skills' | 'mcp' | 'instructions';
+// bu02 + G12：overview 工作仪表 / runs 历史 / skills / mcp / instructions
+type TabId = 'overview' | 'runs' | 'skills' | 'mcp' | 'instructions';
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'runs', label: 'Runs' },
+  { id: 'overview', label: '概览' },
+  { id: 'runs', label: '工作' },
   { id: 'skills', label: 'Skills' },
   { id: 'mcp', label: 'MCP' },
-  { id: 'instructions', label: '指令' },
+  { id: 'instructions', label: '设置' },
 ];
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
@@ -43,7 +46,8 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const { data: readiness } = useAgentReadiness(agentId);
   const update = useUpdateAgent(agentId);
   const del = useDeleteAgent();
-  const [tab, setTab] = useState<TabId>('runs');
+  const createChat = useCreateChatThread();
+  const [tab, setTab] = useState<TabId>('overview');
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -212,13 +216,38 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           </form>
 
           <div className="profile-section profile-actions-stack">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              data-testid="agent-dm-chat"
+              disabled={createChat.isPending}
+              onClick={() => {
+                createChat.mutate(
+                  { agentId, title: `与 ${agent.name} 的对话` },
+                  {
+                    onSuccess: (t) => {
+                      router.push(`/chat?thread=${encodeURIComponent(t.id)}`);
+                    },
+                  },
+                );
+              }}
+            >
+              {createChat.isPending ? '创建会话…' : '私信'}
+            </button>
             <Link
               href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
               className="btn btn-secondary btn-sm"
               data-testid="agent-to-board-assignee"
               title="看板筛选指派给本智能体的 Issue"
             >
-              看板 · 本智能体 Issue
+              分配工作
+            </Link>
+            <Link
+              href={`/runs?agent=${encodeURIComponent(agentId)}&status=active`}
+              className="btn btn-ghost btn-sm"
+              data-testid="agent-to-active-runs"
+            >
+              在途运行
             </Link>
             <button
               type="button"
@@ -238,6 +267,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 key={t.id}
                 type="button"
                 className={`detail-tab${tab === t.id ? ' active' : ''}`}
+                data-testid={`agent-tab-${t.id}`}
                 onClick={() => setTab(t.id)}
               >
                 {t.label}
@@ -246,6 +276,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           </div>
 
           <div className="detail-tab-content">
+            {tab === 'overview' && (
+              <OverviewTab agentId={agentId} onOpenRuns={() => setTab('runs')} />
+            )}
             {tab === 'runs' && <RunsTab agentId={agentId} />}
             {tab === 'skills' && <SkillsTab agentId={agentId} />}
             {tab === 'mcp' && <McpTab agentId={agentId} />}
@@ -254,6 +287,157 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatDurationMs(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const sec = Math.round(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  if (min < 60) return rem ? `${min}m ${rem}s` : `${min}m`;
+  const hr = Math.floor(min / 60);
+  return `${hr}h ${min % 60}m`;
+}
+
+function OverviewTab({
+  agentId,
+  onOpenRuns,
+}: {
+  agentId: string;
+  onOpenRuns: () => void;
+}) {
+  const { data: stats, isLoading, isError, error } = useAgentWorkStats(agentId, 30);
+  const { data: recent } = useAgentRuns(agentId, 8);
+
+  if (isLoading) return <p className="skill-assign-empty">加载工作概览…</p>;
+  if (isError || !stats) {
+    return (
+      <p className="skill-assign-empty">
+        {error instanceof Error ? error.message : '加载工作统计失败'}
+      </p>
+    );
+  }
+
+  const rateLabel =
+    stats.successRate == null
+      ? '—'
+      : `${Math.round(stats.successRate * 1000) / 10}%`;
+
+  return (
+    <div className="agent-overview" data-testid="agent-overview">
+      <div className="agent-stats-grid" data-testid="agent-work-stats">
+        <div className="agent-stat-card">
+          <div className="agent-stat-label">近 30 天成功率</div>
+          <div className="agent-stat-value" data-testid="agent-stat-success-rate">
+            {rateLabel}
+          </div>
+          <div className="agent-stat-hint text-dim text-sm">
+            completed {stats.completed} · failed {stats.failed}
+          </div>
+        </div>
+        <div className="agent-stat-card">
+          <div className="agent-stat-label">平均耗时</div>
+          <div className="agent-stat-value" data-testid="agent-stat-avg-duration">
+            {formatDurationMs(stats.avgDurationMs)}
+          </div>
+          <div className="agent-stat-hint text-dim text-sm">仅 completed 且有起止时间</div>
+        </div>
+        <div className="agent-stat-card">
+          <div className="agent-stat-label">运行次数</div>
+          <div className="agent-stat-value" data-testid="agent-stat-total">
+            {stats.total}
+          </div>
+          <div className="agent-stat-hint text-dim text-sm">
+            在途 {stats.active} · 取消 {stats.cancelled}
+          </div>
+        </div>
+        <div className="agent-stat-card">
+          <div className="agent-stat-label">最近活动</div>
+          <div className="agent-stat-value agent-stat-value--sm" data-testid="agent-stat-last-run">
+            {stats.lastRunAt ? new Date(stats.lastRunAt).toLocaleString() : '—'}
+          </div>
+          <div className="agent-stat-hint text-dim text-sm">按 run 创建时间</div>
+        </div>
+      </div>
+
+      <div className="agent-overview-section">
+        <div className="agent-overview-section-head">
+          <h3 className="agent-overview-title">最近工作</h3>
+          <div className="agent-overview-actions">
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              data-testid="agent-overview-open-runs"
+              onClick={onOpenRuns}
+            >
+              全部工作
+            </button>
+            <Link
+              href={`/runs?agent=${encodeURIComponent(agentId)}`}
+              className="btn-secondary btn-sm"
+              data-testid="agent-overview-workspace-runs"
+            >
+              工作区运行
+            </Link>
+          </div>
+        </div>
+        {!recent || recent.length === 0 ? (
+          <p className="skill-assign-empty" data-testid="agent-overview-empty">
+            暂无运行。可「分配工作」或从看板指派。
+          </p>
+        ) : (
+          <div className="data-table-wrap">
+            <table className="data-table" data-testid="agent-overview-recent">
+              <thead>
+                <tr>
+                  <th>状态</th>
+                  <th>类型</th>
+                  <th>Issue</th>
+                  <th>耗时</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map((r) => {
+                  let dur: number | null = null;
+                  if (r.startedAt && r.finishedAt) {
+                    const a = new Date(r.startedAt).getTime();
+                    const b = new Date(r.finishedAt).getTime();
+                    if (Number.isFinite(a) && Number.isFinite(b) && b >= a) dur = b - a;
+                  }
+                  return (
+                    <tr key={r.id} data-run-id={r.id}>
+                      <td>
+                        <span className={`run-pill run-pill--${r.status}`}>{r.status}</span>
+                      </td>
+                      <td>
+                        <code>{r.kind}</code>
+                      </td>
+                      <td>
+                        {r.issueId ? (
+                          <Link href={`/issues/${r.issueId}`}>
+                            <code>{r.issueId.slice(0, 8)}…</code>
+                          </Link>
+                        ) : (
+                          <span className="text-dim">—</span>
+                        )}
+                      </td>
+                      <td className="text-dim text-sm">{formatDurationMs(dur)}</td>
+                      <td className="text-dim text-sm">
+                        {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -347,7 +531,7 @@ function RunsTab({ agentId }: { agentId: string }) {
                   </Link>
                 </td>
                 <td>
-                  <code>{r.kind === 'quick_create' ? 'quick_create' : 'issue'}</code>
+                  <code>{r.kind}</code>
                 </td>
                 <td>
                   {r.issueId ? (

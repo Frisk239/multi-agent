@@ -26,12 +26,17 @@ export function ChatPage() {
   const createThread = useCreateChatThread();
   const postMessage = usePostChatMessage(threadId || undefined);
 
+  const agentFromUrl = searchParams.get('agent') ?? '';
   const [agentId, setAgentId] = useState('');
   const [draft, setDraft] = useState('');
 
   useEffect(() => {
+    if (agentFromUrl && agents.some((a) => a.id === agentFromUrl)) {
+      setAgentId(agentFromUrl);
+      return;
+    }
     if (!agentId && agents[0]?.id) setAgentId(agents[0].id);
-  }, [agents, agentId]);
+  }, [agents, agentId, agentFromUrl]);
 
   const selectedThread = useMemo(
     () => threads.find((t) => t.id === threadId) ?? null,
