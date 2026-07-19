@@ -1,3 +1,7 @@
+// 最先加载本地 .env（WIKI_LLM_* 等；文件 gitignore，见 .env.example）
+import { loadLocalEnv } from './load-env.js';
+loadLocalEnv();
+
 import { buildApp } from './app.js';
 import { startRunWorker } from './orchestration/run-worker.js';
 import {

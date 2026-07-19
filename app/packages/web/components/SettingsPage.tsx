@@ -98,7 +98,8 @@ export function SettingsPage() {
   }, [data, cwdDraftReady]);
 
   const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
-  const wikiExportLine = 'export WIKI_LLM_API_KEY=""  # required for wiki ingest/query/lint';
+  const wikiExportLine =
+    'export WIKI_LLM_API_KEY=""  # or put in app/packages/server/.env (gitignored)';
 
   async function copyEnv() {
     try {
