@@ -21,10 +21,12 @@ export const workspaces = sqliteTable('workspace', {
 });
 
 // —— user（spec §3.1，单行林远）——
+// user-profile-brief：about 注入 agent prompt（非密钥）
 export const users = sqliteTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email'),
+  about: text('about').notNull().default(''),
   createdAt: integer('created_at').notNull(),
 });
 

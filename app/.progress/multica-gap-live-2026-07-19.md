@@ -169,7 +169,7 @@
 
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
-| G18 | 用户 **About/偏好** 注入 agent prompt | P2 | `user-profile-brief` |
+| G18 | 用户 **About/偏好** 注入 agent prompt | P2 → ✅ | `user-profile-brief`（2026-07-19） |
 | G19 | 本地 **API Token**（给 CLI `ma` 用，可选） | P3 | `local-api-token` |
 | G20 | 工作区「代码仓库」路径展示（可与 cwd 合并叙事） | P2 | settings 文案整合 |
 
@@ -229,8 +229,8 @@
 | 维度 | 判断 |
 |---|---|
 | 本地主航道日用（派活/看板/run/wiki/memory/settings） | **仍成立** |
-| 与 **真站 Multica 产品壳** 的体验对齐 | **未完成** — 最大洞在 **Chat/Helper、Inbox 三栏、用量、项目、Issue 详情作业面** |
-| 下一阶段目标建议 | 以本表 G7→G17 为路线，**一切片一路径**，继续 Playwright 关刀 |
+| 与 **真站 Multica 产品壳** 的体验对齐 | **大幅收窄** — Chat/Helper/Inbox/用量/项目/子 issue/订阅/PR 链接/能力 Tab 等已 MVP；剩余 G14/G19/G20 等 P3 |
+| 下一阶段目标建议 | 可选打磨 G14 runtime 文案、G19 local token、密度/空态；主航道已可用 |
 
 ---
 

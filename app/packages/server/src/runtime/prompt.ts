@@ -1,11 +1,12 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { issues, comments, agentSkills, agents, agentRuns } from '../db/schema.js';
+import { issues, comments, agentSkills, agents, agentRuns, users } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
 import { memoryManager } from '../memory/manager.js';
 import { buildQuickCreatePrompt } from './quick-create-prompt.js';
+import { LOCAL_MEMBER } from '../local-member.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
@@ -120,7 +121,7 @@ export async function buildPrompt(
     }
   }
 
-  // 拼接顺序（S05+S08+S09+S10+bu02）：skill → wiki → memory → agent instructions → briefing → body。
+  // 拼接顺序：skill → wiki → memory → user about → agent instructions → briefing → body。
   // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
@@ -138,6 +139,14 @@ export async function buildPrompt(
     description: issue.description,
   });
   if (memoryBlock) parts.push(memoryBlock);
+
+  // G18：本地用户 About（Settings 可编辑；空则跳过）
+  const localUser = db.select().from(users).where(eq(users.id, LOCAL_MEMBER.id)).get();
+  const about = localUser?.about?.trim();
+  if (about) {
+    const who = localUser?.name?.trim() || LOCAL_MEMBER.name;
+    parts.push(`# About the Human Operator\nName: ${who}\n${about}`);
+  }
 
   // bu02：agent instructions（在 memory 之后、briefing 之前）
   if (run?.agentId) {

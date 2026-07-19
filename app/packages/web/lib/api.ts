@@ -47,6 +47,8 @@ import type {
   CreateProjectInput,
   UpdateProjectInput,
   IssueSubscription,
+  UserProfile,
+  UpdateUserProfileInput,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -1441,6 +1443,38 @@ export function useSettingsStatus() {
       return res.json();
     },
     staleTime: 10_000,
+  });
+}
+
+/** GET /api/profile —— 本地用户 About */
+export function useUserProfile() {
+  return useQuery<UserProfile>({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/profile`);
+      if (!res.ok) throw new Error(await apiError(res, '加载用户资料失败'));
+      return res.json();
+    },
+  });
+}
+
+export function useUpdateUserProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateUserProfileInput) => {
+      const res = await fetch(`${API}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '保存用户资料失败'));
+      return res.json() as Promise<UserProfile>;
+    },
+    onSuccess: (profile) => {
+      qc.setQueryData(['profile'], profile);
+      toastSuccess('已保存「关于你」');
+    },
+    onError: (err) => toastError(errMessage(err, '保存用户资料失败')),
   });
 }
 

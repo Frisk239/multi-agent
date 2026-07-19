@@ -18,6 +18,7 @@ import { labelRoutes } from './routes/labels.js';
 import { chatRoutes } from './routes/chat.js';
 import { usageRoutes } from './routes/usage.js';
 import { projectRoutes } from './routes/projects.js';
+import { profileRoutes } from './routes/profile.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 
@@ -48,6 +49,7 @@ export async function buildApp() {
   await app.register(chatRoutes);
   await app.register(usageRoutes);
   await app.register(projectRoutes);
+  await app.register(profileRoutes);
   await app.register(wsRoutes);
 
   return app;

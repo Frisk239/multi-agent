@@ -6644,3 +6644,37 @@ a.issue-card-run-fail--link:hover {
 .issue-pr-link:hover {
   text-decoration: underline;
 }
+
+/* user-profile-brief */
+.settings-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.settings-profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.settings-profile-about {
+  width: 100%;
+  min-height: 6rem;
+  background: var(--page-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+
+.settings-profile-about:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--focus-ring);
+}

@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentSkills, agents } from '../db/schema.js';
+import { agentSkills, agents, users } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
+import { LOCAL_MEMBER } from '../local-member.js';
 
 // buildQuickCreatePrompt —— 学 Multica buildQuickCreatePrompt 的精简中文版。
 // 目标：无 Issue 时让 agent 用 `ma issue create` 建卡并回链 origin-run。
@@ -38,6 +39,13 @@ export function buildQuickCreatePrompt(opts: {
   const wikiBridge = readManagedBlock();
   if (wikiBridge) {
     parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
+  }
+
+  const localUser = db.select().from(users).where(eq(users.id, LOCAL_MEMBER.id)).get();
+  const about = localUser?.about?.trim();
+  if (about) {
+    const who = localUser?.name?.trim() || LOCAL_MEMBER.name;
+    parts.push(`# About the Human Operator\nName: ${who}\n${about}`);
   }
 
   const agent = db.select().from(agents).where(eq(agents.id, opts.agentId)).get();

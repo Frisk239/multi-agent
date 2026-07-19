@@ -8,6 +8,8 @@ import {
   useRetryAllDeadWikiJobs,
   useSetWorkspaceCwd,
   useSettingsStatus,
+  useUpdateUserProfile,
+  useUserProfile,
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
@@ -73,11 +75,16 @@ function formatAgeMs(ms: number | null | undefined): string {
 export function SettingsPage() {
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
+  const { data: profile } = useUserProfile();
+  const updateProfile = useUpdateUserProfile();
   const recoverStuck = useRecoverStuckRuns();
   const retryAllDeadWiki = useRetryAllDeadWikiJobs();
   const setCwd = useSetWorkspaceCwd();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [profileName, setProfileName] = useState('');
+  const [profileAbout, setProfileAbout] = useState('');
+  const [profileReady, setProfileReady] = useState(false);
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdDraft, setCwdDraft] = useState('');
   const [cwdDraftReady, setCwdDraftReady] = useState(false);
@@ -97,6 +104,20 @@ export function SettingsPage() {
     setCwdDraft(data.cwd?.persistedPath ?? data.cwd?.path ?? 'D:/code/multi-agent');
     setCwdDraftReady(true);
   }, [data, cwdDraftReady]);
+
+  useEffect(() => {
+    if (!profile || profileReady) return;
+    setProfileName(profile.name);
+    setProfileAbout(profile.about ?? '');
+    setProfileReady(true);
+  }, [profile, profileReady]);
+
+  useEffect(() => {
+    if (!profile || !profileReady) return;
+    // 外部刷新后同步（非编辑冲突优先服务端）
+    setProfileName(profile.name);
+    setProfileAbout(profile.about ?? '');
+  }, [profile?.name, profile?.about]);
 
   const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
   const wikiExportLine =
@@ -201,6 +222,66 @@ export function SettingsPage() {
       </div>
 
       <div className="page-body settings-body">
+      <section className="settings-section" data-testid="settings-profile-section">
+        <div className="settings-section-head">
+          <h2 className="settings-section-title">关于你</h2>
+          <p className="settings-section-desc">
+            偏好与自我介绍会注入 agent 执行 prompt（非密钥）
+          </p>
+        </div>
+        <section
+          className="settings-card settings-profile-card"
+          data-testid="settings-profile-card"
+          aria-label="用户资料"
+        >
+          <label className="settings-profile-field">
+            <span>显示名</span>
+            <input
+              type="text"
+              className="input"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              data-testid="settings-profile-name"
+              placeholder="林远"
+            />
+          </label>
+          <label className="settings-profile-field">
+            <span>关于你 / 偏好</span>
+            <textarea
+              className="settings-profile-about"
+              value={profileAbout}
+              onChange={(e) => setProfileAbout(e.target.value)}
+              rows={5}
+              data-testid="settings-profile-about"
+              placeholder="例：偏好 TypeScript、简洁 PR、中文回复；本机路径 D:/code/…"
+            />
+          </label>
+          <p className="text-dim text-sm" style={{ margin: '0 0 8px' }}>
+            {profile?.updatedHint ??
+              '保存后，Issue 派活与快速派活都会在 prompt 中带上此段说明。'}
+          </p>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            data-testid="settings-profile-save"
+            disabled={
+              updateProfile.isPending ||
+              !profileName.trim() ||
+              (profileName === (profile?.name ?? '') &&
+                profileAbout === (profile?.about ?? ''))
+            }
+            onClick={() =>
+              updateProfile.mutate({
+                name: profileName.trim(),
+                about: profileAbout,
+              })
+            }
+          >
+            {updateProfile.isPending ? '保存中…' : '保存资料'}
+          </button>
+        </section>
+      </section>
+
       <section className="settings-section" data-testid="settings-workspace-section">
         <div className="settings-section-head">
           <h2 className="settings-section-title">工作区</h2>

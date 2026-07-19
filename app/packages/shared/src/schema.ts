@@ -1208,6 +1208,25 @@ export const SettingsStatusResponse = z.object({
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
 
+/** GET/PUT /api/profile —— 本地用户 About（注入 agent prompt） */
+export const UserProfile = z.object({
+  id: BusinessId,
+  name: z.string(),
+  email: z.string().nullable(),
+  about: z.string(),
+  updatedHint: z
+    .string()
+    .optional()
+    .describe('可选 UI 提示：会注入到 agent 执行 prompt'),
+});
+export type UserProfile = z.infer<typeof UserProfile>;
+
+export const UpdateUserProfileInput = z.object({
+  name: z.string().min(1).max(80).optional(),
+  about: z.string().max(4000).optional(),
+});
+export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileInput>;
+
 // —— bu05：最小自动化（schedule + run-now）——
 export const AutomationScheduleKind = z.enum(['interval_minutes', 'daily_at']);
 export type AutomationScheduleKind = z.infer<typeof AutomationScheduleKind>;
