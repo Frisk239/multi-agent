@@ -4924,6 +4924,62 @@ button.memory-kind-chip.is-active {
   gap: var(--space-2);
 }
 
+/* G15 Multica Autopilot 模板画廊 */
+.automation-template-gallery {
+  margin-bottom: 16px;
+}
+
+.automation-template-gallery-head {
+  margin-bottom: 10px;
+}
+
+.automation-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.automation-template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  min-height: 96px;
+}
+
+.automation-template-card:hover {
+  background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface-border));
+}
+
+.automation-template-card-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.automation-template-card-summary {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.automation-template-card-meta {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
 .automation-toggle {
   display: inline-flex;
   align-items: center;

@@ -4,7 +4,9 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+  AUTOMATION_PRESETS,
   renderAutomationTemplate,
+  type AutomationPreset,
   type AutomationRule,
   type AutomationScheduleKind,
   type CreateAutomationRuleInput,
@@ -207,6 +209,37 @@ function AutomationPageInner() {
     setOpen(false);
   }
 
+  /** Multica 模板画廊：点卡片 → 预填表单（仍须选手动指派后创建） */
+  function applyPreset(preset: AutomationPreset | null) {
+    if (!preset) {
+      resetForm();
+      setOpen(true);
+      return;
+    }
+    setName(preset.name);
+    setScheduleKind(preset.scheduleKind);
+    if (preset.scheduleKind === 'interval_minutes') {
+      const n = preset.intervalMinutes;
+      setIntervalMinutes(
+        n === 5 || n === 15 || n === 30 || n === 60 ? n : 30,
+      );
+      setDailyTime('09:00');
+    } else {
+      setDailyTime(preset.dailyTime ?? '09:00');
+      setIntervalMinutes(15);
+    }
+    setTitleTemplate(preset.titleTemplate);
+    setBodyTemplate(preset.bodyTemplate);
+    // 保留已选 assignee（若有）；默认第一个 agent
+    setAssigneeValue((prev) => {
+      if (prev) return prev;
+      if (agents[0]?.id) return `agent:${agents[0].id}`;
+      if (squads[0]?.id) return `squad:${squads[0].id}`;
+      return '';
+    });
+    setOpen(true);
+  }
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !assigneeValue || !titleTemplate.trim()) return;
@@ -350,18 +383,17 @@ function AutomationPageInner() {
   }
 
   return (
-    <div className="page-container automation-page" data-testid="automation-page">
+    <div className="page-container automation-page collection-page" data-testid="automation-page">
       <div className="page-header">
         <div>
-          <div className="page-title">
-            自动化{' '}
+          <Icon name="automation" size={16} className="page-header-icon" />
+          <h1 className="page-title">
+            自动化
             <span className="count" data-testid="automation-visible-count">
               {hasActiveFilters ? `${visible.length}/${rules.length}` : rules.length}
             </span>
-          </div>
-          <div className="page-desc">
-            按间隔或每日时刻自动建 Issue 并指派；列表展示下次计划时刻
-          </div>
+          </h1>
+          <p className="page-desc">定时建 Issue 并指派 · 模板冷启动</p>
         </div>
         <div className="page-actions">
           <Link
@@ -382,16 +414,55 @@ function AutomationPageInner() {
           </button>
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => setOpen((v) => !v)}
+            className="btn btn-primary btn-sm"
+            data-testid="automation-new-blank"
+            onClick={() => {
+              if (open) setOpen(false);
+              else applyPreset(null);
+            }}
           >
-            {open ? '收起' : '新建规则'}
+            {open ? '收起' : '从空白开始'}
           </button>
         </div>
       </div>
 
+      <div className="page-body">
+      {/* Multica 风格模板画廊：有规则时也可折叠使用；默认空态突出 */}
+      <section
+        className="automation-template-gallery"
+        data-testid="automation-template-gallery"
+        aria-label="自动化模板"
+      >
+        <div className="automation-template-gallery-head">
+          <h2 className="settings-section-title">从模板开始</h2>
+          <p className="settings-section-desc">
+            对齐 Multica Autopilot 画廊；点卡片预填规则（webhook 不做）
+          </p>
+        </div>
+        <div className="automation-template-grid">
+          {AUTOMATION_PRESETS.map((tpl) => (
+            <button
+              key={tpl.id}
+              type="button"
+              className="automation-template-card"
+              data-testid={`automation-preset-${tpl.id}`}
+              data-preset={tpl.id}
+              onClick={() => applyPreset(tpl)}
+            >
+              <div className="automation-template-card-title">{tpl.title}</div>
+              <div className="automation-template-card-summary">{tpl.summary}</div>
+              <div className="automation-template-card-meta text-dim text-sm">
+                {tpl.scheduleKind === 'daily_at'
+                  ? `每天 ${tpl.dailyTime}`
+                  : `每 ${tpl.intervalMinutes} 分钟`}
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {open && (
-        <form className="ops-form" onSubmit={submit}>
+        <form className="ops-form surface-card" onSubmit={submit} data-testid="automation-create-form">
           <div className="ops-form-grid">
             <label className="ops-field">
               <span>名称</span>
@@ -540,7 +611,7 @@ function AutomationPageInner() {
       {rules.length === 0 ? (
         <EmptyState
           title="还没有自动化规则"
-          description="新建一条规则：按间隔或每日时刻自动建 Issue，也可随时「立即执行」。"
+          description="从上方模板一键预填，或从空白开始；创建后可「立即执行」。"
           action={
             <div className="automation-empty-actions" data-testid="automation-empty-actions">
               {!open ? (
@@ -548,9 +619,9 @@ function AutomationPageInner() {
                   type="button"
                   className="btn btn-primary"
                   data-testid="automation-empty-create"
-                  onClick={() => setOpen(true)}
+                  onClick={() => applyPreset(null)}
                 >
-                  新建规则
+                  从空白开始
                 </button>
               ) : null}
               <Link href="/agents" className="btn-secondary btn-sm">
@@ -564,7 +635,7 @@ function AutomationPageInner() {
         />
       ) : (
         <>
-          <div className="agents-filters" data-testid="automation-filters">
+          <div className="agents-filters collection-toolbar" data-testid="automation-filters">
             <div className="table-search memory-search-wrap">
               <input
                 type="search"
@@ -988,6 +1059,7 @@ function AutomationPageInner() {
         <Icon name="automation" size={14} className="nav-icon-svg" />{' '}
         停用后定时 tick 不再触发，「下次计划」显示停用；「立即执行」仍可用。
       </p>
+      </div>
     </div>
   );
 }
