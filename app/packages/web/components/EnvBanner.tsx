@@ -54,7 +54,18 @@ export function EnvBanner() {
 
   const detail =
     kind === 'cwd'
-      ? `${cwd?.detail ?? '未配置 MA_WORKSPACE_CWD'}${cwd?.hint ? ` · ${cwd.hint}` : ''}`
+      ? (() => {
+          const src = data?.cwd?.source;
+          const path = data?.cwd?.path ?? cwd?.detail ?? '未配置工作区路径';
+          const base =
+            src && src !== 'none'
+              ? `${path}（来源 ${src}${data?.cwd?.exists === false ? ' · 路径无效' : ''}）`
+              : path;
+          const hint =
+            cwd?.hint ??
+            '在 Settings 保存工作区绝对路径，或设置 MA_WORKSPACE_CWD';
+          return `${base} · ${hint}`;
+        })()
       : kind === 'wiki_llm'
         ? `${wikiLlm?.detail ?? '未配置 WIKI_LLM_API_KEY'}${wikiLlm?.hint ? ` · ${wikiLlm.hint}` : ''}`
         : runtimeErrors.map((c) => c.label).join('、') + ' 探测失败';
@@ -72,7 +83,7 @@ export function EnvBanner() {
       </div>
       <div className="env-banner-actions" data-testid="env-banner-actions">
         <Link href="/settings" className="env-banner-link" data-testid="env-banner-settings">
-          环境诊断
+          {kind === 'cwd' ? '保存工作区路径' : '环境诊断'}
         </Link>
         {kind === 'cwd' ? (
           <>

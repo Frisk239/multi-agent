@@ -1,13 +1,15 @@
 // S08 AGENTS.md 桥梁（spec §3，学 multica runtime_config.go marker-pair）
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { listWikiPages, readLog } from './store.js';
 
 export const MA_WIKI_BEGIN = '<!-- BEGIN MA-WIKI (auto-managed; do not edit) -->';
 export const MA_WIKI_END = '<!-- END MA-WIKI -->';
 
 export function getAgentsMdPath(): string {
-  const cwd = process.env.MA_WORKSPACE_CWD;
+  // ADR 0003：与 wiki/store 一致
+  const cwd = resolveWorkspaceCwd().path;
   return resolve(cwd && cwd.length > 0 ? cwd : process.cwd(), 'AGENTS.md');
 }
 

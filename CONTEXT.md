@@ -123,13 +123,15 @@
 - **已推：** `settings-wiki-auto-health`（`e91d9c8`）  
 - **上一刀 intake：** `settings-wiki-auto-health` **通过**  
 - **已推：** `workspace-cwd-persist`（`49efb20`）  
-- **本刀：** `wiki-dead-bulk-retry` — Wiki dead 批量重试  
-- **closeout：** `app/.progress/wiki-dead-bulk-retry-impl-1.md`  
+- **已推：** `wiki-dead-bulk-retry`（`63d1c5c`）  
+- **上一刀 intake：** `wiki-dead-bulk-retry` **通过**  
+- **本刀：** `cwd-resolve-unify` — skill/wiki/banner 统一 cwd 解析 + DB 冷读证据  
+- **closeout：** `app/.progress/cwd-resolve-unify-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
-- **判断：** 主航道日常可用；完成态边界 = 密钥 env / daemon 非 1:1  
-- **再下一刀建议：** 人定新北星；或无 env 冷启动 cwd 回归  
+- **判断：** 主航道日常可用；完成态边界 = 密钥 env / daemon 非 1:1 / 无云 webhook  
+- **再下一刀建议：** 人定新北星或收官；运营密度仅为增量  
 
 
 

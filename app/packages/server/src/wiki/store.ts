@@ -3,10 +3,11 @@
 // 照 concepts llm-wiki-pattern.md 的 raw/wiki 三层 + index/log 导航
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 
-// 目录定位（spec §3.6）：照 S05 scanner.ts 的 MA_WORKSPACE_CWD 模式
+// 目录定位（spec §3.6 / ADR 0003）：env > DB root_path > process.cwd()
 export function getWikiDir(): string {
-  const cwd = process.env.MA_WORKSPACE_CWD;
+  const cwd = resolveWorkspaceCwd().path;
   return resolve(cwd && cwd.length > 0 ? cwd : process.cwd(), 'wiki');
 }
 

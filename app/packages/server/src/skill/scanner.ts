@@ -4,6 +4,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
+import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 
 // 内部索引类型（含 body/path）。与 shared 的 SkillInfo（API 响应契约，含 usedBy）不同。
 export interface SkillInfo {
@@ -21,8 +22,8 @@ export function scanSkills(): void {
   const next = new Map<string, SkillInfo>();
   // 用户级先扫（低优先级）
   scanDir(join(homedir(), '.multi-agent', 'skills'), 'user', next);
-  // 项目级后扫（覆盖同名）。R5：用 resolve 确保绝对路径，cwd 长度检查防空串
-  const cwd = process.env.MA_WORKSPACE_CWD;
+  // 项目级后扫（覆盖同名）。ADR 0003：env > DB root_path
+  const cwd = resolveWorkspaceCwd().path;
   if (cwd && cwd.length > 0) scanDir(resolve(cwd, '.skills'), 'project', next);
   skillIndex = next;
 }
