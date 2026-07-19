@@ -46,6 +46,7 @@ import type {
   Project,
   CreateProjectInput,
   UpdateProjectInput,
+  IssueSubscription,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -382,6 +383,39 @@ export function useIssueChildren(issueId: string) {
       return res.json();
     },
     enabled: !!issueId,
+  });
+}
+
+export function useIssueSubscription(issueId: string) {
+  return useQuery<IssueSubscription>({
+    queryKey: ['issue-subscription', issueId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/issues/${issueId}/subscription`);
+      if (!res.ok) throw new Error(await apiError(res, '加载订阅状态失败'));
+      return res.json();
+    },
+    enabled: !!issueId,
+  });
+}
+
+export function useToggleIssueSubscription(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (subscribed: boolean) => {
+      const path = subscribed ? 'unsubscribe' : 'subscribe';
+      const res = await fetch(`${API}/issues/${issueId}/${path}`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(
+          await apiError(res, subscribed ? '取消关注失败' : '关注失败'),
+        );
+      }
+      return res.json() as Promise<IssueSubscription>;
+    },
+    onSuccess: (sub) => {
+      qc.setQueryData(['issue-subscription', issueId], sub);
+      toastSuccess(sub.subscribed ? '已关注此 Issue' : '已取消关注');
+    },
+    onError: (err) => toastError(errMessage(err, '更新关注失败')),
   });
 }
 

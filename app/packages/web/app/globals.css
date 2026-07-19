@@ -6571,3 +6571,39 @@ a.issue-card-run-fail--link:hover {
   color: var(--text-muted);
   margin-bottom: var(--space-2);
 }
+
+/* issue-subscribe */
+.issue-subscribe-btn {
+  margin-left: auto;
+  margin-right: var(--space-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.issue-subscribe-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.issue-subscribe-btn--on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.issue-subscribe-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.issue-status-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

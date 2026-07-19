@@ -38,6 +38,56 @@ export function ensureIssueSubscriber(
     .run();
 }
 
+export function getIssueSubscription(
+  issueId: string,
+  userType: 'member' | 'agent',
+  userId: string,
+): { subscribed: boolean; reason: string | null } {
+  const row = db
+    .select()
+    .from(issueSubscribers)
+    .where(
+      and(
+        eq(issueSubscribers.issueId, issueId),
+        eq(issueSubscribers.userType, userType),
+        eq(issueSubscribers.userId, userId),
+      ),
+    )
+    .get();
+  if (!row) return { subscribed: false, reason: null };
+  return { subscribed: true, reason: row.reason };
+}
+
+/** 取消本地 member 关注；返回是否曾订阅 */
+export function removeIssueSubscriber(
+  issueId: string,
+  userType: 'member' | 'agent',
+  userId: string,
+): boolean {
+  const existing = db
+    .select()
+    .from(issueSubscribers)
+    .where(
+      and(
+        eq(issueSubscribers.issueId, issueId),
+        eq(issueSubscribers.userType, userType),
+        eq(issueSubscribers.userId, userId),
+      ),
+    )
+    .get();
+  if (!existing) return false;
+  db.delete(issueSubscribers)
+    .where(
+      and(
+        eq(issueSubscribers.issueId, issueId),
+        eq(issueSubscribers.userType, userType),
+        eq(issueSubscribers.userId, userId),
+      ),
+    )
+    .run();
+  return true;
+}
+
 export function notifyInbox(opts: {
   type: 'comment' | 'run_completed' | 'run_failed' | 'assigned';
   severity: 'action_required' | 'attention' | 'info';

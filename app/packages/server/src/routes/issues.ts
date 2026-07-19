@@ -31,7 +31,9 @@ import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import {
   ensureIssueSubscriber,
+  getIssueSubscription,
   notifyAssigned,
+  removeIssueSubscriber,
 } from '../orchestration/inbox-writer.js';
 import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
@@ -187,6 +189,46 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       .orderBy(sql`CAST(SUBSTR(${issues.identifier}, 5) AS INTEGER) ASC`)
       .all();
     return issuesWithRelations(rows);
+  });
+
+  // GET /api/issues/:id/subscription —— 本地 member 关注状态
+  app.get('/api/issues/:id/subscription', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    const sub = getIssueSubscription(id, 'member', LOCAL_MEMBER.id);
+    return {
+      issueId: id,
+      subscribed: sub.subscribed,
+      reason: sub.reason,
+    };
+  });
+
+  // POST /api/issues/:id/subscribe —— 关注
+  app.post('/api/issues/:id/subscribe', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'manual');
+    const sub = getIssueSubscription(id, 'member', LOCAL_MEMBER.id);
+    return {
+      issueId: id,
+      subscribed: true,
+      reason: sub.reason,
+    };
+  });
+
+  // POST /api/issues/:id/unsubscribe —— 取消关注
+  app.post('/api/issues/:id/unsubscribe', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    removeIssueSubscriber(id, 'member', LOCAL_MEMBER.id);
+    return {
+      issueId: id,
+      subscribed: false,
+      reason: null,
+    };
   });
 
   // POST /api/issues —— spec §5.2；bu03/bu05：createIssueCore（origin + enqueue）

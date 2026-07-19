@@ -3,7 +3,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
-import { useProjects, useUpdateIssue } from '@/lib/api';
+import {
+  useIssueSubscription,
+  useProjects,
+  useToggleIssueSubscription,
+  useUpdateIssue,
+} from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
 import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { MarkdownBody } from './MarkdownBody';
@@ -33,6 +38,9 @@ const PRIORITY_ZH: Record<Priority, string> = {
 export function IssueHeader({ issue }: { issue: Issue }) {
   const update = useUpdateIssue();
   const { data: projects = [] } = useProjects();
+  const { data: subscription } = useIssueSubscription(issue.id);
+  const toggleSub = useToggleIssueSubscription(issue.id);
+  const subscribed = subscription?.subscribed ?? false;
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(issue.title);
@@ -152,6 +160,21 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             ) : null}
           </span>
         ) : null}
+        <button
+          type="button"
+          className={`issue-subscribe-btn${subscribed ? ' issue-subscribe-btn--on' : ''}`}
+          data-testid="issue-subscribe-btn"
+          data-subscribed={subscribed ? '1' : '0'}
+          disabled={toggleSub.isPending || subscription == null}
+          title={
+            subscribed
+              ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击取消`
+              : '关注后接收此 Issue 相关 Inbox 通知'
+          }
+          onClick={() => toggleSub.mutate(subscribed)}
+        >
+          {subscribed ? '取消关注' : '关注'}
+        </button>
         <span className="issue-status-field">
           <select
             className="status-select"

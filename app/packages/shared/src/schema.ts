@@ -524,6 +524,14 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
   );
 }
 
+/** GET /api/issues/:id/subscription —— 本地 member 是否关注此 issue */
+export const IssueSubscription = z.object({
+  issueId: BusinessId,
+  subscribed: z.boolean(),
+  reason: z.string().nullable(),
+});
+export type IssueSubscription = z.infer<typeof IssueSubscription>;
+
 // —— Comment / Timeline ——
 export const StatusChangeBody = z.object({
   from: IssueStatus,
