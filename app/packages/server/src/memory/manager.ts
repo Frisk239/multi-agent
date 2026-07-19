@@ -197,6 +197,21 @@ export class MemoryManager {
       assistantText: text,
     });
   }
+
+  /** memory-item-delete：委托 provider.deleteById */
+  async deleteById(id: string): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+    if (!id?.trim()) return { ok: false, status: 400, error: 'id 不能为空' };
+    if (!this.external?.isAvailable()) {
+      return { ok: false, status: 503, error: 'memory provider 不可用' };
+    }
+    const del = this.external.deleteById;
+    if (typeof del !== 'function') {
+      return { ok: false, status: 501, error: '当前 provider 不支持删除' };
+    }
+    const removed = await Promise.resolve(del.call(this.external, id.trim()));
+    if (!removed) return { ok: false, status: 404, error: '记忆不存在' };
+    return { ok: true };
+  }
 }
 
 export const memoryManager = new MemoryManager();

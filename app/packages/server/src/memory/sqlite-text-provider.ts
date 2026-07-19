@@ -1,4 +1,4 @@
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { memoryItems } from '../db/schema.js';
 import type {
@@ -134,5 +134,10 @@ export class SqliteTextProvider implements MemoryProvider {
       runId,
       createdAt: new Date(now).toISOString(),
     };
+  }
+
+  deleteById(id: string): boolean {
+    const r = db.delete(memoryItems).where(eq(memoryItems.id, id)).run();
+    return (r.changes ?? 0) > 0;
   }
 }

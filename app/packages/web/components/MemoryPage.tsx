@@ -7,6 +7,7 @@ import {
   useMemoryStatus,
   useMemoryList,
   useCreateMemory,
+  useDeleteMemory,
   useSettingsStatus,
 } from '@/lib/api';
 
@@ -30,9 +31,11 @@ function MemoryPageInner() {
   const [qDraft, setQDraft] = useState(qFromUrl);
   const { data, isFetching, isError, error } = useMemoryList(qFromUrl);
   const create = useCreateMemory();
+  const del = useDeleteMemory();
   const [draft, setDraft] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [copyId, setCopyId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -314,12 +317,13 @@ function MemoryPageInner() {
               <th>Issue</th>
               <th>时间</th>
               <th>id</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   {error instanceof Error ? error.message : '加载失败'}
                   {' · '}
                   <Link href="/settings">打开设置诊断</Link>
@@ -365,12 +369,29 @@ function MemoryPageInner() {
                         <code>{copyId === m.id ? '已复制' : `${m.id.slice(0, 8)}…`}</code>
                       </button>
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        data-testid="memory-delete"
+                        disabled={del.isPending && deletingId === m.id}
+                        onClick={() => {
+                          if (!window.confirm('删除这条记忆？不可恢复。')) return;
+                          setDeletingId(m.id);
+                          del.mutate(m.id, {
+                            onSettled: () => setDeletingId(null),
+                          });
+                        }}
+                      >
+                        {del.isPending && deletingId === m.id ? '删除中…' : '删除'}
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
             {!isError && visibleMemories.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   {isFetching ? (
                     '加载中…'
                   ) : showUnavailable ? (
@@ -434,7 +455,7 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   加载中…
                 </td>
               </tr>

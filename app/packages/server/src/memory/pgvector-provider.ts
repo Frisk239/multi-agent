@@ -195,6 +195,14 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
     };
   }
 
+  async deleteById(id: string): Promise<boolean> {
+    if (!this.isAvailable()) return false;
+    const res = await memoryPgQuery(`DELETE FROM memory_vectors WHERE id = $1`, [id]);
+    // node-pg: rowCount
+    const n = (res as { rowCount?: number | null }).rowCount ?? 0;
+    return n > 0;
+  }
+
   async shutdown(): Promise<void> {
     this.ready = false;
     await closeMemoryPgPool();

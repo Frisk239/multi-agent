@@ -1304,6 +1304,29 @@ export function useCreateMemory() {
   });
 }
 
+/** DELETE /api/memory/:id */
+export function useDeleteMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/memory/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(await apiError(res, '删除记忆失败'));
+      return res.json() as Promise<{ ok: true; id: string }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['memory'] });
+      qc.invalidateQueries({ queryKey: ['settings-status'] });
+      toastSuccess('已删除记忆', {
+        action: { label: '记忆列表', href: '/memory' },
+        durationMs: 5000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '删除记忆失败')),
+  });
+}
+
 // —— bu03 Quick Create hooks ——
 
 export function useCreateQuickRun() {

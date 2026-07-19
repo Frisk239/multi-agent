@@ -2,6 +2,7 @@
 // GET  /api/memory/status  provider + available + backend
 // GET  /api/memory         ?q=&limit= 检索；一律 Manager.search（R8）
 // POST /api/memory         curated 写入 body CreateMemoryInput（R9：依赖 addRaw 返回值）
+// DELETE /api/memory/:id   memory-item-delete
 import type { FastifyInstance } from 'fastify';
 import { CreateMemoryInput } from '@ma/shared';
 import { memoryManager } from '../memory/manager.js';
@@ -42,5 +43,12 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       return reply.status(500).send({ error: String(e) });
     }
+  });
+
+  app.delete('/api/memory/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const res = await memoryManager.deleteById(id);
+    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    return { ok: true, id };
   });
 }

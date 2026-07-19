@@ -64,6 +64,7 @@
 | Wiki dead 批量重试 | ✅ | wiki-dead-bulk-retry |
 | cwd 解析统一（skill/wiki/banner） | ✅ | cwd-resolve-unify |
 | Settings 记忆层健康摘要 | ✅ | settings-memory-health |
+| Memory 单条删除 | ✅ | memory-item-delete |
 	
 ## 仍弱（非完成态原因）
 	

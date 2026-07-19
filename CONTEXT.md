@@ -125,14 +125,15 @@
 - **已推：** `workspace-cwd-persist`（`49efb20`）  
 - **已推：** `wiki-dead-bulk-retry`（`63d1c5c`）  
 - **已推：** `cwd-resolve-unify`（`c21efa8`）  
-- **上一刀 intake：** `cwd-resolve-unify` **通过**  
-- **本刀：** `settings-memory-health` — Settings 记忆层健康摘要  
-- **closeout：** `app/.progress/settings-memory-health-impl-1.md`  
+- **已推：** `settings-memory-health`（`0b0354b`）  
+- **上一刀 intake：** `settings-memory-health` **通过**  
+- **本刀：** `memory-item-delete` — Memory 单条删除（API+UI）  
+- **closeout：** `app/.progress/memory-item-delete-impl-1.md`  
 - **对照：** `app/.progress/multica-gap-2026-07-17.md`  
 - **工程：** main 直推 · 自动迭代 · Playwright 关刀  
 - **北星：** 纯本地 · 对标 Multica  
 - **判断：** 主航道日常可用；完成态边界 = 密钥 env / daemon 非 1:1 / 无云 webhook  
-- **再下一刀建议：** memory 批量运营；或人定收官  
+- **再下一刀建议：** 人定收官；或 memory 批量删除  
 
 
 

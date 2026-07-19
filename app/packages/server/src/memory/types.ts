@@ -36,5 +36,7 @@ export interface MemoryProvider {
     opts?: { sessionId?: string; limit?: number },
   ): MemoryPrefetchResult;
   syncTurn(input: MemorySyncInput): Promise<void>;
+  /** 可选：按 id 删除（memory-item-delete） */
+  deleteById?(id: string): boolean | Promise<boolean>;
   shutdown?(): void | Promise<void>;
 }
