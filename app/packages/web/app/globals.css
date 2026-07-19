@@ -5811,3 +5811,209 @@ a.issue-card-run-fail--link:hover {
   color: var(--color-red);
   min-height: 1em;
 }
+
+/* G10 helper-rail — Multica FloatingChat 本地简化版 */
+.helper-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--floating-shadow);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.helper-fab:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--surface-border));
+  color: var(--accent);
+}
+
+.helper-rail {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  width: min(380px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  box-shadow: var(--floating-shadow);
+  overflow: hidden;
+}
+
+.helper-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.helper-rail-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-width: 0;
+}
+
+.helper-rail-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.helper-rail-agent-row {
+  padding: 8px 12px 0;
+}
+
+.helper-agent-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.helper-agent-select {
+  width: 100%;
+  height: 32px;
+  font-size: var(--text-sm);
+}
+
+.helper-offline-banner {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-orange) 40%, var(--surface-border));
+  background: color-mix(in srgb, var(--color-orange) 10%, var(--surface));
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.helper-offline-banner a {
+  margin-left: 6px;
+}
+
+.helper-rail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.helper-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.helper-empty-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.helper-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.helper-starter-chip {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border);
+  background: var(--page-canvas);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.helper-starter-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface-border));
+  background: var(--surface-hover);
+}
+
+.helper-starter-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.helper-msg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.helper-msg-body {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.helper-msg--user .helper-msg-body {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.helper-msg--assistant .helper-msg-body {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--page-canvas);
+  border: 1px solid var(--border-subtle);
+}
+
+.helper-rail-composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.helper-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--page-canvas);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+
+.helper-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}

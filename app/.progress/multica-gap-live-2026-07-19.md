@@ -101,7 +101,7 @@
 | ID | 缺口 | 优先级 | 建议切片 |
 |---|---|---|---|
 | G9 | **Chat 会话**（人↔指定 agent，持久消息） | P0 → ✅ MVP | `agent-chat`（2026-07-19；Helper/流式仍弱） |
-| G10 | **Helper 侧栏**（可先绑固定 agent + 离线队列提示） | P1 | `helper-rail` |
+| G10 | **Helper 侧栏**（可先绑固定 agent + 离线队列提示） | P1 → ✅ FAB+浮窗 | `helper-rail`（2026-07-19；复用 chat API） |
 | G11 | Agent **私信入口**与 Chat 打通 | P1 → ✅ | `agent-work-dashboard` 侧栏私信（2026-07-19） |
 
 **源码提示：** Multica chat 与 task 队列分离；Helper 是特殊 agent。本仓可用现有 run/quick_create 做「发一条即 enqueue」MVP，消息落 comment 或独立 chat_message 表。

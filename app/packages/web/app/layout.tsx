@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
 import { EnvBanner } from '@/components/EnvBanner';
 import { Sidebar } from '@/components/Sidebar';
+import { HelperRail } from '@/components/HelperRail';
 
 export const metadata: Metadata = {
   title: '毕设 Multi-Agent',
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <EnvBanner />
               <main className="main-content">{children}</main>
             </div>
+            <HelperRail />
           </div>
         </Providers>
       </body>
