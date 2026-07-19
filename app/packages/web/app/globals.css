@@ -6523,3 +6523,51 @@ a.issue-card-run-fail--link:hover {
 .inbox-row--archived .inbox-summary {
   color: var(--text-muted);
 }
+
+/* agent-capability-tabs */
+.agent-capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.agent-cap-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--bg-elevated);
+}
+
+.agent-cap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.agent-cap-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.agent-cap-link {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.agent-cap-link:hover {
+  text-decoration: underline;
+}
+
+.agent-cap-hint {
+  margin: 0 0 var(--space-3);
+}
+
+.skill-assign-summary {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}

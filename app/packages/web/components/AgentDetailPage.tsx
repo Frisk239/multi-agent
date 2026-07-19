@@ -21,15 +21,14 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 
-// bu02 + G12：overview 工作仪表 / runs 历史 / skills / mcp / instructions
-type TabId = 'overview' | 'runs' | 'skills' | 'mcp' | 'instructions';
+// bu02 + G12 + G13：对齐 Multica 概览/工作/能力/设置
+type TabId = 'overview' | 'work' | 'capabilities' | 'settings';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: '概览' },
-  { id: 'runs', label: '工作' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'mcp', label: 'MCP' },
-  { id: 'instructions', label: '设置' },
+  { id: 'work', label: '工作' },
+  { id: 'capabilities', label: '能力' },
+  { id: 'settings', label: '设置' },
 ];
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
@@ -277,12 +276,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
           <div className="detail-tab-content">
             {tab === 'overview' && (
-              <OverviewTab agentId={agentId} onOpenRuns={() => setTab('runs')} />
+              <OverviewTab agentId={agentId} onOpenRuns={() => setTab('work')} />
             )}
-            {tab === 'runs' && <RunsTab agentId={agentId} />}
-            {tab === 'skills' && <SkillsTab agentId={agentId} />}
-            {tab === 'mcp' && <McpTab agentId={agentId} />}
-            {tab === 'instructions' && (
+            {tab === 'work' && <RunsTab agentId={agentId} />}
+            {tab === 'capabilities' && <CapabilitiesTab agentId={agentId} />}
+            {tab === 'settings' && (
               <InstructionsTab agentId={agentId} initial={agent.instructions ?? ''} />
             )}
           </div>
@@ -642,7 +640,36 @@ function InstructionsTab({
   );
 }
 
-// —— Skills Tab：checkbox 分配（spec §9.2）——
+// —— 能力 Tab：Skills + MCP 同屏（G13 / Multica 能力）——
+function CapabilitiesTab({ agentId }: { agentId: string }) {
+  return (
+    <div className="agent-capabilities" data-testid="agent-capabilities">
+      <section className="agent-cap-section" data-testid="agent-cap-skills">
+        <div className="agent-cap-head">
+          <h3 className="agent-cap-title">Skills</h3>
+          <Link href="/skills" className="agent-cap-link">
+            工作区 Skills
+          </Link>
+        </div>
+        <p className="agent-cap-hint text-dim text-sm">
+          勾选后绑定到此智能体；执行时由 runtime/bridge 注入可用 skill 列表。
+        </p>
+        <SkillsTab agentId={agentId} />
+      </section>
+      <section className="agent-cap-section" data-testid="agent-cap-mcp">
+        <div className="agent-cap-head">
+          <h3 className="agent-cap-title">MCP</h3>
+        </div>
+        <p className="agent-cap-hint text-dim text-sm">
+          本机 MCP server 配置（stdio object）。密钥仍只走 env，勿写入 JSON。
+        </p>
+        <McpTab agentId={agentId} />
+      </section>
+    </div>
+  );
+}
+
+// —— Skills：checkbox 分配（spec §9.2）——
 function SkillsTab({ agentId }: { agentId: string }) {
   const { data: allSkills } = useSkills();
   const { data: assigned } = useAgentSkills(agentId);
@@ -668,7 +695,10 @@ function SkillsTab({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div className="skill-assign-list">
+    <div className="skill-assign-list" data-testid="agent-skills-list">
+      <div className="skill-assign-summary" data-testid="agent-skills-summary">
+        已绑定 {assigned.length} / {allSkills.length}
+      </div>
       {allSkills.map((sk) => (
         <label key={sk.name} className="skill-assign-item">
           <input
@@ -676,6 +706,8 @@ function SkillsTab({ agentId }: { agentId: string }) {
             checked={assignedSet.has(sk.name)}
             onChange={() => toggle(sk.name)}
             disabled={update.isPending}
+            data-testid="agent-skill-toggle"
+            data-skill={sk.name}
           />
           <span className="skill-assign-info">
             <span className="skill-assign-name">{sk.name}</span>
