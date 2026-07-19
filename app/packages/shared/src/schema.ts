@@ -440,6 +440,8 @@ export const Issue = z.object({
   // projects-mvp
   projectId: BusinessId.nullable().optional(),
   projectTitle: z.string().nullable().optional(),
+  // issue-pr-link：PR/分支 URL（本地引用，非 OAuth）
+  prUrl: z.string().nullable().optional(),
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
   createdAt: z.string().datetime(),
@@ -509,6 +511,8 @@ export const UpdateIssueInput = z.object({
     .optional(),
   // projects-mvp：设/清项目（null 清除）
   projectId: BusinessId.nullable().optional(),
+  // issue-pr-link：设/清 PR URL
+  prUrl: z.string().nullable().optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueInput>;
 
@@ -520,7 +524,8 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
     d.priority !== undefined ||
     d.position !== undefined ||
     d.assignee !== undefined ||
-    d.projectId !== undefined
+    d.projectId !== undefined ||
+    d.prUrl !== undefined
   );
 }
 

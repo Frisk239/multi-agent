@@ -303,6 +303,20 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         updates.projectId = input.projectId;
       }
     }
+    if (input.prUrl !== undefined) {
+      if (input.prUrl === null) {
+        updates.prUrl = null;
+      } else {
+        const trimmed = input.prUrl.trim();
+        if (!trimmed) {
+          updates.prUrl = null;
+        } else if (!/^https?:\/\//i.test(trimmed)) {
+          return reply.status(400).send({ error: 'prUrl 须为 http(s) URL' });
+        } else {
+          updates.prUrl = trimmed;
+        }
+      }
+    }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;
 

@@ -377,8 +377,135 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             </Link>
           ) : null}
         </label>
+        <IssuePrLinkField issue={issue} />
       </div>
       <IssueLabelsEditor issue={issue} />
     </header>
   );
+}
+
+function IssuePrLinkField({ issue }: { issue: Issue }) {
+  const update = useUpdateIssue();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(issue.prUrl ?? '');
+
+  useEffect(() => {
+    if (!editing) setDraft(issue.prUrl ?? '');
+  }, [issue.prUrl, editing]);
+
+  function save() {
+    const next = draft.trim();
+    const prev = (issue.prUrl ?? '').trim();
+    if (next === prev) {
+      setEditing(false);
+      return;
+    }
+    if (next && !/^https?:\/\//i.test(next)) {
+      // 与 API 校验一致：让用户改完再存
+      return;
+    }
+    update.mutate(
+      { id: issue.id, input: { prUrl: next ? next : null } },
+      { onSuccess: () => setEditing(false) },
+    );
+  }
+
+  if (editing) {
+    return (
+      <label className="issue-pr-field" data-testid="issue-pr-field">
+        <span>PR</span>
+        <input
+          className="issue-pr-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="https://github.com/.../pull/1"
+          aria-label="Pull Request URL"
+          data-testid="issue-pr-input"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              save();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setDraft(issue.prUrl ?? '');
+              setEditing(false);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="btn-secondary btn-sm"
+          data-testid="issue-pr-save"
+          disabled={update.isPending}
+          onClick={save}
+        >
+          保存
+        </button>
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={() => {
+            setDraft(issue.prUrl ?? '');
+            setEditing(false);
+          }}
+        >
+          取消
+        </button>
+      </label>
+    );
+  }
+
+  return (
+    <div className="issue-pr-field" data-testid="issue-pr-field">
+      <span>PR</span>
+      {issue.prUrl ? (
+        <>
+          <a
+            href={issue.prUrl}
+            className="issue-pr-link"
+            target="_blank"
+            rel="noreferrer"
+            data-testid="issue-pr-link"
+            title={issue.prUrl}
+          >
+            {shortPrLabel(issue.prUrl)}
+          </a>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="issue-pr-edit"
+            onClick={() => setEditing(true)}
+          >
+            编辑
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          data-testid="issue-pr-add"
+          onClick={() => setEditing(true)}
+        >
+          添加链接
+        </button>
+      )}
+    </div>
+  );
+}
+
+function shortPrLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    const prIdx = parts.findIndex((p) => p === 'pull' || p === 'pulls' || p === 'merge_requests');
+    if (prIdx >= 0 && parts[prIdx + 1]) {
+      const repo = parts.slice(0, prIdx).slice(-2).join('/');
+      return `${repo || u.hostname}#${parts[prIdx + 1]}`;
+    }
+    return u.hostname + u.pathname.replace(/\/$/, '');
+  } catch {
+    return url.length > 40 ? `${url.slice(0, 37)}…` : url;
+  }
 }

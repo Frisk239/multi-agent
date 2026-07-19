@@ -186,6 +186,7 @@ export function toIssue(
         : null,
     projectId,
     projectTitle: projectId ? (extras?.projectTitle ?? null) : null,
+    prUrl: row.prUrl ?? null,
     labels,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),

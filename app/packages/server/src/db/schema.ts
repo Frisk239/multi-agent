@@ -129,6 +129,8 @@ export const squads = sqliteTable('squad', {
       parentIssueId: text('parent_issue_id'),
       // projects-mvp：可选归属项目
       projectId: text('project_id'),
+      // issue-pr-link：本地 PR/分支引用 URL（非 GitHub 集成）
+      prUrl: text('pr_url'),
       createdAt: integer('created_at').notNull(),
       updatedAt: integer('updated_at').notNull(),
     },

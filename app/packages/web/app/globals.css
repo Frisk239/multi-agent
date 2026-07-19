@@ -6607,3 +6607,40 @@ a.issue-card-run-fail--link:hover {
   align-items: center;
   gap: var(--space-2);
 }
+
+/* issue-pr-link */
+.issue-pr-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.issue-pr-input {
+  min-width: 16rem;
+  max-width: 24rem;
+  background: var(--page-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+}
+
+.issue-pr-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-pr-link:hover {
+  text-decoration: underline;
+}
