@@ -40,6 +40,7 @@ function MemoryPageInner() {
   const [copyId, setCopyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -445,11 +446,30 @@ function MemoryPageInner() {
                       </span>
                     </td>
                     <td>
-                      <div className="memory-text">{m.text}</div>
+                      <div className="memory-row-meta">
+                        <div
+                          className={`memory-text${expanded[m.id] ? ' memory-text--expanded' : ''}`}
+                          data-testid="memory-text"
+                        >
+                          {m.text}
+                        </div>
+                        {m.text.length > 180 ? (
+                          <button
+                            type="button"
+                            className="memory-expand-btn"
+                            data-testid="memory-expand"
+                            onClick={() =>
+                              setExpanded((prev) => ({ ...prev, [m.id]: !prev[m.id] }))
+                            }
+                          >
+                            {expanded[m.id] ? '收起' : '展开'}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="text-dim text-sm">
                       {m.issueId ? (
-                        <Link href={`/issues/${m.issueId}`}>
+                        <Link href={`/issues/${m.issueId}`} className="table-link" title={m.issueId}>
                           <code>{m.issueId.slice(0, 8)}…</code>
                         </Link>
                       ) : (

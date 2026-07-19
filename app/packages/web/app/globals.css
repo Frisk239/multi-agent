@@ -139,6 +139,38 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Multica-ish：表格/列表实体链接默认无下划线；靠色 + hover 变亮，不整页蓝线 */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+/* 正文段落里的真·文字链才允许轻下划线（markdown / empty 说明） */
+.markdown-body a,
+.empty-state a,
+.page-desc a,
+.settings-check-hint a,
+.settings-check-detail a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-body a:hover,
+.empty-state a:hover,
+.page-desc a:hover,
+.settings-check-hint a:hover,
+.settings-check-detail a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 /* 细滚动条 */
 * {
   scrollbar-width: thin;
@@ -424,7 +456,8 @@ body {
 }
 
 .env-banner-link:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 
 .env-banner-dismiss {
@@ -590,7 +623,8 @@ body {
 }
 
 .kanban-filter-note-link:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 
 .kanban-columns {
@@ -632,7 +666,8 @@ a.kanban-column-focus {
 }
 a.kanban-column-focus:hover {
   opacity: 1;
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .kanban-column-dot {
@@ -696,8 +731,8 @@ a.issue-card-priority--link {
   cursor: pointer;
 }
 a.issue-card-priority--link:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 .issue-origin-badge-group {
   display: inline-flex;
@@ -710,7 +745,8 @@ a.issue-origin-side-link {
   text-decoration: none;
 }
 a.issue-origin-side-link:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 .issue-priority-field {
   display: inline-flex;
@@ -723,7 +759,8 @@ a.issue-priority-board-link {
   text-decoration: none;
 }
 a.issue-priority-board-link:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 .issue-status-field {
   display: inline-flex;
@@ -736,7 +773,8 @@ a.issue-status-board-link {
   text-decoration: none;
 }
 a.issue-status-board-link:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .priority-dot {
@@ -876,7 +914,8 @@ a.issue-status-board-link:hover {
 }
 
 .issue-card-live-link:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 
 .issue-card-fail-link {
@@ -887,7 +926,8 @@ a.issue-status-board-link:hover {
 }
 
 .issue-card-fail-link:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 
 .issue-card-assignee {
@@ -907,8 +947,8 @@ a.issue-status-board-link:hover {
 
 .issue-card-assignee-link:hover,
 .issue-assignee-link:hover {
-  color: var(--accent, #3b82f6);
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .issue-card-labels {
@@ -1465,7 +1505,8 @@ a.issue-status-board-link:hover {
 }
 
 .assignee-readiness-links a:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 /* —— 运行状态栏 —— */
@@ -2022,7 +2063,7 @@ a.issue-status-board-link:hover {
 }
 
 .mention-pill--link:hover {
-  text-decoration: underline;
+  text-decoration: none;
   filter: brightness(1.08);
 }
 
@@ -2043,7 +2084,8 @@ a.mention-side-link {
 
 a.mention-side-link:hover {
   opacity: 1;
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .mention-menu {
@@ -2470,7 +2512,7 @@ a.source-badge--link {
 }
 a.source-badge--link:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* ============================================================
@@ -2483,6 +2525,15 @@ a.source-badge--link:hover {
   gap: var(--space-3);
   text-decoration: none;
   color: inherit;
+}
+
+.agent-cell:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.agent-cell:hover .agent-cell-name {
+  color: var(--accent);
 }
 
 .agent-icon-sm {
@@ -3130,7 +3181,7 @@ button.wiki-job-status-filter {
   font: inherit;
 }
 button.wiki-job-status-filter:hover code {
-  text-decoration: underline;
+  text-decoration: none;
   color: var(--accent);
 }
 .wiki-job-error strong {
@@ -3276,8 +3327,72 @@ button.wiki-job-status-filter:hover code {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: var(--text-sm);
-  line-height: 1.5;
-  max-width: 52rem;
+  line-height: 1.45;
+  max-width: 48rem;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+.memory-text--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+/* 记忆表：列更扁、内容区可扫读 */
+.page-container[data-testid='memory-page'] .data-table th,
+.page-container[data-testid='memory-page'] .data-table td {
+  vertical-align: top;
+}
+
+.page-container[data-testid='memory-page'] .data-table td:nth-child(1),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(1) {
+  width: 36px;
+}
+
+.page-container[data-testid='memory-page'] .data-table td:nth-child(2),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(2) {
+  width: 88px;
+}
+
+.page-container[data-testid='memory-page'] .data-table td:nth-child(4),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(4),
+.page-container[data-testid='memory-page'] .data-table td:nth-child(5),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(5),
+.page-container[data-testid='memory-page'] .data-table td:nth-child(6),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(6) {
+  width: 104px;
+  white-space: nowrap;
+}
+
+.page-container[data-testid='memory-page'] .data-table td:nth-child(7),
+.page-container[data-testid='memory-page'] .data-table th:nth-child(7) {
+  width: 72px;
+  white-space: nowrap;
+}
+
+.memory-row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.memory-expand-btn {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+  padding: 0;
+  cursor: pointer;
+}
+
+.memory-expand-btn:hover {
+  color: var(--accent);
 }
 
 .memory-toolbar {
@@ -3312,31 +3427,41 @@ button.wiki-job-status-filter:hover code {
 .memory-kind-chip {
   display: inline-flex;
   align-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--surface-border);
   padding: 1px 8px;
   color: var(--text-muted);
-  background: var(--bg-elevated, transparent);
+  background: transparent;
   text-transform: lowercase;
+  line-height: 1.4;
 }
 
 .memory-kind-chip--curated {
-  color: #0f7b3a;
-  border-color: color-mix(in srgb, #22c55e 40%, transparent);
-  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: var(--color-green);
+  border-color: color-mix(in srgb, var(--color-green) 35%, var(--surface-border));
+  background: color-mix(in srgb, var(--color-green) 10%, transparent);
 }
 
 .memory-kind-chip--ambient {
-  color: #1d4ed8;
-  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
-  background: color-mix(in srgb, #3b82f6 12%, transparent);
+  color: var(--color-blue);
+  border-color: color-mix(in srgb, var(--color-blue) 35%, var(--surface-border));
+  background: color-mix(in srgb, var(--color-blue) 10%, transparent);
 }
 
 .memory-kind-chip--other {
   color: var(--text-dim);
+}
+
+button.memory-kind-chip {
+  cursor: pointer;
+}
+
+button.memory-kind-chip.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text-primary);
 }
 
 .memory-id-copy {
@@ -3403,7 +3528,8 @@ button.wiki-job-status-filter:hover code {
 }
 
 .toast-action:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 
 .toast--success {
@@ -3522,7 +3648,8 @@ button.wiki-job-status-filter:hover code {
 }
 
 .active-runs-chip--hot:hover {
-  text-decoration: underline;
+  text-decoration: none;
+  filter: brightness(1.05);
 }
 
 .cmdk-overlay {
@@ -4644,7 +4771,7 @@ button.wiki-job-status-filter:hover code {
 
 .settings-check-link:hover {
   color: var(--accent-hover);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .settings-check-detail {
@@ -4875,7 +5002,7 @@ button.wiki-job-status-filter:hover code {
   text-decoration: none;
 }
 .automation-assignee-chip a:hover {
-  text-decoration: underline;
+  text-decoration: none;
   color: var(--accent);
 }
 .automation-row-links {
@@ -5021,20 +5148,24 @@ button.wiki-job-status-filter:hover code {
 }
 .runs-squad-link {
   font-size: var(--text-xs);
-  color: var(--accent);
+  color: var(--text-muted);
   text-decoration: none;
 }
 .runs-squad-link:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 a.runs-inline-filter {
   font-size: 11px;
-  color: var(--accent);
+  color: var(--text-dim);
   text-decoration: none;
   margin-left: 4px;
+  opacity: 0.85;
 }
 a.runs-inline-filter:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 1;
 }
 .runs-issue-cell {
   display: inline-flex;
@@ -5042,25 +5173,62 @@ a.runs-inline-filter:hover {
   align-items: center;
   gap: 2px;
 }
+.runs-issue-cell a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.runs-issue-cell a:hover {
+  color: var(--accent);
+}
 .runs-fail-links {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
 }
+.runs-fail-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--text-xs);
+}
+.runs-fail-links a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
 a.run-pill--link {
   text-decoration: none;
   display: inline-block;
 }
+.data-table a,
+.table-link {
+  text-decoration: none !important;
+}
+.data-table a:hover,
+.table-link:hover {
+  text-decoration: none !important;
+  color: var(--accent);
+}
+.data-table td a {
+  color: var(--text-primary);
+}
+.data-table .text-dim a,
+.data-table td.text-dim a {
+  color: var(--text-muted);
+}
+.data-table .text-dim a:hover,
+.data-table td.text-dim a:hover {
+  color: var(--accent);
+}
 a.run-pill--link:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
 }
 a.runs-leader-badge {
   text-decoration: none;
 }
 a.runs-leader-badge:hover {
-  text-decoration: underline;
+  color: var(--accent);
+  text-decoration: none;
 }
 .runs-row--highlight td {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -5076,7 +5244,8 @@ a.timeline-status-board-link {
   margin-left: 6px;
 }
 a.timeline-status-board-link:hover {
-  text-decoration: underline;
+  color: var(--accent-hover);
+  text-decoration: none;
 }
 .agent-runs-toolbar {
   display: flex;
@@ -5180,7 +5349,7 @@ a.automation-fail-count--link {
 }
 a.automation-fail-count--link:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .issue-origin-badge {
@@ -5197,7 +5366,7 @@ a.automation-fail-count--link:hover {
   border: 1px solid color-mix(in srgb, #8b5cf6 30%, transparent);
 }
 a.issue-origin-badge:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 a.issue-card-origin,
@@ -5219,7 +5388,7 @@ a.issue-card-origin {
 }
 a.issue-card-origin:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .profile-actions-stack {
@@ -5388,7 +5557,7 @@ a.runtimes-agent-count-link {
   text-decoration: none;
 }
 a.runtimes-agent-count-link:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 a.skill-tag--link {
@@ -5396,7 +5565,7 @@ a.skill-tag--link {
   margin-right: 4px;
 }
 a.skill-tag--link:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 .automation-empty-actions {
   display: flex;
@@ -5411,7 +5580,7 @@ a.issue-label-chip--link {
 }
 a.issue-label-chip--link:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
 }
 .issue-label-board-btn {
   border: none;
@@ -5423,7 +5592,7 @@ a.issue-label-chip--link:hover {
   margin-left: 4px;
 }
 .issue-label-board-btn:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .agents-filters {
@@ -5459,7 +5628,7 @@ a.agents-runtime-link {
   text-decoration: none;
 }
 a.agents-runtime-link:hover code {
-  text-decoration: underline;
+  text-decoration: none;
 }
 a.readiness-chip {
   text-decoration: none;
@@ -5474,7 +5643,7 @@ a.automation-schedule-link {
   text-decoration: none;
 }
 a.automation-schedule-link:hover {
-  text-decoration: underline;
+  text-decoration: none;
   color: var(--accent);
 }
 
@@ -5508,5 +5677,16 @@ a.issue-card-run-fail--link {
 }
 a.issue-card-run-fail--link:hover {
   filter: brightness(1.08);
-  text-decoration: underline;
+  text-decoration: none;
+}
+
+
+.fail-recovery-banner a:hover,
+.wiki-ops-banner a:hover,
+.settings-cwd-recovery-links a:hover,
+.settings-cwd-guide-actions a:hover,
+.memory-empty-actions a:hover,
+.runs-empty-actions a:hover {
+  text-decoration: none;
+  color: var(--accent);
 }

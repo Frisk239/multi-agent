@@ -491,6 +491,7 @@ function SquadsPageInner() {
                           {sq.leaderId ? (
                             <Link
                               href={`/squads?leader=${encodeURIComponent(sq.leaderId)}`}
+                              className="table-link"
                               data-testid="squad-list-leader"
                               title="筛选此队长的小队"
                             >

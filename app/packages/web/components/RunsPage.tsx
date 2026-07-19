@@ -571,6 +571,7 @@ function RunsPageInner() {
                     <td>
                       <Link
                         href={`/agents/${r.agentId}`}
+                        className="table-link"
                         data-testid="runs-agent-detail-link"
                       >
                         {agentName.get(r.agentId) ?? shortId(r.agentId)}
