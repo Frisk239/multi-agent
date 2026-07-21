@@ -81,6 +81,11 @@ export const AgentRun = z.object({
     .optional(),
   // B2：QC 等无 issue 时绑定的 project（cwd / 建卡继承）
   projectId: BusinessId.nullable().optional(),
+  // C1：同 project_local 目录串行（API 计算，非独立状态机）
+  pathWaitReason: z.enum(['path_busy']).nullable().optional(),
+  pathBlockedByRunId: BusinessId.nullable().optional(),
+  /** running + project_local 时 true：正在占用本机目录 */
+  pathHolding: z.boolean().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;

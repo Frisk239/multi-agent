@@ -672,6 +672,32 @@ function RunsPageInner() {
                                 </span>
                               </>
                             ) : null}
+                            {r.pathHolding ? (
+                              <>
+                                {' · '}
+                                <span
+                                  className="runs-path-lock"
+                                  data-testid="runs-row-path-holding"
+                                  title={r.cwdPath ?? undefined}
+                                >
+                                  占用本机目录
+                                </span>
+                              </>
+                            ) : null}
+                            {r.pathWaitReason === 'path_busy' && r.pathBlockedByRunId ? (
+                              <>
+                                {' · '}
+                                <Link
+                                  href={`/runs/${r.pathBlockedByRunId}`}
+                                  className="runs-path-wait"
+                                  data-testid="runs-row-path-wait"
+                                  title="同项目本机目录正在被其它 run 使用，排队等待"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  等待目录 · {shortId(r.pathBlockedByRunId)}
+                                </Link>
+                              </>
+                            ) : null}
                             {r.squadId ? (
                               <>
                                 {' · '}

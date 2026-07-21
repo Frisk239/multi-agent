@@ -52,20 +52,15 @@
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **真站对照：** live gap 已滚动到 **2026-07-21** — G1–G18 MVP 在；**新 P0 队列 G21–G23**
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
-- **本会话主线：** UX gap 机制债（F1–F8/F10）已合；进入 **体验诚实阶段**
-- **已交（近）：** F1–F8 + F10 · progress 见 `*-impl-1.md`
-- **▶ 下一阶段计划：** [phase-multica-ux-trust-2026-07-21.md](app/.progress/phase-multica-ux-trust-2026-07-21.md)  
-  - 主题：**Multica 体验诚实与多仓日用（UX Trust）**  
-  - 实现计划：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
-  - **A1 ✅** 新建绑项目 + cwd 预检 · `ux-trust-a1-new-issue-project-impl-1.md`  
-  - **A2 ✅** run cwd 落库 + UI · `ux-trust-a2-run-cwd-display-impl-1.md`  
-  - **A3 ✅** 文案与 QC 闸 · `ux-trust-a3-copy-qc-gate-impl-1.md`  
-  - **Wave A 出口 ✅** · E2E `ux-trust-wave-a-e2e-2026-07-21.md`  
-  - **B1 ✅** Chat 绑 Project · `ux-trust-b1-chat-project-impl-1.md`  
-  - **B2 ✅** QC 可选 project + 硬闸 · `ux-trust-b2-qc-project-impl-1.md`  
-  - **B3 ✅** 静默点收口 · `ux-trust-b3-silent-points-impl-1.md`  
-  - **Wave B 出口 ✅** · 默认队列：**C1 path 串行 → C2 tool idle → C3 skills…**  
-  - 非目标：daemon/云/Wiki 分根大迁移/session 1:1
+- **本会话主线：** UX Trust A/B（派活诚实）✅；进入 **Wave C/D（P0/P1 韧性+手感）**
+- **已交（近）：** F1–F8 + F10 · A1–A3 · B1–B3 · progress 见 `*-impl-1.md`
+- **▶ 阶段计划：** [phase-multica-ux-trust-2026-07-21.md](app/.progress/phase-multica-ux-trust-2026-07-21.md)  
+  - 主题：**Multica 体验诚实 → 多仓韧性与执行手感（UX Trust）**  
+  - Wave A 计划（✅）：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
+  - **Wave C/D 计划（当前）：** [2026-07-21-ux-trust-wave-c-p0-p1.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)  
+  - **A1–A3 ✅ · B1–B3 ✅ · C1 ✅** 同 localPath 串行  
+  - **▶ 下一刀默认 C2** tool watchdog → **C3** skills per-project → **D1–D3** 流式/workdir 叙事/tool 轨迹  
+  - 非目标：daemon/云/Wiki 分根大迁移/session 1:1/首启向导（P2）
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

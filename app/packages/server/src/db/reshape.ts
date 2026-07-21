@@ -237,6 +237,10 @@ export function toAgentRun(row: RunRow): AgentRun {
       ((row as { cwdMode?: AgentRun['cwdMode'] }).cwdMode as AgentRun['cwdMode']) ??
       null,
     projectId: (row as { projectId?: string | null }).projectId ?? null,
+    // C1 path 锁字段由 routes 用 enrichRunRowWithPathLock 填充；默认空
+    pathWaitReason: null,
+    pathBlockedByRunId: null,
+    pathHolding: false,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

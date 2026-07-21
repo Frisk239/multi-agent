@@ -1,11 +1,12 @@
 # 下一阶段计划：Multica 体验诚实与多仓日用
 
 Date: 2026-07-21  
-Status: **进行中**（Wave A–B ✅ · A1–A3 B1–B3）  
+Status: **进行中**（Wave A–B ✅ · **下一刀 Wave C/D P0–P1**）  
 Code name: **UX Trust**（暂名）
 
-> 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交。  
-> 北星不变：本地 Multica **控制台体验**，非 daemon/云 1:1。
+> 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交 · **P0/P1 体验缺口收口计划**。  
+> 北星不变：本地 Multica **控制台体验**，非 daemon/云 1:1。  
+> **实现计划（C/D）：** [docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md](../../docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)
 
 ---
 
@@ -84,19 +85,28 @@ Code name: **UX Trust**（暂名）
 
 ---
 
-### Wave C — 多仓韧性与深度（P1–P2 · 约 2–3 刀 · 可穿插）
+### Wave C — 多仓韧性（P0–P1 · **下一默认队列**）
 
-**主题：** 更接近 Multica 的「敢并跑、敢长跑、上下文对仓」。
+**主题：** 敢绑真仓并跑、敢长跑、skills 跟仓。  
+**细则：** [2026-07-21-ux-trust-wave-c-p0-p1.md](../../docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)
 
-| 刀 | 切片 | 用户可感 | Multica 对齐 |
-|---|---|---|---|
-| **C1** | **同 localPath 简易串行** | 两 run 同 path → 排队/提示占用，不双写互踩 | path mutex 精简版 |
-| **C2** | **Tool-aware idle / ToolWatchdog** | 长构建有 tool 事件不误杀；真卡死 2h 人话失败 | Idle + ToolWatchdog |
-| **C3** | **Skills 按 project 运营** | 导入/列表可对 `project.localPath/.skills`；无 workspace 不挡用户级 | F9 收官 |
-
-**可选延后（不进默认队列）：** Wiki per-project 根、CLI session resume、通知偏好 UI、opencode 流解析加固。
+| 刀 | 切片 | 优先级 | 用户可感 | Multica 对齐 |
+|---|---|---|---|---|
+| **C1** | **同 localPath 简易串行** | **P0** | 两 run 同 path → 后到排队；≤1 running 写真仓 | path mutex 精简版 |
+| **C2** | **Tool-aware idle / ToolWatchdog** | **P0** | 长构建 tool 中不误杀；卡死 2h 人话失败 | Idle + ToolWatchdog |
+| **C3** | **Skills 按 project 运营** | **P1** | 导入/列表可对 `project.localPath/.skills`；无 workspace 不挡用户级 | F9 收官 |
 
 **Wave C 出口：** 小队同仓并行可预期；长任务少误杀；skills 跟仓。
+
+### Wave D — 连续性与执行手感（P1 · C 后或可与 C3 并行）
+
+| 刀 | 切片 | 优先级 | 用户可感 |
+|---|---|---|---|
+| **D1** | **Chat 流式 / 过程可感** | P1 | 思考中 progress + tool 名 / partial 文本 |
+| **D2** | **隔离 workdir 复用叙事** | P1 | 同 issue 再执行明示沿用目录；可选清理 |
+| **D3** | **Run tool 叙事加厚** | P1 | 轨迹 tool 摘要更好扫 |
+
+**不进本阶段默认队列：** 首启向导、看板列表视图、通知偏好、Wiki per-project 根、CLI session 真 resume、用量真 token。
 
 ---
 
@@ -112,24 +122,33 @@ Code name: **UX Trust**（暂名）
 ### 推荐开干顺序（自动迭代默认）
 
 ```
-A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
+A1 → A2 → A3 → B1 → B2 → B3 ✅
+→ C1 → C2 → C3 → D1 → D2 → D3
 ```
 
-人可随时否决/改序；**难逆架构 / 安全**仍须问人。
+**C1 不得跳过**（真仓双写风险）。人可改 D 与 C3 相对顺序；**难逆架构 / 安全**仍须问人。
 
 ---
 
 ## 6. 阶段完成标准（Definition of Done）
 
-同时满足即可宣称 **UX Trust 阶段收官**（可再开下一阶段）：
+### 6.1 Wave A/B（派活诚实）— 已基本达成
 
 - [x] 看板新建 Issue 可关联 project；无/坏 path 有预检或明确隔离提示  
 - [x] 任意 issue run 在 UI 可见 cwd mode + path（或明确「隔离」）  
 - [x] EnvBanner / Settings / QC 文案与「默认隔离」一致；QC 与 Issue 同级 readiness 闸  
 - [x] Chat 至少能绑一个 project.localPath 执行  
 - [x] Squad 无 leader / mention 全 skip / automation enqueue skip **对用户可解释**  
-- [ ] Playwright 有「多项目 path → run 展示正确 cwd」用例证据  
-- [ ] 本文件进度表 Wave A/B 全 ✅（Wave C 至少 C1 或书面降级说明）
+- [ ] Playwright 有「多项目 path → run 展示正确 cwd」用例证据（可随 C1 补）
+
+### 6.2 Wave C/D（韧性+手感）— 本阶段收官条件
+
+- [x] 同 `project_local` 任意时刻 ≤1 running；等待可解释（C1）  
+- [ ] tool in-flight 用 tool idle 窗口；失败文案可区分 idle vs tool（C2）  
+- [ ] Skills 用户级不依赖 workspace；项目级可对 localPath（C3）  
+- [ ] Chat 执行中过程信息可持续更新（D1）  
+- [ ] Issue 隔离目录复用对用户可见（D2）  
+- [ ] 每刀 progress + typecheck；C1/C2 有脚本或 Playwright 证据  
 
 ---
 
@@ -143,9 +162,12 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 | B1 Chat 绑 Project | ✅ | `ux-trust-b1-chat-project-impl-1.md` | 会话头选项目 · exec project_local |
 | B2 QC project + 硬闸 | ✅ | `ux-trust-b2-qc-project-impl-1.md` | projectId + cwd + UI 预检 |
 | B3 静默点收口 | ✅ | `ux-trust-b3-silent-points-impl-1.md` | no_leader / mention toast / auto enqueue |
-| C1 同 path 串行 | pending | | |
-| C2 tool idle/watchdog | pending | | |
-| C3 skills per-project | pending | | |
+| **C1** 同 path 串行 | ✅ | `ux-trust-c1-path-serial-impl-1.md` | 仅 project_local；queued 等待不假失败 |
+| **C2** tool idle/watchdog | **pending · 下一刀** | | 默认 tool 2h / idle 30m |
+| **C3** skills per-project | pending | | 读+写+UI |
+| **D1** Chat 过程可感 | pending | | progress + tool 名 / partial |
+| **D2** workdir 复用叙事 | pending | | 几乎只 UI |
+| **D3** tool 叙事加厚 | pending | | Run 时间线 |
 
 ---
 
@@ -154,12 +176,15 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 | 文档 | 关系 |
 |---|---|
 | `local-multica-completion-audit-2026-07-19.md` | **主航道完成态仍成立**；本阶段是体验加深，不是「未完成 MVP」 |
-| `ux-gap-multica-2026-07-21.md` | F 表机制债多数已合；本计划用 **H\* / A–C 波次** 替代未更新的 executive summary |
+| `ux-gap-multica-2026-07-21.md` | F 表机制债多数已合；P0/P1 余量见 C/D 计划 |
 | `multica-gap-live-*.md` | UI 对标可继续滚动；与本计划并行，不互相挡 |
+| `docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md` | Wave A 实现计划（已完成） |
+| `docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md` | **Wave C/D 实现计划（当前）** |
 | `CONTEXT.md` | 方位指针指向本计划 |
 
 ---
 
 ## 9. 给下一任 Slice Owner 的一句话
 
-> 先做 **A1→A2**：让用户永远知道 agent 在哪干活；再做 **B1 Chat 绑仓** 追 Multica 第二场景；旁路假成功（QC/小队/mention）夹在中间收掉。
+> **下一刀 C1：** 同 `project.localPath` 同时只许一个 running——消灭真仓双写；再 C2 tool watchdog，然后 C3 / D 手感。  
+> 计划全文：`docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md`。

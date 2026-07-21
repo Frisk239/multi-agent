@@ -408,6 +408,20 @@ export function RunDetailPage({ runId }: { runId: string }) {
             ) : (
               <span className="text-dim">（无路径）</span>
             )}
+            {run.pathHolding ? (
+              <p className="run-path-lock-note" data-testid="run-path-holding">
+                正在占用本机目录：同路径其它 run 将排队，避免双写。
+              </p>
+            ) : null}
+            {run.pathWaitReason === 'path_busy' && run.pathBlockedByRunId ? (
+              <p className="run-path-lock-note" data-testid="run-path-wait">
+                等待本机目录 · 占用方{' '}
+                <Link href={`/runs/${run.pathBlockedByRunId}`}>
+                  {shortId(run.pathBlockedByRunId)}
+                </Link>
+                （结束后自动开工，不会标失败）
+              </p>
+            ) : null}
           </div>
         ) : null}
 

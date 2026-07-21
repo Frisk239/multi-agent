@@ -10,6 +10,7 @@ import { agentRuns, runMessages } from '../db/schema.js';
 import { toAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-service.js';
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
+import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 
 const ACTIVE_STATUSES = ['queued', 'running'] as const;
 
@@ -45,7 +46,7 @@ export async function runRoutes(app: FastifyInstance) {
     else if (filters.length > 1) query = query.where(and(...filters));
 
     const rows = query.orderBy(desc(agentRuns.createdAt)).limit(q.limit).all();
-    return rows.map(toAgentRun);
+    return rows.map((row) => enrichRunRowWithPathLock(row, toAgentRun(row)));
   });
 
   // GET /api/runs/active-count —— 侧栏「运行」角标（须在 :runId 前注册）
@@ -95,7 +96,7 @@ export async function runRoutes(app: FastifyInstance) {
     const { runId } = req.params as { runId: string };
     const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
     if (!row) return reply.status(404).send({ error: 'run 不存在' });
-    return toAgentRun(row);
+    return enrichRunRowWithPathLock(row, toAgentRun(row));
   });
 
   // GET /api/runs/:runId/messages —— seq ASC 轨迹回放

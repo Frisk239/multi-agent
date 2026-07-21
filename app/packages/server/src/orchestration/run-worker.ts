@@ -21,6 +21,12 @@ import { resolveRunPrompt } from '../runtime/prompt.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
+import {
+  enrichRunRowWithPathLock,
+  normalizePathLockKey,
+  shouldDeferClaimForPath,
+  stampProjectLocalCwdPreview,
+} from './path-lock.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -50,6 +56,7 @@ export function wakeRunWorker(): void {
 
 // tick —— 遍历 queued，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
 // 可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）。
+// C1：project_local 同 path 同时仅 1 个 running；被挡保持 queued（不 fail）。
 async function tick(): Promise<void> {
   const queuedRows = db
     .select()
@@ -57,6 +64,9 @@ async function tick(): Promise<void> {
     .where(eq(agentRuns.status, 'queued'))
     .orderBy(asc(agentRuns.createdAt))
     .all();
+
+  /** 本 tick 已 claim 的 project_local path key，防同批双开 */
+  const claimedPathKeys = new Set<string>();
 
   for (const queued of queuedRows) {
     // per-agent 槽位检查
@@ -71,6 +81,23 @@ async function tick(): Promise<void> {
       .get();
     if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
 
+    // C1 path 闸：真仓被占用则跳过 claim，预写 cwd 供 UI
+    const pathGate = shouldDeferClaimForPath(queued, claimedPathKeys);
+    if (pathGate.defer) {
+      stampProjectLocalCwdPreview(queued.id, pathGate.path);
+      const holderId = pathGate.holder?.id ?? 'pending-claim';
+      eventBus.publish({
+        type: 'run:progress',
+        runId: queued.id,
+        issueId: queued.issueId ?? null,
+        text: `等待本机目录（被 run ${holderId.slice(0, 8)}… 占用）`,
+      });
+      continue;
+    }
+    if (pathGate.path) {
+      stampProjectLocalCwdPreview(queued.id, pathGate.path);
+    }
+
     // claim（条件 UPDATE queued→running）；bu01：同步写 lastHeartbeatAt
     const now = Date.now();
     db.update(agentRuns)
@@ -80,7 +107,11 @@ async function tick(): Promise<void> {
     const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
     if (!runRow || runRow.status !== 'running') continue; // 没抢到（被别的 tick 抢）
 
-    const run = toAgentRun(runRow);
+    if (pathGate.path) {
+      claimedPathKeys.add(normalizePathLockKey(pathGate.path));
+    }
+
+    const run = enrichRunRowWithPathLock(runRow, toAgentRun(runRow));
     eventBus.publish({ type: 'run:running', run });
 
     // fire-and-forget 并发执行（不 await）
