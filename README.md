@@ -1,77 +1,107 @@
-# Multi-Agent — 毕设工作区
+# Multi-Agent — 本地多智能体编排控制台
 
-面向软件工程的 **Agent 编排 + 项目 Wiki + 跨会话记忆** 平台（一人 · 约一年）。
+纯本地（非云端）软件工程多智能体编排平台：**本机编码 CLI 的编排控制台**——派活、小队、追踪、Wiki、记忆，全部本地、可天天用。
+
+**产品一句话：** 人在 Web 控制台分配任务 → Agent 绑定并驱动本机 CLI（Claude Code / opencode / Cursor / …）→ 产出进 **Wiki**、经验进 **Memory**。
+
+**目标定位：** 复刻 **本地版 Multica 控制台体验**（看板派活、小队、run 可观测/恢复、Wiki/Memory、Settings），**不是** Multica Go 栈 / daemon 协议 / 云托管的 1:1 移植。
+
+> 出身可追溯毕设/调研，但**主航道按真实产品做**——日常可用、可演进；答辩/论文不是排期真源。  
+> 工程宪法见 [AGENTS.md](AGENTS.md) · 当前方位见 [CONTEXT.md](CONTEXT.md)。
+
+## 快速开始
+
+```bash
+cd app
+pnpm install
+pnpm dev          # 并行：server :3001 + web :3000
+```
+
+| 服务 | 地址 |
+|---|---|
+| Web 控制台 | http://localhost:3000 |
+| API / WebSocket | http://localhost:3001 （`ws://localhost:3001/ws`） |
+
+**工作区目录：** Settings 保存，或环境变量 `MA_WORKSPACE_CWD`（覆盖 DB，见 [ADR 0003](docs/adr/0003-workspace-cwd-persistence.md)）。  
+**密钥：** Wiki LLM / embedding 仅 env（见 `app/packages/server/.env.example`），不落库。
+
+更多：[`app/README.md`](app/README.md)。
 
 ## 目录地图
 
 ```
 multi-agent/
-├── README.md                 ← 你在这里（总导航）
+├── AGENTS.md                 ★ 项目宪法（必读）
+├── CONTEXT.md                ★ 领域词汇 + 当前方位
+├── README.md                 ← 你在这里
 │
-├── design/                   毕设设计（你要实现的系统）
-│   ├── architecture.md       四层架构、技术选型、数据模型
-│   ├── roadmap.md            一年四阶段 + demo + 风险
-│   ├── slices.md             ★ 垂直切片划分（S01-S05 + 占位）
-│   └── synthesis.md          ★ 综合分析：Pi能否做底层 + TS架构建议 + 借鉴清单
+├── app/                      ★ 应用代码（pnpm monorepo）
+│   ├── packages/shared       Zod 契约 + 共享类型
+│   ├── packages/server       Fastify + Drizzle + SQLite + WS（:3001）
+│   ├── packages/web          Next.js 控制台（:3000）
+│   ├── .progress/            切片 closeout / Multica 差距表 / 巡览笔记
+│   └── README.md             启动与开发说明
 │
-├── chanpin/                  ★ 产品规格 + 可交互原型（PM小队产出，已验收）
-│   ├── PRODUCT-BRIEF.md      产品简报 + MoSCoW
-│   ├── ANALYSIS.md           ★ 原型调研报告（数据模型→生产schema映射）
-│   ├── docs/prd/             PRD + RTM（88 Must 需求矩阵）
-│   ├── prototype/            可交互 HTML 原型（双击 index.html 即运行）
-│   └── research/             竞品分析 + persona + JTBD
-│
-├── references/               参考项目（读别人的代码前先读这里的分析）
-│   ├── catalog.md            12 项目总览矩阵
-│   ├── orchestration.md      编排层：multica、hermes kanban
-│   ├── runtime.md            执行层：hermes、pi
-│   ├── wiki.md               知识层：openwiki、WeKnora、llm-wiki-agent…
-│   ├── memory-and-skills.md  记忆 + gstack + agents.md
-│   ├── deep/                 ★ 源码级深读（带 file:line 索引）
-│   │   ├── multica.md            状态机/WS/Squad/Autopilot/Daemon
-│   │   ├── hermes-execution.md   Agent loop + Tool Registry
-│   │   ├── hermes-memory-delegate.md  Memory + delegate + Footprint Ladder
-│   │   └── pi.md                 架构 + SDK 嵌入入口
-│   └── repos/                上游开源 clone（只读，独立 git）
-│
-├── concepts/                 跨项目理论/模式（与具体 repo 无关）
-│   └── llm-wiki-pattern.md   Karpathy 式「编译式 Wiki」
-│
-└── app/                      应用代码（pnpm monorepo，S01 已合 main）
-    ├── packages/shared|server|web
-    ├── .progress/            ★ 跨会话 handoff 文档（计划者-执行者交接）
-    └── README.md
+├── design/                   架构与技术选型
+│   └── synthesis.md          ★ 技术选型综合分析
+├── docs/                     ADR · agents 工作流 · merge 规则
+├── chanpin/                  产品规格 + 零依赖 HTML 原型（UI/数据模型真源之一）
+├── references/               参考项目摘要 + deep 源码深读 + repos/（只读 clone）
+├── concepts/                 跨项目理论（如 llm-wiki 模式）
+└── wiki/                     运行期 Wiki 产出（勿 commit）
 ```
 
 ## 按目的找文档
 
 | 我想… | 打开 |
 |---|---|
-| ★ 看产品最终长什么样（可交互） | [chanpin/prototype/index.html](chanpin/prototype/index.html) |
-| ★ 看原型数据模型怎么映射生产 schema | [chanpin/ANALYSIS.md](chanpin/ANALYSIS.md) |
-| ★ 看技术选型结论（Pi能否做底层、怎么用TS造multica） | [design/synthesis.md](design/synthesis.md) |
-| 看毕设整体架构与创新点 | [design/architecture.md](design/architecture.md) |
-| 看每个垂直切片做什么 | [design/slices.md](design/slices.md) |
-| 看每月该做什么 | [design/roadmap.md](design/roadmap.md) |
-| 看 PRD 和需求矩阵（88 Must） | [chanpin/docs/prd/multi-agent-platform-rtm-v2.md](chanpin/docs/prd/multi-agent-platform-rtm-v2.md) |
-| 快速扫 12 个参考项目 | [references/catalog.md](references/catalog.md) |
-| 深入某一层该抄什么 | [references/](references/README.md) 下对应文件 |
-| 看源码级深读（带 file:line 索引） | [references/deep/](references/deep/) |
-| 理解 Wiki 模式（论文 Related Work） | [concepts/llm-wiki-pattern.md](concepts/llm-wiki-pattern.md) |
-| 直接读上游源码 | [references/repos/](references/repos/) |
-| ★ 跑本地应用 | [app/README.md](app/README.md) · `cd app && pnpm dev` |
-| 看跨会话 handoff | [app/.progress/](app/.progress/)（最新：`s01-planner-2.md`） |
+| 了解项目铁律与工程模式 | [AGENTS.md](AGENTS.md) |
+| 看当前方位 / 术语 | [CONTEXT.md](CONTEXT.md) |
+| 跑本地应用 | [app/README.md](app/README.md) · `cd app && pnpm dev` |
+| 技术选型（TS 全栈 · 多 Backend · 纯本地） | [design/synthesis.md](design/synthesis.md) |
+| Multica 体验差距（主航道） | [app/.progress/multica-gap-2026-07-17.md](app/.progress/multica-gap-2026-07-17.md) |
+| Multica 真站对照（产品壳） | [app/.progress/multica-gap-live-2026-07-19.md](app/.progress/multica-gap-live-2026-07-19.md) |
+| 最近 UI 巡览厚切片 | [app/.progress/ui-multica-parity-tour-2026-07-21.md](app/.progress/ui-multica-parity-tour-2026-07-21.md) |
+| 可交互产品原型 | [chanpin/prototype/index.html](chanpin/prototype/index.html) |
+| 数据模型种子真源 | [chanpin/prototype/data/seed.js](chanpin/prototype/data/seed.js) |
+| 上游源码深读（file:line） | [references/deep/](references/deep/) |
+| Slice Owner / merge 流程 | [docs/agents/workflow.md](docs/agents/workflow.md) · [docs/agents/merge.md](docs/agents/merge.md) |
 
-## 当前状态
+## 当前状态（2026-07-21）
 
-- ✅ 参考仓库已归类到 `references/repos/`（12 个独立 clone）
-- ✅ 源码深读完成：`references/deep/`（multica/hermes/pi，带 file:line 索引）
-- ✅ 技术选型锁定：`design/synthesis.md`（TS 全栈 + Pi 当 Backend 之一 + 纯本地）
-- ✅ **产品原型已验收**：`chanpin/prototype/`（88 Must REQ 可交互，数据模型可直接映射生产 schema）
-- ✅ **S01 看板 + WebSocket** 已合并 main（PR #1）— 六列看板 + Issue CRUD + 双窗口实时
-- ✅ **S02 Issue 详情 + 时间线 + 评论** 已合并 main（PR #2）— FRI-11 时间线路径点亮
-- ⬜ **S03** 真实 agent 执行（RuntimeBackend · 下一切片）
+| 维度 | 判断 |
+|---|---|
+| S01–S12 + 补1–5 | ✅ 已合 main；补充阶段收官 |
+| 主航道日用 | ✅ 派活 → 执行 → 观测/收尸 → Wiki/Memory → Settings 可闭环 |
+| 本地 Multica 产品壳 | ✅ MVP 对齐中；持续体验加深（收件箱/聊天/model/看板 chrome…） |
+| Multica daemon / 云协议 1:1 | ❌ 刻意不做 |
 
-## 工作标题（暂定）
+**已具备（摘要）：**
 
-**面向软件工程的 Agent 编排与项目知识平台**
+- 看板 Issue / 指派 / 标签 / 筛选深链 · 小队 leader + mention  
+- 多 RuntimeBackend（claude-code / opencode / cursor）· Agent **model** 绑定与 CLI 发现  
+- Run 列表 / 轨迹 / 收尸 / 批量取消 · Inbox 收件箱 · Chat · Automation · Quick-create  
+- Wiki 编译运维 · Memory 可插拔 · Settings 健康 + cwd 持久化  
+- 本地超车入口：全局运行、Wiki、记忆  
+
+**工程模式：** Slice Owner（一刀一会话）· 可调研 Multica · Playwright 关刀 · **默认可 main 直推**（见 AGENTS.md §工程模式）。
+
+## 技术栈（已锁定）
+
+- TypeScript 全栈（shared 契约）  
+- 纯本地混合进程：Node 编排主进程 + 每 agent 子进程 CLI  
+- 后端：Node + Fastify + Drizzle · DB：SQLite（向量阶段可 Postgres+pgvector）  
+- 前端：Next.js + React Query + Zustand  
+- 校验：Zod  
+
+## 不可破坏的约束
+
+- ❌ 不做云端托管 / 多节点 / Redis  
+- ❌ 不自造 Agent loop（Backend adapter 驱动已有 CLI）  
+- ❌ 不改 `references/repos/` 上游 clone  
+- ❌ 不在 `chanpin/prototype/` 引入构建步骤或框架  
+- ✅ 密钥不落库；工作区路径可 DB 持久化  
+
+## 工作语言
+
+中文为主（文档与 seed）；代码标识符用英文。
