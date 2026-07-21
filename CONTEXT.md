@@ -58,7 +58,8 @@
   - 主题：**Multica 体验诚实与多仓日用（UX Trust）**  
   - 实现计划：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
   - **A1 ✅** 新建绑项目 + cwd 预检 · `ux-trust-a1-new-issue-project-impl-1.md`  
-  - 默认队列：**A2 run 展示 cwd → A3 文案与 QC 闸 → B1 Chat 绑仓 → …**  
+  - **A2 ✅** run cwd 落库 + UI · `ux-trust-a2-run-cwd-display-impl-1.md`  
+  - 默认队列：**A3 文案与 QC 闸 → B1 Chat 绑仓 → …**  
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  

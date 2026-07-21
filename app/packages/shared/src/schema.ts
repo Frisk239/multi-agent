@@ -66,6 +66,19 @@ export const AgentRun = z.object({
   squadId: BusinessId.nullable(),
   // run-observability：人工 rerun 血缘（学 Multica rerun_of_task_id）；无则 null
   rerunOfRunId: BusinessId.nullable().optional(),
+  // A2 UX Trust：CLI 工作目录审计（resolve-run-cwd）
+  cwdPath: z.string().nullable().optional(),
+  cwdMode: z
+    .enum([
+      'isolated_issue',
+      'isolated_run',
+      'chat_scratch',
+      'workspace',
+      'project_local',
+      'none',
+    ])
+    .nullable()
+    .optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;

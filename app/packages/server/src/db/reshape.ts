@@ -232,6 +232,10 @@ export function toAgentRun(row: RunRow): AgentRun {
     isLeader: row.isLeader === 1,
     squadId: row.squadId,
     rerunOfRunId: row.rerunOfRunId ?? null,
+    cwdPath: (row as { cwdPath?: string | null }).cwdPath ?? null,
+    cwdMode:
+      ((row as { cwdMode?: AgentRun['cwdMode'] }).cwdMode as AgentRun['cwdMode']) ??
+      null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

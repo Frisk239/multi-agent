@@ -48,6 +48,16 @@ const STATUS_ZH: Record<string, string> = {
   cancelled: '取消',
 };
 
+function cwdModeShort(mode: string | null | undefined): string | null {
+  if (!mode) return null;
+  if (mode === 'project_local') return '项目本机';
+  if (mode === 'workspace') return '工作区';
+  if (mode === 'isolated_issue' || mode === 'isolated_run') return '隔离';
+  if (mode === 'chat_scratch') return '聊天隔离';
+  if (mode === 'none') return '未就绪';
+  return mode;
+}
+
 /**
  * Multica「显示历史运行」密度：表精简；时间线为主操作。
  */
@@ -145,6 +155,16 @@ export function IssueRunHistory({
                 </code>
                 {r.isLeader ? <span className="leader-badge">队长</span> : null}
                 <span className="issue-run-row-runtime text-sm">{r.runtime}</span>
+                {cwdModeShort(r.cwdMode) ? (
+                  <span
+                    className="issue-run-row-cwd text-dim text-sm"
+                    data-testid="issue-run-history-cwd"
+                    data-cwd-mode={r.cwdMode ?? ''}
+                    title={r.cwdPath ?? undefined}
+                  >
+                    {cwdModeShort(r.cwdMode)}
+                  </span>
+                ) : null}
                 <span className="issue-run-row-id text-dim text-sm">{shortId(r.id)}</span>
                 <span
                   className="issue-run-row-dur text-dim text-sm"

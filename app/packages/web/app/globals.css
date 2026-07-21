@@ -8988,6 +8988,29 @@ a.issue-card-run-fail--link:hover {
   text-decoration: none;
 }
 
+.run-detail-cwd {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: var(--text-sm);
+}
+.run-detail-cwd-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.run-detail-cwd-path {
+  font-size: 0.92em;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
 .run-detail-chip--link:hover {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
   color: var(--accent);

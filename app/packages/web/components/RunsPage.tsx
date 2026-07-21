@@ -58,6 +58,16 @@ function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
 }
 
+function cwdModeShort(mode: string | null | undefined): string | null {
+  if (!mode) return null;
+  if (mode === 'project_local') return '项目本机';
+  if (mode === 'workspace') return '工作区';
+  if (mode === 'isolated_issue' || mode === 'isolated_run') return '隔离';
+  if (mode === 'chat_scratch') return '聊天隔离';
+  if (mode === 'none') return '未就绪';
+  return mode;
+}
+
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return iso;
@@ -650,6 +660,18 @@ function RunsPageInner() {
                           )}
                           <span className="runs-task-meta">
                             {kindLabel(r.kind)}
+                            {cwdModeShort(r.cwdMode) ? (
+                              <>
+                                {' · '}
+                                <span
+                                  data-testid="runs-row-cwd"
+                                  data-cwd-mode={r.cwdMode ?? ''}
+                                  title={r.cwdPath ?? undefined}
+                                >
+                                  {cwdModeShort(r.cwdMode)}
+                                </span>
+                              </>
+                            ) : null}
                             {r.squadId ? (
                               <>
                                 {' · '}

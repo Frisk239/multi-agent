@@ -281,7 +281,7 @@ git push origin main
 - Modify: `RunDetailPage.tsx`、`IssueRunHistory.tsx` 或 `RunsPage` 一行展示
 - Progress: `app/.progress/ux-trust-a2-run-cwd-display-impl-1.md`
 
-- [ ] **Step 1: 调研现有列**
+- [x] **Step 1: 调研现有列**
 
 ```bash
 rg "cwdPath|cwd_path|cwdMode|cwd_mode" app/packages/server app/packages/shared
@@ -294,11 +294,11 @@ ALTER TABLE agent_run ADD COLUMN cwd_path text;
 ALTER TABLE agent_run ADD COLUMN cwd_mode text;
 ```
 
-- [ ] **Step 2: worker 写入**
+- [x] **Step 2: worker 写入**
 
 在 `run-worker.ts` 已有 `resolveRunCwd` 调用处，将 `resolved.path` / `resolved.mode` 写入 run 行（spawn 前或成功创建隔离目录后）。
 
-- [ ] **Step 3: API reshape + 前端**
+- [x] **Step 3: API reshape + 前端**
 
 中文 mode 标签：
 
@@ -312,11 +312,11 @@ ALTER TABLE agent_run ADD COLUMN cwd_mode text;
 
 UI：`data-testid="run-cwd"` 显示 `标签 · path`。
 
-- [ ] **Step 4: typecheck + Playwright**
+- [x] **Step 4: typecheck + Playwright**
 
 打开任意 run 详情 / issue 活迹，确认可见。
 
-- [ ] **Step 5: commit + push main**
+- [x] **Step 5: commit + push main**
 
 ```bash
 git commit -m "feat: persist and display agent run cwd mode and path"

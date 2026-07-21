@@ -117,6 +117,18 @@ async function tick(): Promise<void> {
       projectLocalPath,
     });
     const cwd = cwdInfo.path;
+    // A2：落库 cwd 审计（成功或失败路径均写，便于 UI「跑在哪」）
+    try {
+      db.update(agentRuns)
+        .set({
+          cwdPath: cwd ?? projectLocalPath ?? null,
+          cwdMode: cwdInfo.mode,
+        })
+        .where(eq(agentRuns.id, runRow.id))
+        .run();
+    } catch {
+      /* ignore write race */
+    }
     if (!cwd || !cwdInfo.exists) {
       await failRun(
         runRow.id,

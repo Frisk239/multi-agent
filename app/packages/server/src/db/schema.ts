@@ -240,6 +240,9 @@ export const agentRuns = sqliteTable(
     lastHeartbeatAt: integer('last_heartbeat_at'),
     // run-observability：人工 rerun 血缘（可空）
     rerunOfRunId: text('rerun_of_run_id'),
+    // A2 UX Trust：CLI cwd 审计（resolve-run-cwd）
+    cwdPath: text('cwd_path'),
+    cwdMode: text('cwd_mode'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

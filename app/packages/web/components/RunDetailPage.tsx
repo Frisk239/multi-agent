@@ -81,6 +81,25 @@ function durationLabel(startedAt: string | null, finishedAt: string | null): str
   return rem ? `${min}m ${rem}s` : `${min}m`;
 }
 
+/** A2 UX Trust：cwd mode → 中文标签 */
+function cwdModeLabel(mode: string | null | undefined): string {
+  switch (mode) {
+    case 'project_local':
+      return '项目本机';
+    case 'workspace':
+      return '工作区';
+    case 'isolated_issue':
+    case 'isolated_run':
+      return '隔离';
+    case 'chat_scratch':
+      return '聊天隔离';
+    case 'none':
+      return '未就绪';
+    default:
+      return mode ? mode : '未知';
+  }
+}
+
 function toolNameFromBody(body: string): string | null {
   try {
     const j = JSON.parse(body) as { name?: string };
@@ -371,6 +390,26 @@ export function RunDetailPage({ runId }: { runId: string }) {
             {run.createdAt ? new Date(run.createdAt).toLocaleString() : ''}
           </span>
         </div>
+
+        {run.cwdMode || run.cwdPath ? (
+          <div
+            className="run-detail-cwd"
+            data-testid="run-cwd"
+            data-cwd-mode={run.cwdMode ?? 'unknown'}
+            title={run.cwdPath ?? undefined}
+          >
+            <span className="run-detail-cwd-label">
+              工作目录 · {cwdModeLabel(run.cwdMode)}
+            </span>
+            {run.cwdPath ? (
+              <code className="run-detail-cwd-path" data-testid="run-cwd-path">
+                {run.cwdPath}
+              </code>
+            ) : (
+              <span className="text-dim">（无路径）</span>
+            )}
+          </div>
+        ) : null}
 
         {isLive && progress ? (
           <p className="run-trace-live-progress" data-testid="run-detail-progress">
