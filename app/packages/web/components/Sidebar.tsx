@@ -57,13 +57,23 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },
 ];
 
-function NavRow({ item, active }: { item: NavItem; active: boolean }) {
+function NavRow({
+  item,
+  active,
+  collapsed,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed?: boolean;
+}) {
   const hasFail = (item.failBadge ?? 0) > 0;
   const isRuns = item.id === 'runs';
   const badge =
     item.badge != null && item.badge > 0 ? (
       <span
-        className={`nav-badge${hasFail ? ' nav-badge--fail' : ''}${isRuns ? ' nav-badge--active-runs' : ''}`}
+        className={`nav-badge${hasFail ? ' nav-badge--fail' : ''}${isRuns ? ' nav-badge--active-runs' : ''}${
+          collapsed ? ' nav-badge--collapsed' : ''
+        }`}
         data-testid={
           item.id === 'inbox'
             ? 'nav-inbox-badge'
@@ -100,7 +110,7 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
   const content = (
     <>
       <Icon name={item.icon} size={15} className="nav-icon-svg" />
-      <span className="nav-item-label">{item.label}</span>
+      {!collapsed ? <span className="nav-item-label">{item.label}</span> : null}
       {badge}
     </>
   );
@@ -109,16 +119,25 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
     return (
       <Link
         href={item.href}
-        className={`nav-item${active ? ' active' : ''}${hasFail ? ' nav-item--has-fail' : ''}`}
+        className={`nav-item${active ? ' active' : ''}${hasFail ? ' nav-item--has-fail' : ''}${
+          collapsed ? ' nav-item--collapsed' : ''
+        }`}
         aria-current={active ? 'page' : undefined}
-        data-testid={item.id === 'inbox' ? 'nav-inbox' : undefined}
+        title={collapsed ? item.label : undefined}
+        data-testid={
+          item.id === 'inbox'
+            ? 'nav-inbox'
+            : item.id === 'settings'
+              ? 'nav-settings'
+              : undefined
+        }
       >
         {content}
       </Link>
     );
   }
   return (
-    <span className="nav-item nav-item--disabled" aria-disabled="true">
+    <span className="nav-item nav-item--disabled" aria-disabled="true" title={item.label}>
       {content}
     </span>
   );
@@ -151,6 +170,17 @@ function navItemActive(
   return false;
 }
 
+const SIDEBAR_COLLAPSED_KEY = 'ma-sidebar-collapsed';
+
+function readSidebarCollapsed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -166,6 +196,25 @@ export function Sidebar() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
   const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
+  const [collapsed, setCollapsed] = useState(false);
+  const [collapseReady, setCollapseReady] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(readSidebarCollapsed());
+    setCollapseReady(true);
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   // wiki-memory-ops D1：/runs「去快速派活」带 ?quickPrompt=
   useEffect(() => {
@@ -244,8 +293,15 @@ export function Sidebar() {
     },
   ];
 
+  const isCollapsed = collapseReady && collapsed;
+
   return (
-    <aside className="sidebar" aria-label="主导航">
+    <aside
+      className={`sidebar${isCollapsed ? ' sidebar--collapsed' : ''}`}
+      aria-label="主导航"
+      data-testid="app-sidebar"
+      data-collapsed={isCollapsed ? '1' : '0'}
+    >
       <div className="sidebar-workspace">
         <svg
           className="workspace-logo"
@@ -266,102 +322,136 @@ export function Sidebar() {
           <line x1="14.8" y1="13.2" x2="18.2" y2="15.6" />
           <circle cx="19.2" cy="16.3" r="2" />
         </svg>
-        <span>Multi-Agent</span>
+        {!isCollapsed ? <span className="sidebar-workspace-name">Multi-Agent</span> : null}
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          data-testid="sidebar-collapse-toggle"
+          title={isCollapsed ? '展开侧栏' : '折叠侧栏'}
+          aria-label={isCollapsed ? '展开侧栏' : '折叠侧栏'}
+          aria-expanded={!isCollapsed}
+          onClick={toggleCollapsed}
+        >
+          {isCollapsed ? '⟩' : '⟨'}
+        </button>
       </div>
 
-      <div className="sidebar-status-row">
-        <span
-          className={`ws-chip ws-chip--${wsStatus}`}
-          title={`WebSocket ${wsLabel(wsStatus)}`}
-        >
-          <span className="ws-chip-dot" aria-hidden="true" />
-          {wsLabel(wsStatus)}
-        </span>
-        <span className="working-count" title="进行中 / 审核中">
-          工作中 {workingCount}
-        </span>
-        {(activeRuns?.count ?? 0) > 0 ? (
-          <Link
-            href="/runs?status=active"
-            className="active-runs-chip active-runs-chip--hot"
-            data-testid="sidebar-active-runs"
-            data-count={String(activeRuns?.count ?? 0)}
-            title={`queued ${activeRuns?.queued ?? 0} · running ${activeRuns?.running ?? 0}`}
-          >
-            在途 {activeRuns?.count}
-          </Link>
-        ) : (
+      {!isCollapsed ? (
+        <div className="sidebar-status-row">
           <span
-            className="active-runs-chip"
-            data-testid="sidebar-active-runs"
-            data-count="0"
-            title="无 queued/running run"
+            className={`ws-chip ws-chip--${wsStatus}`}
+            title={`WebSocket ${wsLabel(wsStatus)}`}
           >
-            在途 0
+            <span className="ws-chip-dot" aria-hidden="true" />
+            {wsLabel(wsStatus)}
           </span>
-        )}
-        {unreadFailCount > 0 ? (
-          <Link
-            href="/inbox?kind=run_failed&read=unread"
-            className="sidebar-fail-chip"
-            data-testid="sidebar-fail-chip"
-            data-count={String(unreadFailCount)}
-            title={`${unreadFailCount} 条未读失败 · 打开收件箱`}
+          <span className="working-count" title="进行中 / 审核中">
+            工作中 {workingCount}
+          </span>
+          {(activeRuns?.count ?? 0) > 0 ? (
+            <Link
+              href="/runs?status=active"
+              className="active-runs-chip active-runs-chip--hot"
+              data-testid="sidebar-active-runs"
+              data-count={String(activeRuns?.count ?? 0)}
+              title={`queued ${activeRuns?.queued ?? 0} · running ${activeRuns?.running ?? 0}`}
+            >
+              在途 {activeRuns?.count}
+            </Link>
+          ) : (
+            <span
+              className="active-runs-chip"
+              data-testid="sidebar-active-runs"
+              data-count="0"
+              title="无 queued/running run"
+            >
+              在途 0
+            </span>
+          )}
+          {unreadFailCount > 0 ? (
+            <Link
+              href="/inbox?kind=run_failed&read=unread"
+              className="sidebar-fail-chip"
+              data-testid="sidebar-fail-chip"
+              data-count={String(unreadFailCount)}
+              title={`${unreadFailCount} 条未读失败 · 打开收件箱`}
+            >
+              失败 {unreadFailCount > 99 ? '99+' : unreadFailCount}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="sidebar-scroll" data-testid="sidebar-scroll">
+        <div className="sidebar-actions">
+          <button
+            type="button"
+            className="sidebar-search"
+            onClick={() => setPaletteOpen(true)}
+            title="搜索"
           >
-            失败 {unreadFailCount > 99 ? '99+' : unreadFailCount}
-          </Link>
-        ) : null}
+            <Icon name="search" size={14} className="nav-icon-svg" />
+            {!isCollapsed ? (
+              <>
+                搜索...
+                <span className="kbd-hint">Ctrl+K</span>
+              </>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            className="sidebar-new-issue"
+            title="快速派活"
+            onClick={() => {
+              setQuickPrefill(undefined);
+              setQuickDispatchOpen(true);
+            }}
+          >
+            <Icon name="plus" size={14} className="nav-icon-svg" />
+            {!isCollapsed ? (
+              <>
+                快速派活
+                <span className="kbd-hint">Q</span>
+              </>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            className="sidebar-new-issue"
+            title="新建 Issue"
+            onClick={() => router.push('/?new=1')}
+          >
+            <Icon name="issues" size={14} className="nav-icon-svg" />
+            {!isCollapsed ? (
+              <>
+                新建 Issue
+                <span className="kbd-hint">C</span>
+              </>
+            ) : null}
+          </button>
+        </div>
+        <nav className="sidebar-nav" aria-label="页面导航">
+          {sections.map((sec) => (
+            <div className="nav-section" key={sec.key}>
+              {sec.label && !isCollapsed ? (
+                <div className="nav-section-label">{sec.label}</div>
+              ) : null}
+              <ul className="nav-list">
+                {sec.items.map((item) => (
+                  <li key={item.id}>
+                    <NavRow
+                      item={item}
+                      active={navItemActive(item, pathname, searchParams)}
+                      collapsed={isCollapsed}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
       </div>
 
-      <div className="sidebar-actions">
-        <button
-          type="button"
-          className="sidebar-search"
-          onClick={() => setPaletteOpen(true)}
-        >
-          <Icon name="search" size={14} className="nav-icon-svg" />
-          搜索...
-          <span className="kbd-hint">Ctrl+K</span>
-        </button>
-        <button
-          type="button"
-          className="sidebar-new-issue"
-          onClick={() => {
-            setQuickPrefill(undefined);
-            setQuickDispatchOpen(true);
-          }}
-        >
-          <Icon name="plus" size={14} className="nav-icon-svg" />
-          快速派活
-          <span className="kbd-hint">Q</span>
-        </button>
-        <button
-          type="button"
-          className="sidebar-new-issue"
-          onClick={() => router.push('/?new=1')}
-        >
-          <Icon name="issues" size={14} className="nav-icon-svg" />
-          新建 Issue
-          <span className="kbd-hint">C</span>
-        </button>
-      </div>
-      <nav>
-        {sections.map((sec) => (
-          <div className="nav-section" key={sec.key}>
-            {sec.label && <div className="nav-section-label">{sec.label}</div>}
-            <ul className="nav-list">
-              {sec.items.map((item) => (
-                <li key={item.id}>
-                  <NavRow
-                    item={item}
-                    active={navItemActive(item, pathname, searchParams)}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </nav>
       <div className="sidebar-footer">
         <button
           type="button"
@@ -374,9 +464,20 @@ export function Sidebar() {
         >
           {theme === 'dark' ? '浅' : '深'}
         </button>
-        <button type="button" className="help-btn" title="帮助" aria-label="帮助">
-          <Icon name="help" size={16} />
-        </button>
+        {!isCollapsed ? (
+          <button type="button" className="help-btn" title="帮助" aria-label="帮助">
+            <Icon name="help" size={16} />
+          </button>
+        ) : null}
+        <Link
+          href="/settings"
+          className="help-btn sidebar-settings-link"
+          title="设置"
+          aria-label="设置"
+          data-testid="sidebar-settings-link"
+        >
+          <Icon name="settings" size={16} />
+        </Link>
       </div>
       <CommandPalette open={paletteOpen} setOpen={setPaletteOpen} />
       <QuickDispatchPanel
