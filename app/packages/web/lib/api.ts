@@ -47,6 +47,7 @@ import type {
   UpdateAutomationRuleInput,
   ChatThread,
   ChatMessage,
+  ChatExecContext,
   CreateChatThreadInput,
   Project,
   CreateProjectInput,
@@ -1980,6 +1981,22 @@ export function useChatMessages(threadId: string | undefined) {
     },
     enabled: !!threadId,
     refetchInterval: 2_500,
+  });
+}
+
+/** 会话 CLI cwd 模式与路径（服务端真源） */
+export function useChatExecContext(threadId: string | undefined) {
+  return useQuery<ChatExecContext>({
+    queryKey: ['chat-exec-context', threadId],
+    queryFn: async () => {
+      const res = await fetch(
+        `${API}/chat/threads/${encodeURIComponent(threadId!)}/exec-context`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载会话执行目录失败'));
+      return res.json();
+    },
+    enabled: !!threadId,
+    staleTime: 30_000,
   });
 }
 

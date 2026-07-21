@@ -7,6 +7,7 @@ import {
   ListChatThreadsQuery,
   PinChatThreadInput,
   PostChatMessageInput,
+  type ChatExecContext,
   type ChatMessage,
   type ChatThread,
 } from '@ma/shared';
@@ -15,6 +16,7 @@ import { agentRuns, agents, chatMessages, chatThreads } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
+import { resolveChatExecContext } from '../runtime/resolve-run-cwd.js';
 
 function iso(ms: number | null | undefined): string | null {
   if (ms == null) return null;
@@ -113,7 +115,30 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
     if (!row) return reply.status(404).send({ error: '会话不存在' });
-    return toThread(row, lastPreviewFor(row.id));
+    const base = toThread(row, lastPreviewFor(row.id));
+    const exec = resolveChatExecContext(id);
+    const execContext: ChatExecContext = {
+      mode: exec.mode,
+      modeLabel: exec.modeLabel,
+      path: exec.path,
+      exists: exec.exists,
+    };
+    return { ...base, execContext };
+  });
+
+  // GET /api/chat/threads/:id/exec-context —— 会话头 cwd mode/path（可单独刷新）
+  app.get('/api/chat/threads/:id/exec-context', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    const exec = resolveChatExecContext(id);
+    const body: ChatExecContext = {
+      mode: exec.mode,
+      modeLabel: exec.modeLabel,
+      path: exec.path,
+      exists: exec.exists,
+    };
+    return body;
   });
 
   // PATCH /api/chat/threads/:id/pin  { pinned: boolean }

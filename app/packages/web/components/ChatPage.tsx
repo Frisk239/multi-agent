@@ -7,6 +7,7 @@ import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
   useAgents,
   useArchiveChatThread,
+  useChatExecContext,
   useChatMessages,
   useChatThreads,
   useCreateChatThread,
@@ -44,6 +45,14 @@ function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
 }
 
+/** 会话头展示：截断绝对路径中间 */
+function truncatePath(path: string, max = 48): string {
+  const p = path.trim();
+  if (p.length <= max) return p;
+  const keep = Math.floor((max - 1) / 2);
+  return `${p.slice(0, keep)}…${p.slice(-keep)}`;
+}
+
 /**
  * 聊天页：对齐 Multica 会话列表 + 主区。
  * 关键修复：WS 终态刷 messages；展示「思考中」进度与最近失败原因（避免静默卡死感）。
@@ -64,6 +73,7 @@ export function ChatPage() {
   const { data: messages = [], isLoading: messagesLoading } = useChatMessages(
     threadId || undefined,
   );
+  const { data: execContext } = useChatExecContext(threadId || undefined);
   const createThread = useCreateChatThread();
   const postMessage = usePostChatMessage(threadId || undefined);
 
@@ -149,12 +159,33 @@ export function ChatPage() {
     await postMessage.mutateAsync(body);
   }
 
+  /** 重发上一条：取最近一条用户消息正文，再 POST 新 run */
+  const lastUserBody = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]!;
+      if (m.role === 'user' && m.body.trim()) return m.body.trim();
+    }
+    return null;
+  }, [messages]);
+
+  async function handleResendLast() {
+    if (!lastUserBody || !threadId || liveRun || postMessage.isPending) return;
+    await postMessage.mutateAsync(lastUserBody);
+  }
+
   const selectedAgent = selectedThread
     ? agentById.get(selectedThread.agentId)
     : null;
 
   const failure = lastFailedRun
-    ? classifyRunFailure(lastFailedRun.error)
+    ? lastFailedRun.status === 'cancelled' && !(lastFailedRun.error ?? '').trim()
+      ? {
+          code: 'generic' as const,
+          title: '运行已取消',
+          hint: '可点「重发上一条」用同一用户消息再开一轮。',
+          settingsHref: null as string | null,
+        }
+      : classifyRunFailure(lastFailedRun.error)
     : null;
 
   return (
@@ -328,7 +359,10 @@ export function ChatPage() {
                   ✦
                 </div>
                 <h2>和你的智能体对话</h2>
-                <p>它们了解工作区里的 issue 与上下文。选一个会话，或新建对话。</p>
+                <p data-testid="chat-empty-copy">
+                  一对一聊天：默认在隔离目录跑 CLI，不会自动「读懂」你的项目 issue。
+                  从左侧选会话，或点下方新建对话。
+                </p>
                 <button
                   type="button"
                   className="chat-empty-cta"
@@ -354,6 +388,32 @@ export function ChatPage() {
                       </span>
                     ) : null}
                   </p>
+                  {execContext ? (
+                    <p
+                      className="chat-main-cwd"
+                      data-testid="chat-exec-context"
+                      data-cwd-mode={execContext.mode}
+                      title={execContext.path ?? undefined}
+                    >
+                      <span
+                        className="chat-cwd-mode"
+                        data-testid="chat-cwd-mode"
+                      >
+                        {execContext.modeLabel}
+                      </span>
+                      {execContext.path ? (
+                        <>
+                          {' · '}
+                          <span
+                            className="chat-cwd-path"
+                            data-testid="chat-cwd-path"
+                          >
+                            {truncatePath(execContext.path)}
+                          </span>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </div>
               </header>
 
@@ -433,6 +493,24 @@ export function ChatPage() {
                         <pre className="chat-fail-error">{lastFailedRun.error}</pre>
                       ) : null}
                       <div className="chat-fail-actions">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          data-testid="chat-fail-resend"
+                          disabled={
+                            !lastUserBody ||
+                            postMessage.isPending ||
+                            Boolean(liveRun)
+                          }
+                          onClick={() => void handleResendLast()}
+                          title={
+                            lastUserBody
+                              ? '用上一条用户消息再开一轮'
+                              : '没有可重发的用户消息'
+                          }
+                        >
+                          {postMessage.isPending ? '重发中…' : '重发上一条'}
+                        </button>
                         <Link
                           href={`/runs/${encodeURIComponent(lastFailedRun.id)}`}
                           className="btn btn-secondary btn-sm"

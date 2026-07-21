@@ -197,3 +197,42 @@ export function resolveRunCwd(opts: {
   }
   return resolveIsolated(kind, opts);
 }
+
+/**
+ * Chat 会话头展示用：mode + path（不 spawn CLI）。
+ * runId 用占位即可；chat scratch 按 threadId 建目录。
+ */
+export function resolveChatExecContext(threadId: string): {
+  mode: 'chat_scratch' | 'workspace' | 'none';
+  modeLabel: string;
+  path: string | null;
+  exists: boolean;
+} {
+  const resolved = resolveRunCwd({
+    kind: 'chat',
+    runId: 'exec-context',
+    chatThreadId: threadId,
+  });
+  if (resolved.mode === 'workspace') {
+    return {
+      mode: 'workspace',
+      modeLabel: '工作区',
+      path: resolved.path,
+      exists: resolved.exists,
+    };
+  }
+  if (resolved.mode === 'chat_scratch') {
+    return {
+      mode: 'chat_scratch',
+      modeLabel: '隔离',
+      path: resolved.path,
+      exists: resolved.exists,
+    };
+  }
+  return {
+    mode: 'none',
+    modeLabel: '未就绪',
+    path: resolved.path,
+    exists: false,
+  };
+}

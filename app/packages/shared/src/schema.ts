@@ -160,6 +160,17 @@ export function classifyRunFailure(error: string | null | undefined): RunFailure
       settingsHref: '/runtimes',
     };
   }
+  // chat/issue 硬超时（CLI exceeded Nms）优先于 heartbeat stale
+  if (
+    /timeout|timed?\s*out|exceeded\s+\d+\s*ms|CLI exceeded|wall.?clock|硬超时/i.test(e)
+  ) {
+    return {
+      code: 'generic',
+      title: '执行超时',
+      hint: 'CLI 超过时限未结束。可「重发上一条」再试；慢模型可调大 MA_CHAT_TIMEOUT_MS（chat）或检查本机 CLI 是否卡住。',
+      settingsHref: '/settings',
+    };
+  }
   if (/^stale:|^orphan:|heartbeat timeout|no live executor/i.test(e)) {
     return {
       code: 'stale_or_orphan',
@@ -1159,6 +1170,17 @@ export type MemoryStatus = z.infer<typeof MemoryStatus>;
 export const ChatMessageRole = z.enum(['user', 'assistant', 'system']);
 export type ChatMessageRole = z.infer<typeof ChatMessageRole>;
 
+/** Chat 执行目录元信息（服务端真源；对齐 resolveRunCwd） */
+export const ChatExecContext = z.object({
+  /** chat_scratch=默认隔离；workspace=MA_CHAT_USE_WORKSPACE_CWD；none=失败 */
+  mode: z.enum(['chat_scratch', 'workspace', 'none']),
+  /** 产品文案：隔离 / 工作区 / 未就绪 */
+  modeLabel: z.string(),
+  path: z.string().nullable(),
+  exists: z.boolean(),
+});
+export type ChatExecContext = z.infer<typeof ChatExecContext>;
+
 export const ChatThread = z.object({
   id: BusinessId,
   agentId: BusinessId,
@@ -1170,6 +1192,8 @@ export const ChatThread = z.object({
   pinnedAt: z.string().datetime().nullable().optional(),
   /** Multica：归档时间；null=活跃 */
   archivedAt: z.string().datetime().nullable().optional(),
+  /** 详情接口可选：本会话 CLI cwd 模式与路径 */
+  execContext: ChatExecContext.optional(),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
 

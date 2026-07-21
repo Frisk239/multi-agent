@@ -1,6 +1,14 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { issues, comments, agentSkills, agents, agentRuns, users } from '../db/schema.js';
+import {
+  issues,
+  comments,
+  agentSkills,
+  agents,
+  agentRuns,
+  users,
+  chatMessages,
+} from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { getSkillIndex } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
@@ -10,6 +18,69 @@ import { LOCAL_MEMBER } from '../local-member.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
+
+/** Chat 多轮历史条数（默认 20；MA_CHAT_HISTORY_LIMIT 可覆盖；0=不注入历史） */
+const CHAT_HISTORY_DEFAULT = 20;
+
+export function chatHistoryLimit(): number {
+  const raw = process.env.MA_CHAT_HISTORY_LIMIT;
+  if (raw === undefined || raw === '') return CHAT_HISTORY_DEFAULT;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return CHAT_HISTORY_DEFAULT;
+  return Math.floor(n);
+}
+
+export type ChatHistoryMessage = { role: string; body: string };
+
+/**
+ * 将 prior 消息格式化为 prompt 块（纯函数，可单测）。
+ * Multica 对照：daemon.go trailingUserMessages 只发未答用户消息（因 session 复用）；
+ * 本仓每次新起 CLI，故注入完整 recent 对话（不含当前 user 行）。
+ */
+export function formatChatHistoryBlock(messages: ChatHistoryMessage[]): string | null {
+  if (!messages.length) return null;
+  const lines = messages.map((m) => {
+    const role =
+      m.role === 'user' ? '用户' : m.role === 'assistant' ? '助手' : m.role;
+    const body = (m.body ?? '').trim();
+    return `[${role}]\n${body}`;
+  });
+  return `## 会话历史（多轮上下文）\n${lines.join('\n\n')}`;
+}
+
+/**
+ * 加载本 run 的 prior 历史：同 thread 内、当前 user 消息之前的最近 N 条。
+ * 当前 user 消息用 runId 关联（POST message 时已绑定）。
+ */
+export function loadPriorChatMessages(
+  threadId: string,
+  runId: string,
+  limit = chatHistoryLimit(),
+): ChatHistoryMessage[] {
+  if (!threadId || limit <= 0) return [];
+  const rows = db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.threadId, threadId))
+    .orderBy(asc(chatMessages.createdAt))
+    .all();
+  if (!rows.length) return [];
+
+  // 当前 user 消息 = 绑定本 runId 的 user 行；找不到则退化为最后一条 user
+  let currentIdx = rows.findIndex((r) => r.runId === runId && r.role === 'user');
+  if (currentIdx < 0) {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i]!.role === 'user') {
+        currentIdx = i;
+        break;
+      }
+    }
+  }
+  const prior =
+    currentIdx >= 0 ? rows.slice(0, currentIdx) : rows.slice(0, Math.max(0, rows.length - 1));
+  const slice = prior.slice(-limit);
+  return slice.map((r) => ({ role: r.role, body: r.body }));
+}
 
 // buildPrompt —— 组装喂给 CLI 的 user prompt（spec §6.2）：
 // Issue 标题 + 描述 + 最近 K 条 comment 文本 + 一句工作指令。
@@ -57,12 +128,20 @@ export async function resolveRunPrompt(
           '不要主动探索/搜索上级目录或其它仓库；用户未给出路径时，用对话回答即可。',
           '只有用户明确给出本机路径并要求读写时，才访问该路径。',
         ].join('\n');
+    // 多轮：注入同 thread 历史（本仓无 Multica session 复用，每次 CLI 冷启动）
+    const threadId = runRow.chatThreadId?.trim() ?? '';
+    const prior = threadId
+      ? loadPriorChatMessages(threadId, runRow.id, chatHistoryLimit())
+      : [];
+    const historyBlock = formatChatHistoryBlock(prior);
     const parts = [
       `你是智能体「${name}」，正在与用户进行一对一聊天（非 Issue 任务）。`,
       instructions ? `你的指令：\n${instructions}` : null,
       cwdNote,
       '请直接、简洁地回答用户。不要擅自改仓库代码，除非用户明确要求。',
-      `用户说：\n${userText}`,
+      '若上方有会话历史，请结合历史连贯作答；当前用户消息以最后一节为准。',
+      historyBlock,
+      `## 当前用户消息\n${userText}`,
     ];
     return parts.filter(Boolean).join('\n\n');
   }

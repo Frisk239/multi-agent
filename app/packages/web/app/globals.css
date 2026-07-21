@@ -5694,6 +5694,31 @@ button.memory-kind-chip.is-active {
   color: var(--text-dim);
 }
 
+.chat-main-cwd {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.chat-cwd-mode {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent, #6c9eff) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.chat-cwd-path {
+  opacity: 0.92;
+}
+
 .chat-messages {
   flex: 1;
   overflow: auto;
