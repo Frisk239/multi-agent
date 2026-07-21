@@ -8184,3 +8184,150 @@ a.issue-card-run-fail--link:hover {
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* —— Projects Multica-lite 集合页 —— */
+.projects-page--multica .page-header {
+  margin-bottom: var(--space-3);
+}
+
+.projects-row-desc {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects-inline-status {
+  min-width: 7.5rem;
+  height: 32px;
+  padding: 0 26px 0 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background-color: var(--bg-elevated, var(--surface));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.projects-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 7rem;
+}
+
+.projects-progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  overflow: hidden;
+  min-width: 48px;
+}
+
+.projects-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, #34d399 75%, transparent);
+  min-width: 0;
+}
+
+.projects-progress-label {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.projects-progress--detail {
+  margin-top: 14px;
+  max-width: 20rem;
+}
+
+.project-detail--multica .project-detail-crumb {
+  margin-bottom: 6px;
+}
+
+.project-title-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  padding: 0;
+  cursor: text;
+  text-align: left;
+}
+
+.project-title-btn:hover {
+  color: var(--accent, #5b8def);
+}
+
+.project-title-input {
+  width: min(100%, 36rem);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 650;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.project-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 52rem;
+}
+
+.project-desc-btn {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px dashed transparent;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: text;
+  white-space: pre-wrap;
+}
+
+.project-desc-btn.is-empty {
+  color: var(--text-dim);
+  border-color: var(--border-subtle);
+}
+
+.project-desc-btn:hover {
+  background: color-mix(in srgb, var(--bg-base, var(--bg)) 50%, transparent);
+}
+
+.project-issues-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.project-detail--multica .project-issues-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.project-detail--multica .project-issues-form .input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border-radius: 8px;
+}

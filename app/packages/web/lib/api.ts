@@ -488,8 +488,28 @@ export function useUpdateProject() {
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.setQueryData(['project', project.id], project);
       qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess('已保存项目');
     },
     onError: (err) => toastError(errMessage(err, '更新项目失败')),
+  });
+}
+
+/** 删除项目：服务端会先清空 issue.project_id */
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/projects/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiError(res, '删除项目失败'));
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.removeQueries({ queryKey: ['project', id] });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess('已删除项目');
+    },
+    onError: (err) => toastError(errMessage(err, '删除项目失败')),
   });
 }
 

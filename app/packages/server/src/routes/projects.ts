@@ -127,4 +127,22 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const stats = loadIssueStats([id]).get(id) ?? { total: 0, done: 0 };
     return toProject(row!, stats);
   });
+
+  // DELETE /api/projects/:id —— 学 Multica 可删；本仓：先卸挂 issue.project_id，再删容器
+  app.delete('/api/projects/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const prev = db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
+      .get();
+    if (!prev) return reply.status(404).send({ error: 'project 不存在' });
+
+    db.update(issues)
+      .set({ projectId: null })
+      .where(eq(issues.projectId, id))
+      .run();
+    db.delete(projects).where(eq(projects.id, id)).run();
+    return reply.status(204).send();
+  });
 }
