@@ -10,11 +10,15 @@ import {
   chatMessages,
 } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
-import { getSkillIndex } from '../skill/scanner.js';
+import { getSkillIndex, loadSkillsFromRoot, type SkillInfo } from '../skill/scanner.js';
 import { readManagedBlock } from '../wiki/agents-bridge.js';
 import { memoryManager } from '../memory/manager.js';
 import { buildQuickCreatePrompt } from './quick-create-prompt.js';
 import { LOCAL_MEMBER } from '../local-member.js';
+import {
+  readAgentsContextFromRoot,
+  resolveIssuePromptContext,
+} from './issue-prompt-context.js';
 
 // prompt 最近评论条数（spec §6.2 R2，K=20，可配置）
 const K = 20;
@@ -171,6 +175,48 @@ export async function resolveRunPrompt(
   });
 }
 
+/**
+ * F6：解析 agent 已分配 skill；project_local 时优先该仓 `.skills` 正文；
+ * isolated 时跳过「工作区 project」来源 skill，避免错仓方法论。
+ */
+export function resolveAssignedSkillsForContext(
+  agentId: string,
+  ctx: { injectRepoContext: boolean; mode: string; path: string | null },
+): SkillInfo[] {
+  const assigned = db
+    .select()
+    .from(agentSkills)
+    .where(eq(agentSkills.agentId, agentId))
+    .all();
+  if (!assigned.length) return [];
+
+  const global = getSkillIndex();
+  const fromRepo =
+    ctx.injectRepoContext && ctx.mode === 'project_local' && ctx.path
+      ? loadSkillsFromRoot(ctx.path)
+      : null;
+
+  const out: SkillInfo[] = [];
+  for (const a of assigned) {
+    const fromProject = fromRepo?.get(a.skillId);
+    if (fromProject) {
+      out.push(fromProject);
+      continue;
+    }
+    const g = global.get(a.skillId);
+    if (!g) continue;
+    // 隔离 workdir：不要塞控制台仓 / 全局 workspace 的 project skill
+    if (
+      (ctx.mode === 'isolated_issue' || ctx.mode === 'isolated_run' || ctx.mode === 'none') &&
+      g.source === 'project'
+    ) {
+      continue;
+    }
+    out.push(g);
+  }
+  return out;
+}
+
 // S10：async buildPrompt，await memory prefetch（pgvector 需 embed）
 export async function buildPrompt(
   issueId: string,
@@ -189,50 +235,51 @@ export async function buildPrompt(
   const history = rows
     .map((c) => `[${c.authorType}:${c.authorId}] ${c.body}`)
     .join('\n\n');
-  // cwd 语义学 Multica：默认隔离空 workdir，不是控制台 monorepo
-  const useWs =
-    process.env.MA_ISSUE_USE_WORKSPACE_CWD === '1' ||
-    process.env.MA_ISSUE_USE_WORKSPACE_CWD === 'true';
-  const cwdHint = useWs
-    ? 'CLI cwd 是用户配置的工作区根目录（MA_ISSUE_USE_WORKSPACE_CWD）。仅在此树内修改文件。'
-    : [
-        'CLI cwd 是本 issue 的隔离工作目录（~/.multi-agent/run-workspaces/.../workdir），',
-        '初始为空，不是 multi-agent 控制台源码仓，也不是 process.cwd。',
-        '需要仓库时请自行 clone/checkout 到该目录；不要主动扫描或修改上级目录与其它盘符路径。',
-      ].join('');
+
+  // F6：与 resolveRunCwd 同源——project local / workspace / 隔离
+  const ctx = resolveIssuePromptContext(issueId);
   const body = [
     `Issue ${issue.identifier}: ${issue.title}`,
     issue.description ? `Description:\n${issue.description}` : '',
     history ? `Recent comments:\n${history}` : '',
-    cwdHint,
+    ctx.projectTitle ? `Project: ${ctx.projectTitle}` : '',
+    ctx.cwdHint,
     'Please work on this issue in the CLI current working directory described above.',
   ]
     .filter(Boolean)
     .join('\n\n');
 
-  // S05 skill 注入（照 hermes，进 user prompt 不进 system prompt，保 cache）。
-  // 查 agent_skill 分配 + join 内存索引（scanner 的 getSkillIndex，不进 DB）。
+  // S05 + F6 skill 注入
   let skillBlock: string | null = null;
   if (run?.agentId) {
-    const assigned = db.select().from(agentSkills).where(eq(agentSkills.agentId, run.agentId)).all();
-    const index = getSkillIndex();
-    const skills = assigned
-      .map((a) => index.get(a.skillId))
-      .filter((s): s is NonNullable<typeof s> => s !== undefined);
+    const skills = resolveAssignedSkillsForContext(run.agentId, ctx);
     if (skills.length > 0) {
       skillBlock = skills.map((s) => `## Skill: ${s.name}\n${s.body}`).join('\n\n');
     }
   }
 
-  // 拼接顺序：skill → wiki → memory → user about → agent instructions → briefing → body。
-  // 统一数组 filter(Boolean) 模式（替代 S04 的字符串拼接）。
+  // 拼接顺序：skill → wiki/AGENTS → memory → user about → agent instructions → briefing → body。
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
 
-  // S08：AGENTS.md managed 块注入（spec §3.5 B6）；空则跳过
-  const wikiBridge = readManagedBlock();
-  if (wikiBridge) {
-    parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
+  // F6：AGENTS 相对仓库根；isolated 不注入 workspace AGENTS（错仓）
+  if (ctx.injectRepoContext && ctx.path) {
+    if (ctx.mode === 'project_local') {
+      const agentsCtx = readAgentsContextFromRoot(ctx.path);
+      if (agentsCtx) {
+        parts.push(`# Project AGENTS / Wiki Snapshot\n${agentsCtx}`);
+      }
+    } else {
+      // workspace 模式：保持 S08 managed 块（控制台工作区 AGENTS.md）
+      const wikiBridge = readManagedBlock();
+      if (wikiBridge) {
+        parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
+      }
+    }
+  } else if (!ctx.injectRepoContext) {
+    parts.push(
+      '# Repo context\n未绑定可用的项目本机目录：已跳过仓库 AGENTS.md 与项目级 .skills 注入。可在项目详情绑定 localPath。',
+    );
   }
 
   // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题

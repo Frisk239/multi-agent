@@ -46,6 +46,12 @@ export function userSkillsDir(): string {
   return join(homedir(), '.multi-agent', 'skills');
 }
 
+/** F6：某仓库根下的 `.skills`（学 Multica task WorkDir 侧上下文） */
+export function skillsDirUnderRoot(root: string | null | undefined): string | null {
+  if (!root?.trim()) return null;
+  return resolve(root.trim(), '.skills');
+}
+
 // 扫描两个目录（项目级优先覆盖用户级），建内存索引（照 hermes scan_skill_commands）
 export function scanSkills(): void {
   const next = new Map<string, SkillInfo>();
@@ -55,6 +61,17 @@ export function scanSkills(): void {
   const projectDir = projectSkillsDir();
   if (projectDir) scanDir(projectDir, 'project', next);
   skillIndex = next;
+}
+
+/**
+ * F6：按仓库根即时扫 `.skills`（不写全局索引）。
+ * 用于 issue 绑定 project.localPath 时，优先用该仓 skill 正文。
+ */
+export function loadSkillsFromRoot(root: string): Map<string, SkillInfo> {
+  const out = new Map<string, SkillInfo>();
+  const dir = skillsDirUnderRoot(root);
+  if (dir) scanDir(dir, 'project', out);
+  return out;
 }
 
 function scanDir(dir: string, source: 'project' | 'user', out: Map<string, SkillInfo>): void {

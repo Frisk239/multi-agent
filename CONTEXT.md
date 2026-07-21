@@ -54,9 +54,9 @@
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
 - **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
 - **已交（近）：**  
-  - Slice1–3 · **F1** project localPath · **F3** issue idle 30m + 可选 wall  
-  - progress：`project-local-path-impl-1.md` · `issue-idle-timeout-impl-1.md`
-- **下一厚切片（建议）：** F6 按 project cwd 注 AGENTS/skills · F7 Settings 可行动
+  - Slice1–3 · F1 localPath · F3 idle · **F6** prompt 按 project cwd 注 AGENTS/skills  
+  - progress：`issue-idle-timeout-impl-1.md` · `prompt-project-context-impl-1.md`
+- **下一厚切片（建议）：** F7 Settings 可行动 · F5 余量 / Inbox 噪音
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
