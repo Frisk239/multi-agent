@@ -8331,3 +8331,221 @@ a.issue-card-run-fail--link:hover {
   height: 34px;
   border-radius: 8px;
 }
+
+/* —— Issue 执行日志 / 轨迹运维区收束（学 Multica ExecutionLog 密度） —— */
+.run-status-bar--compact {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-elevated, var(--surface)) 92%, transparent);
+}
+
+.run-status-bar--compact .run-status-main {
+  gap: 8px;
+}
+
+.run-status-bar--compact .run-status-pill-row {
+  align-items: flex-start;
+}
+
+.run-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-status-runtime {
+  font-variant-numeric: tabular-nums;
+}
+
+.run-status-err-snip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-status-bar--compact .run-status-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.run-status-bar--failed {
+  border-color: color-mix(in srgb, #f87171 35%, var(--border-subtle));
+}
+
+.run-failure-box {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #f87171 28%, var(--border-subtle));
+  background: color-mix(in srgb, #f87171 8%, transparent);
+}
+
+.run-failure-head strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--text-sm);
+}
+
+.run-failure-hint {
+  margin: 0;
+  color: var(--text-muted, var(--text-dim));
+}
+
+.run-error-pre {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  max-height: 96px;
+  overflow: auto;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-base, #000) 35%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.run-ops-drawer {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.run-ops-label {
+  margin-bottom: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.run-failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.issue-run-history--compact {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-elevated, var(--surface)) 88%, transparent);
+}
+
+.issue-run-history--compact .issue-run-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.issue-run-history-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.issue-run-history--compact .issue-run-history-header h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.issue-run-failed-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #fca5a5;
+  background: color-mix(in srgb, #f87171 16%, transparent);
+}
+
+.issue-run-usage--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 10px;
+  font-size: var(--text-sm);
+}
+
+.issue-run-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.issue-run-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.issue-run-row:hover {
+  background: color-mix(in srgb, var(--accent, #5b8def) 6%, transparent);
+}
+
+.issue-run-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent, #5b8def) 30%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent, #5b8def) 8%, transparent);
+}
+
+.issue-run-row-main {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.issue-run-row-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.issue-run-row-id,
+.issue-run-row-dur,
+.issue-run-row-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.run-trace-title-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-event-timeline .run-trace-header {
+  align-items: flex-start;
+}
+
+.issue-exec-body {
+  gap: 12px !important;
+}

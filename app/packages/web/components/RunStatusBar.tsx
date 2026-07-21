@@ -13,23 +13,40 @@ import {
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
 
-export function RunStatusBar({ issueId }: { issueId: string }) {
+/**
+ * Issue 详情 · 当前/最近一次 run 状态。
+ * Multica ExecutionLog 行级密度：主操作少；运维深链收到「更多」。
+ */
+export function RunStatusBar({
+  issueId,
+  onOpenTimeline,
+}: {
+  issueId: string;
+  onOpenTimeline?: (runId: string) => void;
+}) {
   const { data: runs = [] } = useRuns(issueId);
   const cancel = useCancelRun();
   const rerunIssue = useRerunIssue(issueId);
   const retryRun = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
-  const [briefingOpen, setBriefingOpen] = useState(true);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const [opsOpen, setOpsOpen] = useState(false);
 
-  const active = runs.find((r) => r.status === 'queued' || r.status === 'running') ?? runs[0];
+  const active =
+    runs.find((r) => r.status === 'queued' || r.status === 'running') ?? runs[0];
 
-  // hooks 须在 early return 之前（Rules of Hooks）
   const showBriefing = Boolean(active?.isLeader && active?.squadId);
   const { data: squad, isLoading: squadLoading } = useSquad(
     showBriefing && active?.squadId ? active.squadId : '',
   );
 
-  if (!active) return <p className="run-status-hint">指派 agent 后自动执行</p>;
+  if (!active) {
+    return (
+      <p className="run-status-hint" data-testid="run-status-empty">
+        指派 agent 后自动执行
+      </p>
+    );
+  }
 
   const canStop = active.status === 'queued' || active.status === 'running';
   const canRerun = active.status === 'failed' || active.status === 'cancelled';
@@ -39,6 +56,7 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
     active.status === 'failed' || active.error
       ? classifyRunFailure(active.error)
       : null;
+  const isLive = active.status === 'queued' || active.status === 'running';
 
   const rosterLines =
     squad?.members
@@ -54,27 +72,79 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
       ].join('\n\n')
     : '';
 
-  const isLive = active.status === 'queued' || active.status === 'running';
+  const statusLabel =
+    active.status === 'queued'
+      ? '排队中'
+      : active.status === 'running'
+        ? '执行中'
+        : active.status === 'completed'
+          ? '已完成'
+          : active.status === 'failed'
+            ? '失败'
+            : active.status === 'cancelled'
+              ? '已取消'
+              : active.status;
 
   return (
     <div
-      className={`run-status-bar${isLive ? ' run-status-bar--live' : ''}`}
+      className={`run-status-bar run-status-bar--compact${isLive ? ' run-status-bar--live' : ''}${
+        failure ? ' run-status-bar--failed' : ''
+      }`}
       data-run-status={active.status}
       data-run-id={active.id}
       data-testid="run-status-bar"
     >
       <div className="run-status-main">
         <div className="run-status-pill-row">
-          <span className="run-status-pill">
-            {active.isLeader && <span className="leader-badge">队长</span>}
+          <div className="run-status-meta">
             {isLive ? (
-              <span className="run-live-dot" aria-hidden="true" data-testid="run-live-dot" />
+              <span className="run-live-dot" aria-hidden data-testid="run-live-dot" />
             ) : null}
-            运行 {active.status} · {active.runtime}
-            {active.error ? ` · ${active.error}` : ''}
-          </span>
-          {isLive ? (
-            <div className="run-live-actions" data-testid="run-live-entry">
+            {active.isLeader ? <span className="leader-badge">队长</span> : null}
+            <code className={`run-pill run-pill--${active.status}`}>{statusLabel}</code>
+            <span className="run-status-runtime text-dim text-sm">{active.runtime}</span>
+            {active.error && !failure ? (
+              <span className="run-status-err-snip text-dim text-sm" title={active.error}>
+                {active.error.slice(0, 80)}
+                {active.error.length > 80 ? '…' : ''}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="run-status-actions" data-testid="run-status-actions">
+            {canStop ? (
+              <button
+                type="button"
+                className="btn-stop btn-sm"
+                data-testid="run-stop"
+                onClick={() => cancel.mutate(active.id)}
+                disabled={cancel.isPending}
+              >
+                停止
+              </button>
+            ) : null}
+            {canRerun ? (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                data-testid="run-fail-rerun"
+                disabled={rerunIssue.isPending}
+                onClick={() => rerunIssue.mutate({})}
+                title="按当前 Issue 指派再排队"
+              >
+                {rerunIssue.isPending ? '排队中…' : '再执行'}
+              </button>
+            ) : null}
+            {onOpenTimeline ? (
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                data-testid="run-open-timeline"
+                onClick={() => onOpenTimeline(active.id)}
+              >
+                时间线
+              </button>
+            ) : (
               <a
                 href="#run-trace"
                 className="btn-secondary btn-sm"
@@ -87,85 +157,92 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
                   });
                 }}
               >
-                看轨迹
+                轨迹
               </a>
-              <Link
-                href={`/runs?run=${encodeURIComponent(active.id)}&status=${encodeURIComponent(active.status)}`}
-                className="btn-secondary btn-sm"
-                data-testid="run-live-to-runs"
+            )}
+            {canRerun || failure ? (
+              <button
+                type="button"
+                className={`btn-ghost btn-sm${opsOpen ? ' is-open' : ''}`}
+                data-testid="run-ops-more"
+                aria-expanded={opsOpen}
+                onClick={() => setOpsOpen((v) => !v)}
               >
-                运行列表
-              </Link>
-            </div>
-          ) : null}
+                {opsOpen ? '收起运维' : '更多运维'}
+              </button>
+            ) : null}
+          </div>
         </div>
+
         {isLive ? (
           <div
             className="run-live-panel"
             data-testid="run-live-panel"
             data-has-progress={progress ? '1' : '0'}
           >
-            <div className="run-live-bar" aria-hidden="true">
+            <div className="run-live-bar" aria-hidden>
               <span className="run-live-bar-fill" />
             </div>
-            {progress ? (
-              <p className="run-progress-text" title={progress} data-testid="run-live-progress">
-                {progress}
-              </p>
-            ) : (
-              <p className="run-progress-text run-progress-text--idle" data-testid="run-live-waiting">
-                {active.status === 'queued'
+            <p
+              className={`run-progress-text${progress ? '' : ' run-progress-text--idle'}`}
+              title={progress}
+              data-testid={progress ? 'run-live-progress' : 'run-live-waiting'}
+            >
+              {progress
+                ? progress
+                : active.status === 'queued'
                   ? '已排队，等待 worker 领取…'
                   : '执行中，等待进度推送…'}
-              </p>
-            )}
+            </p>
           </div>
-        ) : progress ? (
-          <p className="run-progress-text" title={progress}>
-            {progress}
-          </p>
         ) : null}
+
         {failure ? (
-          <div className="run-failure-box">
-            <strong>{failure.title}</strong>
-            <p className="text-sm">{failure.hint}</p>
-            {active.error ? <pre className="run-error-pre">{active.error}</pre> : null}
+          <div className="run-failure-box" data-testid="run-failure-box">
+            <div className="run-failure-head">
+              <strong>{failure.title}</strong>
+              <p className="text-sm run-failure-hint">{failure.hint}</p>
+            </div>
+            {active.error ? (
+              <pre className="run-error-pre" data-testid="run-error-pre">
+                {active.error}
+              </pre>
+            ) : null}
+          </div>
+        ) : null}
+
+        {opsOpen ? (
+          <div className="run-ops-drawer" data-testid="run-ops-drawer">
+            <div className="run-ops-label text-dim text-sm">本地运维</div>
             <div className="run-failure-actions" data-testid="run-failure-actions">
               {canRerun ? (
                 <button
                   type="button"
-                  className="btn-primary btn-sm"
-                  data-testid="run-fail-rerun"
-                  disabled={rerunIssue.isPending}
-                  onClick={() => rerunIssue.mutate({})}
-                  title="按当前 Issue 指派再排队"
+                  className="btn-secondary btn-sm"
+                  data-testid="run-retry-this"
+                  disabled={retryRun.isPending}
+                  onClick={() => retryRun.mutate(active.id)}
+                  title="按该历史 run 的 agent 再排队"
                 >
-                  {rerunIssue.isPending ? '排队中…' : '再执行'}
+                  再执行此 run
                 </button>
               ) : null}
-              {failure.settingsHref ? (
-                <Link
-                  href={failure.settingsHref}
-                  className="btn-secondary btn-sm"
-                  data-testid="run-fail-open-diag"
-                >
-                  {failure.settingsHref === '/runtimes' ? '打开运行时' : '打开诊断'}
-                </Link>
-              ) : (
-                <Link
-                  href="/settings"
-                  className="btn-secondary btn-sm"
-                  data-testid="run-fail-open-diag"
-                >
-                  打开诊断
-                </Link>
-              )}
+              <Link
+                href={
+                  failure?.settingsHref ||
+                  (active.status === 'failed' ? '/settings' : '/runtimes')
+                }
+                className="btn-secondary btn-sm"
+                data-testid="run-fail-open-diag"
+              >
+                {failure?.settingsHref === '/runtimes' ? '运行时' : '环境诊断'}
+              </Link>
               <Link
                 href={`/runs?run=${encodeURIComponent(active.id)}&status=${encodeURIComponent(active.status)}`}
-                className="btn-secondary btn-sm"
+                className="btn-ghost btn-sm"
                 data-testid="run-fail-open-runs"
               >
-                在运行列表中查看
+                运行列表
               </Link>
               <Link
                 href="/?failed=1"
@@ -187,7 +264,7 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
                   className="btn-ghost btn-sm"
                   data-testid="run-fail-open-agent"
                 >
-                  执行智能体
+                  智能体
                 </Link>
               ) : null}
               {active.squadId ? (
@@ -199,16 +276,18 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
                   小队
                 </Link>
               ) : null}
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                data-testid="run-fail-copy-error"
-                onClick={() => {
-                  if (active.error) void navigator.clipboard?.writeText(active.error);
-                }}
-              >
-                复制错误
-              </button>
+              {active.error ? (
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  data-testid="run-fail-copy-error"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(active.error ?? '');
+                  }}
+                >
+                  复制错误
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -221,19 +300,19 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
               aria-expanded={briefingOpen}
               onClick={() => setBriefingOpen((o) => !o)}
             >
-              <span>小队 Briefing 预览</span>
+              <span>小队 Briefing</span>
               <span className="text-dim">
                 {squadLoading ? '加载中…' : squad?.name ?? active.squadId}
                 {briefingOpen ? ' · 收起' : ' · 展开'}
               </span>
             </button>
-            {briefingOpen && (
+            {briefingOpen ? (
               <div className="leader-briefing-body">
                 {squadLoading && <p className="text-sm text-dim">加载小队…</p>}
-                {!squadLoading && squad && (
+                {!squadLoading && squad ? (
                   <>
                     <p className="leader-briefing-hint">
-                      与注入 leader 执行 prompt 的三段结构一致（只读；编辑请到小队页）。
+                      与注入 leader 的三段结构一致（只读；编辑请到小队页）。
                     </p>
                     <MarkdownBody source={briefingMd} />
                     <Link
@@ -243,48 +322,14 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
                       打开小队设置
                     </Link>
                   </>
-                )}
-                {!squadLoading && !squad && (
+                ) : null}
+                {!squadLoading && !squad ? (
                   <p className="text-sm text-dim">无法加载小队详情</p>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
           </div>
         ) : null}
-      </div>
-      <div className="run-status-actions">
-        {canStop && (
-          <button
-            type="button"
-            className="btn-stop"
-            onClick={() => cancel.mutate(active.id)}
-            disabled={cancel.isPending}
-          >
-            停止
-          </button>
-        )}
-        {canRerun && (
-          <>
-            <button
-              type="button"
-              className="btn-primary btn-sm"
-              disabled={rerunIssue.isPending}
-              onClick={() => rerunIssue.mutate({})}
-              title="按当前 Issue 指派再排队"
-            >
-              再执行 Issue
-            </button>
-            <button
-              type="button"
-              className="btn-secondary btn-sm"
-              disabled={retryRun.isPending}
-              onClick={() => retryRun.mutate(active.id)}
-              title="按该历史 run 的 agent 再排队"
-            >
-              再执行此 run
-            </button>
-          </>
-        )}
       </div>
     </div>
   );

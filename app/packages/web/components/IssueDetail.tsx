@@ -179,7 +179,13 @@ export function IssueDetail({ id }: { id: string }) {
             </button>
             {execOpen ? (
               <div className="issue-exec-body" data-testid="issue-exec-body">
-                <RunStatusBar issueId={id} />
+                <RunStatusBar
+                  issueId={id}
+                  onOpenTimeline={(runId) => {
+                    setSelectedRunId(runId);
+                    setTimelineOpen(true);
+                  }}
+                />
                 <IssueRunHistory
                   runs={runs}
                   selectedRunId={selectedRunId}

@@ -68,20 +68,22 @@ export function RunEventTimelineInline({
       data-run-id={run.id}
     >
       <div className="run-trace-header">
-        <h3>事件时间线</h3>
-        <span className="text-dim text-sm" data-testid="run-trace-run-id">
-          {run.id.slice(0, 8)}…
-        </span>
-        {toolCount > 0 ? (
-          <span className="run-event-tool-count" data-testid="run-event-tool-count">
-            工具 {toolCount}
+        <div className="run-trace-title-row">
+          <h3>事件轨迹</h3>
+          <span className="text-dim text-sm" data-testid="run-trace-run-id">
+            {run.id.slice(0, 8)}…
           </span>
-        ) : null}
-        {isLive ? (
-          <span className="run-trace-live-badge" data-testid="run-trace-live-badge">
-            live · {run.status}
-          </span>
-        ) : null}
+          {toolCount > 0 ? (
+            <span className="run-event-tool-count" data-testid="run-event-tool-count">
+              工具 {toolCount}
+            </span>
+          ) : null}
+          {isLive ? (
+            <span className="run-trace-live-badge" data-testid="run-trace-live-badge">
+              live
+            </span>
+          ) : null}
+        </div>
         <div className="run-trace-header-links" data-testid="run-trace-header-links">
           {onOpenDrawer ? (
             <button
@@ -90,7 +92,7 @@ export function RunEventTimelineInline({
               data-testid="run-event-open-drawer"
               onClick={() => onOpenDrawer(run.id)}
             >
-              展开时间线
+              展开
             </button>
           ) : null}
           <Link
@@ -98,24 +100,15 @@ export function RunEventTimelineInline({
             className="btn-ghost btn-sm"
             data-testid="run-trace-to-runs"
           >
-            运行列表
+            列表
           </Link>
-          {run.agentId ? (
-            <Link
-              href={`/agents/${run.agentId}`}
-              className="btn-ghost btn-sm"
-              data-testid="run-trace-to-agent"
-            >
-              智能体
-            </Link>
-          ) : null}
           {isFailed ? (
             <Link
               href="/settings"
               className="btn-ghost btn-sm"
               data-testid="run-trace-to-settings"
             >
-              环境
+              诊断
             </Link>
           ) : null}
         </div>

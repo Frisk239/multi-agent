@@ -40,6 +40,17 @@ function runDurationMs(r: AgentRun): number | null {
   return b - a;
 }
 
+const STATUS_ZH: Record<string, string> = {
+  queued: '排队',
+  running: '执行中',
+  completed: '完成',
+  failed: '失败',
+  cancelled: '取消',
+};
+
+/**
+ * Multica「显示历史运行」密度：表精简；时间线为主操作。
+ */
 export function IssueRunHistory({
   runs,
   selectedRunId,
@@ -51,13 +62,11 @@ export function IssueRunHistory({
   selectedRunId: string | undefined;
   onSelect: (runId: string) => void;
   usage?: IssueRunUsage | null;
-  /** G23：打开事件时间线弹层 */
   onOpenTimeline?: (runId: string) => void;
 }) {
   if (runs.length === 0) return null;
 
   const failedCount = runs.filter((r) => r.status === 'failed').length;
-  const issueId = runs.find((r) => r.issueId)?.issueId ?? usage?.issueId;
   const rateLabel =
     usage?.successRate == null
       ? null
@@ -65,176 +74,111 @@ export function IssueRunHistory({
 
   return (
     <section
-      className="issue-run-history"
+      className="issue-run-history issue-run-history--compact"
       data-testid="issue-run-history"
       aria-label="运行历史"
     >
       <div className="issue-run-history-header">
-        <h3>运行历史</h3>
-        <span className="count" data-testid="issue-run-history-count">
-          {runs.length}
-        </span>
-        <div className="issue-run-history-links" data-testid="issue-run-history-links">
-          {issueId ? (
-            <Link
-              href={`/runs?status=all`}
-              className="btn-ghost btn-sm"
-              data-testid="issue-run-history-workspace"
-              title="打开工作区运行页"
-            >
-              工作区运行
-            </Link>
-          ) : null}
+        <div className="issue-run-history-title-row">
+          <h3>历史运行</h3>
+          <span className="count" data-testid="issue-run-history-count">
+            {runs.length}
+          </span>
           {failedCount > 0 ? (
-            <Link
-              href="/runs?status=failed"
-              className="btn-secondary btn-sm"
-              data-testid="issue-run-history-failed"
-            >
-              失败 · {failedCount}
-            </Link>
+            <span className="issue-run-failed-chip" data-testid="issue-run-history-failed">
+              失败 {failedCount}
+            </span>
           ) : null}
         </div>
+        <Link
+          href="/runs?status=all"
+          className="btn-ghost btn-sm"
+          data-testid="issue-run-history-workspace"
+        >
+          全部运行
+        </Link>
       </div>
 
       {usage ? (
-        <div className="issue-run-usage" data-testid="issue-run-usage" aria-label="运行用量">
-          <div className="issue-run-usage-grid">
-            <div className="issue-run-usage-item">
-              <span className="issue-run-usage-label">运行次数</span>
-              <span className="issue-run-usage-value" data-testid="issue-usage-total">
-                {usage.total}
-              </span>
-            </div>
-            <div className="issue-run-usage-item">
-              <span className="issue-run-usage-label">成功率</span>
-              <span className="issue-run-usage-value" data-testid="issue-usage-rate">
-                {rateLabel ?? '—'}
-              </span>
-            </div>
-            <div className="issue-run-usage-item">
-              <span className="issue-run-usage-label">平均耗时</span>
-              <span className="issue-run-usage-value" data-testid="issue-usage-avg">
-                {formatDurationMs(usage.avgDurationMs)}
-              </span>
-            </div>
-            <div className="issue-run-usage-item">
-              <span className="issue-run-usage-label">累计耗时</span>
-              <span className="issue-run-usage-value" data-testid="issue-usage-total-dur">
-                {formatDurationMs(usage.totalDurationMs)}
-              </span>
-            </div>
-          </div>
-          <div className="issue-run-usage-meta text-dim text-sm" data-testid="issue-usage-meta">
-            completed {usage.completed} · failed {usage.failed}
-            {usage.active > 0 ? ` · 在途 ${usage.active}` : ''}
-            {usage.cancelled > 0 ? ` · 取消 ${usage.cancelled}` : ''}
-            {' · '}
-            Token 计量本地 CLI 暂不可用
-          </div>
+        <div className="issue-run-usage issue-run-usage--compact" data-testid="issue-run-usage">
+          <span>
+            <strong data-testid="issue-usage-total">{usage.total}</strong> 次
+          </span>
+          <span className="text-dim">·</span>
+          <span>
+            成功 <strong data-testid="issue-usage-rate">{rateLabel ?? '—'}</strong>
+          </span>
+          <span className="text-dim">·</span>
+          <span>
+            均耗 <strong data-testid="issue-usage-avg">{formatDurationMs(usage.avgDurationMs)}</strong>
+          </span>
+          <span className="text-dim text-sm" data-testid="issue-usage-meta">
+            （Token 本地 CLI 暂无）
+          </span>
         </div>
       ) : null}
 
-      <div className="data-table-wrap">
-        <table className="data-table issue-run-history-table">
-          <thead>
-            <tr>
-              <th>状态</th>
-              <th>Runtime</th>
-              <th>Run</th>
-              <th>耗时</th>
-              <th>创建</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => {
-              const selected = r.id === selectedRunId;
-              const live = r.status === 'queued' || r.status === 'running';
-              const dur = runDurationMs(r);
-              return (
-                <tr
-                  key={r.id}
-                  className={`issue-run-history-row${selected ? ' is-selected' : ''}${live ? ' is-live' : ''}`}
-                  data-testid="issue-run-history-row"
-                  data-run-id={r.id}
-                  data-run-status={r.status}
-                  data-selected={selected ? '1' : '0'}
-                  onClick={() => onSelect(r.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      onSelect(r.id);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-pressed={selected}
-                  title="点击查看该 run 的轨迹"
+      <ul className="issue-run-rows" data-testid="issue-run-rows">
+        {runs.map((r) => {
+          const selected = r.id === selectedRunId;
+          const live = r.status === 'queued' || r.status === 'running';
+          const dur = runDurationMs(r);
+          return (
+            <li
+              key={r.id}
+              className={`issue-run-row${selected ? ' is-selected' : ''}${live ? ' is-live' : ''}`}
+              data-testid="issue-run-history-row"
+              data-run-id={r.id}
+              data-run-status={r.status}
+              data-selected={selected ? '1' : '0'}
+            >
+              <button
+                type="button"
+                className="issue-run-row-main"
+                onClick={() => onSelect(r.id)}
+                aria-pressed={selected}
+                title="选中并查看轨迹"
+              >
+                {live ? <span className="run-live-dot" aria-hidden /> : null}
+                <code className={`run-pill run-pill--${r.status}`}>
+                  {STATUS_ZH[r.status] ?? r.status}
+                </code>
+                {r.isLeader ? <span className="leader-badge">队长</span> : null}
+                <span className="issue-run-row-runtime text-sm">{r.runtime}</span>
+                <span className="issue-run-row-id text-dim text-sm">{shortId(r.id)}</span>
+                <span
+                  className="issue-run-row-dur text-dim text-sm"
+                  data-testid="issue-run-history-duration"
                 >
-                  <td>
-                    <code className={`run-pill run-pill--${r.status}`}>{r.status}</code>
-                    {r.isLeader ? (
-                      <span className="leader-badge" style={{ marginLeft: 6 }}>
-                        队长
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="text-sm">
-                    <Link
-                      href={`/agents?runtime=${encodeURIComponent(r.runtime)}`}
-                      className="runs-inline-filter"
-                      data-testid="issue-run-history-runtime"
-                      title="筛选同 runtime 智能体"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {r.runtime}
-                    </Link>
-                  </td>
-                  <td>
-                    <code className="text-sm">{shortId(r.id)}</code>
-                  </td>
-                  <td className="text-dim text-sm" data-testid="issue-run-history-duration">
-                    {formatDurationMs(dur)}
-                  </td>
-                  <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
-                  <td className="text-right" onClick={(e) => e.stopPropagation()}>
-                    {onOpenTimeline ? (
-                      <button
-                        type="button"
-                        className="runs-inline-filter"
-                        data-testid="issue-run-history-timeline"
-                        title="打开事件时间线"
-                        onClick={() => onOpenTimeline(r.id)}
-                      >
-                        时间线
-                      </button>
-                    ) : null}
-                    <Link
-                      href={`/runs?run=${encodeURIComponent(r.id)}&status=${encodeURIComponent(r.status)}`}
-                      className="runs-inline-filter"
-                      data-testid="issue-run-history-open-runs"
-                      title="在运行列表高亮"
-                    >
-                      列表
-                    </Link>
-                    {r.agentId ? (
-                      <Link
-                        href={`/agents/${r.agentId}`}
-                        className="runs-inline-filter"
-                        data-testid="issue-run-history-open-agent"
-                        title="打开执行智能体"
-                      >
-                        智能体
-                      </Link>
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  {formatDurationMs(dur)}
+                </span>
+                <span className="issue-run-row-time text-dim text-sm">
+                  {relativeTime(r.createdAt)}
+                </span>
+              </button>
+              <div className="issue-run-row-actions" onClick={(e) => e.stopPropagation()}>
+                {onOpenTimeline ? (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    data-testid="issue-run-history-timeline"
+                    onClick={() => onOpenTimeline(r.id)}
+                  >
+                    时间线
+                  </button>
+                ) : null}
+                <Link
+                  href={`/runs?run=${encodeURIComponent(r.id)}&status=${encodeURIComponent(r.status)}`}
+                  className="btn-ghost btn-sm"
+                  data-testid="issue-run-history-open-runs"
+                >
+                  列表
+                </Link>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
