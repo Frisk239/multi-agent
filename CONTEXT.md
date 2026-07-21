@@ -54,10 +54,10 @@
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
 - **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
 - **已交（近）：**  
-  - chat 隔离 cwd / 超时 · issue workdir 隔离 · **chat 多轮+诚实可观测**（Slice1）  
-  - **Slice2 enqueue 硬闸**（F4）· **Slice3 Runs CTA 诚实化**（F5：chat 打开会话 / QC 重派 / issue 再执行 + chat 停止）  
-  - progress：`enqueue-hard-gate-impl-1.md` · `runs-cta-honest-impl-1.md`
-- **下一厚切片（建议）：** F1 Project localPath · F3 issue idle timeout · F7 Settings 可行动
+  - Slice1 chat 多轮 · Slice2 enqueue 硬闸 · Slice3 Runs CTA  
+  - **F1 Project localPath**（本机目录绑定 → issue run 优先该 cwd）  
+  - progress：`runs-cta-honest-impl-1.md` · `project-local-path-impl-1.md`
+- **下一厚切片（建议）：** F3 issue idle/wall timeout · F6 按 project cwd 注 AGENTS/skills · F7 Settings
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

@@ -8,6 +8,10 @@ import {
 } from '@ma/shared';
 import { db } from '../db/client.js';
 import { projects, issues } from '../db/schema.js';
+import {
+  isUsableLocalDirectory,
+  normalizeProjectLocalPath,
+} from '../runtime/resolve-run-cwd.js';
 
 const WS_ID = 'ws-local';
 
@@ -32,16 +36,30 @@ function loadIssueStats(projectIds: string[]): Map<string, { total: number; done
   return map;
 }
 
+/** 规范化写入：空/空白 → null；否则绝对路径字符串 */
+function normalizeLocalPathInput(
+  raw: string | null | undefined,
+): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  const t = raw.trim();
+  if (!t) return null;
+  return normalizeProjectLocalPath(t);
+}
+
 function toProject(
   row: ProjectRow,
   stats?: { total: number; done: number } | null,
 ): Project {
+  const localPath = row.localPath ?? null;
   return {
     id: row.id,
     workspaceId: row.workspaceId,
     title: row.title,
     description: row.description,
     status: row.status,
+    localPath,
+    localPathExists: localPath ? isUsableLocalDirectory(localPath) : false,
     issueStats: stats ?? { total: 0, done: 0 },
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
@@ -84,6 +102,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const input = parsed.data;
     const now = Date.now();
     const id = crypto.randomUUID();
+    const localPath = normalizeLocalPathInput(input.localPath) ?? null;
     db.insert(projects)
       .values({
         id,
@@ -91,6 +110,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
         title: input.title.trim(),
         description: input.description?.trim() || null,
         status: input.status ?? 'active',
+        localPath,
         createdAt: now,
         updatedAt: now,
       })
@@ -121,6 +141,9 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     if (input.title !== undefined) updates.title = input.title.trim();
     if (input.description !== undefined) updates.description = input.description;
     if (input.status !== undefined) updates.status = input.status;
+    if (input.localPath !== undefined) {
+      updates.localPath = normalizeLocalPathInput(input.localPath) ?? null;
+    }
 
     db.update(projects).set(updates).where(eq(projects.id, id)).run();
     const row = db.select().from(projects).where(eq(projects.id, id)).get();

@@ -6,6 +6,7 @@ import {
   comments,
   agents,
   issues,
+  projects,
   chatMessages,
   chatThreads,
 } from '../db/schema.js';
@@ -89,20 +90,40 @@ async function tick(): Promise<void> {
 // executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
 // bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
   async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
-    // Multica execenv：issue/QC/chat 默认隔离 workdir，禁止默认进控制台仓 / process.cwd
+    // Multica execenv：默认隔离；有 project.localPath 则本机仓；opt-in 全局 workspace
     const kindEarly = (runRow.kind as string) ?? 'issue';
+    let projectLocalPath: string | null = null;
+    if (runRow.issueId && kindEarly !== 'chat') {
+      const issueRow = db
+        .select()
+        .from(issues)
+        .where(eq(issues.id, runRow.issueId))
+        .get();
+      if (issueRow?.projectId) {
+        const proj = db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, issueRow.projectId))
+          .get();
+        projectLocalPath = proj?.localPath ?? null;
+      }
+    }
     const { resolveRunCwd } = await import('../runtime/resolve-run-cwd.js');
     const cwdInfo = resolveRunCwd({
       kind: kindEarly,
       runId: runRow.id,
       issueId: runRow.issueId ?? null,
       chatThreadId: runRow.chatThreadId ?? null,
+      projectLocalPath,
     });
     const cwd = cwdInfo.path;
     if (!cwd || !cwdInfo.exists) {
       await failRun(
         runRow.id,
-        cwdInfo.error ?? '无法准备隔离工作目录（~/.multi-agent/...）',
+        cwdInfo.error ??
+          (projectLocalPath
+            ? `项目本机路径不可用: ${projectLocalPath}`
+            : '无法准备隔离工作目录（~/.multi-agent/...）'),
       );
       return;
     }

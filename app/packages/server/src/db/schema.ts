@@ -85,6 +85,7 @@ export const squads = sqliteTable('squad', {
   // 不再进 DB。分配关系见上方 agentSkills。
 
   // —— project（projects-mvp：学 Multica project 容器；本仓精简 status/title）——
+  // F1：local_path ≈ Multica project_resource local_directory（单机绝对路径）
   export const projects = sqliteTable(
     'project',
     {
@@ -99,6 +100,8 @@ export const squads = sqliteTable('squad', {
       })
         .notNull()
         .default('active'),
+      /** 本机代码仓绝对路径；有则 issue run 优先以此为 cwd */
+      localPath: text('local_path'),
       createdAt: integer('created_at').notNull(),
       updatedAt: integer('updated_at').notNull(),
     },

@@ -7840,6 +7840,39 @@ a.issue-card-run-fail--link:hover {
   border-color: var(--accent);
 }
 
+/* project local path (F1) */
+.project-path-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.project-path-code {
+  font-size: 0.8rem;
+  word-break: break-all;
+  max-width: 100%;
+}
+.project-path-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #333);
+  color: var(--text-dim, #888);
+}
+.project-path-badge.is-ok {
+  color: #3d9a6a;
+  border-color: rgba(61, 154, 106, 0.4);
+  background: rgba(61, 154, 106, 0.08);
+}
+.project-path-badge.is-bad {
+  color: #c45c5c;
+  border-color: rgba(196, 92, 92, 0.4);
+  background: rgba(196, 92, 92, 0.08);
+}
+
 /* projects-mvp */
 .projects-page .collection-header,
 .project-detail .collection-header {

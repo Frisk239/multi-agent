@@ -43,14 +43,17 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const [issueTitle, setIssueTitle] = useState('');
   const [titleDraft, setTitleDraft] = useState('');
   const [descDraft, setDescDraft] = useState('');
+  const [pathDraft, setPathDraft] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
+  const [editingPath, setEditingPath] = useState(false);
 
   useEffect(() => {
     if (!project) return;
     if (!editingTitle) setTitleDraft(project.title);
     if (!editingDesc) setDescDraft(project.description ?? '');
-  }, [project, editingTitle, editingDesc]);
+    if (!editingPath) setPathDraft(project.localPath ?? '');
+  }, [project, editingTitle, editingDesc, editingPath]);
 
   async function onAddIssue(e: FormEvent) {
     e.preventDefault();
@@ -94,6 +97,20 @@ export function ProjectDetailPage({ id }: { id: string }) {
     update.mutate(
       { id: project.id, input: { description: next } },
       { onSuccess: () => setEditingDesc(false) },
+    );
+  }
+
+  function saveLocalPath() {
+    if (!project) return;
+    const next = pathDraft.trim() === '' ? null : pathDraft.trim();
+    const prev = project.localPath ?? null;
+    if (next === prev) {
+      setEditingPath(false);
+      return;
+    }
+    update.mutate(
+      { id: project.id, input: { localPath: next } },
+      { onSuccess: () => setEditingPath(false) },
     );
   }
 
@@ -237,6 +254,105 @@ export function ProjectDetailPage({ id }: { id: string }) {
       </div>
 
       <div className="page-body project-detail-body">
+        <section
+          className="settings-card project-detail-path"
+          data-testid="project-local-path"
+        >
+          <div className="settings-section-head">
+            <h2 className="settings-section-title" style={{ fontSize: '0.95rem' }}>
+              本机目录
+            </h2>
+            {!editingPath ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                data-testid="project-path-edit"
+                onClick={() => setEditingPath(true)}
+              >
+                {project.localPath ? '编辑' : '绑定'}
+              </button>
+            ) : null}
+          </div>
+          <p className="text-sm text-dim" style={{ marginBottom: 8 }}>
+            学 Multica local_directory：挂到本项目的 Issue 执行时，优先在此目录跑 CLI（须为本机绝对路径）。
+            未绑定则仍用隔离 workdir。
+          </p>
+          {editingPath ? (
+            <div>
+              <label className="ops-field" style={{ display: 'block' }}>
+                <span className="sr-only">本机绝对路径</span>
+                <input
+                  style={{ width: '100%' }}
+                  value={pathDraft}
+                  onChange={(e) => setPathDraft(e.target.value)}
+                  placeholder="例如 D:\code\my-app 或 /Users/me/proj"
+                  data-testid="project-path-input"
+                  autoFocus
+                />
+              </label>
+              <div className="ops-form-actions" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  data-testid="project-path-save"
+                  disabled={update.isPending}
+                  onClick={saveLocalPath}
+                >
+                  {update.isPending ? '保存中…' : '保存路径'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setPathDraft(project.localPath ?? '');
+                    setEditingPath(false);
+                  }}
+                >
+                  取消
+                </button>
+                {project.localPath ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    data-testid="project-path-clear"
+                    disabled={update.isPending}
+                    onClick={() => {
+                      update.mutate(
+                        { id: project.id, input: { localPath: null } },
+                        {
+                          onSuccess: () => {
+                            setPathDraft('');
+                            setEditingPath(false);
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    清除绑定
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : project.localPath ? (
+            <div className="project-path-row" data-testid="project-path-display">
+              <code className="project-path-code">{project.localPath}</code>
+              <span
+                className={`project-path-badge${
+                  project.localPathExists ? ' is-ok' : ' is-bad'
+                }`}
+                data-testid="project-path-exists"
+                data-exists={project.localPathExists ? '1' : '0'}
+              >
+                {project.localPathExists ? '目录可用' : '路径无效'}
+              </span>
+            </div>
+          ) : (
+            <p className="text-dim text-sm" data-testid="project-path-empty">
+              未绑定本机目录 · Issue 默认在隔离 workdir 执行
+            </p>
+          )}
+        </section>
+
         <section className="settings-card project-detail-about" data-testid="project-about">
           <div className="settings-section-head">
             <h2 className="settings-section-title" style={{ fontSize: '0.95rem' }}>

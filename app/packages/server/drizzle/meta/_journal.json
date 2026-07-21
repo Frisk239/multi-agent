@@ -176,6 +176,13 @@
       "when": 1786022400000,
       "tag": "0024_chat_thread_pin_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786108800000,
+      "tag": "0025_project_local_path",
+      "breakpoints": true
     }
   ]
 }

@@ -10,12 +10,13 @@
 // - issue：按 issueId 稳定 workdir（同 issue 复用，近似 PriorWorkDir）
 // - QC 无 issue：按 runId
 // - chat：按 threadId
-// - opt-in 宿主项目：MA_ISSUE_USE_WORKSPACE_CWD=1 / MA_CHAT_USE_WORKSPACE_CWD=1
-//   → 使用 Settings/MA_WORKSPACE_CWD（未来接 project.local_path）
+// - opt-in 全局宿主：MA_ISSUE_USE_WORKSPACE_CWD=1 / MA_CHAT_USE_WORKSPACE_CWD=1
+//   → Settings/MA_WORKSPACE_CWD
+// - F1：issue 挂 project.localPath 且目录有效 → 优先本机仓（学 Multica local_directory）
 
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, normalize, resolve as pathResolve } from 'node:path';
 import {
   applyWorkspaceCwdToProcess,
   resolveWorkspaceCwd,
@@ -27,18 +28,61 @@ export type RunCwdKind = 'issue' | 'quick_create' | 'chat' | string;
 export type ResolvedRunCwd = {
   path: string | null;
   /**
-   * isolated_issue | isolated_run | chat_scratch | workspace | none
+   * isolated_issue | isolated_run | chat_scratch | workspace | project_local | none
    */
   mode:
     | 'isolated_issue'
     | 'isolated_run'
     | 'chat_scratch'
     | 'workspace'
+    | 'project_local'
     | 'none';
   exists: boolean;
   error: string | null;
   workspace?: ResolvedWorkspaceCwd;
 };
+
+/** 规范化用户填写的本机路径；相对路径相对 process.cwd 解析（不推荐） */
+export function normalizeProjectLocalPath(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  const n = normalize(t);
+  return isAbsolute(n) ? n : pathResolve(n);
+}
+
+export function isUsableLocalDirectory(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function resolveProjectLocal(raw: string): ResolvedRunCwd {
+  const path = normalizeProjectLocalPath(raw);
+  if (!path) {
+    return {
+      path: null,
+      mode: 'none',
+      exists: false,
+      error: '项目本机路径为空',
+    };
+  }
+  if (!isUsableLocalDirectory(path)) {
+    return {
+      path,
+      mode: 'none',
+      exists: false,
+      error: `项目本机路径无效或不是目录: ${path}`,
+    };
+  }
+  return {
+    path,
+    mode: 'project_local',
+    exists: true,
+    error: null,
+  };
+}
 
 const DEFAULT_WS_ID = 'ws-local';
 
@@ -172,8 +216,9 @@ function resolveIsolated(
 
 /**
  * 解析本 run 的 CLI cwd。
- * - 默认：隔离目录（Multica execenv 精神）
- * - MA_ISSUE_USE_WORKSPACE_CWD / MA_CHAT_USE_WORKSPACE_CWD：显式用 Settings 工作区
+ * - issue：projectLocalPath（若配置）> MA_ISSUE_USE_WORKSPACE_CWD > 隔离
+ * - chat：MA_CHAT_USE_WORKSPACE_CWD > chat scratch
+ * - QC 无 project：同 issue 后两档
  */
 export function resolveRunCwd(opts: {
   kind: RunCwdKind;
@@ -181,6 +226,8 @@ export function resolveRunCwd(opts: {
   issueId?: string | null;
   chatThreadId?: string | null;
   workspaceId?: string;
+  /** issue 所属 project.localPath（已从 DB 读出） */
+  projectLocalPath?: string | null;
 }): ResolvedRunCwd {
   const kind = opts.kind || 'issue';
 
@@ -191,7 +238,12 @@ export function resolveRunCwd(opts: {
     return resolveIsolated(kind, opts);
   }
 
-  // issue / quick_create
+  // issue / quick_create：优先项目本机目录（学 Multica LocalWorkDir）
+  const pl = opts.projectLocalPath?.trim();
+  if (pl) {
+    return resolveProjectLocal(pl);
+  }
+
   if (envFlag('MA_ISSUE_USE_WORKSPACE_CWD')) {
     return resolveWorkspacePath();
   }

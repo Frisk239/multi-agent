@@ -316,6 +316,7 @@ export function ProjectsPage() {
               <thead>
                 <tr>
                   <th>项目</th>
+                  <th>本机目录</th>
                   <th>状态</th>
                   <th>进度</th>
                   <th>更新</th>
@@ -343,6 +344,20 @@ export function ProjectsPage() {
                             ) : null}
                           </span>
                         </Link>
+                      </td>
+                      <td data-testid="projects-row-path">
+                        {p.localPath ? (
+                          <span
+                            className={`project-path-badge${
+                              p.localPathExists ? ' is-ok' : ' is-bad'
+                            }`}
+                            title={p.localPath}
+                          >
+                            {p.localPathExists ? '已绑定' : '路径无效'}
+                          </span>
+                        ) : (
+                          <span className="text-dim text-sm">未绑定</span>
+                        )}
                       </td>
                       <td>
                         <select

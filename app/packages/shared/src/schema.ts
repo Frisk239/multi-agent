@@ -407,6 +407,10 @@ export const Project = z.object({
   title: z.string(),
   description: z.string().nullable(),
   status: ProjectStatus,
+  /** 本机仓路径（学 Multica local_directory）；空=未绑定 */
+  localPath: z.string().nullable().optional(),
+  /** 服务端探测：路径是否存在且为目录 */
+  localPathExists: z.boolean().optional(),
   issueStats: ProjectIssueStats.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -417,6 +421,8 @@ export const CreateProjectInput = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   status: ProjectStatus.optional().default('active'),
+  /** 可选本机绝对路径；空串忽略 */
+  localPath: z.string().max(1000).optional(),
 });
 export type CreateProjectInput = z.infer<typeof CreateProjectInput>;
 
@@ -424,12 +430,17 @@ export const UpdateProjectInput = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   status: ProjectStatus.optional(),
+  /** null 或 "" 清除绑定 */
+  localPath: z.string().max(1000).nullable().optional(),
 });
 export type UpdateProjectInput = z.infer<typeof UpdateProjectInput>;
 
 export function validateUpdateProject(d: UpdateProjectInput): boolean {
   return (
-    d.title !== undefined || d.description !== undefined || d.status !== undefined
+    d.title !== undefined ||
+    d.description !== undefined ||
+    d.status !== undefined ||
+    d.localPath !== undefined
   );
 }
 
