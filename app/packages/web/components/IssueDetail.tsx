@@ -13,6 +13,8 @@ import {
   RunEventTimelineInline,
 } from './RunEventTimeline';
 
+const PROPS_OPEN_KEY = 'ma-issue-props-open';
+
 function pickDefaultRunId(
   runs: { id: string; status: string }[],
 ): string | undefined {
@@ -22,10 +24,22 @@ function pickDefaultRunId(
   );
 }
 
+function readPropsOpen(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const v = window.localStorage.getItem(PROPS_OPEN_KEY);
+    if (v === '0') return false;
+    if (v === '1') return true;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
 /**
  * Multica 对齐：
  * - 主列 = 标题/描述/子 issue/动态/回复 + 执行日志
- * - 右栏 = 属性（状态/负责人/项目/PR/标签…）G26
+ * - 右栏 = **属性**（可展开/收拢，不是问答 Helper）G26/G27
  * - G23 事件时间线可展开抽屉
  */
 export function IssueDetail({ id }: { id: string }) {
@@ -36,6 +50,25 @@ export function IssueDetail({ id }: { id: string }) {
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [execOpen, setExecOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [propsOpen, setPropsOpen] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setPropsOpen(readPropsOpen());
+    setHydrated(true);
+  }, []);
+
+  function toggleProps() {
+    setPropsOpen((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(PROPS_OPEN_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const defaultRunId = useMemo(() => pickDefaultRunId(runs), [runs]);
 
@@ -81,14 +114,35 @@ export function IssueDetail({ id }: { id: string }) {
 
   const historyCount = runs.length;
   const commentCount = comments?.length ?? 0;
+  const showProps = hydrated ? propsOpen : true;
 
   return (
     <div
-      className="issue-detail issue-detail--multica issue-detail--with-props"
+      className={`issue-detail issue-detail--multica issue-detail--with-props${
+        showProps ? '' : ' issue-detail--props-collapsed'
+      }`}
       data-testid="issue-detail"
+      data-props-open={showProps ? '1' : '0'}
     >
       <div className="issue-detail-layout" data-testid="issue-detail-layout">
         <div className="issue-detail-main" data-testid="issue-detail-main">
+          <div className="issue-detail-main-toolbar" data-testid="issue-props-toolbar">
+            <button
+              type="button"
+              className={`issue-props-toggle${showProps ? ' is-open' : ''}`}
+              data-testid="issue-props-toggle"
+              aria-expanded={showProps}
+              aria-controls="issue-props-rail"
+              title={showProps ? '收起属性' : '展开属性'}
+              onClick={toggleProps}
+            >
+              <span className="issue-props-toggle-icon" aria-hidden>
+                {showProps ? '⟩' : '⟨'}
+              </span>
+              属性
+            </button>
+          </div>
+
           <IssueHeader issue={issue} variant="main" />
           <IssueSubtasks parent={issue} />
 
@@ -145,12 +199,27 @@ export function IssueDetail({ id }: { id: string }) {
           </section>
         </div>
 
-        <aside className="issue-props-rail" data-testid="issue-props-rail">
-          <div className="issue-props-rail-head">
-            <h3 className="issue-props-rail-title">属性</h3>
-          </div>
-          <IssueHeader issue={issue} variant="props" />
-        </aside>
+        {showProps ? (
+          <aside
+            id="issue-props-rail"
+            className="issue-props-rail"
+            data-testid="issue-props-rail"
+          >
+            <div className="issue-props-rail-head">
+              <h3 className="issue-props-rail-title">属性</h3>
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                data-testid="issue-props-collapse"
+                aria-label="收起属性"
+                onClick={toggleProps}
+              >
+                收起
+              </button>
+            </div>
+            <IssueHeader issue={issue} variant="props" />
+          </aside>
+        ) : null}
       </div>
 
       <RunEventTimelineDrawer

@@ -56,7 +56,7 @@
 - **已交：**  
   - G21 收件箱 · G22 model+发现 · 聊天 UI · UI 厚切片（侧栏/看板）  
   - **G26** Issue 属性右栏 · **G23** 运行事件时间线弹层 · **G24** `/my-issues` Tab  
-  - **G27** 收件箱 Helper 第三栏 · **G25** 智能体 我的/全部/已归档  
+  - **G27** 收件箱侧 **属性**可折叠（非问答 Helper）· **G25** 智能体 我的/全部/已归档  
   - progress：`multica-detail-rails-impl-1.md` · `ui-multica-parity-tour-intake.md`
 - **下一厚切片（建议）：** G28 看板卡片密度/列表视图 · G23 opencode 流解析加固 · G20 Settings 叙事
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）

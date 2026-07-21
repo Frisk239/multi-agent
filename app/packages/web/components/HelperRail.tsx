@@ -45,24 +45,18 @@ function writeStored(key: string, value: string) {
 
 /**
  * G10 helper-rail：对标 Multica FloatingChat
- * - FAB「问助手」+ 右下角浮窗
+ * - FAB「问助手」+ 右下角浮窗（非收件箱第三栏）
  * - 复用 /api/chat（不自造 loop）
  * - /chat 全页时隐藏，避免双开
- * - G27：variant=docked 嵌收件箱第三栏（无 FAB）
  */
-export function HelperRail({
-  variant = 'floating',
-}: {
-  variant?: 'floating' | 'docked';
-}) {
+export function HelperRail() {
   const pathname = usePathname();
   const qc = useQueryClient();
   const { data: agents = [] } = useAgents();
   const { data: threads = [] } = useChatThreads();
   const createThread = useCreateChatThread();
-  const docked = variant === 'docked';
 
-  const [open, setOpen] = useState(docked);
+  const [open, setOpen] = useState(false);
   const [agentId, setAgentId] = useState('');
   const [threadId, setThreadId] = useState('');
   const [draft, setDraft] = useState('');
@@ -70,15 +64,11 @@ export function HelperRail({
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (docked) {
-      setOpen(true);
-    } else {
-      setOpen(readStored(STORAGE_OPEN) === '1');
-    }
+    setOpen(readStored(STORAGE_OPEN) === '1');
     setAgentId(readStored(STORAGE_AGENT));
     setThreadId(readStored(STORAGE_THREAD));
     setHydrated(true);
-  }, [docked]);
+  }, []);
 
   // 默认 agent：记忆 > 名称含 Helper > 第一个
   useEffect(() => {
@@ -119,20 +109,14 @@ export function HelperRail({
     readiness.status !== 'ready' &&
     readiness.status !== 'busy';
 
-  // 浮层：/chat 全页不显示；收件箱用 docked 第三栏，避免双开
-  if (!docked) {
-    if (pathname === '/chat' || pathname.startsWith('/chat/')) {
-      return null;
-    }
-    if (pathname === '/inbox' || pathname.startsWith('/inbox/')) {
-      return null;
-    }
+  // /chat 全页不显示浮层（Multica floating-chat 同款）
+  if (pathname === '/chat' || pathname.startsWith('/chat/')) {
+    return null;
   }
 
   if (!hydrated) return null;
 
   function toggleOpen() {
-    if (docked) return;
     setOpen((v) => {
       const next = !v;
       writeStored(STORAGE_OPEN, next ? '1' : '0');
@@ -141,7 +125,6 @@ export function HelperRail({
   }
 
   function close() {
-    if (docked) return;
     setOpen(false);
     writeStored(STORAGE_OPEN, '0');
   }
@@ -225,7 +208,7 @@ export function HelperRail({
 
   return (
     <>
-      {!docked && !open ? (
+      {!open ? (
         <button
           type="button"
           className="helper-fab"
@@ -239,13 +222,7 @@ export function HelperRail({
       ) : null}
 
       {open ? (
-        <div
-          className={`helper-rail${docked ? ' helper-rail--docked' : ''}`}
-          data-testid={docked ? 'helper-rail-docked' : 'helper-rail'}
-          data-variant={docked ? 'docked' : 'floating'}
-          role={docked ? 'complementary' : 'dialog'}
-          aria-label="本地助手"
-        >
+        <div className="helper-rail" data-testid="helper-rail" role="dialog" aria-label="本地助手">
           <div className="helper-rail-head">
             <div className="helper-rail-title">
               <Icon name="bot" size={16} />
@@ -269,17 +246,15 @@ export function HelperRail({
               >
                 新对话
               </button>
-              {!docked ? (
-                <button
-                  type="button"
-                  className="btn-ghost btn-sm"
-                  data-testid="helper-close"
-                  aria-label="关闭助手"
-                  onClick={close}
-                >
-                  收起
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                data-testid="helper-close"
+                aria-label="关闭助手"
+                onClick={close}
+              >
+                收起
+              </button>
             </div>
           </div>
 

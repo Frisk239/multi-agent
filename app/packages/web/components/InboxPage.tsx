@@ -13,7 +13,6 @@ import {
 } from '@/lib/api';
 import type { InboxItem } from '@ma/shared';
 import { EmptyState } from './EmptyState';
-import { HelperRail } from './HelperRail';
 import { Icon } from './Icon';
 import { IssueDetail } from './IssueDetail';
 import { MarkdownBody } from './MarkdownBody';
@@ -511,7 +510,8 @@ function InboxPageInner() {
         </div>
       ) : null}
 
-      <div className="inbox-split inbox-split--tri" data-testid="inbox-split">
+      {/* Multica：列表 | IssueDetail（内含可折叠属性栏）；Helper 是全局浮层不是第三栏问答 */}
+      <div className="inbox-split" data-testid="inbox-split">
         <div className="inbox-split-list" data-testid="inbox-split-list">
           {items.length === 0 ? (
             <EmptyState
@@ -766,10 +766,6 @@ function InboxPageInner() {
             </div>
           )}
         </aside>
-        {/* G27：收件箱 Helper 第三栏（Multica 同屏） */}
-        <div className="inbox-split-helper" data-testid="inbox-helper-pane">
-          <HelperRail variant="docked" />
-        </div>
       </div>
     </div>
   );

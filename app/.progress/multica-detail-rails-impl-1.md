@@ -11,7 +11,7 @@
 | **G26** | Issue 详情属性右栏 | `IssueDetail` 双栏布局 + `IssueHeader` variant=`main`/`props`；收件箱嵌入同构 |
 | **G23** | 运行事件时间线弹层 | `RunEventTimeline.tsx` 色条事件 + 抽屉；Issue 执行日志 / Runs「时间线」入口 |
 | **G24** | 独立「我的 issue」页 + Tab | `/my-issues` + 全部/已分配/我创建的/我的智能体和小队；侧栏改链 |
-| **G27** | 收件箱 Helper 第三栏 | `inbox-split--tri` + `HelperRail variant=docked`；Inbox 页隐藏全局 FAB |
+| **G27** | 收件箱侧属性栏（可折叠） | **更正**：真站第三栏是 Issue **属性** 可折叠，不是问答。已撤 docked Helper；`IssueDetail` 属性栏 + 展开/收拢 |
 | **G25** | 智能体 已归档/我的·全部 | `agent.archived_at` 迁移；`GET ?archived=`；软归档 DELETE；Tab UI |
 
 ## 证据
