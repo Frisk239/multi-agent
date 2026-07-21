@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageBreadcrumb } from './PageBreadcrumb';
 import { SquadRunsTimeline } from './SquadRunsTimeline';
 
 function readinessClass(status: AgentReadiness['status'] | undefined): string {
@@ -159,11 +160,10 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
 
   return (
     <div className="page-container" data-testid="squad-detail">
-      <div className="agent-detail-breadcrumb">
-        <Link href="/squads">小队</Link>
-        <span>›</span>
-        <span>{squad.name}</span>
-      </div>
+      <PageBreadcrumb
+        testId="squad-breadcrumb"
+        items={[{ label: '小队', href: '/squads' }, { label: squad.name }]}
+      />
 
       <div className="agent-detail-layout">
         <aside className="agent-profile">

@@ -12,7 +12,7 @@ import {
 import { AssigneeSelect } from './AssigneeSelect';
 import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { MarkdownBody } from './MarkdownBody';
-import { Icon } from './Icon';
+import { PageBreadcrumb } from './PageBreadcrumb';
 
 const ALL_STATUS = IssueStatusEnum.options;
 const ALL_PRIORITY = PriorityEnum.options;
@@ -204,26 +204,26 @@ export function IssueHeader({
 
   return (
     <header className={`issue-header${variant === 'main' ? ' issue-header--main' : ''}`}>
-      {issue.parentIssueId ? (
-        <div className="issue-parent-crumb" data-testid="issue-parent-crumb">
-          <Link href={`/issues/${issue.parentIssueId}`} className="issue-parent-link">
-            {issue.parentIdentifier ?? '父 issue'}
-          </Link>
-          <span className="issue-parent-sep" aria-hidden>
-            /
-          </span>
-          <span className="issue-parent-current">{issue.identifier}</span>
-        </div>
-      ) : null}
       <div className="issue-header-top">
         <div className="issue-header-top-start">
-          <Link href="/" className="back-link">
-            <Icon name="arrow-left" size={16} />
-            看板
-          </Link>
-          <span className="issue-id" data-testid="issue-identifier">
-            {issue.identifier}
-          </span>
+          <PageBreadcrumb
+            testId="issue-breadcrumb"
+            items={
+              issue.parentIssueId
+                ? [
+                    { label: 'Issues', href: '/' },
+                    {
+                      label: issue.parentIdentifier ?? '父 issue',
+                      href: `/issues/${issue.parentIssueId}`,
+                    },
+                    { label: issue.identifier },
+                  ]
+                : [
+                    { label: 'Issues', href: '/' },
+                    { label: issue.identifier },
+                  ]
+            }
+          />
           {issue.originType === 'automation' ? (
             <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
               <Link

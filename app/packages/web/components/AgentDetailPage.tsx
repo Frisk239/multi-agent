@@ -21,6 +21,7 @@ import {
   useRuntimeModels,
 } from '@/lib/api';
 import { Icon } from './Icon';
+import { PageBreadcrumb } from './PageBreadcrumb';
 
 // bu02 + G12 + G13：对齐 Multica 概览/工作/能力/设置
 type TabId = 'overview' | 'work' | 'capabilities' | 'settings';
@@ -101,11 +102,10 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
   return (
     <div className="page-container">
-      <div className="agent-detail-breadcrumb">
-        <Link href="/agents">智能体</Link>
-        <span>›</span>
-        <span>{agent.name}</span>
-      </div>
+      <PageBreadcrumb
+        testId="agent-breadcrumb"
+        items={[{ label: '智能体', href: '/agents' }, { label: agent.name }]}
+      />
 
       <div className="agent-detail-layout">
         <aside className="agent-profile">

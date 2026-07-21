@@ -2870,13 +2870,57 @@ a.source-badge--link:hover {
    S05 agent 详情页
    ============================================================ */
 
+/* Multica 详情面包屑：无返回箭头，文字 + › */
+.page-breadcrumb,
 .agent-detail-breadcrumb {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-5);
+  gap: 0;
+  margin-bottom: var(--space-4);
   font-size: var(--text-sm);
   color: var(--text-dim);
+  line-height: 1.3;
+}
+
+.page-breadcrumb-seg {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.page-breadcrumb-sep {
+  margin: 0 0.45em;
+  color: var(--text-dim);
+  opacity: 0.75;
+  user-select: none;
+}
+
+.page-breadcrumb-link,
+.agent-detail-breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.page-breadcrumb-link:hover,
+.agent-detail-breadcrumb a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.page-breadcrumb-current,
+.page-breadcrumb-text {
+  color: var(--text-primary);
+  font-weight: 500;
+  max-width: min(48vw, 28rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-header-top-start .page-breadcrumb {
+  margin-bottom: 0;
 }
 
 .agent-detail-breadcrumb a {

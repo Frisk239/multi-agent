@@ -11,7 +11,7 @@ import {
   useUpdateProject,
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
-import { Icon } from './Icon';
+import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -145,12 +145,13 @@ export function ProjectDetailPage({ id }: { id: string }) {
     >
       <div className="page-header">
         <div>
-          <div className="project-detail-crumb">
-            <Link href="/projects" className="back-link">
-              <Icon name="arrow-left" size={16} />
-              项目
-            </Link>
-          </div>
+          <PageBreadcrumb
+            testId="project-breadcrumb"
+            items={[
+              { label: '项目', href: '/projects' },
+              { label: project.title },
+            ]}
+          />
           {editingTitle ? (
             <input
               className="project-title-input"
