@@ -70,6 +70,20 @@ export function useWsEvents() {
         }
       }
 
+      if (event.type === 'issue:deleted') {
+        const { issueId, parentIssueId } = event;
+        qc.setQueryData<Issue[]>(['issues'], (old) =>
+          old?.filter((i) => i.id !== issueId),
+        );
+        qc.removeQueries({ queryKey: ['issue', issueId] });
+        qc.removeQueries({ queryKey: ['comments', issueId] });
+        if (parentIssueId) {
+          qc.invalidateQueries({ queryKey: ['issue-children', parentIssueId] });
+          qc.invalidateQueries({ queryKey: ['issue', parentIssueId] });
+        }
+        qc.invalidateQueries({ queryKey: ['issues'] });
+      }
+
       if (event.type === 'comment:created') {
         const { comment } = event;
         qc.setQueryData<Comment[]>(['comments', comment.issueId], (old) => {

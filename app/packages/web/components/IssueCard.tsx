@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
+import { IssueCardMenu } from './IssueCardMenu';
 
 const STATUS_COLORS: Record<IssueStatus, string> = {
   backlog: 'var(--status-backlog)',
@@ -71,6 +72,7 @@ export function IssueCard({
   const showFail = Boolean(lastRunFailed) && !runActive;
 
   return (
+    <IssueCardMenu issue={issue}>
     <article
       draggable
       onDragStart={() => onDragStart(issue.id)}
@@ -271,5 +273,6 @@ export function IssueCard({
         ) : null}
       </div>
     </article>
+    </IssueCardMenu>
   );
 }

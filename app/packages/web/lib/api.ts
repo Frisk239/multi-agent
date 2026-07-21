@@ -613,6 +613,45 @@ export function useUpdateIssue() {
   });
 }
 
+/** DELETE /api/issues/:id —— 看板/菜单硬删除（学 Multica） */
+export function useDeleteIssue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API}/issues/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok && res.status !== 204) {
+        throw new Error(await apiError(res, '删除失败'));
+      }
+      return id;
+    },
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['issues'] });
+      const prevList = qc.getQueryData<Issue[]>(['issues']);
+      const parentId = prevList?.find((i) => i.id === id)?.parentIssueId ?? null;
+      qc.setQueryData<Issue[]>(['issues'], (old) => old?.filter((i) => i.id !== id));
+      qc.removeQueries({ queryKey: ['issue', id] });
+      qc.removeQueries({ queryKey: ['comments', id] });
+      return { prevList, parentId };
+    },
+    onError: (err, _id, ctx) => {
+      if (ctx?.prevList) qc.setQueryData(['issues'], ctx.prevList);
+      toastError(errMessage(err, '删除失败'));
+    },
+    onSuccess: (_id, id, ctx) => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['inbox'] });
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      if (ctx?.parentId) {
+        qc.invalidateQueries({ queryKey: ['issue-children', ctx.parentId] });
+        qc.invalidateQueries({ queryKey: ['issue', ctx.parentId] });
+      }
+      toastSuccess('已删除 issue');
+    },
+  });
+}
+
 // —— issue-labels ——
 
 export function useLabels() {

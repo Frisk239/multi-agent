@@ -828,6 +828,163 @@ a.kanban-column-focus:hover {
 
 /* —— Issue 卡片 —— */
 
+/* Multica：卡片右键 / ⋯ 管理菜单壳 */
+.issue-card-menu-shell {
+  position: relative;
+}
+
+.issue-card-menu-shell[data-menu-open='1'] .issue-card {
+  border-color: color-mix(in srgb, var(--text-muted) 40%, var(--surface-border));
+}
+
+.issue-card-menu-trigger {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.issue-card-menu-shell:hover .issue-card-menu-trigger,
+.issue-card-menu-shell:focus-within .issue-card-menu-trigger,
+.issue-card-menu-trigger[data-open='1'],
+.issue-card-menu-shell[data-menu-open='1'] .issue-card-menu-trigger {
+  opacity: 1;
+}
+
+.issue-card-menu-trigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--surface-border);
+  color: var(--text-primary);
+}
+
+.issue-card-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 212px;
+  max-width: min(280px, calc(100vw - 16px));
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-raised, var(--surface));
+  box-shadow: var(--floating-shadow, 0 12px 28px rgba(0, 0, 0, 0.28));
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.issue-card-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.issue-card-menu-item:hover,
+.issue-card-menu-item.is-open {
+  background: var(--surface-hover);
+}
+
+html.dark .issue-card-menu-item:hover,
+html.dark .issue-card-menu-item.is-open {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.issue-card-menu-item.is-active {
+  color: var(--text-primary);
+}
+
+.issue-card-menu-item--danger {
+  color: var(--color-red, #ef4444);
+}
+
+.issue-card-menu-item--danger:hover {
+  background: color-mix(in srgb, var(--color-red, #ef4444) 12%, transparent);
+}
+
+.issue-card-menu-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.issue-card-menu-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-card-menu-chevron {
+  opacity: 0.7;
+}
+
+.issue-card-menu-check {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.issue-card-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--surface-border);
+}
+
+.issue-card-menu-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0 0 2px;
+  padding: 2px 0 2px 6px;
+  border-left: 2px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+
+.issue-card-menu-sub--scroll {
+  max-height: 180px;
+  overflow: auto;
+}
+
+.issue-card-menu-group-label {
+  padding: 6px 10px 2px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 .issue-card {
   background: var(--surface);
   border: 1px solid var(--surface-border);

@@ -10,7 +10,16 @@ import {
   type IssueRunUsage,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
-import { issues, comments, issueLabels, issueToLabels, agentRuns } from '../db/schema.js';
+import {
+  issues,
+  comments,
+  issueLabels,
+  issueToLabels,
+  agentRuns,
+  inboxItems,
+  issueSubscribers,
+  wikiIngestJobs,
+} from '../db/schema.js';
 import {
   toIssue,
   toComment,
@@ -257,6 +266,50 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       });
     }
     return reply.status(201).send(result.issue);
+  });
+
+  // DELETE /api/issues/:id —— 硬删除（学 Multica DeleteIssue：先 cancel active run，再清关联）
+  app.delete('/api/issues/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const prev = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!prev) {
+      return reply.status(404).send({ error: 'issue 不存在' });
+    }
+
+    // Multica: CancelTasksForIssue before delete
+    cancelActiveRunsForIssue(id);
+
+    const parentIssueId = prev.parentIssueId ?? null;
+
+    sqlite.transaction(() => {
+      // 子 issue 仅一层：解除 parent 指向（保留子卡）
+      db.update(issues)
+        .set({ parentIssueId: null, updatedAt: Date.now() })
+        .where(eq(issues.parentIssueId, id))
+        .run();
+
+      // cascade 已有：issue_to_label / issue_subscriber
+      db.delete(issueToLabels).where(eq(issueToLabels.issueId, id)).run();
+      db.delete(issueSubscribers).where(eq(issueSubscribers.issueId, id)).run();
+      db.delete(comments).where(eq(comments.issueId, id)).run();
+      db.delete(inboxItems).where(eq(inboxItems.issueId, id)).run();
+      db.delete(wikiIngestJobs).where(eq(wikiIngestJobs.issueId, id)).run();
+      // run 保留审计：issue_id 置空（与 QC 可空 issue 一致）
+      db.update(agentRuns)
+        .set({ issueId: null })
+        .where(eq(agentRuns.issueId, id))
+        .run();
+
+      db.delete(issues).where(eq(issues.id, id)).run();
+    })();
+
+    eventBus.publish({
+      type: 'issue:deleted',
+      issueId: id,
+      parentIssueId,
+    });
+
+    return reply.status(204).send();
   });
 
   // PUT /api/issues/:id —— status 真变时同事务写 status_change + 双事件

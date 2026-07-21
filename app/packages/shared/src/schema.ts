@@ -930,6 +930,14 @@ export const IssueUpdatedEvent = z.object({
 });
 export type IssueUpdatedEvent = z.infer<typeof IssueUpdatedEvent>;
 
+/** DELETE issue 后广播（学 Multica EventIssueDeleted） */
+export const IssueDeletedEvent = z.object({
+  type: z.literal('issue:deleted'),
+  issueId: BusinessId,
+  parentIssueId: BusinessId.nullable().optional(),
+});
+export type IssueDeletedEvent = z.infer<typeof IssueDeletedEvent>;
+
 export const CommentCreatedEvent = z.object({
   type: z.literal('comment:created'),
   comment: Comment,
@@ -1237,6 +1245,7 @@ export type RunMessageEvent = z.infer<typeof RunMessageEvent>;
 export type DomainEvent =
   | IssueCreatedEvent
   | IssueUpdatedEvent
+  | IssueDeletedEvent
   | CommentCreatedEvent
   | RunLifecycleEvent
   | RunProgressEvent
