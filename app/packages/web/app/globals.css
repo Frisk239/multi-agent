@@ -8119,6 +8119,114 @@ a.issue-card-run-fail--link:hover {
   color: var(--text);
 }
 
+.run-event-item-head--static {
+  cursor: default;
+}
+
+/* —— /runs/:id 详情（Multica transcript 独立页） —— */
+.run-detail-page {
+  max-width: 920px;
+}
+
+.run-detail-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.run-detail-top .page-breadcrumb {
+  margin-bottom: 0;
+}
+
+.run-detail-header {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.run-detail-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.run-detail-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.run-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.run-detail-prompt {
+  margin-top: 12px;
+}
+
+.run-detail-prompt-body {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.45;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.run-detail-transcript-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.run-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.run-detail-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.run-event-list--detail {
+  gap: 8px;
+}
+
+.runs-row-clickable {
+  cursor: pointer;
+}
+
+.runs-row-clickable:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.runs-table tbody tr.runs-row-clickable:hover td {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+
 .run-event-tool-count {
   font-size: 11px;
   padding: 2px 6px;

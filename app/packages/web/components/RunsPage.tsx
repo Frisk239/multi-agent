@@ -559,7 +559,17 @@ function RunsPageInner() {
                       data-is-leader={r.isLeader ? '1' : '0'}
                       data-squad-id={r.squadId ?? ''}
                       data-highlight={highlighted ? '1' : '0'}
-                      className={highlighted ? 'runs-row--highlight' : undefined}
+                      className={`runs-row-clickable${highlighted ? ' runs-row--highlight' : ''}`}
+                      onClick={() => router.push(`/runs/${r.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          router.push(`/runs/${r.id}`);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      title="打开运行详情"
                     >
                       <td className="runs-col-status">
                         <span
@@ -582,11 +592,19 @@ function RunsPageInner() {
                               href={`/issues/${r.issueId}`}
                               className="runs-task-link"
                               data-testid="runs-issue-link"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {shortId(r.issueId)}
                             </Link>
                           ) : (
-                            <span className="text-dim">无 Issue</span>
+                            <Link
+                              href={`/runs/${r.id}`}
+                              className="runs-task-link"
+                              data-testid="runs-detail-link"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {shortId(r.id)}
+                            </Link>
                           )}
                           <span className="runs-task-meta">
                             {kindLabel(r.kind)}
@@ -597,6 +615,7 @@ function RunsPageInner() {
                                   href={`/squads/${r.squadId}`}
                                   className="runs-task-meta-link"
                                   data-testid="runs-squad-detail-link"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   小队
                                 </Link>
@@ -610,6 +629,7 @@ function RunsPageInner() {
                           href={`/agents/${r.agentId}`}
                           className="table-link"
                           data-testid="runs-agent-detail-link"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {agentName.get(r.agentId) ?? shortId(r.agentId)}
                         </Link>
@@ -634,7 +654,17 @@ function RunsPageInner() {
                         {relativeTime(r.createdAt)}
                       </td>
                       <td className="runs-col-actions">
-                        <div className="runs-row-actions">
+                        <div
+                          className="runs-row-actions"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link
+                            href={`/runs/${r.id}`}
+                            className="btn btn-ghost btn-sm"
+                            data-testid="runs-open-detail"
+                          >
+                            详情
+                          </Link>
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
@@ -643,19 +673,6 @@ function RunsPageInner() {
                           >
                             时间线
                           </button>
-                          {r.issueId &&
-                          (r.status === 'failed' ||
-                            r.status === 'running' ||
-                            r.status === 'queued') ? (
-                            <Link
-                              href={`/issues/${r.issueId}#run-trace`}
-                              className="btn btn-ghost btn-sm"
-                              data-testid="runs-issue-trace-link"
-                              title="Issue 内轨迹"
-                            >
-                              轨迹
-                            </Link>
-                          ) : null}
                           <RunActions run={r} />
                         </div>
                       </td>

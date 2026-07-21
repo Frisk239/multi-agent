@@ -752,6 +752,23 @@ export function useRuns(issueId: string) {
   });
 }
 
+/** GET /api/runs/:runId —— 运行详情页 */
+export function useRun(runId: string | undefined) {
+  return useQuery<AgentRun>({
+    queryKey: ['run', runId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs/${encodeURIComponent(runId!)}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载运行失败'));
+      return res.json();
+    },
+    enabled: Boolean(runId),
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
+      return s === 'queued' || s === 'running' ? 2000 : false;
+    },
+  });
+}
+
 /** G4：Issue 详情 run 用量摘要 */
 export function useIssueRunUsage(issueId: string) {
   return useQuery<IssueRunUsage>({
