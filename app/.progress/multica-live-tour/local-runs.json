@@ -1,0 +1,12 @@
+### Result
+"{\"path\":\"/runs\",\"url\":\"http://localhost:3000/runs\",\"title\":\"毕设 Multi-Agent\",\"text\":\"Multi-Agent\\n已连接\\n工作中 2\\n在途 0\\n搜索...\\nCtrl+K\\n快速派活\\nQ\\n新建 Issue\\nC\\n工作区\\nIssues\\n我的 issue\\n收件箱\\n22\\n聊天\\n项目\\n运行\\n小队\\n智能体\\n用量\\nWiki\\n记忆\\n配置\\n自动化\\n本机 CLI\\nSkills\\n设置\\n深\\n运行\\n61\\n\\nURL 可分享筛选 · active = queued+running\\n\\n看板仅失败 · 42\\n收件箱失败\\n刷新\\n当前列表约 29 条失败与 MA_WORKSPACE_CWD 有关。配置工作区后，可在行内「再执行」或看板打开 Issue 重试。\\n环境诊断 / cwd\\n收尸卡住\\n运行时\\n看板仅失败\\n不可用智能体\\n状态\\n全部\\n活跃 (queued+running)\\nfailed\\nrunning\\nqueued\\ncancelled\\ncompleted\\nAgent\\n全部\\n产品·策划队长\\n产品·调研与洞察官\\n产品·需求与PRD官\\n产品·设计·原型官\\n小队\\n全部\\n产品小队\\n哲学与人文研究小队\\n生态研究团队\\n仅队长 run\\n状态 · failed ×\\n清除全部\\n状态\\tAgent\\t类型\\tIssue\\t失败说明\\t时间\\t操作\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\nfcf9d046…\\n轨迹\\n\\t执行中断或进程丢失\\n服务重启或心跳超时导致失败。环境正常后可「再执行」。\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t24 分钟前\\t再执行\\n\\nfailed\\n\\t产品·调研与洞察官 筛\\t\\nquick_create\\n\\t—\\t执行中断或进程丢失\\n服务重启或心跳超时导致失败。环境正常后可「再执行」。\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t41 分钟前\\t去快速派活\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\nbfa17671…\\n轨迹\\n\\t执行中断或进程丢失\\n服务重启或心跳超时导致失败。环境正常后可「再执行」。\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t42 分钟前\\t再执行\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\nb5aa6501…\\n轨迹\\n\\t执行中断或进程丢失\\n服务重启或心跳超时导致失败。环境正常后可「再执行」。\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t2026/7/19 21:00:23\\t再执行\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\n9b2cdf0c…\\n轨迹\\n\\t运行失败\\nexit 1\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t2026/7/19 20:30:22\\t再执行\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\nb9d8dfb0…\\n轨迹\\n\\t运行失败\\nexit 1\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t2026/7/19 20:00:22\\t再执行\\n\\nfailed\\n\\t产品·策划队长 筛\\t\\nissue\\n\\t\\n2e75bb7b…\\n轨迹\\n\\t运行失败\\nexit 1\\n打开诊断\\n看板仅失败\\n收件箱\\n\\t2026/7/19\"}"
+### Ran Playwright code
+```js
+await page.evaluate('() => (JSON.stringify({path:\'/runs\',url:location.href,title:document.title,text:(document.body.innerText||\'\').slice(0,1200)}))');
+```
+### Page
+- Page URL: http://localhost:3000/runs
+- Page Title: 毕设 Multi-Agent
+- Console: 4 errors, 1 warnings
+### Events
+- New console entries: .playwright-cli\console-2026-07-21T02-55-02-982Z.log#L3-L102

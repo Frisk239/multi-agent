@@ -179,7 +179,7 @@ export function RunStatusBar({ issueId }: { issueId: string }) {
                 className="btn-ghost btn-sm"
                 data-testid="run-fail-open-inbox"
               >
-                Inbox 失败
+                收件箱失败
               </Link>
               {active.agentId ? (
                 <Link

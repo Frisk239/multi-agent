@@ -9,10 +9,15 @@ import {
   useAgentsReadinessMap,
   useCreateAgent,
   useDeleteAgent,
+  useRuntimeModels,
+  useUnarchiveAgent,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
+
+/** G25：我的 / 全部 / 已归档（本地单用户，「我的」≈全部活跃） */
+type ScopeTab = 'mine' | 'all' | 'archived';
 
 type ReadyFilter =
   | ''
@@ -67,19 +72,31 @@ function readyChipLabel(ready: ReadyFilter): string {
 }
 
 // bu02 + readiness 列：列表 + 新建智能体；行点进详情；URL 可分享筛选
+function parseScope(raw: string | null): ScopeTab {
+  if (raw === 'archived' || raw === 'all' || raw === 'mine') return raw;
+  return 'mine';
+}
+
 function AgentsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data, isLoading, isError, error } = useAgents();
+  const scope = parseScope(searchParams.get('scope'));
+  const archivedParam = scope === 'archived' ? '1' : scope === 'all' ? 'all' : '0';
+  const { data, isLoading, isError, error } = useAgents({ archived: archivedParam });
+  const { data: activeAgents = [] } = useAgents({ archived: '0' });
+  const { data: archivedAgents = [] } = useAgents({ archived: '1' });
   const create = useCreateAgent();
   const del = useDeleteAgent();
+  const unarchive = useUnarchiveAgent();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [runtime, setRuntime] = useState<RuntimeId>('claude-code');
+  const [runtime, setRuntime] = useState<RuntimeId>('opencode');
+  const [model, setModel] = useState('');
   const [category, setCategory] = useState('');
   const [concurrency, setConcurrency] = useState(1);
   const [instructions, setInstructions] = useState('');
+  const { data: createModelCatalog } = useRuntimeModels(open ? runtime : '');
 
   const qFromUrl = searchParams.get('q') ?? '';
   const runtimeFromUrl = searchParams.get('runtime') ?? '';
@@ -154,11 +171,10 @@ function AgentsPageInner() {
     });
   }, [data, qFromUrl, runtimeFilter, readyFromUrl, readinessMap]);
 
-  const hasActiveFilters = Boolean(qFromUrl.trim() || runtimeFilter || readyFromUrl);
-
   function resetForm() {
     setName('');
-    setRuntime('claude-code');
+    setRuntime('opencode');
+    setModel('');
     setCategory('');
     setConcurrency(1);
     setInstructions('');
@@ -171,6 +187,7 @@ function AgentsPageInner() {
     const input: CreateAgentInput = {
       name: name.trim(),
       runtime,
+      model: model.trim() ? model.trim() : null,
       category: category.trim() ? category.trim() : null,
       concurrency,
       instructions,
@@ -183,15 +200,31 @@ function AgentsPageInner() {
     });
   }
 
-  function handleDelete(id: string, label: string) {
-    if (!window.confirm(`确定删除智能体「${label}」？`)) return;
+  function handleArchive(id: string, label: string) {
+    if (!window.confirm(`归档智能体「${label}」？可从「已归档」Tab 恢复。`)) return;
     del.mutate(id);
+  }
+
+  function handleHardDelete(id: string, label: string) {
+    if (!window.confirm(`永久删除智能体「${label}」？不可恢复。`)) return;
+    del.mutate({ id, hard: true });
+  }
+
+  function setScope(next: ScopeTab) {
+    replaceParams({
+      scope: next === 'mine' ? null : next,
+    });
   }
 
   function clearAllFilters() {
     setQDraft('');
-    router.replace(pathname, { scroll: false });
+    const sp = new URLSearchParams();
+    if (scope !== 'mine') sp.set('scope', scope);
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
+
+  const hasActiveFilters = Boolean(qFromUrl.trim() || runtimeFilter || readyFromUrl);
 
   if (isLoading) return <div className="page-container">加载中…</div>;
   if (isError) {
@@ -216,7 +249,7 @@ function AgentsPageInner() {
             </span>
           </h1>
           <p className="page-desc">
-            runtime · 指令 · 并发
+            能领取 issue、留下评论、推进状态的 AI 队友
             {agents.length > 0
               ? ` · ready ${readinessSummary.ready}` +
                 (readinessSummary.busy ? ` · busy ${readinessSummary.busy}` : '') +
@@ -245,6 +278,42 @@ function AgentsPageInner() {
       </div>
 
       <div className="page-body">
+      <div className="agents-scope-tabs" data-testid="agents-scope-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === 'mine'}
+          className={`my-issues-tab${scope === 'mine' ? ' is-active' : ''}`}
+          data-testid="agents-scope-mine"
+          onClick={() => setScope('mine')}
+        >
+          我的 <span className="my-issues-tab-count">{activeAgents.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === 'all'}
+          className={`my-issues-tab${scope === 'all' ? ' is-active' : ''}`}
+          data-testid="agents-scope-all"
+          onClick={() => setScope('all')}
+        >
+          全部{' '}
+          <span className="my-issues-tab-count">
+            {activeAgents.length + archivedAgents.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === 'archived'}
+          className={`my-issues-tab${scope === 'archived' ? ' is-active' : ''}`}
+          data-testid="agents-scope-archived"
+          onClick={() => setScope('archived')}
+        >
+          已归档 <span className="my-issues-tab-count">{archivedAgents.length}</span>
+        </button>
+      </div>
+
       {open && (
         <form className="ops-form surface-card" onSubmit={submit}>
           <div className="ops-form-grid">
@@ -270,6 +339,26 @@ function AgentsPageInner() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="ops-field">
+              <span>模型</span>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                data-testid="agents-create-model"
+              >
+                <option value="">CLI 默认</option>
+                {(createModelCatalog?.models ?? []).slice(0, 100).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              {createModelCatalog && createModelCatalog.models.length > 0 ? (
+                <span className="text-dim text-sm">
+                  已发现 {createModelCatalog.models.length} 个
+                </span>
+              ) : null}
             </label>
             <label className="ops-field">
               <span>分类</span>
@@ -542,29 +631,55 @@ function AgentsPageInner() {
                       </Link>
                     </td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <Link
-                        href={`/chat?agent=${encodeURIComponent(ag.id)}`}
-                        className="btn btn-ghost btn-sm"
-                        data-testid="agent-list-chat"
-                        title="打开聊天并预选此智能体"
-                      >
-                        私信
-                      </Link>{' '}
-                      <Link
-                        href={`/?assignee=agent:${encodeURIComponent(ag.id)}`}
-                        className="btn btn-ghost btn-sm"
-                        data-testid="agent-list-board"
-                      >
-                        看板
-                      </Link>{' '}
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        disabled={del.isPending}
-                        onClick={() => handleDelete(ag.id, ag.name)}
-                      >
-                        删除
-                      </button>
+                      {ag.archivedAt ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            data-testid="agent-list-unarchive"
+                            disabled={unarchive.isPending}
+                            onClick={() => unarchive.mutate(ag.id)}
+                          >
+                            恢复
+                          </button>{' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            data-testid="agent-list-hard-delete"
+                            disabled={del.isPending}
+                            onClick={() => handleHardDelete(ag.id, ag.name)}
+                          >
+                            删除
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <Link
+                            href={`/chat?agent=${encodeURIComponent(ag.id)}`}
+                            className="btn btn-ghost btn-sm"
+                            data-testid="agent-list-chat"
+                            title="打开聊天并预选此智能体"
+                          >
+                            私信
+                          </Link>{' '}
+                          <Link
+                            href={`/?assignee=agent:${encodeURIComponent(ag.id)}`}
+                            className="btn btn-ghost btn-sm"
+                            data-testid="agent-list-board"
+                          >
+                            看板
+                          </Link>{' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            data-testid="agent-list-archive"
+                            disabled={del.isPending}
+                            onClick={() => handleArchive(ag.id, ag.name)}
+                          >
+                            归档
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );

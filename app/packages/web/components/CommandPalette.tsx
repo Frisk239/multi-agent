@@ -114,7 +114,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       },
       {
         id: 'nav-inbox',
-        label: 'Inbox',
+        label: '收件箱',
         hint: '/inbox',
         group: '导航',
         run: () => router.push('/inbox'),
@@ -806,7 +806,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             },
             {
               id: 'ops-inbox-fails',
-              label: '运营：Inbox 失败',
+              label: '运营：收件箱失败',
               hint: '/inbox?kind=run_failed&read=unread',
               group: '诊断',
               run: () => router.push('/inbox?kind=run_failed&read=unread'),

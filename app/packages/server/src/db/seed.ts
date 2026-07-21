@@ -32,10 +32,10 @@ db.insert(users)
 
 db.insert(agents)
   .values([
-    { id: 'agt-lead', name: '产品·策划队长', category: '产品', runtime: 'claude-code', concurrency: 6, createdAt: NOW },
-    { id: 'agt-research', name: '产品·调研与洞察官', category: '产品', runtime: 'opencode', concurrency: 4, createdAt: NOW },
-    { id: 'agt-prd', name: '产品·需求与PRD官', category: '产品', runtime: 'cursor', concurrency: 4, createdAt: NOW },
-    { id: 'agt-proto', name: '产品·设计·原型官', category: '产品', runtime: 'claude-code', concurrency: 6, createdAt: NOW },
+    { id: 'agt-lead', name: '产品·策划队长', category: '产品', runtime: 'opencode', model: 'opencode/big-pickle', concurrency: 6, createdAt: NOW },
+    { id: 'agt-research', name: '产品·调研与洞察官', category: '产品', runtime: 'opencode', model: 'opencode/big-pickle', concurrency: 4, createdAt: NOW },
+    { id: 'agt-prd', name: '产品·需求与PRD官', category: '产品', runtime: 'opencode', model: 'opencode/big-pickle', concurrency: 4, createdAt: NOW },
+    { id: 'agt-proto', name: '产品·设计·原型官', category: '产品', runtime: 'opencode', model: 'opencode/big-pickle', concurrency: 6, createdAt: NOW },
   ])
   .run();
 

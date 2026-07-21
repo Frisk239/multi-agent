@@ -1,33 +1,29 @@
-# Multica 对照差距表 · 真站体验 + 源码（2026-07-19）
+# Multica 对照差距表 · 真站体验 + 源码（滚动）
 
 > **真站：** [multica.ai / frisk239-s-coding-workspace](https://multica.ai/frisk239-s-coding-workspace/issues)（Playwright headed 登录后巡览）  
 > **源码：** `references/deep/multica.md` + `references/repos/multica/`  
 > **本仓：** `localhost:3000` 本地控制台（魔改本地版）  
-> **目标边界：** 复刻 **本地控制台体验**，**不**做 daemon/云协议 1:1、不抄云托管。
+> **目标边界：** 复刻 **本地控制台体验**，**不**做 daemon/云协议 1:1、不抄云托管。  
+> **修订：** 2026-07-19 初版 · **2026-07-21 再巡览**（Inbox/模型绑定/运行事件流纳入下一刀队列）
 
-现场巡览笔记：`app/.progress/multica-live-tour/*.json`
+现场巡览笔记：`app/.progress/multica-live-tour/*.json` · 鉴权 `app/.progress/multica-auth/`（gitignore）
 
 ---
 
-## 0. 信息架构对照（侧栏）
+## 0. 信息架构对照（侧栏）· 2026-07-21 晚
 
-| Multica 真站 | 本仓 | 差距 |
+> 全量巡览与落地见 [`ui-multica-parity-tour-2026-07-21.md`](./ui-multica-parity-tour-2026-07-21.md)
+
+| Multica 真站 | 本仓（现状） | 差距 |
 |---|---|---|
-| 收件箱（三栏：列表+详情+Helper） | Inbox 列表 + 筛选 | 本仓无右侧 **Multica Helper** 常驻对话；无「已归档」折叠区同款 |
-| **聊天** | ❌ 无独立 Chat 路由 | **P0 体验缺口**：人↔Agent 私信/会话台 |
-| 我的 issue | 有（筛选/指派） | 真站 Tab：全部/已分配/我创建的/**我的智能体和小队** |
-| Issues 看板 | Issues 看板 | 真站列：**待规划/待办/进行中/审核中/已完成**；本仓 **Backlog/Todo/In Progress/In Review/Done/Blocked**（更细，但文案未本地化成 Multica 中文列） |
-| **项目** | ❌ 无 | **P1**：跨 issue 项目容器（真站可空态「还没有项目」） |
-| 自动化 | 有（规则列表） | 真站空态是 **模板画廊**（日报/PR review/Bug 分诊…）+「从空白开始」 |
-| 智能体 | 有 | 真站 **15** 个 agent 列表：我的/全部/已归档；本仓 seed 4 个为主 |
-| 小队 | 有 | 近似；真站强调队长列 |
-| **用量** | ❌ 无 | **P1**：Token/费用/运行时长/任务数图表与排行榜 |
-| 运行时 | 有 | 真站 = **电脑/daemon 机器**（「添加电脑」、daemon id、在线离线）；本仓 = **CLI 探测**（claude/opencode/cursor） |
-| Skills | 有 | 真站 **127** skills + usedBy 列；本仓扫描本地 skills |
-| 设置 | 有 | 真站分 **我的账号**（资料/偏好/快捷键/通知/**API Token**）+ **工作区**（通用/**代码仓库**/GitHub/**集成**/实验室/成员/标签/属性）；本仓偏 **环境诊断 + cwd + 健康** |
-| Wiki / Memory / 运行 | 本仓有、真站侧栏未见同级入口 | 本仓 **超车点**（编译式 Wiki + Memory 运维） |
-| 快速派活 Q | 本仓有 | 真站未见同级「无 Issue 先跑」入口（偏 issue 驱动） |
-| CmdK Ctrl+K | 双方有 | 真站建议问题绑定 Helper |
+| 收件箱 · 聊天 · 我的 issue 置顶 | ✅ 同序（个人段无小标题） | 我的 issue 非独立页（G24） |
+| 收件箱详情 = IssueDetail | ✅ 动态优先 + 紧凑属性 | Helper 第三栏 / 属性右栏（G27/G26） |
+| 聊天双栏 | ✅ Multica 式重做 | 流式弱 |
+| Issues 顶栏疏 | ✅ 主筛选 +「更多」 | 列表/手动视图无 |
+| 项目 / 自动化 / 智能体 / 小队 / 用量 | ✅ | 表列密度、归档 Tab 等 |
+| 运行时=电脑 | 本机 CLI | **刻意** |
+| Wiki / Memory / 运行 | 本地运维段 | **超车保留** |
+| model 绑定 | ✅ + CLI 发现 | thinking level 无 |
 
 ---
 
@@ -175,6 +171,35 @@
 
 ---
 
+## 6b. 2026-07-21 新缺口（人点名 · 下一厚切片池）
+
+> 对照：真站 Inbox 巡览 + 源码 `migrations/050_agent_model.up.sql` + `pkg/agent/opencode.go`（`--model`）+ `TaskMessagePayload` 事件流 + 用户截图（运行 trace 弹层 / agent 模型）
+
+| ID | 缺口 | 真站 / 源码依据 | 本仓现状 | 优先级 | 建议切片 |
+|---|---|---|---|---|---|
+| **G21** | **收件箱事件中心 + 与智能体交互** | 真站：侧栏「收件箱」；右 = 完整 Issue（动态/评论/属性/执行日志）；Helper 同屏 | ✅ **parity-1**（2026-07-21）：文案收件箱；IssueDetail 动态优先+执行日志折叠；去通知摘要条；停用验收巡检；**Helper 第三栏 / 内嵌属性右栏仍缺** | **P0 → 大半完成** | `inbox-multica-parity-impl-1.md` |
+| **G22** | **Agent 绑定 runtime 内的 model** | 真站 agent 属性：运行时 + **模型**（如 `opencode/big-pickle`）；源码 `agent.model TEXT`（050）；opencode `--model` | ✅ **impl-1 + discovery**（2026-07-21）：`agent.model` + spawn + **`GET /api/runtimes/:id/models`**（`opencode models`）+ 下拉 | **P0 → ✅** | `agent-model-binding-impl-1.md` · `runtime-model-discovery-impl-1.md` |
+| **G23** | **运行中/已完成执行事件流（工具调用时间线）** | 真站 run 弹层：bash/skill/Agent 色块时间线、工具次数、复制/外链；协议 `TaskMessagePayload` type=text/tool_use/tool_result | ✅ **impl-1**（2026-07-21）：`RunEventTimeline` 色条 + 抽屉；Issue/Runs 入口；opencode 无消息时诚实空态 | **P0/P1 → 大半** | `multica-detail-rails-impl-1.md`（流解析仍可加固） |
+
+### 实现提示（本地适配，非 daemon 1:1）
+
+1. **G22 model**  
+   - DB：`agent.model text null`（空=跟随 CLI 默认，对齐 Multica「Changing the model only applies to new tasks」）  
+   - spawn：`OpencodeBackend` 在 `run` argv 插入 `--model <id>`（对照 `references/repos/multica/server/pkg/agent/opencode.go:82-83`）  
+   - UI：Agent 详情「运行时」下增加「模型」输入/下拉；首版可手填 `opencode/…`，二期再做 `opencode models` 发现  
+   - 不引入 daemon runtime_id；本仓仍是 **CLI 类型 + model 字符串**
+
+2. **G23 事件流**  
+   - 复用 `GET /api/runs/:id/messages` + `run:message` WS  
+   - UI：Issue/Runs/Agent 工作行 → 打开 **事件时间线抽屉**（对照真站色条 + tool 折叠），不要只做纯文本截断  
+   - opencode：评估 JSON/流式 flag；若仍无流，至少在 live 显示 heartbeat/进度条 + 终态 assistant 块结构化
+
+3. **G21 Inbox**  
+   - 本地 **不是「没做收件箱」**：`http://localhost:3000/inbox` 已有（2026-07-21 Playwright：124 条可见、92 未读、侧栏 Inbox 角标）  
+   - 下一刀目标是 **事件管理 + 交互**，不是从零新建路由
+
+---
+
 ## 7. 本仓相对 Multica 的「超车 / 应保留」
 
 不要为对齐真站而删掉这些本地优势：
@@ -192,7 +217,7 @@
 
 ## 8. 源码层提示（体验切片时对齐实现）
 
-摘自 `references/deep/multica.md`，供实现时对照，**非**本阶段必须 1:1：
+摘自 `references/deep/multica.md` + 2026-07-21 补读，供实现时对照，**非**本阶段必须 1:1：
 
 1. **DB 行即锁**状态机 + claim 排除同 agent 同 scope 并发  
 2. **Squad = leader task + briefing + mention**（本仓已钉）  
@@ -200,41 +225,42 @@
 4. **Daemon + waiting_local_directory** → 本仓刻意用 cwd 持久化代替  
 5. **Autopilot 模板 + webhook** → 模板可做；webhook 宪法不做  
 6. **Runtime 注册机器** → 本地保留 CLI 探测即可  
+7. **Agent.model**（`050_agent_model.up.sql`）+ backend `opts.Model` → CLI `--model`  
+8. **Task 消息流** `TaskMessagePayload`（text / tool_use / tool_result）→ 本仓 `run_message` 应对齐可视化，不必 daemon drain 协议  
 
 ---
 
 ## 9. 建议迭代队列（厚切片顺序）
 
-按 **用户每天感知 × 与真站落差** 排序（可一轮一轮开）：
+### 已完成（2026-07-19 波次，摘要）
 
-| 序 | 切片 | 用户路径 | 层 |
-|---|---|---|---|
-| 1 | **`inbox-tri-pane`** | Inbox 点通知 → 右侧读全文/操作 | web 为主 + 现有 API |
-| 2 | **`agent-chat`** | 侧栏聊天/私信 → 与 agent 对话并落 run | shared+server+web |
-| 3 | **`helper-rail`** | 任意页右侧助手（可复用 chat） | web+固定 agent |
-| 4 | **`issue-run-usage`** | Issue 详情看本次/历史 token 与运行 | server 聚合+web |
-| 5 | **`agent-work-dashboard`** | Agent 详情最近工作与成功率 | server+web |
-| 6 | **`automation-templates`** | 自动化空态从模板一键建规则 | web+seed 模板 |
-| 7 | **`usage-dashboard`** | 用量页图表 | server 聚合+web |
-| 8 | **`issue-subtasks`** | 父 issue 下挂子 issue | schema+API+web |
-| 9 | **`projects-mvp`** | 项目容器 | schema+API+web |
-| 10 | 其余 G2/G3/G5/G6… | 按需 | — |
+G1–G18 主体（Inbox 双栏、Chat/Helper MVP、用量、项目、子 issue、订阅、PR URL、能力 Tab、模板画廊、CLI 文案…）— 见 git log / `*-impl-1.md`。
 
-**刻意不做（仍有效）：** 云 webhook、多租户、密钥入库 UI、daemon 协议 1:1、waiting_local_directory 全状态机。
+### 下一波（2026-07-21 人点名 · 按感知排序）
+
+| 序 | 切片 | Gap | 用户路径 | 层 |
+|---|---|---|---|---|
+| 1 | **`inbox-agent-interact`** | G21 | Inbox 点通知 → 读全文 → **回复/私信/打开对话**；失败项运维动作保留 | web + chat/comment API |
+| 2 | **`agent-model-binding`** | G22 | Agent 设置：runtime=opencode + **model=opencode/…** → 新 run 带 `--model` | schema+shared+server spawn+web |
+| 3 | **`run-event-timeline`** | G23 | 运行中/历史 run → **工具调用时间线抽屉**（类真站弹层） | web 为主 + messages API；可选加固 opencode 流 |
+| 4 | G19 / G20 / 密度 | 可选 | token CLI、设置叙事 | 薄 |
+
+**刻意不做（仍有效）：** 云 webhook、多租户、密钥入库 UI、daemon 协议 1:1、waiting_local_directory 全状态机、把本机 CLI 伪装成「添加电脑」。
 
 ---
 
-## 10. 达标重估
+## 10. 达标重估（2026-07-21）
 
 | 维度 | 判断 |
 |---|---|
 | 本地主航道日用（派活/看板/run/wiki/memory/settings） | **仍成立** |
-| 与 **真站 Multica 产品壳** 的体验对齐 | **大幅收窄** — Chat/Helper/Inbox/用量/项目/子 issue/订阅/PR 链接/能力 Tab 等已 MVP；剩余 G14/G19/G20 等 P3 |
-| 下一阶段目标建议 | 可选打磨 G14 runtime 文案、G19 local token、密度/空态；主航道已可用 |
+| Inbox **路由与通知台** | **已有**（勿再写「没做收件箱」）；缺的是 **交互型事件中心** |
+| 与 **真站产品壳** | MVP 壳在；**新的高感差距 = G21/G22/G23**（Inbox 交互、model、运行事件流） |
+| 下一阶段目标 | **厚切片推进 G21→G22→G23**（可同会话串或拆刀）；G19/G20 仍非 blocker |
 
 ---
 
-## 11. 巡览证据清单
+## 11. 巡览证据清单（2026-07-19 历史）
 
 | 页面 | 关键观察 |
 |---|---|
@@ -251,3 +277,16 @@
 | /usage | Token/费用/时长/任务 + 排行 |
 | /chat | 独立会话列表 |
 | 本仓 / | 运营筛选极密；Wiki/Memory/Runs 入口为本仓特色 |
+
+---
+
+## 12. 巡览证据 · 2026-07-21
+
+| 侧 | 证据 |
+|---|---|
+| 真站 `/inbox` | Playwright + storage-state：标题「收件箱」；列表含长交付摘要/状态变更；右侧「选择一条通知查看详情」；Helper「离线」+ 建议 chips；「已归档 10」 |
+| 真站 `/issues` | 中文列待规划/待办/进行中…；FRI-14/15/10 等卡片 |
+| 真站 agent 截图（用户） | 属性：**运行时 Opencode + 模型 opencode/big-pickle**；工作行可开 **执行事件时间线**（bash/skill/Agent） |
+| 本仓 `/inbox` | Playwright：`data-testid=inbox-page`；**124** 条列表级、**92 未读**；侧栏 Inbox **角标 92**；失败条 28 |
+| 本仓 agents | API/DB 四 agent **runtime=opencode**（已改 seed+DB）；详情 select **value=opencode**；**无 model 控件** |
+| 本仓 run | `RunTrace` 存在但为扁平消息列表；opencode 注释写明执行期常无实时轨迹 |

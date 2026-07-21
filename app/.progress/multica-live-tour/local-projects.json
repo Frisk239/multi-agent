@@ -1,0 +1,6 @@
+### Result
+"{\"path\":\"/projects\",\"url\":\"http://localhost:3000/projects\",\"title\":\"毕设 Multi-Agent\",\"text\":\"Multi-Agent\\n已连接\\n工作中 2\\n在途 0\\n搜索...\\nCtrl+K\\n快速派活\\nQ\\n新建 Issue\\nC\\n工作区\\nIssues\\n我的 issue\\n收件箱\\n22\\n聊天\\n项目\\n运行\\n小队\\n智能体\\n用量\\nWiki\\n记忆\\n配置\\n自动化\\n本机 CLI\\nSkills\\n设置\\n深\\n项目\\n\\n跨 issue 的产品容器；把相关工作归到同一项目下。\\n\\n新建项目\\n验收项目 1784447444840\\n进行中\\n0/2 完成\\n看板\\n问助手\"}"
+### Ran Playwright code
+```js
+await page.evaluate('() => (JSON.stringify({path:\'/projects\',url:location.href,title:document.title,text:(document.body.innerText||\'\').slice(0,1200)}))');
+```

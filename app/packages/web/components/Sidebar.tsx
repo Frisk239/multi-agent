@@ -28,28 +28,28 @@ type NavItem = {
   failBadge?: number;
 };
 
-// S12：已实现路由；run-observability 增加「运行」
-// issue-assignee-desk：侧栏「我的 issue」→ /?assignee=any
+// 2026-07-21 UI 厚切片：侧栏 IA 对齐 Multica 真站顺序
+// 个人入口 → 工作区（Issues/项目/自动化/智能体/小队/用量）→ 本仓超车（运行/Wiki/记忆）→ 配置
 const NAV_ITEMS: NavItem[] = [
-  { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
+  { id: 'inbox', label: '收件箱', icon: 'inbox', section: 'personal', href: '/inbox' },
+  { id: 'chat', label: '聊天', icon: 'user', section: 'personal', href: '/chat' },
   {
     id: 'my-issues',
     label: '我的 issue',
     icon: 'user',
-    section: 'workspace',
-    href: '/?assignee=any',
+    section: 'personal',
+    href: '/my-issues',
   },
-  { id: 'inbox', label: 'Inbox', icon: 'inbox', section: 'workspace', href: '/inbox' },
-  { id: 'chat', label: '聊天', icon: 'user', section: 'workspace', href: '/chat' },
+  { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
   { id: 'projects', label: '项目', icon: 'project', section: 'workspace', href: '/projects' },
-  // 有活跃 run 时 href 会被替换为 /runs?status=active
-  { id: 'runs', label: '运行', icon: 'usage', section: 'workspace', href: '/runs' },
-  { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
+  { id: 'automation', label: '自动化', icon: 'automation', section: 'workspace', href: '/automation' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
+  { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'usage', label: '用量', icon: 'usage', section: 'workspace', href: '/usage' },
-  { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'workspace', href: '/wiki' },
-  { id: 'memory', label: '记忆', icon: 'memory', section: 'workspace', href: '/memory' },
-  { id: 'automation', label: '自动化', icon: 'automation', section: 'config', href: '/automation' },
+  // 本仓超车：真站侧栏无同级入口
+  { id: 'runs', label: '运行', icon: 'usage', section: 'local', href: '/runs' },
+  { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'local', href: '/wiki' },
+  { id: 'memory', label: '记忆', icon: 'memory', section: 'local', href: '/memory' },
   { id: 'runtime', label: '本机 CLI', icon: 'runtime', section: 'config', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
   { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },
@@ -128,17 +128,17 @@ function wsLabel(status: 'connecting' | 'open' | 'closed') {
   return '已断开';
 }
 
-/** Issues vs 我的 issue：同 pathname `/`，靠 assignee= 区分高亮 */
+/** Issues vs 我的 issue：独立路由 /my-issues（G24） */
 function navItemActive(
   item: NavItem,
   pathname: string,
-  searchParams: URLSearchParams,
+  _searchParams: URLSearchParams,
 ): boolean {
   if (item.id === 'my-issues') {
-    return pathname === '/' && searchParams.get('assignee') === 'any';
+    return pathname === '/my-issues' || pathname.startsWith('/my-issues/');
   }
   if (item.id === 'issues') {
-    return pathname === '/' && searchParams.get('assignee') !== 'any';
+    return pathname === '/' || pathname.startsWith('/issues');
   }
   if (item.id === 'runs') {
     return pathname === '/runs' || pathname.startsWith('/runs/');
@@ -216,9 +216,19 @@ export function Sidebar() {
 
   const sections = [
     {
+      key: 'personal',
+      label: '', // Multica 顶部无「个人」小标题：收件箱/聊天/我的 issue 直接列出
+      items: navItems.filter((n) => n.section === 'personal'),
+    },
+    {
       key: 'workspace',
       label: '工作区',
       items: navItems.filter((n) => n.section === 'workspace'),
+    },
+    {
+      key: 'local',
+      label: '本地运维',
+      items: navItems.filter((n) => n.section === 'local'),
     },
     {
       key: 'config',
@@ -289,7 +299,7 @@ export function Sidebar() {
             className="sidebar-fail-chip"
             data-testid="sidebar-fail-chip"
             data-count={String(unreadFailCount)}
-            title={`${unreadFailCount} 条未读失败 · 打开 Inbox`}
+            title={`${unreadFailCount} 条未读失败 · 打开收件箱`}
           >
             失败 {unreadFailCount > 99 ? '99+' : unreadFailCount}
           </Link>

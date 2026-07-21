@@ -45,11 +45,14 @@ export function IssueRunHistory({
   selectedRunId,
   onSelect,
   usage,
+  onOpenTimeline,
 }: {
   runs: AgentRun[];
   selectedRunId: string | undefined;
   onSelect: (runId: string) => void;
   usage?: IssueRunUsage | null;
+  /** G23：打开事件时间线弹层 */
+  onOpenTimeline?: (runId: string) => void;
 }) {
   if (runs.length === 0) return null;
 
@@ -196,6 +199,17 @@ export function IssueRunHistory({
                   </td>
                   <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
                   <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {onOpenTimeline ? (
+                      <button
+                        type="button"
+                        className="runs-inline-filter"
+                        data-testid="issue-run-history-timeline"
+                        title="打开事件时间线"
+                        onClick={() => onOpenTimeline(r.id)}
+                      >
+                        时间线
+                      </button>
+                    ) : null}
                     <Link
                       href={`/runs?run=${encodeURIComponent(r.id)}&status=${encodeURIComponent(r.status)}`}
                       className="runs-inline-filter"

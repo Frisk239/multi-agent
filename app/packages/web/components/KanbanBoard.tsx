@@ -75,6 +75,8 @@ function KanbanBoardInner() {
   // URL 可分享：?status= 仅显示该列（cancelled 不建列）
   const statusFromUrl = searchParams.get('status') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
+  // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -292,6 +294,16 @@ function KanbanBoardInner() {
       ? COLUMNS.find((c) => c.status === statusQuery)?.title ?? statusQuery
       : '';
 
+  const moreFilterCount = [
+    priorityQuery,
+    originQuery,
+    projectFromUrl,
+    statusQuery,
+    failedOnly,
+    labelFilter,
+  ].filter(Boolean).length;
+  const showMore = moreFiltersOpen || moreFilterCount > 0;
+
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
   function handleDrop(targetStatus: IssueStatus) {
@@ -337,183 +349,233 @@ function KanbanBoardInner() {
       data-testid="kanban-board"
     >
       <AgentsWorkingBanner />
-      <div className="kanban-toolbar">
-        <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
-          <NewIssueForm />
-        </Suspense>
-        <input
-          className="kanban-search-input"
-          type="search"
-          placeholder="搜索标题 / FRI-…"
-          value={qDraft}
-          onChange={(e) => setQDraft(e.target.value)}
-          aria-label="搜索 Issue"
-        />
-        <select
-          className="kanban-assignee-select"
-          value={selectValue}
-          onChange={(e) => setAssigneeFilter(e.target.value)}
-          aria-label="按指派筛选"
-        >
-          <option value="">全部指派</option>
-          <option value="any">已指派</option>
-          <option value="none">未指派</option>
-          <optgroup label="智能体">
-            {agents.map((a) => (
-              <option key={a.id} value={`agent:${a.id}`}>
-                {a.name}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="小队">
-            {squads.map((s) => (
-              <option key={s.id} value={`squad:${s.id}`}>
-                {s.name}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-        <select
-          className="kanban-priority-select"
-          value={priorityQuery ?? ''}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          aria-label="按优先级筛选"
-          data-testid="kanban-priority-filter"
-        >
-          {PRIORITY_OPTIONS.map((o) => (
-            <option key={o.value || 'all'} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <div className="kanban-priority-pills" role="toolbar" aria-label="快捷优先级" data-testid="kanban-priority-pills">
-          {(
-            [
-              { value: 'urgent', label: '紧急' },
-              { value: 'high', label: '高' },
-              { value: 'medium', label: '中' },
-            ] as const
-          ).map((p) => (
+      <div className="kanban-toolbar" data-testid="kanban-toolbar">
+        <div className="kanban-toolbar-primary">
+          <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
+            <NewIssueForm />
+          </Suspense>
+          <div className="kanban-scope-tabs" role="tablist" aria-label="范围" data-testid="kanban-scope-tabs">
             <button
-              key={p.value}
               type="button"
-              className={`kanban-filter-pill${priorityQuery === p.value ? ' active' : ''}`}
-              data-testid={`kanban-priority-pill-${p.value}`}
-              aria-pressed={priorityQuery === p.value}
-              onClick={() =>
-                setPriorityFilter(priorityQuery === p.value ? '' : p.value)
-              }
+              role="tab"
+              className={`kanban-scope-tab${selectValue === '' ? ' is-active' : ''}`}
+              aria-selected={selectValue === ''}
+              onClick={() => setAssigneeFilter('')}
             >
-              {p.label}
+              全部
             </button>
-          ))}
-        </div>
-        <select
-          className="kanban-origin-select"
-          value={originQuery ?? ''}
-          onChange={(e) => setOriginFilter(e.target.value)}
-          aria-label="按来源筛选"
-          data-testid="kanban-origin-filter"
-        >
-          <option value="">全部来源</option>
-          <option value="automation">自动化</option>
-          <option value="quick_create">快速派活</option>
-        </select>
-        <select
-          className="kanban-project-select"
-          value={projectFromUrl}
-          onChange={(e) => setProjectFilter(e.target.value)}
-          aria-label="按项目筛选"
-          data-testid="kanban-project-filter"
-        >
-          <option value="">全部项目</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.title}
-            </option>
-          ))}
-        </select>
-        <select
-          className="kanban-status-select"
-          value={statusQuery ?? ''}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          aria-label="按状态聚焦列"
-          data-testid="kanban-status-filter"
-        >
-          <option value="">全部列</option>
-          {COLUMNS.map((c) => (
-            <option key={c.status} value={c.status}>
-              {c.title}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className={`kanban-filter-pill kanban-failed-toggle${failedOnly ? ' active' : ''}`}
-          aria-pressed={failedOnly}
-          aria-label="仅显示有失败运行的 Issue"
-          data-testid="kanban-failed-only"
-          title={
-            failedCount > 0
-              ? `最近失败 run 覆盖 ${failedCount} 个 Issue`
-              : '最近无失败 run'
-          }
-          onClick={() => setFailedOnly(!failedOnly)}
-        >
-          仅失败{failedCount > 0 ? ` ${failedCount}` : ''}
-        </button>
-        {failedOnly ? (
-          <span
-            className="kanban-filter-note"
-            data-testid="kanban-failed-filter-note"
-            title="当前筛选下的可见 Issue 数（与列计数之和一致）"
-          >
-            <span>
-              显示 {visibleCount}
-              {failedCount > 0 && visibleCount !== failedCount
-                ? ` / 失败集 ${failedCount}`
-                : ''}
-            </span>
-            <span aria-hidden="true">·</span>
-            <Link href="/runs?status=failed" className="kanban-filter-note-link" data-testid="kanban-fail-to-runs">
-              失败运行
-            </Link>
-            <span aria-hidden="true">·</span>
-            <Link
-              href="/inbox?kind=run_failed&read=unread"
-              className="kanban-filter-note-link"
-              data-testid="kanban-fail-to-inbox"
+            <button
+              type="button"
+              role="tab"
+              className={`kanban-scope-tab${selectValue === 'any' ? ' is-active' : ''}`}
+              aria-selected={selectValue === 'any'}
+              onClick={() => setAssigneeFilter('any')}
             >
-              Inbox
-            </Link>
-            <span aria-hidden="true">·</span>
-            <Link href="/settings" className="kanban-filter-note-link" data-testid="kanban-fail-to-settings">
-              环境
-            </Link>
-          </span>
-        ) : null}
-        <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
+              已指派
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={`kanban-scope-tab${selectValue.startsWith('agent:') ? ' is-active' : ''}`}
+              aria-selected={selectValue.startsWith('agent:')}
+              onClick={() => {
+                if (!selectValue.startsWith('agent:') && agents[0]) {
+                  setAssigneeFilter(`agent:${agents[0].id}`);
+                }
+              }}
+              title="再从下拉选具体智能体"
+            >
+              智能体
+            </button>
+          </div>
+          <input
+            className="kanban-search-input"
+            type="search"
+            placeholder="搜索标题 / FRI-…"
+            value={qDraft}
+            onChange={(e) => setQDraft(e.target.value)}
+            aria-label="搜索 Issue"
+          />
+          <select
+            className="kanban-assignee-select"
+            value={selectValue}
+            onChange={(e) => setAssigneeFilter(e.target.value)}
+            aria-label="按指派筛选"
+          >
+            <option value="">全部指派</option>
+            <option value="any">已指派</option>
+            <option value="none">未指派</option>
+            <optgroup label="智能体">
+              {agents.map((a) => (
+                <option key={a.id} value={`agent:${a.id}`}>
+                  {a.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="小队">
+              {squads.map((s) => (
+                <option key={s.id} value={`squad:${s.id}`}>
+                  {s.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
           <button
             type="button"
-            className={`kanban-filter-pill${labelFilter === '' ? ' active' : ''}`}
-            onClick={() => setLabelFilter('')}
+            className={`kanban-more-toggle${showMore ? ' is-open' : ''}${moreFilterCount ? ' has-active' : ''}`}
+            data-testid="kanban-more-filters"
+            aria-expanded={showMore}
+            onClick={() => setMoreFiltersOpen((v) => !v)}
           >
-            全部
+            筛选{moreFilterCount > 0 ? ` · ${moreFilterCount}` : ''}
           </button>
-          {(labels ?? []).map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              className={`kanban-filter-pill${labelFilter === l.id ? ' active' : ''}`}
-              style={{ ['--label-color' as string]: l.color }}
-              onClick={() => setLabelFilter(l.id)}
-              title={l.name}
-            >
-              <span className="issue-label-dot" />
-              {l.name}
-            </button>
-          ))}
         </div>
+
+        {showMore ? (
+          <div className="kanban-toolbar-more" data-testid="kanban-toolbar-more">
+            <select
+              className="kanban-priority-select"
+              value={priorityQuery ?? ''}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              aria-label="按优先级筛选"
+              data-testid="kanban-priority-filter"
+            >
+              {PRIORITY_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <div className="kanban-priority-pills" role="toolbar" aria-label="快捷优先级" data-testid="kanban-priority-pills">
+              {(
+                [
+                  { value: 'urgent', label: '紧急' },
+                  { value: 'high', label: '高' },
+                  { value: 'medium', label: '中' },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className={`kanban-filter-pill${priorityQuery === p.value ? ' active' : ''}`}
+                  data-testid={`kanban-priority-pill-${p.value}`}
+                  aria-pressed={priorityQuery === p.value}
+                  onClick={() =>
+                    setPriorityFilter(priorityQuery === p.value ? '' : p.value)
+                  }
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <select
+              className="kanban-origin-select"
+              value={originQuery ?? ''}
+              onChange={(e) => setOriginFilter(e.target.value)}
+              aria-label="按来源筛选"
+              data-testid="kanban-origin-filter"
+            >
+              <option value="">全部来源</option>
+              <option value="automation">自动化</option>
+              <option value="quick_create">快速派活</option>
+            </select>
+            <select
+              className="kanban-project-select"
+              value={projectFromUrl}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              aria-label="按项目筛选"
+              data-testid="kanban-project-filter"
+            >
+              <option value="">全部项目</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+            <select
+              className="kanban-status-select"
+              value={statusQuery ?? ''}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="按状态聚焦列"
+              data-testid="kanban-status-filter"
+            >
+              <option value="">全部列</option>
+              {COLUMNS.map((c) => (
+                <option key={c.status} value={c.status}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`kanban-filter-pill kanban-failed-toggle${failedOnly ? ' active' : ''}`}
+              aria-pressed={failedOnly}
+              aria-label="仅显示有失败运行的 Issue"
+              data-testid="kanban-failed-only"
+              title={
+                failedCount > 0
+                  ? `最近失败 run 覆盖 ${failedCount} 个 Issue`
+                  : '最近无失败 run'
+              }
+              onClick={() => setFailedOnly(!failedOnly)}
+            >
+              仅失败{failedCount > 0 ? ` ${failedCount}` : ''}
+            </button>
+            {failedOnly ? (
+              <span
+                className="kanban-filter-note"
+                data-testid="kanban-failed-filter-note"
+                title="当前筛选下的可见 Issue 数（与列计数之和一致）"
+              >
+                <span>
+                  显示 {visibleCount}
+                  {failedCount > 0 && visibleCount !== failedCount
+                    ? ` / 失败集 ${failedCount}`
+                    : ''}
+                </span>
+                <span aria-hidden="true">·</span>
+                <Link href="/runs?status=failed" className="kanban-filter-note-link" data-testid="kanban-fail-to-runs">
+                  失败运行
+                </Link>
+                <span aria-hidden="true">·</span>
+                <Link
+                  href="/inbox?kind=run_failed&read=unread"
+                  className="kanban-filter-note-link"
+                  data-testid="kanban-fail-to-inbox"
+                >
+                  收件箱
+                </Link>
+                <span aria-hidden="true">·</span>
+                <Link href="/settings" className="kanban-filter-note-link" data-testid="kanban-fail-to-settings">
+                  环境
+                </Link>
+              </span>
+            ) : null}
+            <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
+              <button
+                type="button"
+                className={`kanban-filter-pill${labelFilter === '' ? ' active' : ''}`}
+                onClick={() => setLabelFilter('')}
+              >
+                全部标签
+              </button>
+              {(labels ?? []).map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={`kanban-filter-pill${labelFilter === l.id ? ' active' : ''}`}
+                  style={{ ['--label-color' as string]: l.color }}
+                  onClick={() => setLabelFilter(l.id)}
+                  title={l.name}
+                >
+                  <span className="issue-label-dot" />
+                  {l.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
       {hasActiveFilters ? (
         <div

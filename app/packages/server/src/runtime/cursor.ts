@@ -91,9 +91,13 @@ export class CursorBackend implements RuntimeBackend {
     // spike 实测：本机 cursor-agent 版本把 trust 和 force 分开，仅 --yolo 会
     // 报 "Workspace Trust Required" 退出，必须额外加 --trust（multica 版本可能不同）。
     // cursor-agent 是 stream-json backend（与 opencode 的降级不同）。
+    // G22：有 model 时追加 --model（CLI 不支持时会失败并体现在 run error，便于用户改回空）
+    const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
+    const model = input.model?.trim();
+    if (model) args.push('--model', model);
     return spawnLineProcess(
       det.path,
-      ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'],
+      args,
       input.cwd,
       signal,
       onEvent,

@@ -44,21 +44,23 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-19）
+## 当前方位（2026-07-21）
 
 - **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [主航道 gap](app/.progress/multica-gap-2026-07-17.md) · [真站 live gap](app/.progress/multica-gap-live-2026-07-19.md)
 - **工程：** 自动迭代 Slice Owner · Playwright 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **最近交付：** cwd 持久化 · 健康卡 · wiki/memory 批量运维 · 宪法刷新 · `memory-bulk-delete`（`6928c78`）
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
-- **真站对照 gap（产品壳）：** `app/.progress/multica-gap-live-2026-07-19.md` — Chat/Helper、Inbox 三栏、用量、项目、Issue 作业面
-- **判断：** 本地运维主航道 **可用**；与 **multica.ai 产品壳** 仍有明确体验差（见 live gap 队列 G7→G17）
-- **已推：** 真站体验队列 **G1–G3 / G5–G10 / G12–G18** 等（见 git log · 2026-07-19 会话）  
-- **本刀：** `runtime-cli-naming`（G14：本机 CLI vs daemon 文案）  
-- **closeout：** `app/.progress/runtime-cli-naming-impl-1.md` · 会话汇总 `app/.progress/session-2026-07-19-live-gap-push.md`  
-- **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）  
-- **再下一刀建议：** 可选 G19 local-api-token / G20 settings 叙事 / 密度打磨；**非 blocker**  
-- **判断：** 本地主航道 + 真站产品壳体验 **已足够日用完善**；刻意不做云 webhook/daemon 1:1  
+- **真站对照：** live gap 已滚动到 **2026-07-21** — G1–G18 MVP 在；**新 P0 队列 G21–G23**
+- **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
+- **本会话：** **G26/G23/G24/G27/G25** 厚切片 `multica-detail-rails`（Playwright 对照真站 + 本仓 E2E）
+- **已交：**  
+  - G21 收件箱 · G22 model+发现 · 聊天 UI · UI 厚切片（侧栏/看板）  
+  - **G26** Issue 属性右栏 · **G23** 运行事件时间线弹层 · **G24** `/my-issues` Tab  
+  - **G27** 收件箱 Helper 第三栏 · **G25** 智能体 我的/全部/已归档  
+  - progress：`multica-detail-rails-impl-1.md` · `ui-multica-parity-tour-intake.md`
+- **下一厚切片（建议）：** G28 看板卡片密度/列表视图 · G23 opencode 流解析加固 · G20 Settings 叙事
+- **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
+- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

@@ -566,7 +566,7 @@ function MemoryPageInner() {
                           className="btn-ghost btn-sm"
                           data-testid="memory-empty-inbox"
                         >
-                          Inbox
+                          收件箱
                         </Link>
                       </div>
                     </div>

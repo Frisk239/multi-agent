@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { RunEventTimelineDrawer } from './RunEventTimeline';
 
 type StatusFilter =
   | ''
@@ -102,6 +103,7 @@ function RunsPageInner() {
   const squadId = searchParams.get('squad') ?? '';
   const leaderOnly = searchParams.get('leader') === '1';
   const highlightRunId = searchParams.get('run') ?? '';
+  const [timelineRunId, setTimelineRunId] = useState<string | null>(null);
 
   const replaceParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -142,6 +144,11 @@ function RunsPageInner() {
       .map((r) => r.id);
   }, [visibleRuns]);
 
+  const timelineRun = useMemo(() => {
+    if (!timelineRunId || !visibleRuns) return undefined;
+    return visibleRuns.find((r) => r.id === timelineRunId);
+  }, [timelineRunId, visibleRuns]);
+
   // 高亮行滚入视口
   useEffect(() => {
     if (!highlightRunId || !visibleRuns?.length) return;
@@ -150,6 +157,14 @@ function RunsPageInner() {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [highlightRunId, visibleRuns]);
+
+  // URL ?run= 且带 timeline=1 时自动开抽屉
+  useEffect(() => {
+    if (!highlightRunId) return;
+    if (searchParams.get('timeline') === '1') {
+      setTimelineRunId(highlightRunId);
+    }
+  }, [highlightRunId, searchParams]);
 
   const failedIssueCount = useMemo(() => {
     if (status !== 'failed' || !visibleRuns) return 0;
@@ -178,7 +193,7 @@ function RunsPageInner() {
             <span className="count">{visibleRuns?.length ?? 0}</span>
           </h1>
           <p className="page-desc">
-            URL 可分享筛选 · active = queued+running
+            工作区全部运行记录；可筛选失败与在途
           </p>
         </div>
         <div className="page-actions runs-page-actions">
@@ -210,7 +225,7 @@ function RunsPageInner() {
             className="btn-secondary btn-sm"
             data-testid="runs-to-inbox-fails"
           >
-            Inbox 失败
+            收件箱失败
           </Link>
           {activeVisibleIds.length > 0 ? (
             <button
@@ -667,7 +682,7 @@ function RunsPageInner() {
                               className="text-sm"
                               data-testid="runs-fail-inbox"
                             >
-                              Inbox
+                              收件箱
                             </Link>
                           </div>
                         </>
@@ -676,7 +691,15 @@ function RunsPageInner() {
                       )}
                     </td>
                     <td className="text-dim text-sm">{relativeTime(r.createdAt)}</td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        data-testid="runs-open-timeline"
+                        onClick={() => setTimelineRunId(r.id)}
+                      >
+                        时间线
+                      </button>{' '}
                       <RunActions run={r} />
                     </td>
                   </tr>
@@ -687,6 +710,12 @@ function RunsPageInner() {
         </div>
       )}
       </div>
+
+      <RunEventTimelineDrawer
+        run={timelineRun}
+        open={Boolean(timelineRunId && timelineRun)}
+        onClose={() => setTimelineRunId(null)}
+      />
     </div>
   );
 }

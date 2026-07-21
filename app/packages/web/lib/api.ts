@@ -27,6 +27,8 @@ import type {
   AgentRun,
   RunMessage,
   RuntimesResponse,
+  RuntimeId,
+  RuntimeModelsResponse,
   WikiPage,
   WikiPageSummary,
   WikiQueryResult,
@@ -155,11 +157,14 @@ export function useComments(issueId: string) {
   });
 }
 
-export function useAgents() {
+/** G25：archived=0 默认活跃；1=归档；all=全部 */
+export function useAgents(opts?: { archived?: '0' | '1' | 'all' }) {
+  const archived = opts?.archived ?? '0';
   return useQuery<AgentSummary[]>({
-    queryKey: ['agents'],
+    queryKey: ['agents', archived],
     queryFn: async () => {
-      const res = await fetch(`${API}/agents`);
+      const qs = archived === '0' ? '' : `?archived=${archived}`;
+      const res = await fetch(`${API}/agents${qs}`);
       if (!res.ok) throw new Error('加载 agents 失败');
       return res.json();
     },
@@ -698,6 +703,20 @@ export function useRuntimes() {
   });
 }
 
+/** G22 续：CLI 发现 runtime 可选模型 */
+export function useRuntimeModels(runtime: RuntimeId | '' | undefined) {
+  return useQuery<RuntimeModelsResponse>({
+    queryKey: ['runtime-models', runtime ?? ''],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runtimes/${encodeURIComponent(runtime!)}/models`);
+      if (!res.ok) throw new Error('加载模型列表失败');
+      return res.json();
+    },
+    enabled: Boolean(runtime),
+    staleTime: 60_000,
+  });
+}
+
 export function useRuns(issueId: string) {
   return useQuery<AgentRun[]>({
     queryKey: ['runs', issueId],
@@ -954,22 +973,52 @@ export function useUpdateAgent(agentId: string) {
   });
 }
 
+/** G25：默认软归档；hard=true 才硬删 */
 export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (agentId: string) => {
-      const res = await fetch(`${API}/agents/${agentId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(await apiError(res, '删除智能体失败'));
-      return agentId;
+    mutationFn: async (agentId: string | { id: string; hard?: boolean }) => {
+      const id = typeof agentId === 'string' ? agentId : agentId.id;
+      const hard = typeof agentId === 'string' ? false : Boolean(agentId.hard);
+      const qs = hard ? '?hard=1' : '';
+      const res = await fetch(`${API}/agents/${id}${qs}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiError(res, hard ? '删除智能体失败' : '归档智能体失败'));
+      return { id, hard };
     },
-    onSuccess: (agentId) => {
+    onSuccess: ({ id, hard }) => {
       qc.invalidateQueries({ queryKey: ['agents'] });
-      qc.removeQueries({ queryKey: ['agent', agentId] });
-      qc.removeQueries({ queryKey: ['agent-readiness', agentId] });
-      qc.removeQueries({ queryKey: ['agent-runs', agentId] });
-      toastSuccess('已删除智能体');
+      if (hard) {
+        qc.removeQueries({ queryKey: ['agent', id] });
+        qc.removeQueries({ queryKey: ['agent-readiness', id] });
+        qc.removeQueries({ queryKey: ['agent-runs', id] });
+        toastSuccess('已删除智能体');
+      } else {
+        qc.invalidateQueries({ queryKey: ['agent', id] });
+        toastSuccess('已归档智能体');
+      }
     },
-    onError: (err) => toastError(errMessage(err, '删除智能体失败')),
+    onError: (err) => toastError(errMessage(err, '归档/删除智能体失败')),
+  });
+}
+
+export function useUnarchiveAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      const res = await fetch(`${API}/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: false }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '取消归档失败'));
+      return res.json() as Promise<AgentDetail>;
+    },
+    onSuccess: (agent) => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.setQueryData(['agent', agent.id], agent);
+      toastSuccess('已恢复智能体');
+    },
+    onError: (err) => toastError(errMessage(err, '取消归档失败')),
   });
 }
 

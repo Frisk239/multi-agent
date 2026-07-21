@@ -121,8 +121,10 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
   }
 
   // S05：claim 后查 agent.mcpServers，传进 ExecutionInput（claude-code 写临时文件 + --mcp-config）
+  // G22：agent.model → backend --model
   const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
   const mcpServers = agentRow?.mcpServers ?? null;
+  const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
 
   const signal = registerRunAbort(runRow.id);
   // bu01：执行中每 5s touch heartbeat；finally 必清
@@ -188,6 +190,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
         agentId: runRow.agentId,
         runId: runRow.id,
         mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
+        model, // G22：空则 CLI 默认
       },
       onEvent,
       signal,

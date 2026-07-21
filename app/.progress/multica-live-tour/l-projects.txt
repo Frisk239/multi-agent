@@ -1,0 +1,1 @@
+"{\"path\":\"projects\",\"url\":\"http://localhost:3000/projects\",\"text\":\"Multi-Agent 已连接 工作中 2 在途 0 搜索... Ctrl+K 快速派活 Q 新建 Issue C 工作区 Issues 我的 issue 收件箱 22 聊天 项目 运行 小队 智能体 用量 Wiki 记忆 配置 自动化 本机 CLI Skills 设置 深 项目 跨 issue 的产品容器；把相关工作归到同一项目下。 新建项目 验收项目 1784447444840 进行中 0/2 完成 看板 问助手\"}"

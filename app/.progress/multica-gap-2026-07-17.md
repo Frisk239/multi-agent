@@ -23,6 +23,9 @@
 
 | 缺口 | 说明 |
 |---|---|
+| **G21 Inbox 交互加深** | 路由已有；要做详情回复/私信/Markdown/可选 Helper 第三栏（见 live gap） |
+| **G22 Agent model 绑定** | 现仅 runtime；需 model 字段 + opencode `--model` |
+| **G23 运行事件时间线** | 有 RunTrace 扁平列表；要对齐真站 tool 事件弹层 |
 | Automation 失败深运营 / run 明细 | 已有规则失败筛选与健康摘要 |
 | 无 env 全进程冷启动 e2e 剧本 | resolve 冷读已覆盖；可再写一键脚本 |
 | UI 密度 / 空态文案 | 持续打磨 |

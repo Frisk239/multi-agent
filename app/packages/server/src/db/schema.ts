@@ -34,16 +34,21 @@ export const users = sqliteTable('user', {
 // S04：加 concurrency（per-agent 并发槽上限，照 multica 001_init.up.sql:45 max_concurrent_tasks）
 // S05：加 mcpServers（MCP 配置 JSON 字符串，spec §3.3）
 // bu02：加 instructions（执行 prompt 注入的 agent 级指令）
+// G22：model（runtime 内 LLM 模型 id；空=CLI 默认，学 Multica 050_agent_model）
 export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   category: text('category'),
   runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] })
     .notNull()
-    .default('claude-code'),
+    .default('opencode'),
+  // null/空串 = 跟随 CLI 默认；仅对新 dispatch 的 run 生效
+  model: text('model'),
   concurrency: integer('concurrency').notNull().default(1),
   mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
   instructions: text('instructions').notNull().default(''),
+  // G25：软归档；null=活跃（对齐 Multica archived_at）
+  archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull(),
 });
 

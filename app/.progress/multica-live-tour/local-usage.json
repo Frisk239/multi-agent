@@ -1,0 +1,6 @@
+### Result
+"{\"path\":\"/usage\",\"url\":\"http://localhost:3000/usage\",\"title\":\"毕设 Multi-Agent\",\"text\":\"Multi-Agent\\n已连接\\n工作中 2\\n在途 0\\n搜索...\\nCtrl+K\\n快速派活\\nQ\\n新建 Issue\\nC\\n工作区\\nIssues\\n我的 issue\\n收件箱\\n22\\n聊天\\n项目\\n运行\\n小队\\n智能体\\n用量\\nWiki\\n记忆\\n配置\\n自动化\\n本机 CLI\\nSkills\\n设置\\n深\\n用量\\n79\\n\\n近 30 天 run 聚合 · 本地无 Token/费用计量\\n\\n7d\\n30d\\n90d\\n运行列表\\n刷新\\n任务数 · 30天\\n79\\n失败 61\\n成功率\\n14.1%\\ncompleted 10 · failed 61\\n运行时长 · 30天\\n39h 51m\\n均耗 34m 39s\\nToken / 费用\\n本地不可用\\nCLI 路径无 token 账单（对标 Multica 云端 KPI 的空位）\\n每日任务数\\n按创建日 · 本地时区\\n07-15\\n1\\n07-17\\n4\\n4f\\n07-18\\n51\\n36f\\n07-19\\n20\\n18f\\n07-21\\n3\\n3f\\n智能体排行\\n3 个有活动\\n智能体\\t任务\\t成功/失败\\t成功率\\t时长\\t\\n产品·策划队长\\t75\\t10/59\\t14.5%\\t39h 49m\\t运行\\n产品·调研与洞察官\\t3\\t0/1\\t0%\\t2m 4s\\t运行\\nagt-missing-zzz\\t1\\t0/1\\t0%\\t—\\t运行\\n问助手\"}"
+### Ran Playwright code
+```js
+await page.evaluate('() => (JSON.stringify({path:\'/usage\',url:location.href,title:document.title,text:(document.body.innerText||\'\').slice(0,1200)}))');
+```

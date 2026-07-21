@@ -1,0 +1,12 @@
+### Result
+"{\"path\":\"/agents\",\"url\":\"http://localhost:3000/agents\",\"title\":\"毕设 Multi-Agent\",\"text\":\"Multi-Agent\\n已连接\\n工作中 2\\n在途 0\\n搜索...\\nCtrl+K\\n快速派活\\nQ\\n新建 Issue\\nC\\n工作区\\nIssues\\n我的 issue\\n收件箱\\n22\\n聊天\\n项目\\n运行\\n小队\\n智能体\\n用量\\nWiki\\n记忆\\n配置\\n自动化\\n本机 CLI\\nSkills\\n设置\\n深\\n智能体\\n4\\n\\nruntime · 指令 · 并发 · ready 4\\n\\n运行时\\n环境\\n聊天\\n新建智能体\\n全部 4\\nready 4\\nbusy 0\\n阻塞 0\\n运行时\\n全部\\nclaude-code\\nopencode\\ncursor\\n就绪\\n全部就绪态\\nready\\nbusy\\ncwd 未配置\\nruntime 缺失\\nerror\\n不可用（非 ready）\\n智能体\\t分类\\t运行时\\t就绪\\t\\n\\n产品·策划队长\\n\\t产品\\topencode\\tready\\t私信 看板 删除\\n\\n产品·调研与洞察官\\n\\t产品\\topencode\\tready\\t私信 看板 删除\\n\\n产品·需求与PRD官\\n\\t产品\\topencode\\tready\\t私信 看板 删除\\n\\n产品·设计·原型官\\n\\t产品\\topencode\\tready\\t私信 看板 删除\\n问助手\"}"
+### Ran Playwright code
+```js
+await page.evaluate('() => (JSON.stringify({path:\'/agents\',url:location.href,title:document.title,text:(document.body.innerText||\'\').slice(0,1200)}))');
+```
+### Page
+- Page URL: http://localhost:3000/agents
+- Page Title: 毕设 Multi-Agent
+- Console: 5 errors, 1 warnings
+### Events
+- New console entries: .playwright-cli\console-2026-07-21T02-54-42-482Z.log#L19-L131

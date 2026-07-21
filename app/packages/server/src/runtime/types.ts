@@ -16,6 +16,8 @@ export interface ExecutionInput {
   agentId: string;
   runId: string;
   mcpServers?: string | null; // S05：MCP 配置 JSON 字符串（agent.mcpServers）
+  // G22：agent.model；空则 backend 不传 --model
+  model?: string | null;
 }
 
 export interface ExecutionResult {

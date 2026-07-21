@@ -51,29 +51,27 @@ export function IssueSubtasks({ parent }: { parent: Issue }) {
         : null;
 
   return (
-    <section className="issue-subtasks" data-testid="issue-subtasks">
+    <section className="issue-subtasks issue-subtasks--compact" data-testid="issue-subtasks">
       <div className="issue-subtasks-head">
         <h3 className="issue-subtasks-title">子 issue</h3>
         {progressLabel ? (
           <span className="issue-subtasks-progress" data-testid="issue-subtasks-progress">
-            {progressLabel} 完成
+            {progressLabel}
           </span>
-        ) : null}
+        ) : (
+          <span className="text-dim text-sm" data-testid="issue-subtasks-empty">
+            {isLoading ? '…' : '无'}
+          </span>
+        )}
       </div>
 
-      {isLoading ? (
-        <p className="issue-subtasks-empty">加载中…</p>
-      ) : children.length === 0 ? (
-        <p className="issue-subtasks-empty" data-testid="issue-subtasks-empty">
-          还没有子 issue。把大任务拆成可独立指派的小项。
-        </p>
-      ) : (
+      {!isLoading && children.length > 0 ? (
         <ul className="issue-subtasks-list" data-testid="issue-subtasks-list">
           {children.map((c) => (
             <SubtaskRow key={c.id} issue={c} />
           ))}
         </ul>
-      )}
+      ) : null}
 
       <form className="issue-subtasks-form" onSubmit={onSubmit} data-testid="issue-subtasks-form">
         <input
@@ -88,11 +86,11 @@ export function IssueSubtasks({ parent }: { parent: Issue }) {
         />
         <button
           type="submit"
-          className="btn btn-secondary issue-subtasks-add"
+          className="btn btn-ghost btn-sm issue-subtasks-add"
           disabled={!title.trim() || create.isPending}
           data-testid="issue-subtasks-add"
         >
-          {create.isPending ? '添加中…' : '添加'}
+          {create.isPending ? '…' : '添加'}
         </button>
       </form>
     </section>

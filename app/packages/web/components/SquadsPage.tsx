@@ -224,7 +224,7 @@ function SquadsPageInner() {
               {hasActiveFilters ? `${visible.length}/${squads.length}` : squads.length}
             </span>
           </h1>
-          <p className="page-desc">leader 执行 · briefing · mention 闭环</p>
+          <p className="page-desc">一组智能体协作完成任务；队长接收 briefing 并 @mention 委派</p>
         </div>
         <div className="page-actions">
           <Link href="/agents" className="btn btn-ghost btn-sm" data-testid="squads-to-agents">

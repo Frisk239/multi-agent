@@ -377,7 +377,7 @@ export function SettingsPage() {
               href="/inbox?kind=run_failed&read=unread"
               data-testid="settings-cwd-to-inbox-fails"
             >
-              Inbox 失败
+              收件箱失败
             </Link>
             <Link
               className="btn-ghost btn-sm"
@@ -520,7 +520,7 @@ export function SettingsPage() {
                   href="/inbox?kind=run_failed&read=unread"
                   data-testid="settings-runtime-to-inbox"
                 >
-                  Inbox 失败
+                  收件箱失败
                 </Link>
               </div>
             </section>
@@ -791,7 +791,7 @@ export function SettingsPage() {
             href="/inbox?kind=run_failed&read=unread"
             data-testid="settings-ops-inbox-fails"
           >
-            Inbox 失败
+            收件箱失败
           </Link>
           <Link className="btn-ghost btn-sm" href="/?failed=1" data-testid="settings-ops-failed-board">
             看板仅失败

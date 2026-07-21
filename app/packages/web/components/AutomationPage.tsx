@@ -393,7 +393,7 @@ function AutomationPageInner() {
               {hasActiveFilters ? `${visible.length}/${rules.length}` : rules.length}
             </span>
           </h1>
-          <p className="page-desc">定时建 Issue 并指派 · 模板冷启动</p>
+          <p className="page-desc">为智能体安排周期性任务；可从模板开始</p>
         </div>
         <div className="page-actions">
           <Link

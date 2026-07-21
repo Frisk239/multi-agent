@@ -287,6 +287,9 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
     name: row.name,
     runtime: row.runtime,
     category: row.category ?? null,
+    model: row.model?.trim() ? row.model.trim() : null,
+    archivedAt:
+      row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
   };
 }
 
@@ -296,9 +299,12 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     name: row.name,
     runtime: row.runtime,
     category: row.category ?? null,
+    model: row.model?.trim() ? row.model.trim() : null,
     concurrency: row.concurrency,
     mcpServers: row.mcpServers ?? null,
     instructions: row.instructions ?? '',
+    archivedAt:
+      row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
   };
 }
 

@@ -67,7 +67,7 @@ export function ProjectsPage() {
             <Icon name="project" size={20} />
             项目
           </h1>
-          <p className="collection-desc">跨 issue 的产品容器；把相关工作归到同一项目下。</p>
+          <p className="collection-desc">把相关 issue 归到同一项目下跟踪</p>
         </div>
         <button
           type="button"

@@ -247,3 +247,22 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 ## 工作语言
 
 中文为主（用户、文档、seed 数据都是中文）。代码标识符用英文。
+
+<!-- BEGIN MA-WIKI (auto-managed; do not edit) -->
+## Project Wiki Snapshot
+- Last updated: 2026-07-19
+- Pages: 4
+
+### Pages
+- [FRI-04: Memory 检索面板 mock](wiki/FRI-04-Memory-检索面板-mock（Should）.md)
+- [FRI-05: 答辩 Demo Script 排练（≤10 min）](wiki/FRI-05-答辩-Demo-Script-排练（≤10-min）.md)
+- [FRI-07: Agent runtime 适配调研（Pi / Claude / opencode）](wiki/FRI-07-Agent-runtime-适配调研（Pi--Claude--opencode）.md)
+- [FRI-08: Wiki 架构占位与 llm-wiki-pattern 对齐](wiki/FRI-08-Wiki-架构占位与-llm-wiki-pattern-对齐.md)
+
+### Recent ingests
+- [2026-07-19] query | -
+- [2026-07-19] ingest | FRI-05
+- [2026-07-19] ingest | FRI-04
+- [2026-07-19] ingest | FRI-07
+- [2026-07-19] ingest | FRI-08
+<!-- END MA-WIKI -->

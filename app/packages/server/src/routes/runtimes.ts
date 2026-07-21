@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { RuntimeId } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents } from '../db/schema.js';
 import { allBackends } from '../runtime/registry.js';
+import { listRuntimeModels } from '../runtime/list-models.js';
 
 // GET /api/runtimes —— spec §5.1 双栏运行时发现页数据。
 // machine 虚拟本机（不建表）；runtimes 由 allBackends().detect() + DB agent.runtime 聚合。
@@ -32,5 +34,15 @@ export async function runtimeRoutes(app: FastifyInstance) {
       },
       runtimes,
     };
+  });
+
+  // G22 续：GET /api/runtimes/:id/models —— CLI 发现可选模型（opencode models 等）
+  app.get('/api/runtimes/:id/models', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = RuntimeId.safeParse(id);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: `unknown runtime: ${id}` });
+    }
+    return listRuntimeModels(parsed.data);
   });
 }

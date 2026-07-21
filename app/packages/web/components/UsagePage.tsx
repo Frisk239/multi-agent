@@ -87,7 +87,7 @@ function UsagePageInner() {
             <span className="count">{data.total}</span>
           </h1>
           <p className="page-desc">
-            近 {data.windowDays} 天 run 聚合 · 本地无 Token/费用计量
+            查看当前工作区的智能体运行情况（本地暂无 Token/费用账单）
           </p>
         </div>
         <div className="page-actions">

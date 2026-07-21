@@ -35,7 +35,16 @@ const PRIORITY_ZH: Record<Priority, string> = {
   none: '无',
 };
 
-export function IssueHeader({ issue }: { issue: Issue }) {
+type IssueHeaderVariant = 'full' | 'main' | 'props';
+
+export function IssueHeader({
+  issue,
+  variant = 'full',
+}: {
+  issue: Issue;
+  /** full=旧单列；main=标题描述；props=右栏属性（G26） */
+  variant?: IssueHeaderVariant;
+}) {
   const update = useUpdateIssue();
   const { data: projects = [] } = useProjects();
   const { data: subscription } = useIssueSubscription(issue.id);
@@ -47,7 +56,6 @@ export function IssueHeader({ issue }: { issue: Issue }) {
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(issue.description ?? '');
 
-  // 服务端/WS 更新时同步草稿（非编辑中）
   useEffect(() => {
     if (!editingTitle) setTitleDraft(issue.title);
   }, [issue.title, editingTitle]);
@@ -85,7 +93,6 @@ export function IssueHeader({ issue }: { issue: Issue }) {
       setEditingDesc(false);
       return;
     }
-    // 清空 → null，与 API nullable 一致
     const description = next.trim() === '' ? null : next;
     update.mutate(
       { id: issue.id, input: { description } },
@@ -98,8 +105,102 @@ export function IssueHeader({ issue }: { issue: Issue }) {
     setEditingDesc(false);
   }
 
+  const showMain = variant === 'full' || variant === 'main';
+  const showProps = variant === 'full' || variant === 'props';
+  const propsRail = variant === 'props';
+
+  const propsBlock = (
+    <div
+      className={`issue-meta${propsRail ? ' issue-meta--rail' : ' issue-meta--compact'}`}
+      data-testid="issue-meta"
+    >
+      <label className="issue-priority-field">
+        <span className="issue-meta-k">状态</span>
+        <select
+          className="status-select"
+          value={issue.status}
+          onChange={(e) =>
+            update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
+          }
+          aria-label="状态"
+          data-testid="issue-props-status"
+        >
+          {ALL_STATUS.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_ZH[s]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="issue-priority-field">
+        <span className="issue-meta-k">优先级</span>
+        <select
+          className="priority-select"
+          value={issue.priority}
+          onChange={(e) =>
+            update.mutate({
+              id: issue.id,
+              input: { priority: e.target.value as Priority },
+            })
+          }
+          aria-label="优先级"
+        >
+          {ALL_PRIORITY.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_ZH[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="issue-meta-assignee" data-testid="issue-meta-assignee">
+        <span className="issue-meta-k">负责人</span>
+        <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
+      </div>
+      <label className="issue-project-field" data-testid="issue-project-field">
+        <span className="issue-meta-k">项目</span>
+        <select
+          className="priority-select"
+          value={issue.projectId ?? ''}
+          aria-label="所属项目"
+          onChange={(e) => {
+            const v = e.target.value;
+            update.mutate({
+              id: issue.id,
+              input: { projectId: v ? v : null },
+            });
+          }}
+        >
+          <option value="">无项目</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {issue.parentIssueId ? (
+        <div className="issue-props-parent" data-testid="issue-props-parent">
+          <span className="issue-meta-k">父 issue</span>
+          <Link href={`/issues/${issue.parentIssueId}`} className="table-link">
+            {issue.parentIdentifier ?? issue.parentIssueId.slice(0, 8)}
+          </Link>
+        </div>
+      ) : null}
+      <IssuePrLinkField issue={issue} />
+      <IssueLabelsEditor issue={issue} />
+    </div>
+  );
+
+  if (variant === 'props') {
+    return (
+      <div className="issue-header issue-header--props" data-testid="issue-header-props">
+        {propsBlock}
+      </div>
+    );
+  }
+
   return (
-    <header className="issue-header">
+    <header className={`issue-header${variant === 'main' ? ' issue-header--main' : ''}`}>
       {issue.parentIssueId ? (
         <div className="issue-parent-crumb" data-testid="issue-parent-crumb">
           <Link href={`/issues/${issue.parentIssueId}`} className="issue-parent-link">
@@ -169,42 +270,44 @@ export function IssueHeader({ issue }: { issue: Issue }) {
           title={
             subscribed
               ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击取消`
-              : '关注后接收此 Issue 相关 Inbox 通知'
+              : '关注后接收此 Issue 相关收件箱通知'
           }
           onClick={() => toggleSub.mutate(subscribed)}
         >
           {subscribed ? '取消关注' : '关注'}
         </button>
-        <span className="issue-status-field">
-          <select
-            className="status-select"
-            value={issue.status}
-            onChange={(e) =>
-              update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
-            }
-            aria-label="状态"
-          >
-            {ALL_STATUS.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_ZH[s]}
-              </option>
-            ))}
-          </select>
-          {issue.status !== 'cancelled' ? (
-            <Link
-              href={`/?status=${encodeURIComponent(issue.status)}`}
-              className="issue-status-board-link"
-              data-testid="issue-status-board-link"
-              data-status={issue.status}
-              title={`看板聚焦：${STATUS_ZH[issue.status]}`}
+        {variant === 'main' ? null : (
+          <span className="issue-status-field">
+            <select
+              className="status-select"
+              value={issue.status}
+              onChange={(e) =>
+                update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
+              }
+              aria-label="状态"
             >
-              看板
-            </Link>
-          ) : null}
-        </span>
+              {ALL_STATUS.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_ZH[s]}
+                </option>
+              ))}
+            </select>
+            {issue.status !== 'cancelled' ? (
+              <Link
+                href={`/?status=${encodeURIComponent(issue.status)}`}
+                className="issue-status-board-link"
+                data-testid="issue-status-board-link"
+                data-status={issue.status}
+                title={`看板聚焦：${STATUS_ZH[issue.status]}`}
+              >
+                看板
+              </Link>
+            ) : null}
+          </span>
+        )}
       </div>
 
-      {editingTitle ? (
+      {showMain && editingTitle ? (
         <input
           className="issue-title-input"
           value={titleDraft}
@@ -223,7 +326,7 @@ export function IssueHeader({ issue }: { issue: Issue }) {
           aria-label="编辑标题"
           autoFocus
         />
-      ) : (
+      ) : showMain ? (
         <h1 className="issue-title">
           <button
             type="button"
@@ -234,9 +337,9 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             {issue.title}
           </button>
         </h1>
-      )}
+      ) : null}
 
-      {editingDesc ? (
+      {showMain && editingDesc ? (
         <div className="issue-desc-edit">
           <textarea
             className="issue-desc-input"
@@ -271,7 +374,7 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             </button>
           </div>
         </div>
-      ) : (
+      ) : showMain ? (
         <button
           type="button"
           className={`issue-desc-btn${issue.description ? '' : ' issue-desc-btn--empty'}`}
@@ -284,102 +387,9 @@ export function IssueHeader({ issue }: { issue: Issue }) {
             <span className="issue-desc-placeholder">添加描述…</span>
           )}
         </button>
-      )}
+      ) : null}
 
-      <div className="issue-meta">
-        <label className="issue-priority-field">
-          <span>优先级</span>
-          <select
-            className="priority-select"
-            value={issue.priority}
-            onChange={(e) =>
-              update.mutate({
-                id: issue.id,
-                input: { priority: e.target.value as Priority },
-              })
-            }
-            aria-label="优先级"
-          >
-            {ALL_PRIORITY.map((p) => (
-              <option key={p} value={p}>
-                {PRIORITY_ZH[p]}
-              </option>
-            ))}
-          </select>
-          {issue.priority !== 'none' ? (
-            <Link
-              href={`/?priority=${encodeURIComponent(issue.priority)}`}
-              className="issue-priority-board-link"
-              data-testid="issue-priority-board-link"
-              data-priority={issue.priority}
-              title="看板筛选此优先级"
-            >
-              看板
-            </Link>
-          ) : null}
-        </label>
-        <span className="issue-assignee-label">
-          指派：
-          {issue.assignee?.type === 'agent' ? (
-            <Link
-              href={`/agents/${issue.assignee.id}`}
-              className="issue-assignee-link"
-              data-testid="issue-assignee-link"
-              data-assignee-type="agent"
-              data-assignee-id={issue.assignee.id}
-            >
-              {issue.assignee.label}
-            </Link>
-          ) : issue.assignee?.type === 'squad' ? (
-            <Link
-              href={`/squads/${issue.assignee.id}`}
-              className="issue-assignee-link"
-              data-testid="issue-assignee-link"
-              data-assignee-type="squad"
-              data-assignee-id={issue.assignee.id}
-            >
-              {issue.assignee.label}
-            </Link>
-          ) : (
-            <span data-testid="issue-assignee-none">{issue.assignee?.label ?? '未指派'}</span>
-          )}
-        </span>
-        <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
-        <label className="issue-project-field" data-testid="issue-project-field">
-          <span>项目</span>
-          <select
-            className="priority-select"
-            value={issue.projectId ?? ''}
-            aria-label="所属项目"
-            onChange={(e) => {
-              const v = e.target.value;
-              update.mutate({
-                id: issue.id,
-                input: { projectId: v ? v : null },
-              });
-            }}
-          >
-            <option value="">无项目</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </select>
-          {issue.projectId ? (
-            <Link
-              href={`/projects/${issue.projectId}`}
-              className="issue-priority-board-link"
-              data-testid="issue-project-link"
-              title={issue.projectTitle ?? '打开项目'}
-            >
-              打开
-            </Link>
-          ) : null}
-        </label>
-        <IssuePrLinkField issue={issue} />
-      </div>
-      <IssueLabelsEditor issue={issue} />
+      {showProps ? propsBlock : null}
     </header>
   );
 }

@@ -21,7 +21,8 @@ function resolveNewId(optional?: string): string {
 }
 
 function assertAgentExists(id: string): boolean {
-  return !!db.select().from(agents).where(eq(agents.id, id)).get();
+  const row = db.select().from(agents).where(eq(agents.id, id)).get();
+  return !!row && row.archivedAt == null;
 }
 
 function replaceSquadMembers(squadId: string, memberIds: string[]): void {
@@ -37,8 +38,18 @@ function replaceSquadMembers(squadId: string, memberIds: string[]): void {
 export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   // —— Agents ——
 
-  app.get('/api/agents', async () => {
-    const rows = db.select().from(agents).all();
+  // G25：?archived=0 默认活跃；1=仅归档；all=全部
+  app.get('/api/agents', async (req) => {
+    const q = req.query as { archived?: string };
+    const mode = (q.archived ?? '0').toLowerCase();
+    let rows = db.select().from(agents).all();
+    if (mode === '1' || mode === 'true' || mode === 'archived') {
+      rows = rows.filter((r) => r.archivedAt != null);
+    } else if (mode === 'all') {
+      // keep all
+    } else {
+      rows = rows.filter((r) => r.archivedAt == null);
+    }
     return rows.map(toAgentSummary);
   });
 
@@ -84,11 +95,16 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(409).send({ error: `agent id 已存在: ${id}` });
     }
     const now = Date.now();
+    const model =
+      input.model == null || !String(input.model).trim()
+        ? null
+        : String(input.model).trim();
     db.insert(agents)
       .values({
         id,
         name: input.name,
         runtime: input.runtime,
+        model,
         category: input.category ?? null,
         concurrency: input.concurrency ?? 1,
         instructions: input.instructions ?? '',
@@ -114,19 +130,30 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const updates: Partial<typeof agents.$inferInsert> = {};
     if (patch.name !== undefined) updates.name = patch.name;
     if (patch.runtime !== undefined) updates.runtime = patch.runtime;
+    if (patch.model !== undefined) {
+      updates.model =
+        patch.model == null || !String(patch.model).trim()
+          ? null
+          : String(patch.model).trim();
+    }
     if (patch.category !== undefined) updates.category = patch.category;
     if (patch.concurrency !== undefined) updates.concurrency = patch.concurrency;
     if (patch.instructions !== undefined) updates.instructions = patch.instructions;
     if (patch.mcpServers !== undefined) updates.mcpServers = patch.mcpServers;
+    if (patch.archived !== undefined) {
+      updates.archivedAt = patch.archived ? Date.now() : null;
+    }
 
     db.update(agents).set(updates).where(eq(agents.id, id)).run();
     const row = db.select().from(agents).where(eq(agents.id, id)).get()!;
     return toAgentDetail(row);
   });
 
-  // bu02：DELETE /api/agents/:id
+  // bu02：DELETE /api/agents/:id —— 默认软归档；?hard=1 才硬删
   app.delete('/api/agents/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const q = req.query as { hard?: string };
+    const hard = q.hard === '1' || q.hard === 'true';
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
     if (!existing) return reply.status(404).send({ error: 'agent 不存在' });
 
@@ -139,6 +166,17 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .get();
     if (active) {
       return reply.status(409).send({ error: 'agent 仍有未完成 run' });
+    }
+
+    if (!hard) {
+      // G25：软归档（对齐 Multica「已归档」Tab）
+      if (existing.archivedAt == null) {
+        db.update(agents)
+          .set({ archivedAt: Date.now() })
+          .where(eq(agents.id, id))
+          .run();
+      }
+      return reply.status(204).send();
     }
 
     const lead = db.select().from(squads).where(eq(squads.leaderId, id)).get();

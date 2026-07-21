@@ -92,6 +92,9 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose 跑通）。
     // argv 不含 prompt，prompt 经 spawnLineProcess 的 stdinInput → child.stdin pipe 传。
     const args = ['-p', '--output-format', 'stream-json', '--verbose'];
+    // G22：agent.model → claude --model（空则 CLI 默认）
+    const model = input.model?.trim();
+    if (model) args.push('--model', model);
 
     // S05 MCP 注入（spec §7.2 R3）：mcpServers JSON → 写临时文件 → --mcp-config argv。
     // claude-code 的 --mcp-config 接受 {"mcpServers": {<name>: {...}}} 格式（object，spike 确认）。

@@ -37,7 +37,7 @@ export function RuntimesPage() {
         </div>
         <p className="runtime-product-note text-dim text-sm" data-testid="runtimes-product-note">
           本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor），不是 Multica
-          云端的「电脑 / daemon 机器」列表。智能体绑定这些 CLI 后在本地 cwd 执行。
+          本机已安装的编码 CLI；智能体绑定后在工作区目录执行。
         </p>
         <div className="runtime-meta">
           {runtimes.length} 个 CLI · {installed} 个已安装 · cwd=

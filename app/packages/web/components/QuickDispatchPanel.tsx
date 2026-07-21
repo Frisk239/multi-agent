@@ -218,7 +218,7 @@ export function QuickDispatchPanel({
                 data-testid="quick-dispatch-inbox-fails"
                 onClick={onClose}
               >
-                Inbox 失败
+                收件箱失败
               </Link>
             </div>
           </div>

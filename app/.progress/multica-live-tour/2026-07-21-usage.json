@@ -1,0 +1,11 @@
+### Result
+"{\"path\":\"usage\",\"url\":\"https://multica.ai/frisk239-s-coding-workspace/usage\",\"title\":\"Multica — Project Management for Human + Agent Teams\",\"text\":\"F\\nFrisk239's coding workspace\\n搜索...\\nCtrl\\nK\\n新建 issue\\nC\\n收件箱\\n聊天\\n我的 issue\\n工作区\\nIssues\\n项目\\n自动化\\n智能体\\n小队\\n用量\\n配置\\n运行时\\nSkills\\n设置\\n加入我们的 Discord\\n和团队及其他用户一起交流。\\n用量\\n全部项目\\n按天\\n按周\\n1d\\n7d\\n30d\\n90d\\n\\n查看当前 Workspace 的 token 消耗和智能体运行情况。\\n\\n费用 · 30天\\nTOKEN · 30天\\n输入 14.3M · 输出 813.6K\\n运行时长 · 30天\\n9h 51m\\n共 169 个任务\\n任务数 · 30天\\n失败 15 个\\n每日 Token\\nToken\\n费用\\n运行时长\\n任务数\\n7/5\\n7/6\\n7/7\\n7/8\\n7/19\\n0\\n15M\\n30M\\n45M\\n60M\\n排行榜\\nToken\\n费用\\n运行时长\\n任务数\\n13 个智能体\\n智能体\\nToken\\n费用\\n运行时长\\n任务数\\n深度研究智能体-生信\\n76.4M\\n$0.00\\n3h 40m\\n73\\n产品·策划队长\\n20.5M\\n$4.79\\n1h 54m\\n50\\n生信·转录组分析官\\n7.2M\\n$0.00\\n54m 20s\\n4\\n产品·需求与PRD官\\n7.2M\\n$2.45\\n28m 25s\\n6\\n产品·设计·原型官\\n6.9M\\n$1.86\\n46m 16s\\n8\\n深度研究智能体-哲学\\n5.0M\\n$0.00\\n12m 23s\\n5\\n产品·调研与洞察官\\n4.9M\\n$0.75\\n24m 4s\\n6\\n生信·NGS 与基因组负责官\\n2.7M\\n$0.00\\n31m 35s\\n3\\n生信·Pipeline 与统计策划官\\n2.7M\\n$0.00\\n12m 1s\\n2\\n生信·数据库与系统生物官\\n1.8M\\n$0.00\\n37m 26s\\n3\\n人文·文献与引证官\\n1.2M\\n$0.00\\n2m 35s\\n1\\n人文·论证与写作官\\n436.2K\\n$0.00\\n1m 50s\\n1\\nMultica Helper\\n282.7K\\n$0.00\\n4m 47s\\n7\\n新对话\\n你好，我是 Multica Helper\\n\\n试试问\\n\\n📋按优先级列出我未完成的任务📝总结一下我今天做了什么💡规划接下来该做什么\\nMultica Helper 离线——你的消息将在它上线后发送。\\n\\n\\n\\n\\nMultica Helper\\n0\"}"
+### Ran Playwright code
+```js
+await page.evaluate('() => (JSON.stringify({path:\'usage\',url:location.href,title:document.title,text:(document.body.innerText||\'\').slice(0,1800)}))');
+```
+### Page
+- Page URL: https://multica.ai/frisk239-s-coding-workspace/usage
+- Page Title: Multica — Project Management for Human + Agent Teams
+### Events
+- New console entries: .playwright-cli\console-2026-07-21T02-54-11-796Z.log#L8-L47

@@ -18,6 +18,7 @@ import {
   useAgentMcp,
   useUpdateAgentMcp,
   useRetryRun,
+  useRuntimeModels,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
@@ -50,15 +51,18 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [runtime, setRuntime] = useState<RuntimeId>('claude-code');
+  const [runtime, setRuntime] = useState<RuntimeId>('opencode');
+  const [model, setModel] = useState('');
   const [concurrency, setConcurrency] = useState(1);
   const [profileReady, setProfileReady] = useState(false);
+  const { data: modelCatalog, isFetching: modelsLoading } = useRuntimeModels(runtime);
 
   useEffect(() => {
     if (!agent) return;
     setName(agent.name);
     setCategory(agent.category ?? '');
     setRuntime(agent.runtime);
+    setModel(agent.model ?? '');
     setConcurrency(agent.concurrency);
     setProfileReady(true);
   }, [agent]);
@@ -82,6 +86,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       name: name.trim(),
       category: category.trim() ? category.trim() : null,
       runtime,
+      model: model.trim() ? model.trim() : null,
       concurrency,
     });
   }
@@ -186,6 +191,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 <select
                   value={runtime}
                   onChange={(e) => setRuntime(e.target.value as RuntimeId)}
+                  data-testid="agent-runtime-select"
                 >
                   {RUNTIMES.map((r) => (
                     <option key={r} value={r}>
@@ -193,6 +199,62 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="ops-field">
+                <span>模型</span>
+                <select
+                  value={
+                    model && (modelCatalog?.models ?? []).some((m) => m.id === model)
+                      ? model
+                      : model
+                        ? '__custom__'
+                        : ''
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__custom__') return;
+                    setModel(v);
+                  }}
+                  data-testid="agent-model-select"
+                >
+                  <option value="">
+                    {modelsLoading ? '加载模型…' : 'CLI 默认（不指定）'}
+                  </option>
+                  {(modelCatalog?.models ?? []).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                      {m.isDefault ? ' · 推荐' : ''}
+                    </option>
+                  ))}
+                  {model &&
+                  !(modelCatalog?.models ?? []).some((m) => m.id === model) ? (
+                    <option value="__custom__">{model}（当前）</option>
+                  ) : null}
+                </select>
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="或手填 model id"
+                  list="agent-model-suggestions"
+                  data-testid="agent-model-input"
+                  autoComplete="off"
+                  className="agent-model-freeform"
+                />
+                <datalist id="agent-model-suggestions">
+                  {(modelCatalog?.models ?? []).slice(0, 80).map((m) => (
+                    <option key={m.id} value={m.id} />
+                  ))}
+                </datalist>
+                {modelCatalog?.error ? (
+                  <span className="text-dim text-sm" data-testid="agent-model-source">
+                    {modelCatalog.source === 'cli' ? 'CLI' : modelCatalog.source}：
+                    {modelCatalog.error}
+                  </span>
+                ) : modelCatalog && modelCatalog.models.length > 0 ? (
+                  <span className="text-dim text-sm" data-testid="agent-model-source">
+                    已发现 {modelCatalog.models.length} 个（{modelCatalog.source}）
+                  </span>
+                ) : null}
               </label>
               <label className="ops-field">
                 <span>并发</span>

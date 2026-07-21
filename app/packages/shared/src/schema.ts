@@ -230,6 +230,24 @@ export const RunMessage = z.object({
 });
 export type RunMessage = z.infer<typeof RunMessage>;
 
+/** G22 续：GET /api/runtimes/:id/models */
+export const RuntimeModel = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  provider: z.string().optional(),
+  isDefault: z.boolean().optional(),
+});
+export type RuntimeModel = z.infer<typeof RuntimeModel>;
+
+export const RuntimeModelsResponse = z.object({
+  runtime: RuntimeId,
+  installed: z.boolean(),
+  models: z.array(RuntimeModel),
+  source: z.enum(['cli', 'static', 'empty']),
+  error: z.string().nullable(),
+});
+export type RuntimeModelsResponse = z.infer<typeof RuntimeModelsResponse>;
+
 export const RuntimeInfo = z.object({
   id: RuntimeId,
   label: z.string(),
@@ -562,23 +580,35 @@ export const CreateCommentInput = z.object({
 });
 export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
 
+/** G22：agent 绑定的 LLM 模型 id（如 opencode/big-pickle）；空=CLI 默认 */
+export const AgentModelId = z.string().max(200);
+export type AgentModelId = z.infer<typeof AgentModelId>;
+
 export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
   runtime: RuntimeId,
   // bu02：列表可选展示 category
   category: z.string().nullable().optional(),
+  // G22：列表可展示 model（空则省略/null）
+  model: z.string().nullable().optional(),
+  // G25：软归档；null=活跃
+  archivedAt: z.string().datetime().nullable().optional(),
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
 // S05：单 agent 详情契约（GET /api/agents/:id，agent 详情页用）
 // AgentSummary 扩展：含 category/concurrency（profile 展示）+ mcpServers（MCP Tab 回填）
 // bu02：+ instructions（执行 prompt 注入）
+// G22：+ model（runtime 内模型）
+// G25：+ archivedAt
 export const AgentDetail = AgentSummary.extend({
   category: z.string().nullable(),
+  model: z.string().nullable(),
   concurrency: z.number(),
   mcpServers: z.string().nullable(),
   instructions: z.string(),
+  archivedAt: z.string().datetime().nullable(),
 });
 export type AgentDetail = z.infer<typeof AgentDetail>;
 
@@ -590,6 +620,8 @@ const OptionalClientId = z
 export const CreateAgentInput = z.object({
   name: z.string().min(1).max(80),
   runtime: RuntimeId,
+  // G22：可选；空串→null
+  model: AgentModelId.optional().nullable(),
   category: z.string().max(80).optional().nullable(),
   concurrency: z.number().int().min(1).max(8).optional().default(1),
   instructions: z.string().max(20000).optional().default(''),
@@ -602,10 +634,13 @@ export const UpdateAgentInput = z
   .object({
     name: z.string().min(1).max(80).optional(),
     runtime: RuntimeId.optional(),
+    model: AgentModelId.nullable().optional(),
     category: z.string().max(80).nullable().optional(),
     concurrency: z.number().int().min(1).max(8).optional(),
     instructions: z.string().max(20000).optional(),
     mcpServers: z.string().nullable().optional(),
+    // G25：true=归档，false=取消归档
+    archived: z.boolean().optional(),
   })
   .refine((o) => Object.keys(o).length > 0, { message: 'empty patch' });
 export type UpdateAgentInput = z.infer<typeof UpdateAgentInput>;
