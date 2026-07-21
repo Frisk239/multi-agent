@@ -211,7 +211,7 @@ export function IssueHeader({
             items={
               issue.parentIssueId
                 ? [
-                    { label: 'Issues', href: '/' },
+                    { label: '运行', href: '/runs' },
                     {
                       label: issue.parentIdentifier ?? '父 issue',
                       href: `/issues/${issue.parentIssueId}`,
@@ -219,7 +219,7 @@ export function IssueHeader({
                     { label: issue.identifier },
                   ]
                 : [
-                    { label: 'Issues', href: '/' },
+                    { label: '运行', href: '/runs' },
                     { label: issue.identifier },
                   ]
             }

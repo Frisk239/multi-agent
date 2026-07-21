@@ -206,14 +206,6 @@ function RunsPageInner() {
     return s.size;
   }, [status, visibleRuns]);
 
-  const cwdFailCount = useMemo(() => {
-    if (status !== 'failed' || !visibleRuns) return 0;
-    return visibleRuns.filter((r) => {
-      const e = (r.error ?? '').toLowerCase();
-      return e.includes('cwd') || e.includes('ma_workspace_cwd') || e.includes('工作目录');
-    }).length;
-  }, [status, visibleRuns]);
-
   const hasExtraFilters = Boolean(agentId || squadId || leaderOnly);
 
   const rareStatus =
@@ -326,50 +318,7 @@ function RunsPageInner() {
           </button>
         </div>
 
-        {/* 单条情境恢复条：只留 1 主 + 1 次操作 */}
-        {status === 'failed' && (visibleRuns?.length ?? 0) > 0 ? (
-          <div
-            className={`runs-insight${cwdFailCount > 0 ? ' runs-insight--warn' : ''}`}
-            data-testid="runs-fail-recovery"
-            role="status"
-          >
-            <div className="runs-insight-text">
-              {cwdFailCount > 0 ? (
-                <>
-                  <strong>{cwdFailCount}</strong> 条与工作区目录（cwd）有关
-                  {failedIssueCount > 0 ? ` · 覆盖 ${failedIssueCount} 个 Issue` : ''}
-                  。先修好环境，再逐行「再执行」。
-                </>
-              ) : (
-                <>
-                  <strong>{visibleRuns?.length ?? 0}</strong> 条失败
-                  {failedIssueCount > 0 ? ` · ${failedIssueCount} 个 Issue` : ''}
-                  。可再执行，或从 Issue 打开轨迹。
-                </>
-              )}
-            </div>
-            <div className="runs-insight-actions">
-              {cwdFailCount > 0 ? (
-                <Link
-                  href="/settings"
-                  className="btn btn-primary btn-sm"
-                  data-testid="runs-fail-to-settings"
-                >
-                  配置 cwd
-                </Link>
-              ) : (
-                <Link
-                  href="/?failed=1"
-                  className="btn btn-secondary btn-sm"
-                  data-testid="runs-fail-to-board"
-                >
-                  看板失败
-                </Link>
-              )}
-            </div>
-          </div>
-        ) : null}
-
+        {/* 在途才给批量操作；失败列表直接看行内「再执行」，不塞环境配置 CTA */}
         {activeVisibleIds.length > 0 ? (
           <div className="runs-insight" data-testid="runs-active-cancel-banner" role="status">
             <div className="runs-insight-text">
