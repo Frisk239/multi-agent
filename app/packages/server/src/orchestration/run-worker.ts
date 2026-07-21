@@ -180,6 +180,13 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     });
   };
 
+  // chat 默认 3min 硬超时，避免 opencode 挂起 → orphan after restart
+  const kindForTimeout = (runRow.kind as string) ?? 'issue';
+  const chatTimeoutMs =
+    kindForTimeout === 'chat'
+      ? Number(process.env.MA_CHAT_TIMEOUT_MS ?? 180_000)
+      : undefined;
+
   try {
     const backend = getBackend(runRow.runtime);
     const result = await backend.execute(
@@ -191,6 +198,7 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
         runId: runRow.id,
         mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
         model, // G22：空则 CLI 默认
+        timeoutMs: chatTimeoutMs && chatTimeoutMs > 0 ? chatTimeoutMs : null,
       },
       onEvent,
       signal,
@@ -362,6 +370,26 @@ async function failRun(runId: string, error: string): Promise<void> {
     const r = toAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!,
     );
+    // chat：失败也写一条 assistant 消息，避免 UI 只剩用户气泡 + 外部 fail card
+    const kind = (row.kind as string) ?? 'issue';
+    if (kind === 'chat' && row.chatThreadId) {
+      const mid = crypto.randomUUID();
+      const body = `【运行失败】${error || '未知错误'}\n\n可在运行详情查看完整信息，或重新发送消息。`;
+      db.insert(chatMessages)
+        .values({
+          id: mid,
+          threadId: row.chatThreadId,
+          role: 'assistant',
+          body,
+          runId,
+          createdAt: finishedAt,
+        })
+        .run();
+      db.update(chatThreads)
+        .set({ updatedAt: finishedAt })
+        .where(eq(chatThreads.id, row.chatThreadId))
+        .run();
+    }
     eventBus.publish({ type: 'run:failed', run: r });
     // bu01：失败终态 → inbox
     notifyRunTerminal(r);

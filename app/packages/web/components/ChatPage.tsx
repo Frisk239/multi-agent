@@ -6,9 +6,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
   useAgents,
+  useArchiveChatThread,
   useChatMessages,
   useChatThreads,
   useCreateChatThread,
+  usePinChatThread,
   usePostChatMessage,
   useWorkspaceRuns,
 } from '@/lib/api';
@@ -51,9 +53,14 @@ export function ChatPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const threadId = searchParams.get('thread') ?? '';
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: agents = [] } = useAgents();
-  const { data: threads = [], isLoading: threadsLoading } = useChatThreads();
+  const { data: threads = [], isLoading: threadsLoading } = useChatThreads({
+    archived: showArchived,
+  });
+  const pinThread = usePinChatThread();
+  const archiveThread = useArchiveChatThread();
   const { data: messages = [], isLoading: messagesLoading } = useChatMessages(
     threadId || undefined,
   );
@@ -199,37 +206,111 @@ export function ChatPage() {
           ) : null}
 
           <div className="chat-rail-body">
+            <div className="chat-rail-scope" data-testid="chat-rail-scope">
+              <button
+                type="button"
+                className={`chat-rail-scope-btn${!showArchived ? ' is-active' : ''}`}
+                data-testid="chat-scope-active"
+                onClick={() => setShowArchived(false)}
+              >
+                会话
+              </button>
+              <button
+                type="button"
+                className={`chat-rail-scope-btn${showArchived ? ' is-active' : ''}`}
+                data-testid="chat-scope-archived"
+                onClick={() => setShowArchived(true)}
+              >
+                已归档
+              </button>
+            </div>
             {threadsLoading ? (
               <p className="chat-rail-hint">加载会话…</p>
             ) : threads.length === 0 ? (
               <div className="chat-rail-empty">
-                <p>还没有对话</p>
-                <p className="chat-rail-hint">点右上角 + 与智能体开聊</p>
+                <p>{showArchived ? '没有已归档会话' : '还没有对话'}</p>
+                <p className="chat-rail-hint">
+                  {showArchived ? '归档的会话会出现在这里' : '点右上角 + 与智能体开聊'}
+                </p>
               </div>
             ) : (
               <ul className="chat-threads">
-                {threads.map((t) => {
-                  const ag = agentById.get(t.agentId);
-                  const name = ag?.name ?? t.agentId;
+                {threads.map((th) => {
+                  const ag = agentById.get(th.agentId);
+                  const name = ag?.name ?? th.agentId;
+                  const pinned = Boolean(th.pinnedAt);
                   return (
-                    <li key={t.id}>
+                    <li
+                      key={th.id}
+                      className={`chat-thread-li${th.id === threadId ? ' is-active' : ''}${
+                        pinned ? ' is-pinned' : ''
+                      }`}
+                    >
                       <button
                         type="button"
-                        className={`chat-thread-item${t.id === threadId ? ' is-active' : ''}`}
+                        className={`chat-thread-item${th.id === threadId ? ' is-active' : ''}`}
                         data-testid="chat-thread-item"
-                        data-thread-id={t.id}
-                        onClick={() => selectThread(t.id)}
+                        data-thread-id={th.id}
+                        data-pinned={pinned ? '1' : '0'}
+                        onClick={() => selectThread(th.id)}
                       >
                         <span className="chat-avatar" aria-hidden>
                           {initials(name)}
                         </span>
                         <span className="chat-thread-text">
-                          <span className="chat-thread-title">{t.title}</span>
+                          <span className="chat-thread-title">
+                            {pinned ? (
+                              <span className="chat-pin-mark" title="已置顶" aria-hidden>
+                                ★
+                              </span>
+                            ) : null}
+                            {th.title}
+                          </span>
                           <span className="chat-thread-preview">
-                            {t.lastMessagePreview?.trim() || name}
+                            {th.lastMessagePreview?.trim() || name}
                           </span>
                         </span>
                       </button>
+                      <div className="chat-thread-actions" data-testid="chat-thread-actions">
+                        <button
+                          type="button"
+                          className="chat-thread-action"
+                          data-testid="chat-thread-pin"
+                          title={pinned ? '取消置顶' : '置顶'}
+                          aria-label={pinned ? '取消置顶' : '置顶'}
+                          disabled={pinThread.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            pinThread.mutate({ id: th.id, pinned: !pinned });
+                          }}
+                        >
+                          {pinned ? '★' : '☆'}
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-thread-action"
+                          data-testid="chat-thread-archive"
+                          title={showArchived ? '取消归档' : '归档'}
+                          aria-label={showArchived ? '取消归档' : '归档'}
+                          disabled={archiveThread.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextArchived = !showArchived;
+                            archiveThread.mutate(
+                              { id: th.id, archived: nextArchived },
+                              {
+                                onSuccess: () => {
+                                  if (nextArchived && th.id === threadId) {
+                                    selectThread('');
+                                  }
+                                },
+                              },
+                            );
+                          }}
+                        >
+                          ▤
+                        </button>
+                      </div>
                     </li>
                   );
                 })}

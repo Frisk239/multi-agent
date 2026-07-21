@@ -126,6 +126,7 @@ export class ClaudeCodeBackend implements RuntimeBackend {
         onEvent,
         parseClaudeLine,
         input.prompt, // stdinInput（S05 stdin 修复）
+        input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
       );
     } finally {
       if (mcpTmpPath) {

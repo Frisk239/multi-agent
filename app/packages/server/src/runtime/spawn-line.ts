@@ -22,6 +22,7 @@ export type LineHandler = (
 // spawnLineProcess —— 三 Backend 共用的子进程驱动。
 // Windows 进程树 kill 对齐 plan：AbortSignal → child.kill + taskkill /T /F 双保险。
 // Windows .cmd 处理：cursor-agent 经 where 解析出 .cmd，spawn 必须 shell:true 才能执行。
+// opts.timeoutMs：chat 等短任务硬超时，避免 CLI 挂起 → orphan after restart。
 export function spawnLineProcess(
   bin: string,
   args: string[],
@@ -30,8 +31,12 @@ export function spawnLineProcess(
   onEvent: (e: AgentEvent) => void,
   onLine: LineHandler | null,
   stdinInput?: string, // S05：stdin pipe 传 prompt（claude stdin 修复，spec §8 R2 结构扩展）
+  opts?: { timeoutMs?: number },
 ): Promise<ExecutionResult> {
   return new Promise((resolve) => {
+    const timeoutMs = opts?.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : 0;
+    let timedOut = false;
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
     // Windows 上 .cmd/.bat 启动器需要 shell:true（cursor-agent.cmd 坑，
     // 对齐 multica cursor_invocation_windows.go 的 .cmd 处理需求）
     const isCmdShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
@@ -60,10 +65,11 @@ export function spawnLineProcess(
     const finish = (result: ExecutionResult) => {
       if (settled) return;
       settled = true;
+      if (timeoutTimer) clearTimeout(timeoutTimer);
       resolve(result);
     };
 
-    const onAbort = () => {
+    const killTree = () => {
       try {
         child.kill('SIGTERM');
         if (process.platform === 'win32' && child.pid) {
@@ -75,15 +81,50 @@ export function spawnLineProcess(
       } catch {
         /* ignore */
       }
+    };
+
+    const onAbort = () => {
+      killTree();
       // 兜底：Windows shell:true spawn 的进程树 kill 不可靠（cmd.exe shim 退出后
       // opencode.exe 成孤儿，close 事件不触发，Promise 永挂 → worker busy 死锁）。
       // abort 后 5s 若仍未 settle，强制 finish(cancelled)，打破死锁。
       setTimeout(() => {
-        finish({ finalText: stdoutAll.trim(), exitReason: 'cancelled' });
+        finish({
+          finalText: stdoutAll.trim(),
+          exitReason: timedOut ? 'failed' : 'cancelled',
+          error: timedOut
+            ? `timeout: CLI exceeded ${timeoutMs}ms`
+            : undefined,
+        });
       }, 5000);
     };
     if (signal.aborted) onAbort();
     else signal.addEventListener('abort', onAbort, { once: true });
+
+    if (timeoutMs > 0) {
+      timeoutTimer = setTimeout(() => {
+        if (settled) return;
+        timedOut = true;
+        onEvent({
+          type: 'log',
+          text: `[timeout] CLI exceeded ${timeoutMs}ms, aborting…\n`,
+        });
+        // 触发外部 AbortSignal 若调用方挂了 controller；同时本地 kill
+        try {
+          // soft: local kill even if parent signal not aborted
+          killTree();
+        } catch {
+          /* ignore */
+        }
+        setTimeout(() => {
+          finish({
+            finalText: stripAnsi(stdoutAll.trim()),
+            exitReason: 'failed',
+            error: `timeout: CLI exceeded ${timeoutMs}ms without finishing`,
+          });
+        }, 3000);
+      }, timeoutMs);
+    }
 
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');

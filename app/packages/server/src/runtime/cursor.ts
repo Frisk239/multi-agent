@@ -102,6 +102,8 @@ export class CursorBackend implements RuntimeBackend {
       signal,
       onEvent,
       parseCursorLine,
+      undefined,
+      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
     );
   }
 }

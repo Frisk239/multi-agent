@@ -1158,8 +1158,30 @@ export const ChatThread = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   lastMessagePreview: z.string().nullable().optional(),
+  /** Multica：置顶时间；null=未置顶 */
+  pinnedAt: z.string().datetime().nullable().optional(),
+  /** Multica：归档时间；null=活跃 */
+  archivedAt: z.string().datetime().nullable().optional(),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
+
+export const ListChatThreadsQuery = z.object({
+  /** include archived rows (default false) */
+  archived: z
+    .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')])
+    .optional(),
+});
+export type ListChatThreadsQuery = z.infer<typeof ListChatThreadsQuery>;
+
+export const PinChatThreadInput = z.object({
+  pinned: z.boolean(),
+});
+export type PinChatThreadInput = z.infer<typeof PinChatThreadInput>;
+
+export const ArchiveChatThreadInput = z.object({
+  archived: z.boolean(),
+});
+export type ArchiveChatThreadInput = z.infer<typeof ArchiveChatThreadInput>;
 
 export const ChatMessage = z.object({
   id: BusinessId,

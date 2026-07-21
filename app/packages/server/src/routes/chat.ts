@@ -1,8 +1,11 @@
-// agent-chat：人↔agent 会话 API（对齐 Multica /chat 体验的本地 MVP）
+// agent-chat：人↔agent 会话 API（对齐 Multica /chat：置顶 / 归档）
 import type { FastifyInstance } from 'fastify';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
+  ArchiveChatThreadInput,
   CreateChatThreadInput,
+  ListChatThreadsQuery,
+  PinChatThreadInput,
   PostChatMessageInput,
   type ChatMessage,
   type ChatThread,
@@ -13,7 +16,8 @@ import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
 
-function iso(ms: number): string {
+function iso(ms: number | null | undefined): string | null {
+  if (ms == null) return null;
   return new Date(ms).toISOString();
 }
 
@@ -25,9 +29,11 @@ function toThread(
     id: row.id,
     agentId: row.agentId,
     title: row.title,
-    createdAt: iso(row.createdAt),
-    updatedAt: iso(row.updatedAt),
+    createdAt: iso(row.createdAt)!,
+    updatedAt: iso(row.updatedAt)!,
     lastMessagePreview: lastPreview ?? null,
+    pinnedAt: iso(row.pinnedAt ?? null),
+    archivedAt: iso(row.archivedAt ?? null),
   };
 }
 
@@ -38,33 +44,42 @@ function toMessage(row: typeof chatMessages.$inferSelect): ChatMessage {
     role: row.role as ChatMessage['role'],
     body: row.body,
     runId: row.runId ?? null,
-    createdAt: iso(row.createdAt),
+    createdAt: iso(row.createdAt)!,
   };
 }
 
+function lastPreviewFor(threadId: string): string | null {
+  const last = db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.threadId, threadId))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(1)
+    .all()[0];
+  if (!last) return null;
+  return last.body.length > 120 ? `${last.body.slice(0, 120)}…` : last.body;
+}
+
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/chat/threads
-  app.get('/api/chat/threads', async () => {
+  // GET /api/chat/threads?archived=1
+  app.get('/api/chat/threads', async (req) => {
+    const parsed = ListChatThreadsQuery.safeParse(req.query ?? {});
+    const q = parsed.success ? parsed.data : {};
+    const includeArchived = q.archived === '1' || q.archived === 'true';
+
     const rows = db
       .select()
       .from(chatThreads)
-      .orderBy(desc(chatThreads.updatedAt))
+      .where(includeArchived ? isNotNull(chatThreads.archivedAt) : isNull(chatThreads.archivedAt))
+      .orderBy(
+        // Multica：pinned first, then recent activity
+        sql`CASE WHEN ${chatThreads.pinnedAt} IS NULL THEN 1 ELSE 0 END`,
+        desc(chatThreads.pinnedAt),
+        desc(chatThreads.updatedAt),
+      )
       .all();
-    return rows.map((row) => {
-      const last = db
-        .select()
-        .from(chatMessages)
-        .where(eq(chatMessages.threadId, row.id))
-        .orderBy(desc(chatMessages.createdAt))
-        .limit(1)
-        .all()[0];
-      const preview = last
-        ? last.body.length > 120
-          ? `${last.body.slice(0, 120)}…`
-          : last.body
-        : null;
-      return toThread(row, preview);
-    });
+
+    return rows.map((row) => toThread(row, lastPreviewFor(row.id)));
   });
 
   // POST /api/chat/threads
@@ -85,6 +100,8 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         title,
         createdAt: now,
         updatedAt: now,
+        pinnedAt: null,
+        archivedAt: null,
       })
       .run();
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
@@ -96,7 +113,49 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
     if (!row) return reply.status(404).send({ error: '会话不存在' });
-    return toThread(row, null);
+    return toThread(row, lastPreviewFor(row.id));
+  });
+
+  // PATCH /api/chat/threads/:id/pin  { pinned: boolean }
+  // Multica：不 bump updated_at
+  app.patch('/api/chat/threads/:id/pin', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = PinChatThreadInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    const now = Date.now();
+    const pinnedAt = parsed.data.pinned ? row.pinnedAt ?? now : null;
+    db.update(chatThreads)
+      .set({ pinnedAt })
+      .where(eq(chatThreads.id, id))
+      .run();
+    const next = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
+    return toThread(next, lastPreviewFor(id));
+  });
+
+  // PATCH /api/chat/threads/:id/archive  { archived: boolean }
+  app.patch('/api/chat/threads/:id/archive', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = ArchiveChatThreadInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    const now = Date.now();
+    db.update(chatThreads)
+      .set({
+        archivedAt: parsed.data.archived ? row.archivedAt ?? now : null,
+        // Multica：归档会 bump updated_at 以便归档列表排序
+        updatedAt: now,
+      })
+      .where(eq(chatThreads.id, id))
+      .run();
+    const next = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
+    return toThread(next, lastPreviewFor(id));
   });
 
   // GET /api/chat/threads/:id/messages
@@ -122,8 +181,14 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     }
     const thread = db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).get();
     if (!thread) return reply.status(404).send({ error: '会话不存在' });
+    if (thread.archivedAt != null) {
+      return reply.status(400).send({ error: '会话已归档，无法发送' });
+    }
     const agent = db.select().from(agents).where(eq(agents.id, thread.agentId)).get();
     if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+    if (agent.archivedAt != null) {
+      return reply.status(409).send({ error: '智能体已归档' });
+    }
 
     const now = Date.now();
     const body = parsed.data.body.trim();
@@ -160,7 +225,6 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       })
       .run();
 
-    // 关联 user 消息的 runId（可选追溯）
     db.update(chatMessages).set({ runId }).where(eq(chatMessages.id, userMsgId)).run();
     db.update(chatThreads).set({ updatedAt: now }).where(eq(chatThreads.id, threadId)).run();
 

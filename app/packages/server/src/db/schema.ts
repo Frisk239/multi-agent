@@ -335,9 +335,14 @@ export const chatThreads = sqliteTable(
     title: text('title').notNull(),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    // Multica：pinned_at 排序置顶；archived_at 软归档（列表默认隐藏）
+    pinnedAt: integer('pinned_at'),
+    archivedAt: integer('archived_at'),
   },
   (t) => ({
     updatedIdx: index('idx_chat_thread_updated').on(t.updatedAt),
+    pinnedIdx: index('idx_chat_thread_pinned').on(t.pinnedAt),
+    archivedIdx: index('idx_chat_thread_archived').on(t.archivedAt),
   }),
 );
 

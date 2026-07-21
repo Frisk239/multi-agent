@@ -40,6 +40,8 @@ export class OpencodeBackend implements RuntimeBackend {
       signal,
       onEvent,
       null,
+      undefined,
+      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
     );
   }
 }

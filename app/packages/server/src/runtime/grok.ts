@@ -85,6 +85,8 @@ async function tryPrintMode(
     signal,
     onEvent,
     (line, oe) => parseGrokLine(line, oe),
+    undefined,
+    input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
   );
   // 若 CLI 不认 -p，常以非 0 退出且 stderr 含 unknown/usage
   if (
@@ -140,6 +142,8 @@ export class GrokBackend implements RuntimeBackend {
       signal,
       onEvent,
       (line, oe) => parseGrokLine(line, oe),
+      undefined,
+      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
     );
 
     if (fallback.exitReason === 'completed' && fallback.finalText.trim()) {

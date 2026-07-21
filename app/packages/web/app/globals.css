@@ -5141,36 +5141,118 @@ button.memory-kind-chip.is-active {
   font-size: var(--text-sm);
 }
 
+.chat-rail-scope {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 8px;
+  flex-shrink: 0;
+}
+
+.chat-rail-scope-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chat-rail-scope-btn.is-active {
+  background: color-mix(in srgb, var(--accent, #5b8def) 14%, transparent);
+  color: var(--text-primary);
+}
+
 .chat-threads {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 6px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.chat-thread-li {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-radius: 10px;
+}
+
+.chat-thread-li.is-active {
+  background: color-mix(in srgb, var(--accent, #5b8def) 14%, transparent);
 }
 
 .chat-thread-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   text-align: left;
-  padding: 10px 10px;
+  padding: 10px 8px 10px 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
   color: inherit;
   cursor: pointer;
+  font: inherit;
 }
 
 .chat-thread-item:hover {
   background: var(--bg-hover);
 }
 
+.chat-thread-li.is-active .chat-thread-item:hover {
+  background: transparent;
+}
+
 .chat-thread-item.is-active {
-  background: color-mix(in srgb, var(--accent, #5b8def) 14%, transparent);
+  background: transparent;
   box-shadow: none;
+}
+
+.chat-thread-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  flex-shrink: 0;
+}
+
+.chat-thread-li:hover .chat-thread-actions,
+.chat-thread-li.is-active .chat-thread-actions {
+  display: inline-flex;
+}
+
+.chat-thread-action {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-thread-action:hover {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-primary);
+}
+
+.chat-pin-mark {
+  margin-right: 4px;
+  color: #eab308;
+  font-size: 11px;
 }
 
 .chat-avatar {

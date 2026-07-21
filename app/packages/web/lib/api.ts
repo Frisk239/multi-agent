@@ -1875,15 +1875,59 @@ export function useCreateQuickRun() {
 }
 
 // —— agent-chat ——
-export function useChatThreads() {
+export function useChatThreads(opts?: { archived?: boolean }) {
+  const archived = opts?.archived === true;
   return useQuery<ChatThread[]>({
-    queryKey: ['chat-threads'],
+    queryKey: ['chat-threads', archived ? 'archived' : 'active'],
     queryFn: async () => {
-      const res = await fetch(`${API}/chat/threads`);
+      const sp = archived ? '?archived=1' : '';
+      const res = await fetch(`${API}/chat/threads${sp}`);
       if (!res.ok) throw new Error(await apiError(res, '加载会话失败'));
       return res.json();
     },
     refetchInterval: 5_000,
+  });
+}
+
+export function usePinChatThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
+      const res = await fetch(`${API}/chat/threads/${encodeURIComponent(id)}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '置顶失败'));
+      return res.json() as Promise<ChatThread>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+    },
+    onError: (err) => toastError(errMessage(err, '置顶失败')),
+  });
+}
+
+export function useArchiveChatThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
+      const res = await fetch(
+        `${API}/chat/threads/${encodeURIComponent(id)}/archive`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ archived }),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '归档失败'));
+      return res.json() as Promise<ChatThread>;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      toastSuccess(vars.archived ? '已归档会话' : '已取消归档');
+    },
+    onError: (err) => toastError(errMessage(err, '归档失败')),
   });
 }
 
