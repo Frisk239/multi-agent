@@ -1,8 +1,8 @@
 # Closeout: multica-detail-rails（G26/G23/G24/G27/G25）
 
 日期：2026-07-21  
-分支：`main` @ `3603bd1`（本仓授权 main 直推）  
-远程：`git push origin main` **失败**（`github.com:443 via 127.0.0.1` 代理连不上）— 本地 **ahead 1**，需网络恢复后重推
+分支：`main` @ `8d07fba`（含属性栏可折叠修正）  
+远程：已 `git push origin main`（`-c http.proxy=` 绕过坏代理）— **与 origin 同步**
 
 ## 交付
 
