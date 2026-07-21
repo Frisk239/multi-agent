@@ -46,9 +46,21 @@ export async function resolveRunPrompt(
     const agent = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
     const name = agent?.name ?? runRow.agentId;
     const instructions = agent?.instructions?.trim();
+    // 与 resolve-run-cwd 对齐：chat 默认隔离 scratch，勿把 cwd 当用户项目
+    const useWs =
+      process.env.MA_CHAT_USE_WORKSPACE_CWD === '1' ||
+      process.env.MA_CHAT_USE_WORKSPACE_CWD === 'true';
+    const cwdNote = useWs
+      ? '当前进程 cwd 是用户配置的工作区根目录。仍请先确认用户意图再读写文件。'
+      : [
+          '当前进程 cwd 是本会话的隔离空目录（非用户项目、非 multi-agent 源码仓）。',
+          '不要主动探索/搜索上级目录或其它仓库；用户未给出路径时，用对话回答即可。',
+          '只有用户明确给出本机路径并要求读写时，才访问该路径。',
+        ].join('\n');
     const parts = [
       `你是智能体「${name}」，正在与用户进行一对一聊天（非 Issue 任务）。`,
       instructions ? `你的指令：\n${instructions}` : null,
+      cwdNote,
       '请直接、简洁地回答用户。不要擅自改仓库代码，除非用户明确要求。',
       `用户说：\n${userText}`,
     ];

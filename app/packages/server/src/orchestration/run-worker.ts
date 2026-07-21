@@ -88,25 +88,28 @@ async function tick(): Promise<void> {
 
 // executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
 // bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
-async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
-  // ADR 0003：env 优先，否则 DB root_path（apply 后通常已在 env）
-  const { resolveWorkspaceCwd, applyWorkspaceCwdToProcess } = await import('../workspace-cwd.js');
-  let cwdInfo = resolveWorkspaceCwd();
-  if (!cwdInfo.configured || !cwdInfo.exists) {
-    cwdInfo = applyWorkspaceCwdToProcess();
-  }
-  const cwd = cwdInfo.path;
-  if (!cwd || !cwdInfo.exists) {
-    await failRun(
-      runRow.id,
-      cwdInfo.configured
-        ? `工作区路径无效: ${cwdInfo.path}`
-        : '未配置 MA_WORKSPACE_CWD（可在 Settings 保存工作区路径）',
-    );
-    return;
-  }
-  // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt
-  const prompt = await resolveRunPrompt(runRow);
+  async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
+    // Multica：chat 默认隔离 workdir；issue/QC 才用 workspace root（见 resolve-run-cwd）
+    const kindEarly = (runRow.kind as string) ?? 'issue';
+    const { resolveRunCwd } = await import('../runtime/resolve-run-cwd.js');
+    const cwdInfo = resolveRunCwd({
+      kind: kindEarly,
+      runId: runRow.id,
+      chatThreadId: runRow.chatThreadId ?? null,
+    });
+    const cwd = cwdInfo.path;
+    if (!cwd || !cwdInfo.exists) {
+      await failRun(
+        runRow.id,
+        cwdInfo.error ??
+          (kindEarly === 'chat'
+            ? '无法准备 chat 工作目录'
+            : '未配置 MA_WORKSPACE_CWD（可在 Settings 保存工作区路径）'),
+      );
+      return;
+    }
+    // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt
+    const prompt = await resolveRunPrompt(runRow);
   if (!prompt) {
     const kind = (runRow.kind as string) ?? 'issue';
     await failRun(
@@ -180,11 +183,17 @@ async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> 
     });
   };
 
-  // chat 默认 3min 硬超时，避免 opencode 挂起 → orphan after restart
+  // chat 硬超时：默认 15min（原 3min 对慢 CLI/首响过短）；MA_CHAT_TIMEOUT_MS 可覆盖；0=不限
   const kindForTimeout = (runRow.kind as string) ?? 'issue';
+  const chatTimeoutRaw =
+    kindForTimeout === 'chat' ? process.env.MA_CHAT_TIMEOUT_MS : undefined;
   const chatTimeoutMs =
     kindForTimeout === 'chat'
-      ? Number(process.env.MA_CHAT_TIMEOUT_MS ?? 180_000)
+      ? Number(
+          chatTimeoutRaw === undefined || chatTimeoutRaw === ''
+            ? 900_000
+            : chatTimeoutRaw,
+        )
       : undefined;
 
   try {
