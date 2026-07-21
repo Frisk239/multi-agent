@@ -144,7 +144,7 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 ### 6.2 Wave C/D（韧性+手感）— 本阶段收官条件
 
 - [x] 同 `project_local` 任意时刻 ≤1 running；等待可解释（C1）  
-- [ ] tool in-flight 用 tool idle 窗口；失败文案可区分 idle vs tool（C2）  
+- [x] tool in-flight 用 tool idle 窗口；失败文案可区分 idle vs tool（C2）  
 - [ ] Skills 用户级不依赖 workspace；项目级可对 localPath（C3）  
 - [ ] Chat 执行中过程信息可持续更新（D1）  
 - [ ] Issue 隔离目录复用对用户可见（D2）  
@@ -163,8 +163,8 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 | B2 QC project + 硬闸 | ✅ | `ux-trust-b2-qc-project-impl-1.md` | projectId + cwd + UI 预检 |
 | B3 静默点收口 | ✅ | `ux-trust-b3-silent-points-impl-1.md` | no_leader / mention toast / auto enqueue |
 | **C1** 同 path 串行 | ✅ | `ux-trust-c1-path-serial-impl-1.md` | 仅 project_local；queued 等待不假失败 |
-| **C2** tool idle/watchdog | **pending · 下一刀** | | 默认 tool 2h / idle 30m |
-| **C3** skills per-project | pending | | 读+写+UI |
+| **C2** tool idle/watchdog | ✅ | `ux-trust-c2-tool-watchdog-impl-1.md` | 默认 tool 2h / idle 30m |
+| **C3** skills per-project | **pending · 下一刀** | | 读+写+UI |
 | **D1** Chat 过程可感 | pending | | progress + tool 名 / partial |
 | **D2** workdir 复用叙事 | pending | | 几乎只 UI |
 | **D3** tool 叙事加厚 | pending | | Run 时间线 |

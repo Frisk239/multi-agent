@@ -5,17 +5,22 @@ import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { notifyRunTerminal } from './inbox-writer.js';
 import { abortRun, hasRunAbort } from './run-control.js';
+import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 
 /**
- * F3 超时分层（学 Multica config.go）：
+ * F3 + C2 超时分层（学 Multica config.go）：
  * - chat：进程心跳 2min 无 touch → fail（worker 假死）；另有 wall MA_CHAT_TIMEOUT_MS
- * - issue/QC：活动 idle（默认 30min 无 agent 事件）→ fail；可选 wall MA_ISSUE_TIMEOUT_MS
+ * - issue/QC：无 tool 时 idle（默认 30min 无 agent 事件）→ fail
+ * - issue/QC：tool in-flight 时改用 tool idle（默认 2h，MA_ISSUE_TOOL_IDLE_MS）
+ * - 可选 wall MA_ISSUE_TIMEOUT_MS
  * - 不再对 issue 每 5s 无脑 pulse（否则 idle 永不到）
  */
 /** chat / 进程存活：2 分钟无 heartbeat → fail */
 export const STALE_RUNNING_MS = 120_000;
 /** issue/QC 默认 idle：30 分钟（对齐 Multica DefaultAgentIdleWatchdog） */
 export const DEFAULT_ISSUE_IDLE_MS = 30 * 60_000;
+/** issue/QC tool in-flight 窗口：2 小时（对齐 Multica DefaultAgentToolWatchdog） */
+export const DEFAULT_ISSUE_TOOL_IDLE_MS = 2 * 60 * 60_000;
 /** queued 过久无人 claim（agent 缺失/worker 卡死）→ fail；默认 30 分钟 */
 export const STALE_QUEUED_MS = 30 * 60_000;
 export const STALE_SWEEP_INTERVAL_MS = 15_000;
@@ -31,6 +36,14 @@ function envMs(name: string, fallback: number): number {
 /** issue/QC 无事件 idle 阈值；0=关闭 idle 收尸（仍靠 orphan / wall） */
 export function getIssueIdleMs(): number {
   return envMs('MA_ISSUE_IDLE_MS', DEFAULT_ISSUE_IDLE_MS);
+}
+
+/**
+ * tool in-flight 时的无事件阈值（学 Multica AgentToolWatchdog）。
+ * 0=关闭 tool 窗口（退回与 idle 相同或关闭：若 idle 也 0 则不收尸）。
+ */
+export function getIssueToolIdleMs(): number {
+  return envMs('MA_ISSUE_TOOL_IDLE_MS', DEFAULT_ISSUE_TOOL_IDLE_MS);
 }
 
 /** issue/QC wall-clock；0=不硬杀（默认，学 Multica AgentTimeout=0） */
@@ -67,6 +80,7 @@ export function touchRunHeartbeat(runId: string, at = Date.now()): void {
  */
 export function failStaleRunningRuns(now = Date.now()): number {
   const issueIdleMs = getIssueIdleMs();
+  const issueToolIdleMs = getIssueToolIdleMs();
   const candidates = db
     .select()
     .from(agentRuns)
@@ -85,11 +99,20 @@ export function failStaleRunningRuns(now = Date.now()): number {
       if (hb > now - limitMs) continue;
       error = 'stale: heartbeat timeout';
     } else {
-      // issue | quick_create | 其它工作 run
-      limitMs = issueIdleMs;
-      if (limitMs <= 0) continue; // idle 关闭
-      if (hb > now - limitMs) continue;
-      error = `stale: idle timeout (no agent events for ${formatDurationMs(limitMs)})`;
+      // issue | quick_create | 其它：tool in-flight → tool window，否则 idle
+      const inflight = getToolInflight(row.id);
+      if (inflight.depth > 0) {
+        limitMs = issueToolIdleMs;
+        if (limitMs <= 0) continue; // tool 窗口关闭 = 不因 tool 杀
+        if (hb > now - limitMs) continue;
+        const tool = inflight.lastToolName?.trim() || 'unknown';
+        error = `stale: tool watchdog (tool ${tool} in flight, no events for ${formatDurationMs(limitMs)})`;
+      } else {
+        limitMs = issueIdleMs;
+        if (limitMs <= 0) continue; // idle 关闭
+        if (hb > now - limitMs) continue;
+        error = `stale: idle timeout (no agent events for ${formatDurationMs(limitMs)})`;
+      }
     }
 
     // 仍有内存 abort 但 hb 过旧：视为假死/静默，照样 fail
@@ -104,6 +127,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
       .run();
     const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
     if (next?.status === 'failed') {
+      clearToolInflight(row.id);
       abortRun(row.id); // 尽量杀仍挂着的 CLI
       const run = toAgentRun(next);
       eventBus.publish({ type: 'run:failed', run });

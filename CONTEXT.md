@@ -58,8 +58,9 @@
   - 主题：**Multica 体验诚实 → 多仓韧性与执行手感（UX Trust）**  
   - Wave A 计划（✅）：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
   - **Wave C/D 计划（当前）：** [2026-07-21-ux-trust-wave-c-p0-p1.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)  
-  - **A1–A3 ✅ · B1–B3 ✅ · C1 ✅** 同 localPath 串行  
-  - **▶ 下一刀默认 C2** tool watchdog → **C3** skills per-project → **D1–D3** 流式/workdir 叙事/tool 轨迹  
+  - **A1–A3 ✅ · B1–B3 ✅ · C1 ✅ · C2 ✅** path 串行 + tool watchdog  
+  - **▶ 下一刀默认 C3** skills per-project → **D1–D3** 流式/workdir 叙事/tool 轨迹  
+  - **推送债：** main 可能 ahead origin（GitHub 443/代理失败时需补 `git push origin main`）
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1/首启向导（P2）
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  

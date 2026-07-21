@@ -180,6 +180,15 @@ export function classifyRunFailure(error: string | null | undefined): RunFailure
       settingsHref: '/runtimes',
     };
   }
+  // C2：tool watchdog 须先于 idle / 通用 timeout
+  if (/stale:\s*tool watchdog|tool watchdog \(tool /i.test(e)) {
+    return {
+      code: 'stale_or_orphan',
+      title: '工具长时间无响应',
+      hint: '有 tool 在执行且超过 MA_ISSUE_TOOL_IDLE_MS（默认 2 小时）无新事件。长构建可调大该值；真卡死可取消后「再执行」。',
+      settingsHref: '/settings',
+    };
+  }
   // F3：issue idle 须先于通用 timeout 正则（文案含 "timeout"）
   if (/stale:\s*idle timeout|idle timeout \(no agent events/i.test(e)) {
     return {

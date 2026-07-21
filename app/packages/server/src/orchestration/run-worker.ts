@@ -27,6 +27,11 @@ import {
   shouldDeferClaimForPath,
   stampProjectLocalCwdPreview,
 } from './path-lock.js';
+import {
+  clearToolInflight,
+  noteToolEnd,
+  noteToolStart,
+} from './tool-watchdog-state.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -233,6 +238,12 @@ async function tick(): Promise<void> {
   //   任意事件 → touch heartbeat（issue idle 续命）
   const onEvent = (e: AgentEvent) => {
     touchRunHeartbeat(runRow.id);
+    // C2：tool in-flight 深度 → stale sweeper 用 tool 窗口
+    if (e.type === 'tool_start') {
+      noteToolStart(runRow.id, e.name);
+    } else if (e.type === 'tool_end') {
+      noteToolEnd(runRow.id, e.name);
+    }
     if (e.type === 'message_delta' || e.type === 'log') {
       eventBus.publish({
         type: 'run:progress',
@@ -454,6 +465,7 @@ async function tick(): Promise<void> {
     await failRun(runRow.id, String(err));
   } finally {
     if (hb) clearInterval(hb);
+    clearToolInflight(runRow.id);
   }
 }
 
