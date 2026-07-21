@@ -5856,6 +5856,13 @@ button.memory-kind-chip.is-active {
   flex-shrink: 0;
 }
 
+.chat-composer-stop {
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin: 0 6px 6px 0;
+  min-height: 32px;
+}
+
 .chat-composer-send:disabled {
   opacity: 0.4;
   cursor: default;

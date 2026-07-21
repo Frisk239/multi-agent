@@ -633,7 +633,13 @@ function RunsTab({ agentId }: { agentId: string }) {
         <tbody>
           {runs.map((r) => {
             const canRetry =
-              (r.status === 'failed' || r.status === 'cancelled') && !!r.issueId;
+              (r.status === 'failed' || r.status === 'cancelled') &&
+              !!r.issueId &&
+              r.kind !== 'chat';
+            const chatHref =
+              r.kind === 'chat' && r.chatThreadId
+                ? `/chat?thread=${encodeURIComponent(r.chatThreadId)}`
+                : null;
             return (
               <tr key={r.id} data-run-id={r.id} data-run-status={r.status}>
                 <td>
@@ -657,6 +663,10 @@ function RunsTab({ agentId }: { agentId: string }) {
                         <code>{r.issueId.slice(0, 8)}…</code>
                       </Link>
                     </span>
+                  ) : chatHref ? (
+                    <Link href={chatHref} data-testid="agent-run-chat-link">
+                      会话
+                    </Link>
                   ) : (
                     <span className="text-dim">
                       {r.kind === 'quick_create'
@@ -706,6 +716,19 @@ function RunsTab({ agentId }: { agentId: string }) {
                     >
                       ⌗
                     </Link>
+                    {chatHref &&
+                    (r.status === 'failed' ||
+                      r.status === 'cancelled' ||
+                      r.status === 'queued' ||
+                      r.status === 'running') ? (
+                      <Link
+                        href={chatHref}
+                        className="btn btn-secondary btn-sm"
+                        data-testid="agent-run-open-chat"
+                      >
+                        打开会话
+                      </Link>
+                    ) : null}
                     {canRetry ? (
                       <button
                         type="button"

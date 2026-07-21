@@ -7,6 +7,7 @@ import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
   useAgents,
   useArchiveChatThread,
+  useCancelRun,
   useChatExecContext,
   useChatMessages,
   useChatThreads,
@@ -76,6 +77,7 @@ export function ChatPage() {
   const { data: execContext } = useChatExecContext(threadId || undefined);
   const createThread = useCreateChatThread();
   const postMessage = usePostChatMessage(threadId || undefined);
+  const cancelRun = useCancelRun();
 
   const { data: threadRuns = [] } = useWorkspaceRuns({
     chatThreadId: threadId || undefined,
@@ -553,25 +555,40 @@ export function ChatPage() {
                       }
                     }}
                   />
-                  <button
-                    type="button"
-                    className="chat-composer-send"
-                    data-testid="chat-send"
-                    disabled={
-                      !draft.trim() || postMessage.isPending || Boolean(liveRun)
-                    }
-                    onClick={() => void handleSend()}
-                    title={liveRun ? '等待当前回复完成' : '发送'}
-                    aria-label="发送"
-                  >
-                    {postMessage.isPending ? '…' : '↑'}
-                  </button>
+                  {liveRun ? (
+                    <button
+                      type="button"
+                      className="btn-stop chat-composer-stop"
+                      data-testid="chat-cancel-run"
+                      disabled={cancelRun.isPending}
+                      title="停止当前聊天运行"
+                      aria-label="停止"
+                      onClick={() => {
+                        if (!window.confirm('停止当前回复？可稍后重发上一条。')) return;
+                        cancelRun.mutate(liveRun.id);
+                      }}
+                    >
+                      {cancelRun.isPending ? '…' : '停止'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="chat-composer-send"
+                      data-testid="chat-send"
+                      disabled={!draft.trim() || postMessage.isPending}
+                      onClick={() => void handleSend()}
+                      title="发送"
+                      aria-label="发送"
+                    >
+                      {postMessage.isPending ? '…' : '↑'}
+                    </button>
+                  )}
                 </div>
                 <p className="chat-composer-hint">
                   {liveRun
                     ? liveRun.status === 'queued'
-                      ? '消息已派发，等待 worker 领取…'
-                      : '智能体执行中 · 有进度会显示在上方'
+                      ? '消息已派发，等待 worker 领取… · 可停止'
+                      : '智能体执行中 · 可停止后重发'
                     : 'Enter 发送 · Shift+Enter 换行'}
                 </p>
               </div>

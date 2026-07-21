@@ -10,6 +10,11 @@ import {
   useRun,
   useRunMessages,
 } from '@/lib/api';
+import {
+  chatThreadHref,
+  qcRetryHref,
+  runRecoveryKind,
+} from '@/lib/run-recovery';
 import { useRunProgressStore } from '@/lib/ws';
 import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
@@ -174,7 +179,8 @@ export function RunDetailPage({ runId }: { runId: string }) {
   }
 
   const canStop = run.status === 'queued' || run.status === 'running';
-  const canRetry = run.status === 'failed' || run.status === 'cancelled';
+  const recovery = runRecoveryKind(run);
+  const chatHref = chatThreadHref(run);
 
   return (
     <div
@@ -213,7 +219,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
               {cancel.isPending ? '停止中…' : '停止'}
             </button>
           ) : null}
-          {canRetry && run.issueId ? (
+          {recovery === 'issue_retry' ? (
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -224,6 +230,35 @@ export function RunDetailPage({ runId }: { runId: string }) {
               {retry.isPending ? '排队中…' : '再执行'}
             </button>
           ) : null}
+          {recovery === 'open_chat' && chatHref ? (
+            <Link
+              href={chatHref}
+              className="btn btn-primary btn-sm"
+              data-testid="run-detail-open-chat"
+              title="回会话重发，勿调用 Issue 再执行"
+            >
+              打开会话
+            </Link>
+          ) : null}
+          {recovery === 'qc_redispatch' ? (
+            <Link
+              href={qcRetryHref(run)}
+              className="btn btn-secondary btn-sm"
+              data-testid="run-detail-qc-redispatch"
+              title="无 Issue 的快速派活请重新派活"
+            >
+              重派
+            </Link>
+          ) : null}
+          {canStop && chatHref ? (
+            <Link
+              href={chatHref}
+              className="btn btn-secondary btn-sm"
+              data-testid="run-detail-open-chat-live"
+            >
+              打开会话
+            </Link>
+          ) : null}
           <PageHeaderMore testId="run-detail-more">
             {run.issueId ? (
               <Link
@@ -232,6 +267,15 @@ export function RunDetailPage({ runId }: { runId: string }) {
                 data-testid="run-detail-to-issue"
               >
                 打开 Issue
+              </Link>
+            ) : null}
+            {chatHref ? (
+              <Link
+                href={chatHref}
+                role="menuitem"
+                data-testid="run-detail-to-chat"
+              >
+                打开聊天会话
               </Link>
             ) : null}
             <Link
@@ -299,6 +343,14 @@ export function RunDetailPage({ runId }: { runId: string }) {
               data-testid="run-detail-issue-chip"
             >
               Issue {shortId(run.issueId)}
+            </Link>
+          ) : chatHref ? (
+            <Link
+              href={chatHref}
+              className="run-detail-chip run-detail-chip--link"
+              data-testid="run-detail-chat-chip"
+            >
+              聊天会话
             </Link>
           ) : (
             <span className="run-detail-chip">

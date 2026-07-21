@@ -12,6 +12,11 @@ import {
   useSquads,
   useWorkspaceRuns,
 } from '@/lib/api';
+import {
+  chatThreadHref,
+  qcRetryHref,
+  runRecoveryKind,
+} from '@/lib/run-recovery';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -82,19 +87,46 @@ function kindLabel(kind: AgentRun['kind']): string {
 
 function RunActions({ run }: { run: AgentRun }) {
   const retry = useRetryRun();
-  const canRetry = run.status === 'failed' || run.status === 'cancelled';
+  const kind = runRecoveryKind(run);
 
-  if (!canRetry) {
-    return null;
+  // 在途 chat：始终可回会话（观测）
+  if (run.kind === 'chat' && (run.status === 'queued' || run.status === 'running')) {
+    const href = chatThreadHref(run);
+    if (href) {
+      return (
+        <Link
+          href={href}
+          className="btn btn-secondary btn-sm"
+          data-testid="runs-row-open-chat"
+          title="打开聊天会话"
+        >
+          打开会话
+        </Link>
+      );
+    }
   }
 
-  if (!run.issueId) {
-    const qp = run.quickPrompt?.trim()
-      ? `?quickPrompt=${encodeURIComponent(run.quickPrompt.trim())}`
-      : '';
+  if (kind === 'none') return null;
+
+  if (kind === 'open_chat') {
+    const href = chatThreadHref(run);
+    if (!href) return null;
     return (
       <Link
-        href={`/${qp}`}
+        href={href}
+        className="btn btn-primary btn-sm"
+        data-testid="runs-row-open-chat"
+        title="聊天失败请回会话重发，勿用 Issue 再执行"
+      >
+        打开会话
+      </Link>
+    );
+  }
+
+  if (kind === 'qc_redispatch') {
+    return (
+      <Link
+        href={qcRetryHref(run)}
         className="btn btn-secondary btn-sm"
         data-testid="runs-row-quick-create"
         title="无 Issue 的快速派活失败，请重新派活"
@@ -104,6 +136,7 @@ function RunActions({ run }: { run: AgentRun }) {
     );
   }
 
+  // issue_retry
   return (
     <button
       type="button"
@@ -595,6 +628,15 @@ function RunsPageInner() {
                               onClick={(e) => e.stopPropagation()}
                             >
                               {shortId(r.issueId)}
+                            </Link>
+                          ) : r.kind === 'chat' && r.chatThreadId ? (
+                            <Link
+                              href={chatThreadHref(r) ?? `/runs/${r.id}`}
+                              className="runs-task-link"
+                              data-testid="runs-chat-thread-link"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              会话 {shortId(r.chatThreadId)}
                             </Link>
                           ) : (
                             <Link

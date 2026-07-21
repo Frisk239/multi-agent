@@ -55,9 +55,9 @@
 - **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
 - **已交（近）：**  
   - chat 隔离 cwd / 超时 · issue workdir 隔离 · **chat 多轮+诚实可观测**（Slice1）  
-  - **Slice2 enqueue 硬闸**（F4：`cwd_missing`/`runtime_missing` 禁派发 + enqueue meta + toast/Inbox）  
-  - progress：`chat-honest-observability-impl-1.md` · `enqueue-hard-gate-impl-1.md`
-- **下一厚切片（建议）：** F5 Runs CTA 诚实化 · F1 Project localPath · F3 issue idle timeout
+  - **Slice2 enqueue 硬闸**（F4）· **Slice3 Runs CTA 诚实化**（F5：chat 打开会话 / QC 重派 / issue 再执行 + chat 停止）  
+  - progress：`enqueue-hard-gate-impl-1.md` · `runs-cta-honest-impl-1.md`
+- **下一厚切片（建议）：** F1 Project localPath · F3 issue idle timeout · F7 Settings 可行动
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

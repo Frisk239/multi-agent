@@ -392,7 +392,7 @@ export async function rerunIssue(
   return { ok: true, run: enq.run };
 }
 
-/** POST /api/runs/:id/retry —— 仅 failed|cancelled；无 issueId 的 QC 拒绝 */
+/** POST /api/runs/:id/retry —— 仅 failed|cancelled 的 issue 工作 run；chat/QC 拒绝并给可行动文案 */
 export async function retryRun(runId: string): Promise<RerunResult> {
   const src = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!src) return { ok: false, status: 404, error: 'run 不存在' };
@@ -401,11 +401,25 @@ export async function retryRun(runId: string): Promise<RerunResult> {
     return { ok: false, status: 400, error: '仅 failed 或 cancelled 的 run 可再执行' };
   }
 
+  // Slice3 / F5：chat 与 issue Rerun 分离；勿用「快速派活」文案盖住 chat
+  if (src.kind === 'chat') {
+    return {
+      ok: false,
+      status: 400,
+      error: src.chatThreadId
+        ? '聊天 run 请回到会话「重发上一条」，无法按 Issue 再执行'
+        : '聊天 run 无法再执行：缺少会话 id，请从聊天页重新发送',
+    };
+  }
+
   if (!src.issueId) {
     return {
       ok: false,
       status: 400,
-      error: '快速派活失败且无 Issue：请使用「快速派活」重新提交，无法按 RerunIssue 再执行',
+      error:
+        src.kind === 'quick_create'
+          ? '快速派活失败且无 Issue：请使用「快速派活」重新提交，无法按 RerunIssue 再执行'
+          : '该 run 无关联 Issue，无法再执行',
     };
   }
 

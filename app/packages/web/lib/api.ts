@@ -1004,14 +1004,24 @@ export function useCancelRun() {
       if (run.issueId) {
         qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       }
+      if (run.chatThreadId) {
+        qc.invalidateQueries({ queryKey: ['chat-messages', run.chatThreadId] });
+        qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      }
       qc.invalidateQueries({ queryKey: ['runs'] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+      const chatHref =
+        run.kind === 'chat' && run.chatThreadId
+          ? `/chat?thread=${encodeURIComponent(run.chatThreadId)}`
+          : null;
       toastSuccess('已请求停止运行', {
-        action: {
-          label: '查看运行',
-          href: `/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status || 'cancelled')}`,
-        },
+        action: chatHref
+          ? { label: '回会话', href: chatHref }
+          : {
+              label: '查看运行',
+              href: `/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status || 'cancelled')}`,
+            },
         durationMs: 7000,
       });
     },
