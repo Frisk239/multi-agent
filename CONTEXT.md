@@ -54,9 +54,9 @@
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
 - **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
 - **已交（近）：**  
-  - F1–F6 主路径 · **F7** Settings 可行动 CTA · **F8** 指派 UI 硬拦 · Inbox 恢复分流  
-  - progress：`prompt-project-context-impl-1.md` · `settings-actionable-ops-impl-1.md`
-- **下一厚切片（建议）：** F9 skills per-project UI · F10 Inbox 噪音 · F11/F12 可选
+  - UX gap **F1–F8 + F10**（Inbox 降噪 + chat 失败补漏 + Playwright E2E）  
+  - progress：`settings-actionable-ops-impl-1.md` · `inbox-noise-f10-impl-1.md`
+- **下一厚切片（建议）：** F9 skills UI · F11/F12 可选 · gap 表收官更新
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
