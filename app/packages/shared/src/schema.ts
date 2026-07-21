@@ -777,6 +777,65 @@ export const SkillInfo = z.object({
 });
 export type SkillInfo = z.infer<typeof SkillInfo>;
 
+/** 本机目录 skill 导入（学 Multica runtime-local-skill-import，目标改为本地 .skills） */
+export const SkillImportTarget = z.enum(['project', 'user']);
+export type SkillImportTarget = z.infer<typeof SkillImportTarget>;
+
+export const LocalSkillCandidate = z.object({
+  key: z.string(),
+  name: z.string(),
+  description: z.string(),
+  path: z.string(),
+  kind: z.enum(['dir', 'file']),
+  alreadyIndexed: z.boolean(),
+  existingSource: z.enum(['project', 'user']).nullable(),
+});
+export type LocalSkillCandidate = z.infer<typeof LocalSkillCandidate>;
+
+export const ScanLocalSkillsInput = z.object({
+  path: z.string().min(1).max(1000),
+});
+export type ScanLocalSkillsInput = z.infer<typeof ScanLocalSkillsInput>;
+
+export const ScanLocalSkillsResponse = z.object({
+  path: z.string(),
+  candidates: z.array(LocalSkillCandidate),
+  projectSkillsDir: z.string().nullable(),
+  userSkillsDir: z.string(),
+  error: z.string().nullable(),
+});
+export type ScanLocalSkillsResponse = z.infer<typeof ScanLocalSkillsResponse>;
+
+export const ImportLocalSkillItem = z.object({
+  sourcePath: z.string().min(1),
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(2000).optional(),
+  overwrite: z.boolean().optional(),
+});
+export type ImportLocalSkillItem = z.infer<typeof ImportLocalSkillItem>;
+
+export const ImportLocalSkillsInput = z.object({
+  target: SkillImportTarget.default('project'),
+  items: z.array(ImportLocalSkillItem).min(1).max(50),
+});
+export type ImportLocalSkillsInput = z.infer<typeof ImportLocalSkillsInput>;
+
+export const ImportLocalSkillResult = z.object({
+  name: z.string(),
+  status: z.enum(['created', 'updated', 'skipped', 'failed']),
+  source: SkillImportTarget,
+  path: z.string().optional(),
+  error: z.string().optional(),
+});
+export type ImportLocalSkillResult = z.infer<typeof ImportLocalSkillResult>;
+
+export const ImportLocalSkillsResponse = z.object({
+  results: z.array(ImportLocalSkillResult),
+  projectSkillsDir: z.string().nullable(),
+  userSkillsDir: z.string(),
+});
+export type ImportLocalSkillsResponse = z.infer<typeof ImportLocalSkillsResponse>;
+
 export const SquadSummary = z.object({
   id: BusinessId,
   name: z.string(),

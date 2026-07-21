@@ -8549,3 +8549,143 @@ a.issue-card-run-fail--link:hover {
 .issue-exec-body {
   gap: 12px !important;
 }
+
+/* —— Skills 本机导入面板（Multica create/import 本地版） —— */
+.skills-import-panel {
+  margin-bottom: var(--space-4);
+}
+
+.skills-import-scan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.skills-import-scan .ops-field {
+  margin: 0;
+}
+
+.skills-import-dest {
+  margin: 0 0 10px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.skills-import-error {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #f87171 30%, var(--border-subtle));
+  background: color-mix(in srgb, #f87171 10%, transparent);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.skills-import-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.skills-import-overwrite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.skills-import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(40vh, 360px);
+  overflow: auto;
+}
+
+.skills-import-item {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-base, var(--bg)) 40%, transparent);
+}
+
+.skills-import-item.is-selected {
+  border-color: color-mix(in srgb, var(--accent, #5b8def) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent, #5b8def) 8%, transparent);
+}
+
+.skills-import-item-label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.skills-import-item-label input {
+  margin-top: 3px;
+}
+
+.skills-import-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skills-import-item-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.skills-import-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #fbbf24 18%, transparent);
+  color: var(--text);
+}
+
+.skills-import-item-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skills-import-item-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-import-results {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.skills-import-results ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.skills-import-results code {
+  font-size: 11px;
+  margin-right: 4px;
+}

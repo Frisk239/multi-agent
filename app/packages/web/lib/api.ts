@@ -20,6 +20,9 @@ import type {
   CreateSquadInput,
   UpdateSquadInput,
   SkillInfo,
+  ScanLocalSkillsResponse,
+  ImportLocalSkillsInput,
+  ImportLocalSkillsResponse,
   SquadSummary,
   SquadDetail,
   InboxItem,
@@ -928,7 +931,54 @@ export function useRefreshSkills() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['skills'] });
+      toastSuccess('已重新扫描 skills');
     },
+    onError: (err) => toastError(errMessage(err, '重新扫描失败')),
+  });
+}
+
+/** POST /api/skills/scan-local —— 扫描本机路径 */
+export function useScanLocalSkills() {
+  return useMutation({
+    mutationFn: async (path: string) => {
+      const res = await fetch(`${API}/skills/scan-local`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '扫描本地 skills 失败'));
+      return res.json() as Promise<ScanLocalSkillsResponse>;
+    },
+  });
+}
+
+/** POST /api/skills/import-local —— 导入到 .skills / ~/.multi-agent/skills */
+export function useImportLocalSkills() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ImportLocalSkillsInput) => {
+      const res = await fetch(`${API}/skills/import-local`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '导入 skills 失败'));
+      return res.json() as Promise<ImportLocalSkillsResponse>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['skills'] });
+      const ok = data.results.filter(
+        (r) => r.status === 'created' || r.status === 'updated',
+      ).length;
+      const skip = data.results.filter((r) => r.status === 'skipped').length;
+      const fail = data.results.filter((r) => r.status === 'failed').length;
+      toastSuccess(
+        `导入完成：${ok} 成功` +
+          (skip ? ` · ${skip} 跳过` : '') +
+          (fail ? ` · ${fail} 失败` : ''),
+      );
+    },
+    onError: (err) => toastError(errMessage(err, '导入 skills 失败')),
   });
 }
 

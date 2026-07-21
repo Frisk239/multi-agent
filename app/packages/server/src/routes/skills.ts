@@ -1,12 +1,25 @@
 import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
+import {
+  ImportLocalSkillsInput,
+  ScanLocalSkillsInput,
+} from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents, agentSkills } from '../db/schema.js';
-import { getSkillIndex, scanSkills } from '../skill/scanner.js';
+import {
+  getSkillIndex,
+  importLocalSkill,
+  listImportCandidates,
+  projectSkillsDir,
+  scanSkills,
+  userSkillsDir,
+} from '../skill/scanner.js';
 
 // skillRoutes —— skill 目录索引 + agent 分配 + MCP 配置（spec §4）。
 // GET  /api/skills              内存索引列表（含 usedBy 反查 agent_skill）
 // POST /api/skills/refresh      重扫目录刷新索引
+// POST /api/skills/scan-local   扫描本机路径列出可导入 skill（Multica import 本地版）
+// POST /api/skills/import-local 写入 <cwd>/.skills 或 ~/.multi-agent/skills
 // GET  /api/agents/:id/skills   已分配 skillId（R1：过滤悬空引用）
 // PUT  /api/agents/:id/skills   整体替换分配（body: { skillIds: string[] }）
 // GET  /api/agents/:id/mcp      MCP 配置 JSON 字符串
@@ -43,6 +56,47 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/skills/refresh', async () => {
     scanSkills();
     return { ok: true };
+  });
+
+  // POST /api/skills/scan-local —— 扫描本机目录/文件，列导入候选
+  app.post('/api/skills/scan-local', async (req, reply) => {
+    const parsed = ScanLocalSkillsInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    // 确保索引最新，便于 alreadyIndexed
+    scanSkills();
+    const scanned = listImportCandidates(parsed.data.path);
+    return {
+      path: scanned.path,
+      candidates: scanned.candidates,
+      projectSkillsDir: projectSkillsDir(),
+      userSkillsDir: userSkillsDir(),
+      error: scanned.error,
+    };
+  });
+
+  // POST /api/skills/import-local —— 批量导入到本地 skill 目录
+  app.post('/api/skills/import-local', async (req, reply) => {
+    const parsed = ImportLocalSkillsInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const { target, items } = parsed.data;
+    const results = items.map((item) =>
+      importLocalSkill({
+        sourcePath: item.sourcePath,
+        name: item.name,
+        description: item.description,
+        target,
+        overwrite: item.overwrite,
+      }),
+    );
+    return {
+      results,
+      projectSkillsDir: projectSkillsDir(),
+      userSkillsDir: userSkillsDir(),
+    };
   });
 
   // GET /api/agents/:id/skills —— 已分配 skillId（R1：过滤悬空，skillIndex 不存在的跳过）
