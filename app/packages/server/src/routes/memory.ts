@@ -1,6 +1,7 @@
 // S09/S10 Memory API（spec §7 / S10 §9）
 // GET  /api/memory/status  provider + available + backend
 // GET  /api/memory         ?q=&limit= 检索；一律 Manager.search（R8）
+// GET  /api/memory/:id     单条详情（全文）
 // POST /api/memory         curated 写入 body CreateMemoryInput（R9：依赖 addRaw 返回值）
 // DELETE /api/memory/:id   memory-item-delete
 import type { FastifyInstance } from 'fastify';
@@ -53,6 +54,25 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     }
     const result = await memoryManager.deleteMany(parsed.data.ids);
     return result;
+  });
+
+  // GET 单条详情（须在与 DELETE 同路径段；method 区分）
+  app.get('/api/memory/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const res = await memoryManager.getById(id);
+    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    const item = res.item;
+    return {
+      id: item.id,
+      scope: 'workspace',
+      issueId: item.issueId ?? null,
+      agentId: null,
+      runId: item.runId ?? null,
+      text: item.text,
+      createdAt: item.createdAt ?? new Date().toISOString(),
+      source: item.source ?? null,
+      score: item.score ?? null,
+    };
   });
 
   app.delete('/api/memory/:id', async (req, reply) => {

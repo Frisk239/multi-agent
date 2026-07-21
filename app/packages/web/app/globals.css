@@ -8689,3 +8689,142 @@ a.issue-card-run-fail--link:hover {
   font-size: 11px;
   margin-right: 4px;
 }
+
+/* —— Memory 详情抽屉 —— */
+.memory-text-btn {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.memory-text--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  font-size: var(--text-sm);
+}
+
+.memory-open-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.memory-text-btn:hover .memory-open-hint {
+  color: var(--accent, #5b8def);
+}
+
+.memory-detail-root {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.memory-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.memory-detail-panel {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated, var(--surface));
+  border-left: 1px solid var(--border-subtle);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
+}
+
+.memory-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.memory-detail-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.memory-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.memory-detail-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.memory-detail-fields {
+  margin: 0;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--text-sm);
+}
+
+.memory-detail-fields div {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+}
+
+.memory-detail-fields dt {
+  margin: 0;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.memory-detail-fields dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.memory-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.memory-detail-empty {
+  padding: 24px 18px;
+  font-size: var(--text-sm);
+}

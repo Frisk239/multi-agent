@@ -140,4 +140,17 @@ export class SqliteTextProvider implements MemoryProvider {
     const r = db.delete(memoryItems).where(eq(memoryItems.id, id)).run();
     return (r.changes ?? 0) > 0;
   }
+
+  getById(id: string): MemoryItemView | null {
+    const row = db.select().from(memoryItems).where(eq(memoryItems.id, id)).get();
+    if (!row) return null;
+    return {
+      id: row.id,
+      text: row.text,
+      source: 'sqlite-text',
+      issueId: row.issueId ?? null,
+      runId: row.runId ?? null,
+      createdAt: new Date(row.createdAt).toISOString(),
+    };
+  }
 }

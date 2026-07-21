@@ -6,10 +6,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useMemoryStatus,
   useMemoryList,
+  useMemoryItem,
   useCreateMemory,
   useDeleteMemory,
   useDeleteMemoryMany,
   useSettingsStatus,
+  type MemoryItem,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
@@ -40,11 +42,45 @@ function MemoryPageInner() {
   const [copyId, setCopyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const detailIdFromUrl = searchParams.get('id') ?? '';
+  const [detailId, setDetailId] = useState<string | null>(
+    detailIdFromUrl || null,
+  );
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     setQDraft(qFromUrl);
   }, [qFromUrl]);
+
+  useEffect(() => {
+    setDetailId(detailIdFromUrl || null);
+  }, [detailIdFromUrl]);
+
+  function openDetail(id: string) {
+    setDetailId(id);
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set('id', id);
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  function closeDetail() {
+    setDetailId(null);
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('id');
+    const qs = sp.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  useEffect(() => {
+    if (!detailId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeDetail();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailId]);
 
   // 防抖写 URL → 再由 URL 驱动 useMemoryList
   useEffect(() => {
@@ -150,6 +186,26 @@ function MemoryPageInner() {
       /* ignore */
     }
   }
+
+  async function copyText(text: string, feedback = '已复制正文') {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFeedback(feedback);
+      window.setTimeout(() => setCopyFeedback(null), 1500);
+    } catch {
+      setCopyFeedback('复制失败');
+      window.setTimeout(() => setCopyFeedback(null), 1500);
+    }
+  }
+
+  const listItem = useMemo(
+    () => (data ?? []).find((m) => m.id === detailId) ?? null,
+    [data, detailId],
+  );
+  const { data: fetchedDetail, isFetching: detailFetching } = useMemoryItem(
+    detailId && !listItem ? detailId : undefined,
+  );
+  const detail: MemoryItem | null = listItem ?? fetchedDetail ?? null;
 
   return (
     <div className="page-container collection-page" data-testid="memory-page">
@@ -446,26 +502,16 @@ function MemoryPageInner() {
                       </span>
                     </td>
                     <td>
-                      <div className="memory-row-meta">
-                        <div
-                          className={`memory-text${expanded[m.id] ? ' memory-text--expanded' : ''}`}
-                          data-testid="memory-text"
-                        >
-                          {m.text}
-                        </div>
-                        {m.text.length > 180 ? (
-                          <button
-                            type="button"
-                            className="memory-expand-btn"
-                            data-testid="memory-expand"
-                            onClick={() =>
-                              setExpanded((prev) => ({ ...prev, [m.id]: !prev[m.id] }))
-                            }
-                          >
-                            {expanded[m.id] ? '收起' : '展开'}
-                          </button>
-                        ) : null}
-                      </div>
+                      <button
+                        type="button"
+                        className="memory-text-btn"
+                        data-testid="memory-text"
+                        title="查看详情"
+                        onClick={() => openDetail(m.id)}
+                      >
+                        <span className="memory-text memory-text--clamp">{m.text}</span>
+                        <span className="memory-open-hint">查看详情</span>
+                      </button>
                     </td>
                     <td className="text-dim text-sm">
                       {m.issueId ? (
@@ -490,7 +536,15 @@ function MemoryPageInner() {
                         <code>{copyId === m.id ? '已复制' : `${m.id.slice(0, 8)}…`}</code>
                       </button>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        data-testid="memory-open-detail"
+                        onClick={() => openDetail(m.id)}
+                      >
+                        详情
+                      </button>{' '}
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
@@ -501,6 +555,9 @@ function MemoryPageInner() {
                           setDeletingId(m.id);
                           del.mutate(m.id, {
                             onSettled: () => setDeletingId(null),
+                            onSuccess: () => {
+                              if (detailId === m.id) closeDetail();
+                            },
                           });
                         }}
                       >
@@ -585,6 +642,141 @@ function MemoryPageInner() {
         </table>
       </div>
       </div>
+
+      {detailId ? (
+        <div
+          className="memory-detail-root"
+          data-testid="memory-detail-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="记忆详情"
+        >
+          <button
+            type="button"
+            className="memory-detail-backdrop"
+            aria-label="关闭详情"
+            data-testid="memory-detail-backdrop"
+            onClick={closeDetail}
+          />
+          <aside className="memory-detail-panel">
+            <header className="memory-detail-head">
+              <div>
+                <h2 className="memory-detail-title">记忆详情</h2>
+                <p className="text-dim text-sm" data-testid="memory-detail-meta">
+                  {detail ? (
+                    <>
+                      <span
+                        className={`memory-kind-chip memory-kind-chip--${inferKind(detail.text)}`}
+                      >
+                        {inferKind(detail.text)}
+                      </span>
+                      {' · '}
+                      {detail.createdAt
+                        ? new Date(detail.createdAt).toLocaleString()
+                        : '时间未知'}
+                    </>
+                  ) : detailFetching ? (
+                    '加载中…'
+                  ) : (
+                    '未找到'
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                data-testid="memory-detail-close"
+                onClick={closeDetail}
+              >
+                关闭
+              </button>
+            </header>
+
+            {detail ? (
+              <>
+                <div className="memory-detail-body" data-testid="memory-detail-body">
+                  <pre className="memory-detail-text">{detail.text}</pre>
+                </div>
+                <dl className="memory-detail-fields">
+                  <div>
+                    <dt>ID</dt>
+                    <dd>
+                      <code data-testid="memory-detail-id">{detail.id}</code>
+                    </dd>
+                  </div>
+                  {detail.issueId ? (
+                    <div>
+                      <dt>Issue</dt>
+                      <dd>
+                        <Link
+                          href={`/issues/${detail.issueId}`}
+                          className="table-link"
+                          data-testid="memory-detail-issue"
+                        >
+                          {detail.issueId}
+                        </Link>
+                      </dd>
+                    </div>
+                  ) : null}
+                  {detail.source ? (
+                    <div>
+                      <dt>来源</dt>
+                      <dd>{detail.source}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+                <div className="memory-detail-actions" data-testid="memory-detail-actions">
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    data-testid="memory-detail-copy-text"
+                    onClick={() => void copyText(detail.text)}
+                  >
+                    {copyFeedback === '已复制正文' ? '已复制' : '复制正文'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    data-testid="memory-detail-copy-id"
+                    onClick={() => void copyMemoryId(detail.id)}
+                  >
+                    {copyId === detail.id ? 'ID 已复制' : '复制 ID'}
+                  </button>
+                  {detail.issueId ? (
+                    <Link
+                      href={`/issues/${detail.issueId}`}
+                      className="btn-ghost btn-sm"
+                      data-testid="memory-detail-open-issue"
+                    >
+                      打开 Issue
+                    </Link>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    data-testid="memory-detail-delete"
+                    disabled={del.isPending}
+                    onClick={() => {
+                      if (!window.confirm('删除这条记忆？不可恢复。')) return;
+                      setDeletingId(detail.id);
+                      del.mutate(detail.id, {
+                        onSettled: () => setDeletingId(null),
+                        onSuccess: () => closeDetail(),
+                      });
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="memory-detail-empty text-dim" data-testid="memory-detail-missing">
+                {detailFetching ? '加载详情…' : '记忆不存在或已被删除'}
+              </div>
+            )}
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -213,6 +213,26 @@ export class MemoryManager {
     return { ok: true };
   }
 
+  /** 详情：委托 provider.getById */
+  async getById(
+    id: string,
+  ): Promise<
+    | { ok: true; item: MemoryItemView }
+    | { ok: false; status: number; error: string }
+  > {
+    if (!id?.trim()) return { ok: false, status: 400, error: 'id 不能为空' };
+    if (!this.external?.isAvailable()) {
+      return { ok: false, status: 503, error: 'memory provider 不可用' };
+    }
+    const get = this.external.getById;
+    if (typeof get !== 'function') {
+      return { ok: false, status: 501, error: '当前 provider 不支持按 id 读取' };
+    }
+    const item = await Promise.resolve(get.call(this.external, id.trim()));
+    if (!item) return { ok: false, status: 404, error: '记忆不存在' };
+    return { ok: true, item };
+  }
+
   /** memory-bulk-delete：逐 id 删除，上限 100 */
   async deleteMany(ids: string[]): Promise<{
     requested: number;

@@ -1648,6 +1648,19 @@ export function useMemoryList(q: string) {
   });
 }
 
+/** GET /api/memory/:id — 单条全文详情 */
+export function useMemoryItem(id: string | undefined) {
+  return useQuery({
+    queryKey: ['memory-item', id],
+    queryFn: async () => {
+      const res = await fetch(`${API}/memory/${encodeURIComponent(id!)}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载记忆详情失败'));
+      return res.json() as Promise<MemoryItem>;
+    },
+    enabled: Boolean(id),
+  });
+}
+
 // POST /api/memory — curated 写入
 export function useCreateMemory() {
   const qc = useQueryClient();

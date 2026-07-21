@@ -203,6 +203,33 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
     return n > 0;
   }
 
+  async getById(id: string): Promise<MemoryItemView | null> {
+    if (!this.isAvailable()) return null;
+    const r = await memoryPgQuery<{
+      id: string;
+      text: string;
+      issue_id: string | null;
+      run_id: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, text, issue_id, run_id, created_at FROM memory_vectors WHERE id = $1`,
+      [id],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      text: row.text,
+      source: 'pgvector',
+      issueId: row.issue_id,
+      runId: row.run_id,
+      createdAt:
+        row.created_at instanceof Date
+          ? row.created_at.toISOString()
+          : new Date(row.created_at).toISOString(),
+    };
+  }
+
   async shutdown(): Promise<void> {
     this.ready = false;
     await closeMemoryPgPool();

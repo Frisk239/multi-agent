@@ -38,5 +38,7 @@ export interface MemoryProvider {
   syncTurn(input: MemorySyncInput): Promise<void>;
   /** 可选：按 id 删除（memory-item-delete） */
   deleteById?(id: string): boolean | Promise<boolean>;
+  /** 可选：按 id 取全文（详情抽屉） */
+  getById?(id: string): MemoryItemView | null | Promise<MemoryItemView | null>;
   shutdown?(): void | Promise<void>;
 }
