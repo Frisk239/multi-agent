@@ -36,8 +36,8 @@ export function RuntimesPage() {
           <span className="runtime-detail-status">本机可用</span>
         </div>
         <p className="runtime-product-note text-dim text-sm" data-testid="runtimes-product-note">
-          本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor），不是 Multica
-          本机已安装的编码 CLI；智能体绑定后在工作区目录执行。
+          本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor /{' '}
+          <strong>Grok Build</strong>），不是 Multica daemon「电脑」。智能体绑定后在工作区目录执行。
         </p>
         <div className="runtime-meta">
           {runtimes.length} 个 CLI · {installed} 个已安装 · cwd=

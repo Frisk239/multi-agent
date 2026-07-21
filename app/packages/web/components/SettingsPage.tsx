@@ -88,6 +88,8 @@ export function SettingsPage() {
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdDraft, setCwdDraft] = useState('');
   const [cwdDraftReady, setCwdDraftReady] = useState(false);
+  /** Multica 式左栏：账号 / 工作区 / 环境诊断 */
+  const [tab, setTab] = useState<'profile' | 'workspace' | 'health'>('profile');
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
@@ -192,12 +194,15 @@ export function SettingsPage() {
   const runtimeBlocked = data.checks.filter((c) => c.id.startsWith('runtime:') && c.status === 'error');
 
   return (
-    <div className="page-container settings-page collection-page" data-testid="settings-page">
+    <div
+      className="page-container settings-page settings-page--multica collection-page"
+      data-testid="settings-page"
+    >
       <div className="page-header">
         <div>
           <Icon name="settings" size={16} className="page-header-icon" />
           <h1 className="page-title">
-            环境诊断
+            设置
             <span
               className={`settings-overall settings-overall--${overall}`}
               title={overall}
@@ -205,8 +210,8 @@ export function SettingsPage() {
               {OVERALL_LABEL[overall]}
             </span>
           </h1>
-          <p className="page-desc">
-            {summary.errors} 项错误 · {summary.warnings} 项警告
+          <p className="page-desc page-desc--quiet">
+            {summary.errors} 项错误 · {summary.warnings} 项警告 · 对齐 Multica 账号/工作区结构（本地诊断保留）
           </p>
         </div>
         <div className="page-actions">
@@ -221,12 +226,44 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="page-body settings-body">
+      <div className="settings-layout" data-testid="settings-layout">
+        <nav className="settings-nav" data-testid="settings-nav" aria-label="设置分区">
+          <div className="settings-nav-group">我的账号</div>
+          <button
+            type="button"
+            className={`settings-nav-item${tab === 'profile' ? ' is-active' : ''}`}
+            data-testid="settings-nav-profile"
+            onClick={() => setTab('profile')}
+          >
+            个人资料
+          </button>
+          <div className="settings-nav-group">工作区</div>
+          <button
+            type="button"
+            className={`settings-nav-item${tab === 'workspace' ? ' is-active' : ''}`}
+            data-testid="settings-nav-workspace"
+            onClick={() => setTab('workspace')}
+          >
+            代码仓库 / 路径
+          </button>
+          <div className="settings-nav-group">本地运维</div>
+          <button
+            type="button"
+            className={`settings-nav-item${tab === 'health' ? ' is-active' : ''}`}
+            data-testid="settings-nav-health"
+            onClick={() => setTab('health')}
+          >
+            环境诊断
+          </button>
+        </nav>
+
+        <div className="settings-main page-body settings-body">
+      {tab === 'profile' ? (
       <section className="settings-section" data-testid="settings-profile-section">
         <div className="settings-section-head">
-          <h2 className="settings-section-title">关于你</h2>
+          <h2 className="settings-section-title">个人资料</h2>
           <p className="settings-section-desc">
-            偏好与自我介绍会注入 agent 执行 prompt（非密钥）
+            会随任务一起发送给为你工作的 agent——角色、技术栈、偏好（非密钥）
           </p>
         </div>
         <section
@@ -235,7 +272,7 @@ export function SettingsPage() {
           aria-label="用户资料"
         >
           <label className="settings-profile-field">
-            <span>显示名</span>
+            <span>姓名</span>
             <input
               type="text"
               className="input"
@@ -246,23 +283,25 @@ export function SettingsPage() {
             />
           </label>
           <label className="settings-profile-field">
-            <span>关于你 / 偏好</span>
+            <span>关于你</span>
             <textarea
               className="settings-profile-about"
               value={profileAbout}
               onChange={(e) => setProfileAbout(e.target.value)}
-              rows={5}
+              rows={6}
+              maxLength={2000}
               data-testid="settings-profile-about"
               placeholder="例：偏好 TypeScript、简洁 PR、中文回复；本机路径 D:/code/…"
             />
           </label>
           <p className="text-dim text-sm" style={{ margin: '0 0 8px' }}>
+            {profileAbout.length}/2000 ·{' '}
             {profile?.updatedHint ??
               '保存后，Issue 派活与快速派活都会在 prompt 中带上此段说明。'}
           </p>
           <button
             type="button"
-            className="btn-primary btn-sm"
+            className="btn-primary settings-profile-save-wide"
             data-testid="settings-profile-save"
             disabled={
               updateProfile.isPending ||
@@ -281,11 +320,15 @@ export function SettingsPage() {
           </button>
         </section>
       </section>
+      ) : null}
 
+      {tab === 'workspace' ? (
       <section className="settings-section" data-testid="settings-workspace-section">
         <div className="settings-section-head">
-          <h2 className="settings-section-title">工作区</h2>
-          <p className="settings-section-desc">路径持久化与派活前置条件</p>
+          <h2 className="settings-section-title">代码仓库</h2>
+          <p className="settings-section-desc">
+            本地工作区路径（Multica「代码仓库」的本地等价；无 GitHub OAuth）
+          </p>
         </div>
       <section
         className="settings-card settings-cwd-guide"
@@ -402,7 +445,10 @@ export function SettingsPage() {
         </section>
       ) : null}
       </section>
+      ) : null}
 
+      {tab === 'health' ? (
+      <>
       {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
         <section className="settings-section" data-testid="settings-guides-section">
           <div className="settings-section-head">
@@ -864,11 +910,12 @@ export function SettingsPage() {
       </ul>
 
       <p className="settings-footer text-dim text-sm">
-        本页只读。请在启动 server 的环境中配置变量（如{' '}
-        <code>MA_WORKSPACE_CWD</code>、<code>WIKI_LLM_API_KEY</code>
-        ）。不在此写入密钥或 env。
+        本页诊断只读。密钥仅 env；工作区路径可写本地 DB。Grok Build 需本机 `grok` CLI（GROK_PATH / PATH）与登录态。
       </p>
       </section>
+      </>
+      ) : null}
+        </div>
       </div>
     </div>
   );

@@ -764,6 +764,13 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             group: '智能体',
             run: () => router.push('/agents?runtime=cursor'),
           },
+          {
+            id: 'agents-rt-grok',
+            label: '智能体：grok (Grok Build)',
+            hint: '/agents?runtime=grok',
+            group: '智能体',
+            run: () => router.push('/agents?runtime=grok'),
+          },
         ]
       : [];
 

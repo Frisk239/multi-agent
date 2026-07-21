@@ -32,7 +32,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'settings', label: '设置' },
 ];
 
-const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
+const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
 function readinessClass(status: AgentReadiness['status']): string {
   if (status === 'ready') return 'readiness-chip readiness-ready';

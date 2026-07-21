@@ -114,6 +114,7 @@ async function listCursorModels(execPath: string): Promise<RuntimeModel[]> {
  * - opencode：`opencode models`（本机实测）
  * - claude-code：静态常用别名
  * - cursor：尽力探测，否则 []
+ * - grok：静态 xAI 模型（Multica grok_test 常用 id）
  */
 export async function listRuntimeModels(runtime: RuntimeId): Promise<{
   runtime: RuntimeId;
@@ -122,14 +123,22 @@ export async function listRuntimeModels(runtime: RuntimeId): Promise<{
   source: 'cli' | 'static' | 'empty';
   error: string | null;
 }> {
+  const { listGrokStaticModels } = await import('./grok.js');
+  const staticFallback =
+    runtime === 'claude-code'
+      ? listClaudeStatic()
+      : runtime === 'grok'
+        ? listGrokStaticModels()
+        : [];
+
   const backend = getBackend(runtime);
   const det = await backend.detect();
   if (!det.installed || !det.path) {
     return {
       runtime,
       installed: false,
-      models: runtime === 'claude-code' ? listClaudeStatic() : [],
-      source: runtime === 'claude-code' ? 'static' : 'empty',
+      models: staticFallback,
+      source: staticFallback.length ? 'static' : 'empty',
       error: 'runtime 未安装或不在 PATH',
     };
   }
@@ -164,12 +173,21 @@ export async function listRuntimeModels(runtime: RuntimeId): Promise<{
         error: models.length ? null : 'cursor 未提供稳定 models 列表，可手填',
       };
     }
+    if (runtime === 'grok') {
+      return {
+        runtime,
+        installed: true,
+        models: listGrokStaticModels(),
+        source: 'static',
+        error: null,
+      };
+    }
   } catch (e) {
     return {
       runtime,
       installed: true,
-      models: runtime === 'claude-code' ? listClaudeStatic() : [],
-      source: runtime === 'claude-code' ? 'static' : 'empty',
+      models: staticFallback,
+      source: staticFallback.length ? 'static' : 'empty',
       error: e instanceof Error ? e.message : String(e),
     };
   }

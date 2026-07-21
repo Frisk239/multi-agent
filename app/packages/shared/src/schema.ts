@@ -26,7 +26,8 @@ export const CommentType = z.enum(['comment', 'status_change']);
 export type CommentType = z.infer<typeof CommentType>;
 
 // —— Runtime / Run / RunMessage（S03 执行层契约）——
-export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor']);
+/** 本机 CLI 适配器 id；grok = xAI Grok Build CLI（学 Multica server/pkg/agent/grok.go） */
+export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor', 'grok']);
 export type RuntimeId = z.infer<typeof RuntimeId>;
 
 export const AgentRunStatus = z.enum([

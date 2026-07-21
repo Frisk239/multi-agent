@@ -22,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        {/* 全部 client hooks（含 HelperRail / useQuery）必须在 Providers 内，避免 error boundary 后 HMR 脱挂 */}
         <Providers>
           <div className="app-shell">
             <Suspense fallback={<aside className="sidebar" aria-label="主导航" />}>
@@ -31,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <EnvBanner />
               <main className="main-content">{children}</main>
             </div>
-            <HelperRail />
+            <Suspense fallback={null}>
+              <HelperRail />
+            </Suspense>
           </div>
         </Providers>
       </body>

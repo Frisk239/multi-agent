@@ -19,11 +19,11 @@ const STORAGE_OPEN = 'ma-helper-open';
 const STORAGE_AGENT = 'ma-helper-agent-id';
 const STORAGE_THREAD = 'ma-helper-thread-id';
 
-/** Multica starter_prompts（zh） */
+/** Multica starter_prompts（zh）— 无 emoji，与产品列表页风格统一 */
 const STARTER_PROMPTS = [
-  { id: 'list_open', label: '📋 按优先级列出我未完成的任务' },
-  { id: 'summarize_today', label: '📝 总结一下我今天做了什么' },
-  { id: 'plan_next', label: '💡 规划接下来该做什么' },
+  { id: 'list_open', label: '按优先级列出我未完成的任务' },
+  { id: 'summarize_today', label: '总结一下我今天做了什么' },
+  { id: 'plan_next', label: '规划接下来该做什么' },
 ] as const;
 
 function readStored(key: string): string {
@@ -185,8 +185,8 @@ export function HelperRail() {
   }
 
   async function handleStarter(label: string) {
-    // 去掉 emoji 前缀，保留中文问句
-    const text = label.replace(/^[^\u4e00-\u9fffA-Za-z]+/, '').trim() || label;
+    const text = label.trim();
+    if (!text) return;
     setDraft('');
     try {
       await sendBody(text);
@@ -299,7 +299,7 @@ export function HelperRail() {
                 <p className="helper-empty-title">
                   {agentName ? `你好，我是 ${agentName}` : '本地助手'}
                 </p>
-                <p className="text-dim text-sm">试试问：</p>
+                <p className="helper-empty-hint text-dim text-sm">试试问</p>
                 <div className="helper-starters" data-testid="helper-starters">
                   {STARTER_PROMPTS.map((p) => (
                     <button
@@ -324,8 +324,7 @@ export function HelperRail() {
                     data-testid="helper-msg"
                     data-role={m.role}
                   >
-                    <div className="helper-msg-role text-dim text-sm">{m.role}</div>
-                    <pre className="helper-msg-body">{m.body}</pre>
+                    <div className="helper-msg-body">{m.body}</div>
                   </li>
                 ))}
                 {msgsFetching ? (
@@ -355,14 +354,15 @@ export function HelperRail() {
             />
             <button
               type="button"
-              className="btn-primary btn-sm"
+              className="helper-send-btn"
               data-testid="helper-send"
+              aria-label="发送"
               disabled={
                 !draft.trim() || !agentId || sending || createThread.isPending
               }
               onClick={() => void handleSend()}
             >
-              {sending || createThread.isPending ? '发送中…' : '发送'}
+              {sending || createThread.isPending ? '…' : '↑'}
             </button>
           </div>
         </div>

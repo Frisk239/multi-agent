@@ -39,7 +39,9 @@ export const agents = sqliteTable('agent', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   category: text('category'),
-  runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] })
+  runtime: text('runtime', {
+    enum: ['claude-code', 'opencode', 'cursor', 'grok'],
+  })
     .notNull()
     .default('opencode'),
   // null/空串 = 跟随 CLI 默认；仅对新 dispatch 的 run 生效
@@ -213,7 +215,9 @@ export const agentRuns = sqliteTable(
     id: text('id').primaryKey(),
     issueId: text('issue_id').references(() => issues.id), // 可空：QC 先 run 再建卡
     agentId: text('agent_id').notNull(),
-    runtime: text('runtime', { enum: ['claude-code', 'opencode', 'cursor'] }).notNull(),
+    runtime: text('runtime', {
+      enum: ['claude-code', 'opencode', 'cursor', 'grok'],
+    }).notNull(),
     status: text('status', {
       enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
     }).notNull(),

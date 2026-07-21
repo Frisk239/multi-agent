@@ -14,7 +14,7 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 
-const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor'];
+const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
 /** G25：我的 / 全部 / 已归档（本地单用户，「我的」≈全部活跃） */
 type ScopeTab = 'mine' | 'all' | 'archived';
@@ -146,7 +146,8 @@ function AgentsPageInner() {
   const runtimeFilter =
     runtimeFromUrl === 'claude-code' ||
     runtimeFromUrl === 'opencode' ||
-    runtimeFromUrl === 'cursor'
+    runtimeFromUrl === 'cursor' ||
+    runtimeFromUrl === 'grok'
       ? runtimeFromUrl
       : '';
 
