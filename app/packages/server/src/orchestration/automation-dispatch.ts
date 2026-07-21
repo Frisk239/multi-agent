@@ -159,7 +159,7 @@ function validateAssignee(rule: RuleRow): string | null {
 /**
  * 幂等派发：UNIQUE(rule_id, planned_at)；冲突静默返回已有 run。
  * 非法 assignee → failed run，不建卡。
- * issue 建成功即 success（enqueue 失败只打 log）。
+ * issue 建成功即 success；B3：enqueue 跳过时 error 字段写明原因（不装作已开工）。
  */
 export async function dispatchAutomationRule(
   ruleId: string,
@@ -223,6 +223,21 @@ export async function dispatchAutomationRule(
     );
   }
 
+  // B3：建卡成功但 enqueue 跳过 → success + error 注明（UI toast 可解释）
+  let enqueueNote: string | null = null;
+  const enq = created.enqueue;
+  if (enq?.status === 'skipped') {
+    enqueueNote = `Issue 已建，但未开工：${enq.detail ?? enq.reason ?? '派发被跳过'}`;
+    console.warn('[automation-dispatch] enqueue skipped', {
+      ruleId,
+      issueId: created.issue.id,
+      reason: enq.reason,
+      detail: enq.detail,
+    });
+  } else if (enq?.status === 'queued' && enq.runId) {
+    enqueueNote = null;
+  }
+
   const runId = crypto.randomUUID();
   const createdAt = Date.now();
   try {
@@ -234,7 +249,7 @@ export async function dispatchAutomationRule(
         source,
         status: 'success',
         issueId: created.issue.id,
-        error: null,
+        error: enqueueNote,
         createdAt,
       })
       .run();

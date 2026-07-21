@@ -715,7 +715,7 @@ export type AgentReadiness = z.infer<typeof AgentReadiness>;
 /**
  * enqueue 跳过原因（学 Multica agent_ready 闸 + 本仓 cwd/runtime 硬闸）
  * - cwd_missing / runtime_missing / readiness_error：硬拦，不入队
- * - already_active / run_limit / agent_missing：业务跳过
+ * - already_active / run_limit / agent_missing / no_leader：业务跳过
  */
 export const EnqueueSkipReason = z.enum([
   'already_active',
@@ -724,6 +724,8 @@ export const EnqueueSkipReason = z.enum([
   'cwd_missing',
   'runtime_missing',
   'readiness_error',
+  /** B3：小队无 leader，无法派 leader run */
+  'no_leader',
 ]);
 export type EnqueueSkipReason = z.infer<typeof EnqueueSkipReason>;
 
@@ -958,7 +960,8 @@ export type SquadMember = z.infer<typeof SquadMember>;
 export const SquadDetail = z.object({
   id: BusinessId,
   name: z.string(),
-  leaderId: BusinessId,
+  /** B3：允许 null（无 leader 仍可加载详情，enqueue 报 no_leader） */
+  leaderId: BusinessId.nullable(),
   operatingProtocol: z.string(),
   missionDirective: z.string(),
   members: z.array(SquadMember),

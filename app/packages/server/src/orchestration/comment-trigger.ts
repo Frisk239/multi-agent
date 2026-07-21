@@ -111,7 +111,7 @@ export async function triggerFromComment(
           targetId: m.id,
           targetLabel: label,
           runId: null,
-          note: '小队无 leader，跳过',
+          note: '小队无 leader，无法派发（请在小队详情指定队长）',
         });
         continue;
       }

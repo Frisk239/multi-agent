@@ -202,6 +202,14 @@ export async function createIssueCore(
         const squad = loadSquadDetail(input.assignee.id);
         if (squad?.leaderId) {
           enqResult = await enqueueLeaderRun(id, squad.leaderId, squad.id);
+        } else {
+          // B3：无 leader 不静默——显式 skipped，前端 toast / automation 可解释
+          enqResult = {
+            run: null,
+            skipped: true,
+            reason: 'no_leader',
+            detail: `小队「${squad?.name ?? input.assignee.id}」无 leader，无法开工`,
+          };
         }
       } catch (e) {
         console.error('[issue-create] enqueueLeaderRun failed', e);

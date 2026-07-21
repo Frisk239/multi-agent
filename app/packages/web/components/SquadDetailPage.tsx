@@ -54,7 +54,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
   useEffect(() => {
     if (!squad) return;
     setName(squad.name);
-    setLeaderId(squad.leaderId);
+    setLeaderId(squad.leaderId ?? '');
     setMemberIds(squad.members.map((m) => m.agentId));
     setOperatingProtocol(squad.operatingProtocol ?? '');
     setMissionDirective(squad.missionDirective ?? '');
@@ -76,9 +76,9 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
   const roster = useMemo(() => {
     if (!squad) return [] as Array<{ agentId: string; name: string; role: 'leader' | 'member' }>;
     const rows: Array<{ agentId: string; name: string; role: 'leader' | 'member' }> = [];
-    const leaderName =
-      agents.find((a) => a.id === squad.leaderId)?.name ?? squad.leaderId;
     if (squad.leaderId) {
+      const leaderName =
+        agents.find((a) => a.id === squad.leaderId)?.name ?? squad.leaderId;
       rows.push({ agentId: squad.leaderId, name: leaderName, role: 'leader' });
     }
     for (const m of squad.members) {

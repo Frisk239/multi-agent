@@ -63,7 +63,8 @@
   - **Wave A 出口 ✅** · E2E `ux-trust-wave-a-e2e-2026-07-21.md`  
   - **B1 ✅** Chat 绑 Project · `ux-trust-b1-chat-project-impl-1.md`  
   - **B2 ✅** QC 可选 project + 硬闸 · `ux-trust-b2-qc-project-impl-1.md`  
-  - 默认队列：**B3 静默点 → C1 path 串行 → …**  
+  - **B3 ✅** 静默点收口 · `ux-trust-b3-silent-points-impl-1.md`  
+  - **Wave B 出口 ✅** · 默认队列：**C1 path 串行 → C2 tool idle → C3 skills…**  
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  

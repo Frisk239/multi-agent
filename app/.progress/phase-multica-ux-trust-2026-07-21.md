@@ -1,7 +1,7 @@
 # 下一阶段计划：Multica 体验诚实与多仓日用
 
 Date: 2026-07-21  
-Status: **进行中**（Wave A ✅ · B1–B2 ✅）  
+Status: **进行中**（Wave A–B ✅ · A1–A3 B1–B3）  
 Code name: **UX Trust**（暂名）
 
 > 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交。  
@@ -127,7 +127,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 - [x] 任意 issue run 在 UI 可见 cwd mode + path（或明确「隔离」）  
 - [x] EnvBanner / Settings / QC 文案与「默认隔离」一致；QC 与 Issue 同级 readiness 闸  
 - [x] Chat 至少能绑一个 project.localPath 执行  
-- [ ] Squad 无 leader / mention 全 skip / automation enqueue skip **对用户可解释**  
+- [x] Squad 无 leader / mention 全 skip / automation enqueue skip **对用户可解释**  
 - [ ] Playwright 有「多项目 path → run 展示正确 cwd」用例证据  
 - [ ] 本文件进度表 Wave A/B 全 ✅（Wave C 至少 C1 或书面降级说明）
 
@@ -142,7 +142,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 | A3 文案与 QC 闸对齐 | ✅ | `ux-trust-a3-copy-qc-gate-impl-1.md` | 默认隔离文案 + QC readiness 409 |
 | B1 Chat 绑 Project | ✅ | `ux-trust-b1-chat-project-impl-1.md` | 会话头选项目 · exec project_local |
 | B2 QC project + 硬闸 | ✅ | `ux-trust-b2-qc-project-impl-1.md` | projectId + cwd + UI 预检 |
-| B3 静默点收口 | pending | | |
+| B3 静默点收口 | ✅ | `ux-trust-b3-silent-points-impl-1.md` | no_leader / mention toast / auto enqueue |
 | C1 同 path 串行 | pending | | |
 | C2 tool idle/watchdog | pending | | |
 | C3 skills per-project | pending | | |

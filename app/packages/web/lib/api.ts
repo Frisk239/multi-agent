@@ -68,7 +68,7 @@ function errMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
-/** Slice2：enqueue 硬闸/跳过 → 可行动 toast + 恢复链接 */
+/** Slice2 / B3：enqueue 硬闸/跳过 → 可行动 toast + 恢复链接 */
 function toastEnqueueMeta(issueId: string, enqueue?: IssueEnqueueMeta | null) {
   if (!enqueue || enqueue.status !== 'skipped') return;
   const reason = enqueue.reason;
@@ -86,6 +86,9 @@ function toastEnqueueMeta(issueId: string, enqueue?: IssueEnqueueMeta | null) {
   } else if (reason === 'already_active') {
     href = `/runs?issueId=${encodeURIComponent(issueId)}`;
     label = '查看运行';
+  } else if (reason === 'no_leader') {
+    href = '/squads';
+    label = '小队列表';
   }
   toastError(enqueue.detail ?? '未开工：派发被跳过', {
     action: { label, href },
@@ -566,13 +569,19 @@ export function useCreateComment(issueId: string) {
       return res.json() as Promise<Comment & { dispatches?: unknown[] }>;
     },
     // R9：写入 cache；有 @mention 时服务端会追加系统「派发」comment → invalidate 拉全量
+    // B3：toast 按 runId 成败，不全绿谎报
     onSuccess: (comment) => {
       qc.setQueryData<Comment[]>(['comments', issueId], (old) => {
         if (!old) return [comment];
         if (old.some((c) => c.id === comment.id)) return old;
         return [...old, comment];
       });
-      type DispatchRow = { runId?: string | null };
+      type DispatchRow = {
+        runId?: string | null;
+        note?: string;
+        targetLabel?: string;
+        kind?: string;
+      };
       const list = Array.isArray(comment.dispatches)
         ? (comment.dispatches as DispatchRow[])
         : [];
@@ -581,14 +590,48 @@ export function useCreateComment(issueId: string) {
         qc.invalidateQueries({ queryKey: ['comments', issueId] });
         qc.invalidateQueries({ queryKey: ['runs', issueId] });
         qc.invalidateQueries({ queryKey: ['runs'] });
-        const firstRunId = list.map((d) => d.runId).find((id) => typeof id === 'string' && id);
-        // 有具体 run → /runs?run=；否则回 issue 详情 Run 条
+        const queued = list.filter((d) => typeof d.runId === 'string' && d.runId);
+        const skipped = list.filter((d) => !d.runId);
+        const firstRunId = queued[0]?.runId as string | undefined;
         const href = firstRunId
           ? `/runs?run=${encodeURIComponent(firstRunId)}`
           : `/issues/${encodeURIComponent(issueId)}`;
-        toastSuccess(`已处理 ${n} 个 @提及派发`, {
-          action: { label: '查看运行', href },
-        });
+
+        if (queued.length === n) {
+          toastSuccess(`已派发 ${n} 个 @提及`, {
+            action: { label: '查看运行', href },
+            durationMs: 7000,
+          });
+        } else if (queued.length > 0) {
+          const skipNotes = skipped
+            .map((d) => d.note || d.targetLabel || '跳过')
+            .slice(0, 2)
+            .join('；');
+          toastSuccess(
+            `已派发 ${queued.length}/${n} 个 @提及；${skipped.length} 个未开工${skipNotes ? `（${skipNotes}）` : ''}`,
+            {
+              action: { label: '查看', href },
+              durationMs: 9000,
+            },
+          );
+        } else {
+          const notes = skipped
+            .map((d) => {
+              const who = d.targetLabel ? `@${d.targetLabel}` : '@提及';
+              return `${who}：${d.note ?? '未开工'}`;
+            })
+            .slice(0, 3)
+            .join('；');
+          const noLeader = skipped.some((d) =>
+            (d.note ?? '').includes('无 leader'),
+          );
+          toastError(notes || `${n} 个 @提及均未开工`, {
+            action: noLeader
+              ? { label: '小队列表', href: '/squads' }
+              : { label: '打开 Issue', href: `/issues/${encodeURIComponent(issueId)}` },
+            durationMs: 9000,
+          });
+        }
       }
     },
     onError: (err) => toastError(errMessage(err, '评论失败')),
@@ -2249,25 +2292,41 @@ export function useRunAutomationNow() {
       qc.invalidateQueries({ queryKey: ['issues'] });
       if (run.status === 'success') {
         const label = run.issueId ? run.issueId.slice(0, 8) : '—';
-        toastSuccess(`已创建 Issue · ${label}…`, {
-          action: run.issueId
-            ? {
-                label: '打开 Issue',
-                href: `/issues/${run.issueId}`,
-              }
-            : {
-                label: '看板 · 自动化',
-                href: '/?origin=automation',
-              },
-          durationMs: 8000,
-        });
+        const issueAction = run.issueId
+          ? {
+              label: '打开 Issue',
+              href: `/issues/${run.issueId}`,
+            }
+          : {
+              label: '看板 · 自动化',
+              href: '/?origin=automation',
+            };
+        // B3：error 非空 = 建卡成功但 enqueue 跳过（见 automation-dispatch）
+        if (run.error) {
+          toastError(run.error, {
+            action: run.error.includes('无 leader')
+              ? { label: '小队列表', href: '/squads' }
+              : /runtime|PATH|CLI/i.test(run.error)
+                ? { label: '运行时', href: '/runtimes' }
+                : issueAction,
+            durationMs: 9000,
+          });
+        } else {
+          toastSuccess(`已创建 Issue · ${label}…`, {
+            action: issueAction,
+            durationMs: 8000,
+          });
+        }
       } else if (run.status === 'failed') {
         const err = run.error || '执行失败';
         const cwdish = /MA_WORKSPACE_CWD|cwd|工作区/i.test(err);
+        const noLeader = /无 leader|no leader/i.test(err);
         toastError(err, {
-          action: cwdish
-            ? { label: '环境诊断', href: '/settings' }
-            : { label: '看板 · 自动化', href: '/?origin=automation' },
+          action: noLeader
+            ? { label: '小队列表', href: '/squads' }
+            : cwdish
+              ? { label: '环境诊断', href: '/settings' }
+              : { label: '看板 · 自动化', href: '/?origin=automation' },
           durationMs: 8000,
         });
       } else {

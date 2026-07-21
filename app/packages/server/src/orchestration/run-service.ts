@@ -354,6 +354,9 @@ export async function rerunIssue(
     } else if (issue.assigneeType === 'squad') {
       const squad = loadSquadDetail(issue.assigneeId);
       if (!squad) return { ok: false, status: 400, error: '小队不存在' };
+      if (!squad.leaderId) {
+        return { ok: false, status: 400, error: `小队「${squad.name}」无 leader，无法再执行` };
+      }
       agentId = squad.leaderId;
       isLeader = true;
       squadId = squad.id;
