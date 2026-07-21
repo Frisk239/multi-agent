@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 type SourceFilter = '' | 'project' | 'user';
 
@@ -182,12 +183,23 @@ function SkillsPageInner() {
           </p>
         </div>
         <div className="page-actions">
-          <Link href="/agents" className="btn btn-ghost btn-sm" data-testid="skills-to-agents">
-            智能体
-          </Link>
+          <PageHeaderMore testId="skills-header-more">
+            <Link href="/agents" data-testid="skills-to-agents" role="menuitem">
+              智能体
+            </Link>
+            <button
+              type="button"
+              data-testid="skills-refresh"
+              role="menuitem"
+              onClick={() => refresh.mutate()}
+              disabled={refresh.isPending}
+            >
+              {refresh.isPending ? '扫描中…' : '重新扫描'}
+            </button>
+          </PageHeaderMore>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="btn btn-primary btn-sm"
             data-testid="skills-import-toggle"
             onClick={() => {
               setImportOpen((v) => !v);
@@ -195,15 +207,6 @@ function SkillsPageInner() {
             }}
           >
             {importOpen ? '收起导入' : '导入'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            data-testid="skills-refresh"
-            onClick={() => refresh.mutate()}
-            disabled={refresh.isPending}
-          >
-            {refresh.isPending ? '扫描中…' : '重新扫描'}
           </button>
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 import { RunEventTimelineDrawer } from './RunEventTimeline';
 
 type StatusFilter =
@@ -197,61 +198,68 @@ function RunsPageInner() {
           </p>
         </div>
         <div className="page-actions runs-page-actions">
-          {status === 'failed' ? (
+          <PageHeaderMore testId="runs-header-more">
+            {status === 'failed' ? (
+              <Link
+                href="/?failed=1"
+                data-testid="runs-to-failed-board"
+                role="menuitem"
+                title={
+                  failedIssueCount > 0
+                    ? `打开看板仅失败（约 ${failedIssueCount} 个 Issue）`
+                    : '打开看板仅失败筛选'
+                }
+              >
+                看板仅失败
+                {failedIssueCount > 0 ? ` · ${failedIssueCount}` : ''}
+              </Link>
+            ) : (
+              <Link
+                href="/runs?status=failed"
+                data-testid="runs-filter-failed"
+                role="menuitem"
+              >
+                看失败 run
+              </Link>
+            )}
             <Link
-              href="/?failed=1"
-              className="btn-secondary btn-sm"
-              data-testid="runs-to-failed-board"
-              title={
-                failedIssueCount > 0
-                  ? `打开看板仅失败（约 ${failedIssueCount} 个 Issue）`
-                  : '打开看板仅失败筛选'
-              }
+              href="/inbox?kind=run_failed&read=unread"
+              data-testid="runs-to-inbox-fails"
+              role="menuitem"
             >
-              看板仅失败
-              {failedIssueCount > 0 ? ` · ${failedIssueCount}` : ''}
+              收件箱失败
             </Link>
-          ) : (
-            <Link
-              href="/runs?status=failed"
-              className="btn-secondary btn-sm"
-              data-testid="runs-filter-failed"
-            >
-              看失败 run
-            </Link>
-          )}
-          <Link
-            href="/inbox?kind=run_failed&read=unread"
-            className="btn-secondary btn-sm"
-            data-testid="runs-to-inbox-fails"
-          >
-            收件箱失败
-          </Link>
-          {activeVisibleIds.length > 0 ? (
+            {activeVisibleIds.length > 0 ? (
+              <button
+                type="button"
+                data-testid="runs-cancel-visible-active"
+                role="menuitem"
+                disabled={cancelMany.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `取消当前列表中 ${activeVisibleIds.length} 条在途 run（queued/running）？`,
+                    )
+                  ) {
+                    return;
+                  }
+                  cancelMany.mutate(activeVisibleIds);
+                }}
+              >
+                {cancelMany.isPending
+                  ? '取消中…'
+                  : `取消在途 · ${activeVisibleIds.length}`}
+              </button>
+            ) : null}
             <button
               type="button"
-              className="btn-secondary btn-sm"
-              data-testid="runs-cancel-visible-active"
-              disabled={cancelMany.isPending}
-              onClick={() => {
-                if (
-                  !window.confirm(
-                    `取消当前列表中 ${activeVisibleIds.length} 条在途 run（queued/running）？`,
-                  )
-                ) {
-                  return;
-                }
-                cancelMany.mutate(activeVisibleIds);
-              }}
+              role="menuitem"
+              onClick={() => refetch()}
+              disabled={isFetching}
             >
-              {cancelMany.isPending
-                ? '取消中…'
-                : `取消在途 · ${activeVisibleIds.length}`}
+              刷新
             </button>
-          ) : null}
-          <button type="button" className="btn-secondary btn-sm" onClick={() => refetch()} disabled={isFetching}>
-            刷新
-          </button>
+          </PageHeaderMore>
         </div>
       </div>
 

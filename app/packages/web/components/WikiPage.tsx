@@ -8,6 +8,7 @@ import { MarkdownBody } from './MarkdownBody';
 import { WikiQueryDialog } from './WikiQueryDialog';
 import { WikiHealthPanel } from './WikiHealthPanel';
 import { WikiJobsPanel } from './WikiJobsPanel';
+import { PageHeaderMore } from './PageHeaderMore';
 
 // S06 Wiki 浏览器 + S07 + wiki-memory-ops；?slug= / ?q= 可分享
 function WikiPageInner() {
@@ -97,15 +98,27 @@ function WikiPageInner() {
           </div>
         </div>
         <div className="page-actions">
-          <Link href="/" className="btn-ghost btn-sm" data-testid="wiki-to-board">
-            看板
-          </Link>
-          <Link href="/memory" className="btn-ghost btn-sm" data-testid="wiki-to-memory">
-            记忆
-          </Link>
-          <Link href="/runs" className="btn-ghost btn-sm" data-testid="wiki-to-runs">
-            运行
-          </Link>
+          <PageHeaderMore testId="wiki-header-more">
+            <Link href="/memory" data-testid="wiki-to-memory" role="menuitem">
+              记忆
+            </Link>
+            <Link href="/runs" data-testid="wiki-to-runs" role="menuitem">
+              运行
+            </Link>
+            <Link href="/" data-testid="wiki-to-board" role="menuitem">
+              看板
+            </Link>
+            <Link href="/settings" data-testid="wiki-to-settings" role="menuitem">
+              环境
+            </Link>
+            <Link
+              href="/wiki?jobStatus=dead"
+              data-testid="wiki-to-dead-jobs"
+              role="menuitem"
+            >
+              dead 任务
+            </Link>
+          </PageHeaderMore>
           <button
             type="button"
             className="btn-primary btn-sm"
@@ -128,11 +141,11 @@ function WikiPageInner() {
           <Link
             href="/wiki?jobStatus=dead"
             className="btn-ghost btn-sm"
-            data-testid="wiki-to-dead-jobs"
+            data-testid="wiki-bridge-dead-jobs"
           >
             编译任务
           </Link>
-          <Link href="/settings" className="btn-ghost btn-sm" data-testid="wiki-to-settings">
+          <Link href="/settings" className="btn-ghost btn-sm" data-testid="wiki-bridge-settings">
             环境
           </Link>
         </div>

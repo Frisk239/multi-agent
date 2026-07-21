@@ -115,7 +115,7 @@ function MyIssuesPageInner() {
         </div>
         <div className="page-actions">
           <Link href="/" className="btn btn-ghost btn-sm" data-testid="my-issues-to-board">
-            全部 Issues
+            看板
           </Link>
         </div>
       </div>

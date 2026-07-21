@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -213,22 +214,24 @@ export function ProjectDetailPage({ id }: { id: string }) {
           >
             看板
           </Link>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            data-testid="project-delete"
-            disabled={del.isPending}
-            onClick={handleDelete}
-          >
-            删除
-          </button>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            onClick={() => void refetch()}
-          >
-            刷新
-          </button>
+          <PageHeaderMore testId="project-header-more">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void refetch()}
+            >
+              刷新
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              data-testid="project-delete"
+              disabled={del.isPending}
+              onClick={handleDelete}
+            >
+              删除
+            </button>
+          </PageHeaderMore>
         </div>
       </div>
 

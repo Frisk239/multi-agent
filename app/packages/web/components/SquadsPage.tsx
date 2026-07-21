@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 type ReadyFilter =
   | ''
@@ -227,15 +228,18 @@ function SquadsPageInner() {
           <p className="page-desc">一组智能体协作完成任务；队长接收 briefing 并 @mention 委派</p>
         </div>
         <div className="page-actions">
-          <Link href="/agents" className="btn btn-ghost btn-sm" data-testid="squads-to-agents">
-            智能体
-          </Link>
-          <Link href="/runs" className="btn btn-ghost btn-sm" data-testid="squads-to-runs">
-            运行
-          </Link>
+          <PageHeaderMore testId="squads-header-more">
+            <Link href="/agents" data-testid="squads-to-agents" role="menuitem">
+              智能体
+            </Link>
+            <Link href="/runs" data-testid="squads-to-runs" role="menuitem">
+              运行
+            </Link>
+          </PageHeaderMore>
           <button
             type="button"
             className="btn btn-primary btn-sm"
+            data-testid="squads-new-btn"
             onClick={() => setOpen((v) => !v)}
             disabled={agents.length === 0}
           >

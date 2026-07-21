@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspaceUsage } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -104,17 +105,19 @@ function UsagePageInner() {
               </button>
             ))}
           </div>
-          <Link href="/runs" className="btn-secondary btn-sm" data-testid="usage-to-runs">
-            运行列表
-          </Link>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            onClick={() => void refetch()}
-            disabled={isFetching}
-          >
-            {isFetching ? '刷新中…' : '刷新'}
-          </button>
+          <PageHeaderMore testId="usage-header-more">
+            <Link href="/runs" data-testid="usage-to-runs" role="menuitem">
+              运行列表
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? '刷新中…' : '刷新'}
+            </button>
+          </PageHeaderMore>
         </div>
       </div>
 

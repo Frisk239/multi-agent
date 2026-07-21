@@ -2631,6 +2631,75 @@ a.mention-side-link:hover {
   align-items: center;
 }
 
+/* Multica：顶栏主 CTA + 可选「更多」折叠次要入口 */
+.page-header-more {
+  position: relative;
+}
+
+.page-header-more-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.page-header-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.page-header-more-summary::after {
+  content: ' ▾';
+  font-size: 0.7em;
+  opacity: 0.7;
+}
+
+.page-header-more[open] > .page-header-more-summary {
+  background: var(--bg-secondary, color-mix(in srgb, var(--text-muted) 10%, transparent));
+}
+
+.page-header-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-subtle, var(--border));
+  background: var(--surface, var(--bg-primary));
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-header-more-menu a,
+.page-header-more-menu button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.page-header-more-menu a:hover,
+.page-header-more-menu button:hover {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.page-header-more-menu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .page-body {
   padding: 16px 20px 24px;
 }

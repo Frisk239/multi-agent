@@ -23,6 +23,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
@@ -396,22 +397,24 @@ function AutomationPageInner() {
           <p className="page-desc">为智能体安排周期性任务；可从模板开始</p>
         </div>
         <div className="page-actions">
-          <Link
-            href="/?origin=automation"
-            className="btn-secondary btn-sm"
-            data-testid="automation-to-board-origin"
-            title="看板筛选自动化创建的 Issue"
-          >
-            看板 · 自动化 Issue
-          </Link>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            onClick={() => void refetch()}
-            disabled={isFetching}
-          >
-            {isFetching ? '刷新中…' : '刷新'}
-          </button>
+          <PageHeaderMore testId="automation-header-more">
+            <Link
+              href="/?origin=automation"
+              data-testid="automation-to-board-origin"
+              role="menuitem"
+              title="看板筛选自动化创建的 Issue"
+            >
+              看板 · 自动化 Issue
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? '刷新中…' : '刷新'}
+            </button>
+          </PageHeaderMore>
           <button
             type="button"
             className="btn btn-primary btn-sm"

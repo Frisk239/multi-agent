@@ -14,6 +14,7 @@ import {
   type MemoryItem,
 } from '@/lib/api';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 function inferKind(text: string): 'curated' | 'ambient' | 'other' {
   const t = text.trim();
@@ -222,18 +223,20 @@ function MemoryPageInner() {
           </p>
         </div>
         <div className="page-actions">
-          <Link href="/" className="btn-ghost btn-sm" data-testid="memory-to-board">
-            看板
-          </Link>
-          <Link href="/wiki" className="btn-ghost btn-sm" data-testid="memory-to-wiki">
-            Wiki
-          </Link>
-          <Link href="/inbox" className="btn-ghost btn-sm" data-testid="memory-to-inbox">
-            收件箱
-          </Link>
-          <Link href="/settings" className="btn-secondary btn-sm" data-testid="memory-to-settings">
-            环境
-          </Link>
+          <PageHeaderMore testId="memory-header-more">
+            <Link href="/wiki" data-testid="memory-to-wiki" role="menuitem">
+              Wiki
+            </Link>
+            <Link href="/" data-testid="memory-to-board" role="menuitem">
+              看板
+            </Link>
+            <Link href="/inbox" data-testid="memory-to-inbox" role="menuitem">
+              收件箱
+            </Link>
+            <Link href="/settings" data-testid="memory-to-settings" role="menuitem">
+              环境
+            </Link>
+          </PageHeaderMore>
         </div>
       </div>
 

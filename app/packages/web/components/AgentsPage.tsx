@@ -13,6 +13,7 @@ import {
   useUnarchiveAgent,
 } from '@/lib/api';
 import { Icon } from './Icon';
+import { PageHeaderMore } from './PageHeaderMore';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -259,18 +260,24 @@ function AgentsPageInner() {
           </p>
         </div>
         <div className="page-actions">
-          <Link href="/runtimes" className="btn btn-ghost btn-sm" data-testid="agents-to-runtimes">
-            运行时
-          </Link>
-          <Link href="/settings" className="btn btn-ghost btn-sm" data-testid="agents-to-settings">
-            环境
-          </Link>
-          <Link href="/chat" className="btn btn-ghost btn-sm" data-testid="agents-to-chat">
-            聊天
-          </Link>
+          <PageHeaderMore testId="agents-header-more">
+            <Link href="/runtimes" data-testid="agents-to-runtimes" role="menuitem">
+              本机 CLI
+            </Link>
+            <Link href="/settings" data-testid="agents-to-settings" role="menuitem">
+              环境诊断
+            </Link>
+            <Link href="/chat" data-testid="agents-to-chat" role="menuitem">
+              聊天
+            </Link>
+            <Link href="/skills" data-testid="agents-to-skills" role="menuitem">
+              Skills
+            </Link>
+          </PageHeaderMore>
           <button
             type="button"
             className="btn btn-primary btn-sm"
+            data-testid="agents-new-btn"
             onClick={() => setOpen((v) => !v)}
           >
             {open ? '收起' : '新建智能体'}
