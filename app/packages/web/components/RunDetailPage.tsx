@@ -16,8 +16,9 @@ import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
 
 /**
- * 运行详情 / transcript（学 Multica AgentTranscriptDialog，独立可分享路由）
- * 列表进详情：/runs/:id
+ * 运行详情 / transcript
+ * 学 Multica Agent 最近工作「轨迹」弹层：顶栏 meta chips + 工具/助手事件时间线
+ * 路由：/runs/:id
  */
 
 function shortId(id: string): string {
@@ -25,9 +26,9 @@ function shortId(id: string): string {
 }
 
 function kindLabel(kind: RunMessage['kind']): string {
-  if (kind === 'tool_start') return '工具开始';
+  if (kind === 'tool_start') return '工具';
   if (kind === 'tool_end') return '工具结束';
-  if (kind === 'assistant') return '助手';
+  if (kind === 'assistant') return 'Agent';
   if (kind === 'user') return '用户';
   return '系统';
 }
@@ -54,6 +55,13 @@ function relativeTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleString();
 }
 
+function clockTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 function durationLabel(startedAt: string | null, finishedAt: string | null): string {
   if (!startedAt) return '—';
   const a = new Date(startedAt).getTime();
@@ -68,9 +76,28 @@ function durationLabel(startedAt: string | null, finishedAt: string | null): str
   return rem ? `${min}m ${rem}s` : `${min}m`;
 }
 
+function toolNameFromBody(body: string): string | null {
+  try {
+    const j = JSON.parse(body) as { name?: string };
+    if (j?.name) return String(j.name);
+  } catch {
+    /* not json */
+  }
+  const m =
+    body.match(/^(?:tool[_ ]?name|name)\s*[:=]\s*["']?([\w./-]+)/i) ||
+    body.match(/^([A-Za-z][\w./-]{0,40})\s*[:(]/);
+  return m?.[1] ?? null;
+}
+
+function previewBody(body: string, max = 420): string {
+  const t = body.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…`;
+}
+
 const KIND_FILTERS: { id: '' | RunMessage['kind']; label: string }[] = [
   { id: '', label: '全部' },
-  { id: 'assistant', label: '助手' },
+  { id: 'assistant', label: 'Agent' },
   { id: 'tool_start', label: '工具' },
   { id: 'tool_end', label: '工具结束' },
   { id: 'user', label: '用户' },
@@ -85,6 +112,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const retry = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const [kindFilter, setKindFilter] = useState<'' | RunMessage['kind']>('');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const isLive = run?.status === 'queued' || run?.status === 'running';
   const progress =
@@ -113,6 +141,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
     [messages],
   );
 
+  const statusZh =
+    run?.status === 'completed'
+      ? '已完成'
+      : run?.status === 'failed'
+        ? '失败'
+        : run?.status === 'running'
+          ? '执行中'
+          : run?.status === 'queued'
+            ? '排队'
+            : run?.status === 'cancelled'
+              ? '已取消'
+              : run?.status;
+
   if (isLoading) {
     return <div className="page-container">加载运行…</div>;
   }
@@ -136,7 +177,10 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const canRetry = run.status === 'failed' || run.status === 'cancelled';
 
   return (
-    <div className="page-container run-detail-page" data-testid="run-detail-page">
+    <div
+      className="page-container run-detail-page run-detail-page--multica"
+      data-testid="run-detail-page"
+    >
       <div className="run-detail-top">
         <PageBreadcrumb
           testId="run-detail-breadcrumb"
@@ -183,11 +227,11 @@ export function RunDetailPage({ runId }: { runId: string }) {
           <PageHeaderMore testId="run-detail-more">
             {run.issueId ? (
               <Link
-                href={`/issues/${run.issueId}#run-trace`}
+                href={`/issues/${run.issueId}`}
                 role="menuitem"
                 data-testid="run-detail-to-issue"
               >
-                Issue 轨迹
+                打开 Issue
               </Link>
             ) : null}
             <Link
@@ -222,13 +266,21 @@ export function RunDetailPage({ runId }: { runId: string }) {
         </div>
       </div>
 
-      <header className="run-detail-header" data-testid="run-detail-header">
-        <div className="run-detail-title-row">
+      {/* Multica 式顶栏：agent + 状态 chips + 统计 */}
+      <header className="run-detail-sheet-head" data-testid="run-detail-header">
+        <div className="run-detail-sheet-title-row">
+          <Link
+            href={`/agents/${run.agentId}`}
+            className="run-detail-agent-link"
+            data-testid="run-detail-agent"
+          >
+            {agent?.name ?? shortId(run.agentId)}
+          </Link>
           <span
             className={`run-pill run-pill--${run.status}`}
             data-testid="run-detail-status"
           >
-            {run.status}
+            {statusZh}
           </span>
           {isLive ? (
             <span className="run-trace-live-badge" data-testid="run-detail-live">
@@ -236,62 +288,62 @@ export function RunDetailPage({ runId }: { runId: string }) {
             </span>
           ) : null}
           {run.isLeader ? <span className="leader-badge">队长</span> : null}
-          <h1 className="run-detail-title">
-            {run.kind === 'chat'
-              ? '聊天运行'
-              : run.kind === 'quick_create'
-                ? '快速派活'
-                : run.issueId
-                  ? `Issue ${shortId(run.issueId)}`
-                  : '运行详情'}
-          </h1>
         </div>
-        <div className="run-detail-meta" data-testid="run-detail-meta">
-          <span>
-            Agent{' '}
-            <Link href={`/agents/${run.agentId}`} className="table-link">
-              {agent?.name ?? shortId(run.agentId)}
+
+        <div className="run-detail-chip-row" data-testid="run-detail-meta">
+          <span className="run-detail-chip">{run.runtime}</span>
+          {run.issueId ? (
+            <Link
+              href={`/issues/${run.issueId}`}
+              className="run-detail-chip run-detail-chip--link"
+              data-testid="run-detail-issue-chip"
+            >
+              Issue {shortId(run.issueId)}
             </Link>
+          ) : (
+            <span className="run-detail-chip">
+              {run.kind === 'chat'
+                ? '聊天'
+                : run.kind === 'quick_create'
+                  ? '快速派活'
+                  : run.kind}
+            </span>
+          )}
+          <span className="run-detail-chip">
+            耗时 {durationLabel(run.startedAt, run.finishedAt)}
           </span>
-          <span className="text-dim">·</span>
-          <span className="text-dim">{run.runtime}</span>
-          <span className="text-dim">·</span>
-          <span className="text-dim">耗时 {durationLabel(run.startedAt, run.finishedAt)}</span>
-          <span className="text-dim">·</span>
-          <span className="text-dim">创建 {relativeTime(run.createdAt)}</span>
+          <span className="run-detail-chip">工具 {toolCount}</span>
+          <span className="run-detail-chip">事件 {messages.length}</span>
+          <span className="run-detail-chip">助手 {assistantCount}</span>
+          <span className="run-detail-chip text-dim">
+            {run.createdAt ? new Date(run.createdAt).toLocaleString() : ''}
+          </span>
         </div>
+
         {isLive && progress ? (
           <p className="run-trace-live-progress" data-testid="run-detail-progress">
             进度：{progress}
           </p>
         ) : null}
+
         {failure ? (
           <div className="run-failure-box" data-testid="run-detail-failure">
             <strong>{failure.title}</strong>
             <p className="text-sm run-failure-hint">{failure.hint}</p>
-            {run.error ? (
-              <pre className="run-error-pre">{run.error}</pre>
-            ) : null}
+            {run.error ? <pre className="run-error-pre">{run.error}</pre> : null}
           </div>
         ) : null}
+
         {run.quickPrompt ? (
-          <div className="run-detail-prompt" data-testid="run-detail-prompt">
-            <div className="issue-section-title">输入</div>
+          <details className="run-detail-prompt-fold" data-testid="run-detail-prompt">
+            <summary>输入 / prompt</summary>
             <pre className="run-detail-prompt-body">{run.quickPrompt}</pre>
-          </div>
+          </details>
         ) : null}
       </header>
 
       <section className="run-detail-transcript" data-testid="run-detail-transcript">
         <div className="run-detail-transcript-head">
-          <div className="run-detail-stats" data-testid="run-detail-stats">
-            <span className="run-event-stat">事件 {messages.length}</span>
-            <span className="run-event-stat">工具 {toolCount}</span>
-            <span className="run-event-stat">助手 {assistantCount}</span>
-            {kindFilter ? (
-              <span className="run-event-stat">显示 {filtered.length}</span>
-            ) : null}
-          </div>
           <div className="run-detail-filters" data-testid="run-detail-filters" role="tablist">
             {KIND_FILTERS.map((f) => (
               <button
@@ -307,6 +359,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
               </button>
             ))}
           </div>
+          <span className="text-dim text-sm">
+            {kindFilter ? `显示 ${filtered.length}` : `共 ${messages.length} 条`}
+          </span>
         </div>
 
         {filtered.length === 0 ? (
@@ -320,27 +375,61 @@ export function RunDetailPage({ runId }: { runId: string }) {
                   : '无事件消息'}
           </div>
         ) : (
-          <ul className="run-event-list run-event-list--detail" data-testid="run-detail-events">
-            {filtered.map((m) => (
-              <li
-                key={m.id}
-                className={`run-event-item run-event-item--${kindTone(m.kind)}`}
-                data-kind={m.kind}
-                data-testid="run-detail-event"
-              >
-                <div className="run-event-item-head run-event-item-head--static">
-                  <span className={`run-event-chip run-event-chip--${kindTone(m.kind)}`}>
-                    {kindLabel(m.kind)}
-                  </span>
-                  <span className="run-event-seq text-dim">#{m.seq}</span>
-                  <span className="run-event-time text-dim">
-                    {relativeTime(m.createdAt)}
-                  </span>
-                </div>
-                <pre className="run-event-body">{m.body || '—'}</pre>
-              </li>
-            ))}
-          </ul>
+          <ol className="run-transcript-list" data-testid="run-detail-events">
+            {filtered.map((m) => {
+              const tool = toolNameFromBody(m.body);
+              const isLong = (m.body?.length ?? 0) > 280;
+              const open = expanded[m.id] ?? !isLong;
+              const label =
+                m.kind === 'tool_start' || m.kind === 'tool_end'
+                  ? tool || kindLabel(m.kind)
+                  : kindLabel(m.kind);
+              return (
+                <li
+                  key={m.id}
+                  className={`run-transcript-row run-transcript-row--${kindTone(m.kind)}`}
+                  data-kind={m.kind}
+                  data-testid="run-detail-event"
+                >
+                  <button
+                    type="button"
+                    className={`run-transcript-chip run-event-chip--${kindTone(m.kind)}`}
+                    onClick={() =>
+                      setExpanded((s) => ({ ...s, [m.id]: !(s[m.id] ?? !isLong) }))
+                    }
+                    title="展开/折叠"
+                  >
+                    {label}
+                  </button>
+                  <div className="run-transcript-body-wrap">
+                    {isLong ? (
+                      <button
+                        type="button"
+                        className="run-transcript-toggle"
+                        onClick={() =>
+                          setExpanded((s) => ({
+                            ...s,
+                            [m.id]: !(s[m.id] ?? false),
+                          }))
+                        }
+                      >
+                        {open ? '▾' : '▸'}
+                      </button>
+                    ) : (
+                      <span className="run-transcript-toggle-spacer" />
+                    )}
+                    <div className="run-transcript-text">
+                      {open ? m.body || '—' : previewBody(m.body || '—')}
+                    </div>
+                  </div>
+                  <div className="run-transcript-meta text-dim">
+                    <span>#{m.seq}</span>
+                    <span>{clockTime(m.createdAt) || relativeTime(m.createdAt)}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
         )}
       </section>
     </div>

@@ -451,56 +451,113 @@ function OverviewTab({
             暂无运行。可「分配工作」或从看板指派。
           </p>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table" data-testid="agent-overview-recent">
-              <thead>
-                <tr>
-                  <th>状态</th>
-                  <th>类型</th>
-                  <th>Issue</th>
-                  <th>耗时</th>
-                  <th>时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((r) => {
-                  let dur: number | null = null;
-                  if (r.startedAt && r.finishedAt) {
-                    const a = new Date(r.startedAt).getTime();
-                    const b = new Date(r.finishedAt).getTime();
-                    if (Number.isFinite(a) && Number.isFinite(b) && b >= a) dur = b - a;
-                  }
-                  return (
-                    <tr key={r.id} data-run-id={r.id}>
-                      <td>
-                        <span className={`run-pill run-pill--${r.status}`}>{r.status}</span>
-                      </td>
-                      <td>
-                        <code>{r.kind}</code>
-                      </td>
-                      <td>
-                        {r.issueId ? (
-                          <Link href={`/issues/${r.issueId}`}>
-                            <code>{r.issueId.slice(0, 8)}…</code>
-                          </Link>
-                        ) : (
-                          <span className="text-dim">—</span>
-                        )}
-                      </td>
-                      <td className="text-dim text-sm">{formatDurationMs(dur)}</td>
-                      <td className="text-dim text-sm">
-                        {r.createdAt ? new Date(r.createdAt).toLocaleString() : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="agent-recent-work" data-testid="agent-overview-recent">
+            {recent.map((r) => {
+              let dur: number | null = null;
+              if (r.startedAt && r.finishedAt) {
+                const a = new Date(r.startedAt).getTime();
+                const b = new Date(r.finishedAt).getTime();
+                if (Number.isFinite(a) && Number.isFinite(b) && b >= a) dur = b - a;
+              }
+              const title =
+                r.kind === 'chat'
+                  ? '聊天'
+                  : r.kind === 'quick_create'
+                    ? '快速派活'
+                    : r.issueId
+                      ? `Issue ${r.issueId.slice(0, 8)}…`
+                      : '运行';
+              const ok = r.status === 'completed';
+              const bad = r.status === 'failed' || r.status === 'cancelled';
+              return (
+                <li
+                  key={r.id}
+                  className="agent-recent-work-row"
+                  data-run-id={r.id}
+                  data-run-status={r.status}
+                  data-testid="agent-recent-work-row"
+                >
+                  <span
+                    className={`agent-recent-work-status agent-recent-work-status--${
+                      ok ? 'ok' : bad ? 'bad' : 'live'
+                    }`}
+                    aria-hidden
+                    title={r.status}
+                  >
+                    {ok ? '✓' : bad ? '×' : '·'}
+                  </span>
+                  <div className="agent-recent-work-main">
+                    <div className="agent-recent-work-title">
+                      {r.issueId ? (
+                        <Link
+                          href={`/issues/${r.issueId}`}
+                          className="agent-recent-work-issue"
+                          data-testid="agent-recent-issue-link"
+                        >
+                          {title}
+                        </Link>
+                      ) : (
+                        <span>{title}</span>
+                      )}
+                    </div>
+                    <div className="agent-recent-work-meta text-dim text-sm">
+                      <span className={`run-pill run-pill--${r.status}`}>{r.status}</span>
+                      <span>·</span>
+                      <span>{r.createdAt ? relativeWorkTime(r.createdAt) : '—'}</span>
+                      <span>·</span>
+                      <span>{formatDurationMs(dur)}</span>
+                      {r.kind !== 'issue' ? (
+                        <>
+                          <span>·</span>
+                          <code>{r.kind}</code>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="agent-recent-work-actions">
+                    {r.issueId ? (
+                      <Link
+                        href={`/issues/${r.issueId}`}
+                        className="agent-work-icon-btn"
+                        data-testid="agent-work-open-issue"
+                        title="打开 Issue"
+                        aria-label="打开 Issue"
+                      >
+                        ↗
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/runs/${encodeURIComponent(r.id)}`}
+                      className="agent-work-icon-btn"
+                      data-testid="agent-work-open-run"
+                      title="运行详情 / 轨迹"
+                      aria-label="运行详情"
+                    >
+                      ⌗
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
     </div>
   );
+}
+
+function relativeWorkTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 14) return `${day} 天前`;
+  return new Date(iso).toLocaleString();
 }
 
 function RunsTab({ agentId }: { agentId: string }) {
@@ -599,19 +656,14 @@ function RunsTab({ agentId }: { agentId: string }) {
                       <Link href={`/issues/${r.issueId}`} data-testid="agent-run-issue-link">
                         <code>{r.issueId.slice(0, 8)}…</code>
                       </Link>
-                      {(r.status === 'failed' || r.status === 'running' || r.status === 'queued') ? (
-                        <Link
-                          href={`/issues/${r.issueId}#run-trace`}
-                          className="runs-inline-filter"
-                          data-testid="agent-run-trace-link"
-                        >
-                          轨迹
-                        </Link>
-                      ) : null}
                     </span>
                   ) : (
                     <span className="text-dim">
-                      {r.kind === 'quick_create' ? '（无 Issue）' : '—'}
+                      {r.kind === 'quick_create'
+                        ? '（无 Issue）'
+                        : r.kind === 'chat'
+                          ? '聊天'
+                          : '—'}
                     </span>
                   )}
                 </td>
@@ -633,20 +685,38 @@ function RunsTab({ agentId }: { agentId: string }) {
                     : '—'}
                 </td>
                 <td>
-                  {canRetry ? (
-                    <button
-                      type="button"
-                      className="btn-secondary btn-sm"
-                      disabled={retry.isPending}
-                      onClick={() => retry.mutate(r.id)}
+                  <div className="agent-run-row-actions">
+                    {r.issueId ? (
+                      <Link
+                        href={`/issues/${r.issueId}`}
+                        className="agent-work-icon-btn"
+                        data-testid="agent-run-open-issue"
+                        title="打开 Issue"
+                        aria-label="打开 Issue"
+                      >
+                        ↗
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/runs/${encodeURIComponent(r.id)}`}
+                      className="agent-work-icon-btn"
+                      data-testid="agent-run-open-detail"
+                      title="运行详情 / 轨迹"
+                      aria-label="运行详情"
                     >
-                      再执行
-                    </button>
-                  ) : !r.issueId && (r.status === 'failed' || r.status === 'cancelled') ? (
-                    <span className="text-dim text-sm">请快速派活</span>
-                  ) : (
-                    '—'
-                  )}
+                      ⌗
+                    </Link>
+                    {canRetry ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={retry.isPending}
+                        onClick={() => retry.mutate(r.id)}
+                      >
+                        再执行
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );

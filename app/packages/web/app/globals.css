@@ -8294,9 +8294,9 @@ a.issue-card-run-fail--link:hover {
   cursor: default;
 }
 
-/* —— /runs/:id 详情（Multica transcript 独立页） —— */
+/* —— /runs/:id 详情（Multica transcript 弹层密度） —— */
 .run-detail-page {
-  max-width: 920px;
+  max-width: 960px;
 }
 
 .run-detail-top {
@@ -8305,49 +8305,87 @@ a.issue-card-run-fail--link:hover {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .run-detail-top .page-breadcrumb {
   margin-bottom: 0;
 }
 
-.run-detail-header {
-  margin-bottom: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-subtle);
+.run-detail-sheet-head {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-elevated, var(--surface)) 92%, transparent);
 }
 
-.run-detail-title-row {
+.run-detail-sheet-title-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.run-detail-title {
-  margin: 0;
+.run-detail-agent-link {
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 650;
+  color: var(--text-primary);
+  text-decoration: none;
   letter-spacing: -0.02em;
 }
 
-.run-detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  font-size: var(--text-sm);
-  color: var(--text-primary);
+.run-detail-agent-link:hover {
+  color: var(--accent);
+  text-decoration: none;
 }
 
-.run-detail-prompt {
+.run-detail-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.run-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.run-detail-chip--link {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.run-detail-chip--link:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.run-detail-prompt-fold {
   margin-top: 12px;
+  font-size: var(--text-sm);
+}
+
+.run-detail-prompt-fold summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 600;
+  user-select: none;
 }
 
 .run-detail-prompt-body {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-subtle);
@@ -8369,20 +8407,237 @@ a.issue-card-run-fail--link:hover {
   margin-bottom: 10px;
 }
 
-.run-detail-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .run-detail-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.run-event-list--detail {
-  gap: 8px;
+/* Multica 式事件行：chip | 正文 | #seq 时间 */
+.run-transcript-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.run-transcript-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 100px) minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: start;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+
+.run-transcript-row:hover {
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+
+.run-transcript-chip {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-family: inherit;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-transcript-body-wrap {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.run-transcript-toggle,
+.run-transcript-toggle-spacer {
+  flex-shrink: 0;
+  width: 16px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.run-transcript-text {
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+.run-transcript-row--assistant .run-transcript-text {
+  font-family: inherit;
+}
+
+.run-transcript-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .run-transcript-row {
+    grid-template-columns: 1fr;
+  }
+  .run-transcript-meta {
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+  }
+}
+
+/* 智能体 · 最近工作（Multica 行 + ↗ / 轨迹按钮） */
+.agent-recent-work {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-elevated, var(--surface)) 90%, transparent);
+}
+
+.agent-recent-work-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.agent-recent-work-row:last-child {
+  border-bottom: 0;
+}
+
+.agent-recent-work-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.agent-recent-work-status {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-recent-work-status--ok {
+  color: var(--color-green, #3ecf7a);
+  background: color-mix(in srgb, var(--color-green, #3ecf7a) 16%, transparent);
+}
+
+.agent-recent-work-status--bad {
+  color: var(--color-red, #f07167);
+  background: color-mix(in srgb, var(--color-red, #f07167) 16%, transparent);
+}
+
+.agent-recent-work-status--live {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.agent-recent-work-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-recent-work-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.agent-recent-work-issue {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.agent-recent-work-issue:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.agent-recent-work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-recent-work-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.agent-work-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.agent-work-icon-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  text-decoration: none;
+}
+
+.agent-work-icon-btn.is-disabled {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.agent-run-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .runs-row-clickable {
