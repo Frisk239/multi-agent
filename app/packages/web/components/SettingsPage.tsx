@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
 import {
   useRecoverStuckRuns,
@@ -37,17 +38,27 @@ function sortChecks(checks: SettingsCheck[]): SettingsCheck[] {
     .map(({ c }) => c);
 }
 
-function buildEnvSnippet(checks: SettingsCheck[]): string {
+function buildEnvSnippet(
+  checks: SettingsCheck[],
+  cwdPath?: string | null,
+): string {
   const lines = [
     '# multi-agent local env (copy into shell / .env before starting server)',
-    '# 路径请按本机仓库根目录改写',
+    '# 路径请改成你的业务仓绝对路径（勿默认成 multi-agent 控制台仓）',
   ];
   const cwd = checks.find((c) => c.id === 'cwd');
+  const pathHint = cwdPath?.trim() || '';
   if (!cwd || cwd.status !== 'ok') {
-    lines.push('export MA_WORKSPACE_CWD="D:/code/multi-agent"');
+    lines.push(
+      pathHint
+        ? `export MA_WORKSPACE_CWD="${pathHint}"`
+        : 'export MA_WORKSPACE_CWD="/absolute/path/to/your/repo"',
+    );
+  } else if (pathHint) {
+    lines.push(`# MA_WORKSPACE_CWD already ok`);
+    lines.push(`export MA_WORKSPACE_CWD="${pathHint}"`);
   } else if (cwd.detail) {
-    lines.push(`# MA_WORKSPACE_CWD already ok: ${cwd.detail}`);
-    lines.push(`export MA_WORKSPACE_CWD="${cwd.detail}"`);
+    lines.push(`# ${cwd.detail}`);
   }
   const wiki = checks.find((c) => c.id === 'wiki_llm');
   if (!wiki || wiki.status !== 'ok') {
@@ -58,6 +69,7 @@ function buildEnvSnippet(checks: SettingsCheck[]): string {
     lines.push('# export OPENAI_API_KEY=""  # optional; needed for pgvector embeddings');
   }
   lines.push('# export MEMORY_PROVIDER=sqlite-text');
+  lines.push('# export MA_ISSUE_IDLE_MS=1800000  # issue idle 默认 30min');
   return `${lines.join('\n')}\n`;
 }
 
@@ -73,6 +85,7 @@ function formatAgeMs(ms: number | null | undefined): string {
 }
 
 export function SettingsPage() {
+  const searchParams = useSearchParams();
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
   const { data: profile } = useUserProfile();
@@ -88,8 +101,19 @@ export function SettingsPage() {
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdDraft, setCwdDraft] = useState('');
   const [cwdDraftReady, setCwdDraftReady] = useState(false);
-  /** Multica 式左栏：账号 / 工作区 / 环境诊断 */
-  const [tab, setTab] = useState<'profile' | 'workspace' | 'health'>('profile');
+  /** Multica 式左栏：账号 / 工作区 / 环境诊断；?tab= 可深链 */
+  const tabParam = searchParams.get('tab');
+  const initialTab =
+    tabParam === 'workspace' || tabParam === 'health' || tabParam === 'profile'
+      ? tabParam
+      : 'profile';
+  const [tab, setTab] = useState<'profile' | 'workspace' | 'health'>(initialTab);
+
+  useEffect(() => {
+    if (tabParam === 'workspace' || tabParam === 'health' || tabParam === 'profile') {
+      setTab(tabParam);
+    }
+  }, [tabParam]);
 
   const sortedChecks = useMemo(
     () => (data ? sortChecks(data.checks) : []),
@@ -97,13 +121,20 @@ export function SettingsPage() {
   );
 
   const envSnippet = useMemo(
-    () => (data ? buildEnvSnippet(data.checks) : ''),
+    () =>
+      data
+        ? buildEnvSnippet(data.checks, data.cwd?.path ?? data.cwd?.persistedPath)
+        : '',
     [data],
   );
 
   useEffect(() => {
     if (cwdDraftReady || !data) return;
-    setCwdDraft(data.cwd?.persistedPath ?? data.cwd?.path ?? 'D:/code/multi-agent');
+    setCwdDraft(
+      data.cwd?.persistedPath ??
+        data.cwd?.path ??
+        '',
+    );
     setCwdDraftReady(true);
   }, [data, cwdDraftReady]);
 
@@ -121,7 +152,12 @@ export function SettingsPage() {
     setProfileAbout(profile.about ?? '');
   }, [profile?.name, profile?.about]);
 
-  const cwdExportLine = 'export MA_WORKSPACE_CWD="D:/code/multi-agent"';
+  const cwdExportPath =
+    data?.cwd?.path ||
+    data?.cwd?.persistedPath ||
+    cwdDraft.trim() ||
+    '/absolute/path/to/your/repo';
+  const cwdExportLine = `export MA_WORKSPACE_CWD="${cwdExportPath}"`;
   const wikiExportLine =
     'export WIKI_LLM_API_KEY=""  # or put in app/packages/server/.env (gitignored)';
 
@@ -895,11 +931,14 @@ export function SettingsPage() {
         </pre>
       </section>
 
-      <ul className="settings-check-list settings-card" aria-label="诊断项">
+      <ul className="settings-check-list settings-card" aria-label="诊断项" data-testid="settings-check-list">
         {sortedChecks.map((check) => (
           <li
             key={check.id}
             className={`settings-check settings-check--${check.status}`}
+            data-testid="settings-check-row"
+            data-check-id={check.id}
+            data-check-status={check.status}
           >
             <span
               className={`settings-check-dot settings-check-dot--${check.status}`}
@@ -909,8 +948,12 @@ export function SettingsPage() {
               <div className="settings-check-row">
                 <span className="settings-check-label">{check.label}</span>
                 {check.href ? (
-                  <Link href={check.href} className="settings-check-link">
-                    前往
+                  <Link
+                    href={check.href}
+                    className="settings-check-link"
+                    data-testid="settings-check-action"
+                  >
+                    {check.actionLabel?.trim() || '前往'}
                   </Link>
                 ) : null}
               </div>

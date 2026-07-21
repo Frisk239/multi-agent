@@ -174,14 +174,16 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   // --- cwd（env > DB root_path）---
   const resolved = resolveWorkspaceCwd();
   const persistedPath = readDbRootPath();
+  // F7：每项 error/warn 必带可点 href + actionLabel（Settings 诊断行一键去修）
   if (!resolved.configured) {
     checks.push({
       id: 'cwd',
       label: '工作区目录',
       status: 'error',
       detail: '未配置工作区路径',
-      hint: '在下方表单保存绝对路径，或设置环境变量 MA_WORKSPACE_CWD',
-      href: null,
+      hint: '在「代码仓库 / 路径」保存绝对路径，或设置 MA_WORKSPACE_CWD（env 优先于 DB）',
+      href: '/settings?tab=workspace',
+      actionLabel: '保存工作区路径',
     });
   } else if (!resolved.exists) {
     checks.push({
@@ -189,8 +191,9 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       label: '工作区目录',
       status: 'error',
       detail: `路径不存在: ${resolved.path}`,
-      hint: '检查路径是否有效，或重新在 Settings 保存',
-      href: null,
+      hint: '检查路径是否有效，或重新在「代码仓库 / 路径」保存',
+      href: '/settings?tab=workspace',
+      actionLabel: '修正路径',
     });
   } else {
     checks.push({
@@ -198,7 +201,8 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       label: '工作区目录',
       status: 'ok',
       detail: `${resolved.path}（来源: ${resolved.source}）`,
-      href: null,
+      href: '/settings?tab=workspace',
+      actionLabel: '查看路径',
     });
   }
 
@@ -211,8 +215,9 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
         label: b.label,
         status: 'error',
         detail: '未安装或不在 PATH',
-        hint: '安装对应 CLI 或检查 PATH',
+        hint: '安装对应 CLI 或检查 PATH 后重启 server',
         href: '/runtimes',
+        actionLabel: '运行时探测',
       });
     } else if (!d.version) {
       checks.push({
@@ -221,6 +226,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
         status: 'warn',
         detail: d.path ? `已安装（无版本）: ${d.path}` : '已安装（无版本）',
         href: '/runtimes',
+        actionLabel: '查看探测',
       });
     } else {
       checks.push({
@@ -229,6 +235,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
         status: 'ok',
         detail: `${d.version}${d.path ? ` · ${d.path}` : ''}`,
         href: '/runtimes',
+        actionLabel: '运行时',
       });
     }
   }
@@ -242,8 +249,11 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     detail: wikiOk
       ? `已配置（provider=${process.env.WIKI_LLM_PROVIDER ?? 'openai'}）`
       : '未配置 WIKI_LLM_API_KEY',
-    hint: wikiOk ? null : 'ingest/query/lint 需要 WIKI_LLM_API_KEY',
-    href: '/wiki',
+    hint: wikiOk
+      ? null
+      : '在 server 环境配置 WIKI_LLM_API_KEY 后重启；修好后到 Wiki dead 队列重试',
+    href: wikiOk ? '/wiki' : '/settings?tab=health',
+    actionLabel: wikiOk ? '打开 Wiki' : '配置引导',
   });
 
   // --- embedding ---
@@ -269,6 +279,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
           ? 'MEMORY_PROVIDER=pgvector 时需要 embedding 密钥'
           : 'sqlite-text 可无 embedding；切换 pgvector 前请配置',
     href: '/memory',
+    actionLabel: '记忆页',
   });
 
   // --- memory ---
@@ -281,6 +292,7 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       ? `provider=${mem.provider ?? 'unknown'}`
       : `不可用（provider=${mem.provider ?? 'null'}）`,
     href: '/memory',
+    actionLabel: '打开记忆',
   });
 
   // --- server ---
@@ -290,7 +302,8 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     label: '服务',
     status: 'ok',
     detail: `监听端口 ${port}`,
-    href: null,
+    href: '/runs?status=active',
+    actionLabel: '在途运行',
   });
 
   const errors = checks.filter((c) => c.status === 'error').length;

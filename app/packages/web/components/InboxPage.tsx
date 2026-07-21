@@ -123,22 +123,67 @@ function InboxRetryButton({
   item: InboxItem;
   onDone?: () => void;
 }) {
+  const router = useRouter();
   const retry = useRetryRun();
+  const [pending, setPending] = useState(false);
   if (!item.runId || !isFailItem(item)) return null;
+
+  async function onRecover() {
+    if (!item.runId || pending || retry.isPending) return;
+    setPending(true);
+    try {
+      // F5 余量：按 run.kind 诚实分流，避免 chat 打到 issue retry 400
+      const res = await fetch(
+        `http://localhost:3001/api/runs/${encodeURIComponent(item.runId)}`,
+      );
+      if (res.ok) {
+        const run = (await res.json()) as {
+          kind?: string;
+          issueId?: string | null;
+          chatThreadId?: string | null;
+          quickPrompt?: string | null;
+        };
+        if (run.kind === 'chat') {
+          const href = run.chatThreadId
+            ? `/chat?thread=${encodeURIComponent(run.chatThreadId)}`
+            : '/chat';
+          router.push(href);
+          onDone?.();
+          setPending(false);
+          return;
+        }
+        if (!run.issueId) {
+          const qp = run.quickPrompt?.trim()
+            ? `?quickPrompt=${encodeURIComponent(run.quickPrompt.trim())}`
+            : '';
+          router.push(`/${qp}`);
+          onDone?.();
+          setPending(false);
+          return;
+        }
+      }
+      retry.mutate(item.runId, {
+        onSuccess: () => onDone?.(),
+        onSettled: () => setPending(false),
+      });
+    } catch {
+      retry.mutate(item.runId!, {
+        onSuccess: () => onDone?.(),
+        onSettled: () => setPending(false),
+      });
+    }
+  }
+
   return (
     <button
       type="button"
       className="inbox-action-btn inbox-action-btn--primary"
       data-testid="inbox-retry-run"
       data-run-id={item.runId}
-      disabled={retry.isPending}
-      onClick={() => {
-        retry.mutate(item.runId!, {
-          onSuccess: () => onDone?.(),
-        });
-      }}
+      disabled={pending || retry.isPending}
+      onClick={() => void onRecover()}
     >
-      {retry.isPending ? '排队中…' : '再执行'}
+      {pending || retry.isPending ? '处理中…' : '恢复'}
     </button>
   );
 }

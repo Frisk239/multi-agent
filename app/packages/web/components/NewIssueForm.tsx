@@ -96,6 +96,20 @@ export function NewIssueForm() {
     e.preventDefault();
     if (!title.trim()) return;
 
+    // F8：指派硬闸（cwd/runtime/error）与服务端一致——禁止提交开工
+    if (
+      assigneeBlocked &&
+      selectedAssignee &&
+      (selectedAssignee.status === 'cwd_missing' ||
+        selectedAssignee.status === 'runtime_missing' ||
+        selectedAssignee.status === 'error')
+    ) {
+      window.alert(
+        `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时，或清空指派后再创建。`,
+      );
+      return;
+    }
+
     let assignee: CreateIssueInput['assignee'] = null;
     if (assigneeValue.startsWith('agent:')) {
       assignee = { type: 'agent', id: assigneeValue.slice('agent:'.length) };

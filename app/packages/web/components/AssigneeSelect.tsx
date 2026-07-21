@@ -27,6 +27,16 @@ function isBlocked(rd: AgentReadiness | null | undefined): boolean {
   return rd.status !== 'ready' && rd.status !== 'busy';
 }
 
+/** F8：cwd/runtime/error 与服务端硬闸对齐——UI 直接拒绝指派（busy 仍可排队） */
+function isHardBlocked(rd: AgentReadiness | null | undefined): boolean {
+  if (!rd) return false;
+  return (
+    rd.status === 'cwd_missing' ||
+    rd.status === 'runtime_missing' ||
+    rd.status === 'error'
+  );
+}
+
 function readinessBlockMessage(
   name: string,
   rd: AgentReadiness | null | undefined,
@@ -34,12 +44,15 @@ function readinessBlockMessage(
   if (!rd) return null;
   if (rd.status === 'ready' || rd.status === 'busy') return null;
   if (rd.status === 'cwd_missing') {
-    return `${name} 当前不可执行：工作区未就绪。服务端会拒绝开工；仍可指派以便修好后重派。继续？`;
+    return `${name} 不可指派：工作区未就绪（服务端硬闸）。请到 Settings 保存路径或关闭 MA_ISSUE_USE_WORKSPACE_CWD。`;
   }
   if (rd.status === 'runtime_missing') {
-    return `${name} 当前不可执行：runtime ${rd.runtime} 未检测到。服务端会拒绝开工；请到「运行时」确认 CLI。继续指派？`;
+    return `${name} 不可指派：runtime ${rd.runtime} 未检测到（服务端硬闸）。请到「运行时」安装 CLI。`;
   }
-  return `${name} 就绪状态为 ${rd.status}${rd.detail ? `（${rd.detail}）` : ''}。服务端可能拒绝开工。继续指派？`;
+  if (rd.status === 'error') {
+    return `${name} 不可指派：就绪探测失败${rd.detail ? `（${rd.detail}）` : ''}。`;
+  }
+  return `${name} 就绪状态为 ${rd.status}${rd.detail ? `（${rd.detail}）` : ''}。继续？`;
 }
 
 function squadRosterIds(
@@ -162,6 +175,10 @@ export function AssigneeSelect({
       if (!ag) return;
       const rd = readinessMap[ag.id];
       const block = readinessBlockMessage(ag.name, rd);
+      if (block && isHardBlocked(rd)) {
+        window.alert(block);
+        return;
+      }
       if (block) {
         if (!confirm(block)) return;
       } else if (!confirm(`将用 ${ag.runtime} 启动 ${ag.name}，可随时停止。继续？`)) {
@@ -187,6 +204,12 @@ export function AssigneeSelect({
         `小队「${sq.name}」队长（${leaderName}）`,
         leaderRd,
       );
+
+      // F8：队长硬闸 → 不允许指派（与 enqueue 一致）
+      if (leaderBlock && isHardBlocked(leaderRd)) {
+        window.alert(leaderBlock);
+        return;
+      }
 
       let msg: string;
       if (leaderBlock) {

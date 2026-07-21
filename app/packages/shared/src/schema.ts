@@ -1334,7 +1334,10 @@ export const SettingsCheck = z.object({
   status: SettingsCheckStatus,
   detail: z.string().nullable(),
   hint: z.string().nullable().optional(),
+  /** 可行动恢复链（F7） */
   href: z.string().nullable().optional(),
+  /** 链接文案，默认「前往」 */
+  actionLabel: z.string().nullable().optional(),
 });
 export type SettingsCheck = z.infer<typeof SettingsCheck>;
 
