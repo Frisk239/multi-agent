@@ -838,6 +838,28 @@ export const ImportLocalSkillsResponse = z.object({
 });
 export type ImportLocalSkillsResponse = z.infer<typeof ImportLocalSkillsResponse>;
 
+/** URL 导入 skill（学 Multica ImportSkill；本仓写入本地 .skills） */
+export const ImportSkillFromUrlInput = z.object({
+  url: z.string().min(4).max(2000),
+  target: SkillImportTarget.default('project'),
+  overwrite: z.boolean().optional().default(false),
+  name: z.string().min(1).max(120).optional(),
+});
+export type ImportSkillFromUrlInput = z.infer<typeof ImportSkillFromUrlInput>;
+
+export const ImportSkillFromUrlResponse = z.object({
+  name: z.string(),
+  status: z.enum(['created', 'updated', 'skipped', 'failed']),
+  source: SkillImportTarget,
+  path: z.string().optional(),
+  error: z.string().optional(),
+  originType: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  projectSkillsDir: z.string().nullable(),
+  userSkillsDir: z.string(),
+});
+export type ImportSkillFromUrlResponse = z.infer<typeof ImportSkillFromUrlResponse>;
+
 export const SquadSummary = z.object({
   id: BusinessId,
   name: z.string(),

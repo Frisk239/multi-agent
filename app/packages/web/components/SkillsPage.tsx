@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { LocalSkillCandidate, SkillImportTarget } from '@ma/shared';
 import {
   useImportLocalSkills,
+  useImportSkillFromUrl,
   useRefreshSkills,
   useScanLocalSkills,
   useSkills,
@@ -15,6 +16,7 @@ import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 
 type SourceFilter = '' | 'project' | 'user';
+type ImportMode = 'path' | 'url';
 
 function parseSource(raw: string | null): SourceFilter {
   if (raw === 'project' || raw === 'user') return raw;
@@ -22,8 +24,8 @@ function parseSource(raw: string | null): SourceFilter {
 }
 
 /**
- * Skills 页 + 本机导入（学 Multica CreateSkillDialog → runtime local import）
- * 目标存储：项目 <cwd>/.skills 或用户 ~/.multi-agent/skills
+ * Skills 页 + 本机路径导入 + URL 导入
+ * 学 Multica CreateSkillDialog（url / runtime）；本仓目标均为本地 .skills 文件系统
  */
 function SkillsPageInner() {
   const router = useRouter();
@@ -33,13 +35,24 @@ function SkillsPageInner() {
   const refresh = useRefreshSkills();
   const scanLocal = useScanLocalSkills();
   const importLocal = useImportLocalSkills();
+  const importUrl = useImportSkillFromUrl();
 
   const qFromUrl = searchParams.get('q') ?? '';
   const sourceFromUrl = parseSource(searchParams.get('source'));
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   const [importOpen, setImportOpen] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode>('url');
   const [scanPath, setScanPath] = useState('');
+  const [importUrlText, setImportUrlText] = useState('');
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlResult, setUrlResult] = useState<{
+    name: string;
+    status: string;
+    path?: string;
+    originType?: string;
+    error?: string;
+  } | null>(null);
   const [target, setTarget] = useState<SkillImportTarget>('project');
   const [candidates, setCandidates] = useState<LocalSkillCandidate[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -158,6 +171,35 @@ function SkillsPageInner() {
     }
   }
 
+  async function onImportUrl(e: React.FormEvent) {
+    e.preventDefault();
+    const url = importUrlText.trim();
+    if (!url || importUrl.isPending) return;
+    setUrlError(null);
+    setUrlResult(null);
+    setLastResults(null);
+    try {
+      const res = await importUrl.mutateAsync({
+        url,
+        target,
+        overwrite,
+      });
+      setUrlResult({
+        name: res.name,
+        status: res.status,
+        path: res.path,
+        originType: res.originType,
+        error: res.error,
+      });
+      setDestHint({
+        project: res.projectSkillsDir,
+        user: res.userSkillsDir,
+      });
+    } catch (err) {
+      setUrlError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   function toggleAll(on: boolean) {
     const next: Record<string, boolean> = {};
     for (const c of candidates) next[c.key] = on;
@@ -204,6 +246,8 @@ function SkillsPageInner() {
             onClick={() => {
               setImportOpen((v) => !v);
               setLastResults(null);
+              setUrlResult(null);
+              setUrlError(null);
             }}
           >
             {importOpen ? '收起导入' : '导入'}
@@ -219,25 +263,38 @@ function SkillsPageInner() {
           >
             <div className="settings-section-head">
               <h2 className="settings-section-title" style={{ fontSize: '0.95rem' }}>
-                从本机导入
+                导入 Skill
               </h2>
               <p className="settings-section-desc">
-                对齐 Multica「从 runtime 导入」：扫描本机 skill 目录/文件，写入本地{' '}
-                <code>.skills</code>（非云端）
+                学 Multica「URL / 本机」导入；本仓下载或复制后写入本地{' '}
+                <code>.skills</code>（非云 workspace）
               </p>
             </div>
 
-            <form className="skills-import-scan" onSubmit={onScan} data-testid="skills-import-scan">
-              <label className="ops-field" style={{ flex: 1, minWidth: 0 }}>
-                <span>本机路径</span>
-                <input
-                  className="input"
-                  value={scanPath}
-                  onChange={(e) => setScanPath(e.target.value)}
-                  placeholder="例如 D:/code/skills 或含 SKILL.md 的目录"
-                  data-testid="skills-import-path"
-                />
-              </label>
+            <div className="skills-import-mode-tabs" data-testid="skills-import-mode-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={importMode === 'url'}
+                className={`my-issues-tab${importMode === 'url' ? ' is-active' : ''}`}
+                data-testid="skills-import-mode-url"
+                onClick={() => setImportMode('url')}
+              >
+                从 URL
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={importMode === 'path'}
+                className={`my-issues-tab${importMode === 'path' ? ' is-active' : ''}`}
+                data-testid="skills-import-mode-path"
+                onClick={() => setImportMode('path')}
+              >
+                本机路径
+              </button>
+            </div>
+
+            <div className="skills-import-common-row">
               <label className="ops-field">
                 <span>写入目标</span>
                 <select
@@ -250,15 +307,74 @@ function SkillsPageInner() {
                   <option value="user">用户 · ~/.multi-agent/skills</option>
                 </select>
               </label>
-              <button
-                type="submit"
-                className="btn btn-secondary btn-sm"
-                data-testid="skills-import-scan-btn"
-                disabled={!scanPath.trim() || scanLocal.isPending}
+              <label className="skills-import-overwrite">
+                <input
+                  type="checkbox"
+                  checked={overwrite}
+                  onChange={(e) => setOverwrite(e.target.checked)}
+                  data-testid="skills-import-overwrite"
+                />
+                覆盖已存在
+              </label>
+            </div>
+
+            {importMode === 'url' ? (
+              <form
+                className="skills-import-scan"
+                onSubmit={onImportUrl}
+                data-testid="skills-import-url-form"
               >
-                {scanLocal.isPending ? '扫描中…' : '扫描'}
-              </button>
-            </form>
+                <label className="ops-field" style={{ flex: 1, minWidth: 0 }}>
+                  <span>Skill URL</span>
+                  <input
+                    className="input"
+                    value={importUrlText}
+                    onChange={(e) => {
+                      setImportUrlText(e.target.value);
+                      setUrlError(null);
+                    }}
+                    placeholder="https://github.com/…/tree/main/skills/foo · skills.sh/… · clawhub.ai/…"
+                    data-testid="skills-import-url"
+                    autoComplete="off"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  data-testid="skills-import-url-submit"
+                  disabled={!importUrlText.trim() || importUrl.isPending}
+                >
+                  {importUrl.isPending ? '导入中…' : '下载并导入'}
+                </button>
+              </form>
+            ) : (
+              <form className="skills-import-scan" onSubmit={onScan} data-testid="skills-import-scan">
+                <label className="ops-field" style={{ flex: 1, minWidth: 0 }}>
+                  <span>本机路径</span>
+                  <input
+                    className="input"
+                    value={scanPath}
+                    onChange={(e) => setScanPath(e.target.value)}
+                    placeholder="例如 D:/code/skills 或含 SKILL.md 的目录"
+                    data-testid="skills-import-path"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-secondary btn-sm"
+                  data-testid="skills-import-scan-btn"
+                  disabled={!scanPath.trim() || scanLocal.isPending}
+                >
+                  {scanLocal.isPending ? '扫描中…' : '扫描'}
+                </button>
+              </form>
+            )}
+
+            {importMode === 'url' ? (
+              <p className="text-dim text-sm skills-import-dest" data-testid="skills-import-url-hint">
+                支持 github.com / skills.sh / clawhub.ai / 直链 .md；下载后写入上列本地目录并自动扫描识别。
+              </p>
+            ) : null}
 
             {destHint ? (
               <p className="text-dim text-sm skills-import-dest" data-testid="skills-import-dest">
@@ -268,13 +384,33 @@ function SkillsPageInner() {
               </p>
             ) : null}
 
+            {urlError ? (
+              <p className="skills-import-error" data-testid="skills-import-url-error" role="alert">
+                {urlError}
+              </p>
+            ) : null}
+
+            {urlResult ? (
+              <p
+                className="text-sm skills-import-url-result"
+                data-testid="skills-import-url-result"
+                data-status={urlResult.status}
+              >
+                {urlResult.status === 'failed'
+                  ? `失败 · ${urlResult.name}：${urlResult.error ?? ''}`
+                  : `${urlResult.status === 'updated' ? '已更新' : urlResult.status === 'skipped' ? '已跳过' : '已导入'} · ${urlResult.name}` +
+                    (urlResult.originType ? ` · ${urlResult.originType}` : '') +
+                    (urlResult.path ? ` · ${urlResult.path}` : '')}
+              </p>
+            ) : null}
+
             {scanError ? (
               <p className="skills-import-error" data-testid="skills-import-error" role="alert">
                 {scanError}
               </p>
             ) : null}
 
-            {candidates.length > 0 ? (
+            {importMode === 'path' && candidates.length > 0 ? (
               <>
                 <div className="skills-import-toolbar">
                   <button
@@ -293,15 +429,6 @@ function SkillsPageInner() {
                   >
                     全不选
                   </button>
-                  <label className="skills-import-overwrite">
-                    <input
-                      type="checkbox"
-                      checked={overwrite}
-                      onChange={(e) => setOverwrite(e.target.checked)}
-                      data-testid="skills-import-overwrite"
-                    />
-                    覆盖已存在
-                  </label>
                   <span className="text-dim text-sm">
                     已选 {selectedList.length} / {candidates.length}
                   </span>

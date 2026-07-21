@@ -9282,6 +9282,34 @@ a.issue-card-run-fail--link:hover {
   margin-bottom: var(--space-4);
 }
 
+.skills-import-mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 12px;
+}
+
+.skills-import-common-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.skills-import-url-result {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.skills-import-url-result[data-status='failed'] {
+  border-color: color-mix(in srgb, var(--color-red, #f07167) 35%, var(--border-subtle));
+  background: color-mix(in srgb, var(--color-red, #f07167) 8%, transparent);
+}
+
 .skills-import-scan {
   display: flex;
   flex-wrap: wrap;

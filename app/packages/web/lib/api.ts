@@ -1010,6 +1010,60 @@ export function useImportLocalSkills() {
   });
 }
 
+/** POST /api/skills/import-url —— URL 下载到本地 skill 目录 */
+export function useImportSkillFromUrl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      url: string;
+      target?: 'project' | 'user';
+      overwrite?: boolean;
+      name?: string;
+    }) => {
+      const res = await fetch(`${API}/skills/import-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        name?: string;
+        status?: string;
+        error?: string;
+        originType?: string;
+        path?: string;
+      };
+      if (!res.ok) {
+        throw new Error(
+          data.error || (await apiError(res, 'URL 导入 skill 失败')),
+        );
+      }
+      return data as {
+        name: string;
+        status: 'created' | 'updated' | 'skipped' | 'failed';
+        source: 'project' | 'user';
+        path?: string;
+        error?: string;
+        originType?: string;
+        sourceUrl?: string;
+        projectSkillsDir: string | null;
+        userSkillsDir: string;
+      };
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['skills'] });
+      if (data.status === 'skipped') {
+        toastSuccess(`已存在，已跳过 · ${data.name}`);
+      } else {
+        toastSuccess(
+          `${data.status === 'updated' ? '已更新' : '已导入'} · ${data.name}` +
+            (data.originType ? `（${data.originType}）` : ''),
+        );
+      }
+    },
+    onError: (err) => toastError(errMessage(err, 'URL 导入 skill 失败')),
+  });
+}
+
 // GET /api/agents/:id —— 单 agent 详情（profile + MCP Tab 回填）
 export function useAgent(id: string) {
   return useQuery<AgentDetail | null>({
