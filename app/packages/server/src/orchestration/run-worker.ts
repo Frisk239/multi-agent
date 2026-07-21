@@ -89,22 +89,20 @@ async function tick(): Promise<void> {
 // executeRun —— 单个 run 的完整执行（从 S03 tick 内部提取，支持并发）。
 // bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
   async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
-    // Multica：chat 默认隔离 workdir；issue/QC 才用 workspace root（见 resolve-run-cwd）
+    // Multica execenv：issue/QC/chat 默认隔离 workdir，禁止默认进控制台仓 / process.cwd
     const kindEarly = (runRow.kind as string) ?? 'issue';
     const { resolveRunCwd } = await import('../runtime/resolve-run-cwd.js');
     const cwdInfo = resolveRunCwd({
       kind: kindEarly,
       runId: runRow.id,
+      issueId: runRow.issueId ?? null,
       chatThreadId: runRow.chatThreadId ?? null,
     });
     const cwd = cwdInfo.path;
     if (!cwd || !cwdInfo.exists) {
       await failRun(
         runRow.id,
-        cwdInfo.error ??
-          (kindEarly === 'chat'
-            ? '无法准备 chat 工作目录'
-            : '未配置 MA_WORKSPACE_CWD（可在 Settings 保存工作区路径）'),
+        cwdInfo.error ?? '无法准备隔离工作目录（~/.multi-agent/...）',
       );
       return;
     }

@@ -1,15 +1,17 @@
-// 按 run.kind 解析 CLI 工作目录（学 Multica execenv）。
+// 按 run.kind 解析 CLI 工作目录（学 Multica execenv.Prepare）。
 //
-// Multica daemon（execenv.Prepare）：
-// - 默认：每个 task 独立空 workdir（{workspacesRoot}/{ws}/{taskShort}/workdir）
-// - 仅当 task 绑定 project 的 local_directory 资源时，才把 Cwd 指到用户本机目录
+// Multica（server/internal/daemon/execenv/execenv.go）：
+// - 默认：{WorkspacesRoot}/{workspaceId}/{taskShort}/workdir —— 空隔离目录
+// - 仅 LocalWorkDir（project local_directory）时才用用户本机路径
+// - 绝不把 daemon/控制台 process.cwd 当 agent Cwd
 //
-// 本仓差异（无 daemon / 无 project resource 状态机）：
-// - issue / quick_create：继续用 workspace root（Settings MA_WORKSPACE_CWD / root_path）
-// - chat：默认隔离 scratch，禁止误用 multi-agent 仓库根当「当前项目」
-//
-// chat 可显式 opt-in 工作区：MA_CHAT_USE_WORKSPACE_CWD=1
-// 之后若加「会话选项目目录」，再把 path 写进 thread / run 即可。
+// 本仓本地化：
+// - 默认 root：~/.multi-agent/run-workspaces 与 chat-sessions
+// - issue：按 issueId 稳定 workdir（同 issue 复用，近似 PriorWorkDir）
+// - QC 无 issue：按 runId
+// - chat：按 threadId
+// - opt-in 宿主项目：MA_ISSUE_USE_WORKSPACE_CWD=1 / MA_CHAT_USE_WORKSPACE_CWD=1
+//   → 使用 Settings/MA_WORKSPACE_CWD（未来接 project.local_path）
 
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -24,14 +26,26 @@ export type RunCwdKind = 'issue' | 'quick_create' | 'chat' | string;
 
 export type ResolvedRunCwd = {
   path: string | null;
-  /** workspace | chat_scratch | none */
-  mode: 'workspace' | 'chat_scratch' | 'none';
+  /**
+   * isolated_issue | isolated_run | chat_scratch | workspace | none
+   */
+  mode:
+    | 'isolated_issue'
+    | 'isolated_run'
+    | 'chat_scratch'
+    | 'workspace'
+    | 'none';
   exists: boolean;
-  /** 给人看的失败原因 */
   error: string | null;
-  /** workspace 解析细节（仅 mode=workspace 有） */
   workspace?: ResolvedWorkspaceCwd;
 };
+
+const DEFAULT_WS_ID = 'ws-local';
+
+function envFlag(name: string): boolean {
+  const v = process.env[name];
+  return v === '1' || v === 'true';
+}
 
 function ensureDir(path: string): boolean {
   try {
@@ -42,11 +56,54 @@ function ensureDir(path: string): boolean {
   }
 }
 
-/** chat 隔离根：~/.multi-agent/chat-sessions/<threadOrRun>/workdir */
-export function chatScratchWorkDir(threadId: string | null | undefined, runId: string): string {
+/** 安全目录名：UUID 可保留；过长截断 */
+function safeKey(id: string, max = 80): string {
+  return id.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, max);
+}
+
+/**
+ * Multica: shortID = uuid 去横线后前 8 位；本地用完整 safe id 便于对照 issue。
+ * 布局：~/.multi-agent/run-workspaces/{ws}/{issue|run}/workdir
+ */
+export function issueIsolatedWorkDir(
+  workspaceId: string,
+  issueId: string | null | undefined,
+  runId: string,
+): { path: string; mode: 'isolated_issue' | 'isolated_run' } {
+  const ws = safeKey(workspaceId || DEFAULT_WS_ID, 64);
+  if (issueId && issueId.trim()) {
+    return {
+      path: join(
+        homedir(),
+        '.multi-agent',
+        'run-workspaces',
+        ws,
+        safeKey(issueId),
+        'workdir',
+      ),
+      mode: 'isolated_issue',
+    };
+  }
+  return {
+    path: join(
+      homedir(),
+      '.multi-agent',
+      'run-workspaces',
+      ws,
+      `run-${safeKey(runId)}`,
+      'workdir',
+    ),
+    mode: 'isolated_run',
+  };
+}
+
+/** chat 隔离：~/.multi-agent/chat-sessions/<threadOrRun>/workdir */
+export function chatScratchWorkDir(
+  threadId: string | null | undefined,
+  runId: string,
+): string {
   const key = (threadId && threadId.trim()) || runId;
-  const safe = key.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
-  return join(homedir(), '.multi-agent', 'chat-sessions', safe, 'workdir');
+  return join(homedir(), '.multi-agent', 'chat-sessions', safeKey(key), 'workdir');
 }
 
 function resolveWorkspacePath(): ResolvedRunCwd {
@@ -74,20 +131,16 @@ function resolveWorkspacePath(): ResolvedRunCwd {
   };
 }
 
-/**
- * issue/QC → workspace；chat → scratch（除非 MA_CHAT_USE_WORKSPACE_CWD=1）
- */
-export function resolveRunCwd(opts: {
-  kind: RunCwdKind;
-  runId: string;
-  chatThreadId?: string | null;
-}): ResolvedRunCwd {
-  const kind = opts.kind || 'issue';
-  const useWorkspaceForChat =
-    process.env.MA_CHAT_USE_WORKSPACE_CWD === '1' ||
-    process.env.MA_CHAT_USE_WORKSPACE_CWD === 'true';
-
-  if (kind === 'chat' && !useWorkspaceForChat) {
+function resolveIsolated(
+  kind: RunCwdKind,
+  opts: {
+    runId: string;
+    issueId?: string | null;
+    chatThreadId?: string | null;
+    workspaceId?: string;
+  },
+): ResolvedRunCwd {
+  if (kind === 'chat') {
     const path = chatScratchWorkDir(opts.chatThreadId, opts.runId);
     if (!ensureDir(path)) {
       return {
@@ -97,13 +150,50 @@ export function resolveRunCwd(opts: {
         error: `无法创建 chat 隔离工作目录: ${path}`,
       };
     }
-    return {
-      path,
-      mode: 'chat_scratch',
-      exists: true,
-      error: null,
-    };
+    return { path, mode: 'chat_scratch', exists: true, error: null };
   }
 
-  return resolveWorkspacePath();
+  // issue | quick_create | 其它 → run-workspaces
+  const { path, mode } = issueIsolatedWorkDir(
+    opts.workspaceId ?? DEFAULT_WS_ID,
+    opts.issueId,
+    opts.runId,
+  );
+  if (!ensureDir(path)) {
+    return {
+      path: null,
+      mode: 'none',
+      exists: false,
+      error: `无法创建 run 隔离工作目录: ${path}`,
+    };
+  }
+  return { path, mode, exists: true, error: null };
+}
+
+/**
+ * 解析本 run 的 CLI cwd。
+ * - 默认：隔离目录（Multica execenv 精神）
+ * - MA_ISSUE_USE_WORKSPACE_CWD / MA_CHAT_USE_WORKSPACE_CWD：显式用 Settings 工作区
+ */
+export function resolveRunCwd(opts: {
+  kind: RunCwdKind;
+  runId: string;
+  issueId?: string | null;
+  chatThreadId?: string | null;
+  workspaceId?: string;
+}): ResolvedRunCwd {
+  const kind = opts.kind || 'issue';
+
+  if (kind === 'chat') {
+    if (envFlag('MA_CHAT_USE_WORKSPACE_CWD')) {
+      return resolveWorkspacePath();
+    }
+    return resolveIsolated(kind, opts);
+  }
+
+  // issue / quick_create
+  if (envFlag('MA_ISSUE_USE_WORKSPACE_CWD')) {
+    return resolveWorkspacePath();
+  }
+  return resolveIsolated(kind, opts);
 }

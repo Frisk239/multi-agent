@@ -110,11 +110,23 @@ export async function buildPrompt(
   const history = rows
     .map((c) => `[${c.authorType}:${c.authorId}] ${c.body}`)
     .join('\n\n');
+  // cwd 语义学 Multica：默认隔离空 workdir，不是控制台 monorepo
+  const useWs =
+    process.env.MA_ISSUE_USE_WORKSPACE_CWD === '1' ||
+    process.env.MA_ISSUE_USE_WORKSPACE_CWD === 'true';
+  const cwdHint = useWs
+    ? 'CLI cwd 是用户配置的工作区根目录（MA_ISSUE_USE_WORKSPACE_CWD）。仅在此树内修改文件。'
+    : [
+        'CLI cwd 是本 issue 的隔离工作目录（~/.multi-agent/run-workspaces/.../workdir），',
+        '初始为空，不是 multi-agent 控制台源码仓，也不是 process.cwd。',
+        '需要仓库时请自行 clone/checkout 到该目录；不要主动扫描或修改上级目录与其它盘符路径。',
+      ].join('');
   const body = [
     `Issue ${issue.identifier}: ${issue.title}`,
     issue.description ? `Description:\n${issue.description}` : '',
     history ? `Recent comments:\n${history}` : '',
-    'Please work on this issue in the current workspace.',
+    cwdHint,
+    'Please work on this issue in the CLI current working directory described above.',
   ]
     .filter(Boolean)
     .join('\n\n');
