@@ -106,6 +106,12 @@ export function useWsEvents() {
         // runs-active-nav：生命周期变化刷新在途角标 + 工作区 runs 列表
         qc.invalidateQueries({ queryKey: ['runs-active-count'] });
         qc.invalidateQueries({ queryKey: ['runs', 'workspace'] });
+        qc.invalidateQueries({ queryKey: ['run', run.id] });
+        // agent-chat：chat run 终态要刷会话消息（assistant 回写 / 失败态）
+        if (run.kind === 'chat' && run.chatThreadId) {
+          qc.invalidateQueries({ queryKey: ['chat-messages', run.chatThreadId] });
+          qc.invalidateQueries({ queryKey: ['chat-threads'] });
+        }
         if (
           event.type === 'run:completed' ||
           event.type === 'run:failed' ||

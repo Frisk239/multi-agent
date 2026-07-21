@@ -790,17 +790,24 @@ export function useWorkspaceRuns(params?: {
   status?: string;
   agentId?: string;
   squadId?: string;
+  chatThreadId?: string;
   kind?: string;
   /** 仅小队 leader run */
   isLeader?: boolean;
   limit?: number;
+  /** 聊天页在途轮询 */
+  refetchIntervalMs?: number | false;
+  enabled?: boolean;
 }) {
   const status = params?.status;
   const agentId = params?.agentId;
   const squadId = params?.squadId;
+  const chatThreadId = params?.chatThreadId;
   const kind = params?.kind;
   const isLeader = params?.isLeader;
   const limit = params?.limit ?? 50;
+  const refetchIntervalMs = params?.refetchIntervalMs;
+  const enabled = params?.enabled ?? true;
   return useQuery<AgentRun[]>({
     queryKey: [
       'runs',
@@ -808,6 +815,7 @@ export function useWorkspaceRuns(params?: {
       status ?? '',
       agentId ?? '',
       squadId ?? '',
+      chatThreadId ?? '',
       kind ?? '',
       isLeader === undefined ? '' : isLeader ? '1' : '0',
       limit,
@@ -817,6 +825,7 @@ export function useWorkspaceRuns(params?: {
       if (status) sp.set('status', status);
       if (agentId) sp.set('agentId', agentId);
       if (squadId) sp.set('squadId', squadId);
+      if (chatThreadId) sp.set('chatThreadId', chatThreadId);
       if (kind) sp.set('kind', kind);
       if (isLeader === true) sp.set('isLeader', '1');
       if (isLeader === false) sp.set('isLeader', '0');
@@ -825,6 +834,8 @@ export function useWorkspaceRuns(params?: {
       if (!res.ok) throw new Error(await apiError(res, '加载运行列表失败'));
       return res.json();
     },
+    enabled,
+    refetchInterval: refetchIntervalMs === undefined ? false : refetchIntervalMs,
   });
 }
 
