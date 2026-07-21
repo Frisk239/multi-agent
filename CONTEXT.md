@@ -52,11 +52,12 @@
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **真站对照：** live gap 已滚动到 **2026-07-21** — G1–G18 MVP 在；**新 P0 队列 G21–G23**
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
-- **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
-- **已交（近）：**  
-  - UX gap **F1–F8 + F10**（Inbox 降噪 + chat 失败补漏 + Playwright E2E）  
-  - progress：`settings-actionable-ops-impl-1.md` · `inbox-noise-f10-impl-1.md`
-- **下一厚切片（建议）：** F9 skills UI · F11/F12 可选 · gap 表收官更新
+- **本会话主线：** UX gap 机制债（F1–F8/F10）已合；进入 **体验诚实阶段**
+- **已交（近）：** F1–F8 + F10 · progress 见 `*-impl-1.md`
+- **▶ 下一阶段计划：** [phase-multica-ux-trust-2026-07-21.md](app/.progress/phase-multica-ux-trust-2026-07-21.md)  
+  - 主题：**Multica 体验诚实与多仓日用（UX Trust）**  
+  - 默认队列：**A1 派活绑项目/cwd 预检 → A2 run 展示 cwd → A3 文案与 QC 闸 → B1 Chat 绑仓 → …**  
+  - 非目标：daemon/云/Wiki 分根大迁移/session 1:1
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
