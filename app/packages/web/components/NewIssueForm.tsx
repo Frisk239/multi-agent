@@ -199,8 +199,8 @@ export function NewIssueForm() {
           role="status"
         >
           <span>
-            <strong>工作区未就绪</strong>
-            {cwdDetail} — 启用工作区 cwd 时服务端会拒绝开工（不会静默排队）。
+            <strong>工作区未就绪（已启用工作区 cwd）</strong>
+            {cwdDetail} — MA_ISSUE_USE_WORKSPACE_CWD 开启时服务端拒绝开工；默认隔离不会出现此条。
           </span>
           <div className="new-issue-cwd-actions" data-testid="new-issue-cwd-actions">
             <Link href="/settings" className="btn-secondary btn-sm" data-testid="new-issue-settings">

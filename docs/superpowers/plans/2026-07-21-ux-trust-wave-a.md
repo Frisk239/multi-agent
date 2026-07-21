@@ -334,7 +334,7 @@ git push origin main
 - Modify: `QuickDispatchPanel.tsx` + server `quick-runs` / enqueue readiness
 - Progress: `app/.progress/ux-trust-a3-copy-qc-gate-impl-1.md`
 
-- [ ] **Step 1: 文案审计**
+- [x] **Step 1: 文案审计**
 
 搜索 UI 中「必须配置 MA_WORKSPACE_CWD 才能开工」类误导句；改为：
 
@@ -342,18 +342,18 @@ git push origin main
 - 仅 `MA_ISSUE_USE_WORKSPACE_CWD=1` 时 cwd 硬闸
 - 有 project.localPath 时以项目路径为准
 
-- [ ] **Step 2: QC 与 Issue 同级 readiness**
+- [x] **Step 2: QC 与 Issue 同级 readiness**
 
 确认 `quick-runs` 路由在 runtime_missing / cwd_missing（opt-in）时 **skipped 或 4xx**，不静默 queued。UI 展示 skip 原因。
 
-- [ ] **Step 3: Playwright + commit**
+- [x] **Step 3: Playwright + commit**
 
 ```bash
 git commit -m "fix: align EnvBanner and QC gate with default isolation"
 git push origin main
 ```
 
-**Wave A 出口：** 用户能回答「这次 run 在哪」；看板新建不会默默空跑却以为改了业务仓。
+**Wave A 出口：** 用户能回答「这次 run 在哪」；看板新建不会默默空跑却以为改了业务仓。 **✅ 2026-07-21**
 
 ---
 

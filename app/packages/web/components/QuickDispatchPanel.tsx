@@ -181,10 +181,10 @@ export function QuickDispatchPanel({
             role="status"
           >
             <div>
-              <strong>工作区未就绪</strong>
+              <strong>工作区未就绪（已启用工作区 cwd）</strong>
               <p className="text-sm">
                 {cwdDetail}
-                。服务端会拒绝开工（不会静默排队）。
+                。MA_ISSUE_USE_WORKSPACE_CWD 开启时服务端拒绝开工；默认隔离模式不会出现此条。
               </p>
             </div>
             <div className="quick-dispatch-cwd-actions" data-testid="quick-dispatch-cwd-actions">

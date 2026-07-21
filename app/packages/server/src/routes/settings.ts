@@ -172,16 +172,25 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   const checks: SettingsCheck[] = [];
 
   // --- cwd（env > DB root_path）---
+  // A3：默认隔离执行，未配置工作区 = warn（不拦派活）；
+  // 仅 MA_ISSUE_USE_WORKSPACE_CWD=1 时缺/坏 path = error 硬闸。
   const resolved = resolveWorkspaceCwd();
   const persistedPath = readDbRootPath();
+  const forceWorkspaceCwd =
+    process.env.MA_ISSUE_USE_WORKSPACE_CWD === '1' ||
+    process.env.MA_ISSUE_USE_WORKSPACE_CWD === 'true';
   // F7：每项 error/warn 必带可点 href + actionLabel（Settings 诊断行一键去修）
   if (!resolved.configured) {
     checks.push({
       id: 'cwd',
       label: '工作区目录',
-      status: 'error',
-      detail: '未配置工作区路径',
-      hint: '在「代码仓库 / 路径」保存绝对路径，或设置 MA_WORKSPACE_CWD（env 优先于 DB）',
+      status: forceWorkspaceCwd ? 'error' : 'warn',
+      detail: forceWorkspaceCwd
+        ? '未配置工作区路径（已启用 MA_ISSUE_USE_WORKSPACE_CWD，派活硬闸）'
+        : '未配置工作区路径（默认隔离目录可开工，不拦派活）',
+      hint: forceWorkspaceCwd
+        ? '在「代码仓库 / 路径」保存绝对路径，或设置 MA_WORKSPACE_CWD；也可关闭 MA_ISSUE_USE_WORKSPACE_CWD 改回隔离默认'
+        : '可选：保存工作区路径供 Wiki/skills；Issue 默认用 ~/.multi-agent 隔离目录；绑 project.localPath 则进真仓',
       href: '/settings?tab=workspace',
       actionLabel: '保存工作区路径',
     });
@@ -189,8 +198,10 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     checks.push({
       id: 'cwd',
       label: '工作区目录',
-      status: 'error',
-      detail: `路径不存在: ${resolved.path}`,
+      status: forceWorkspaceCwd ? 'error' : 'warn',
+      detail: forceWorkspaceCwd
+        ? `路径不存在: ${resolved.path}（已启用工作区 cwd，派活硬闸）`
+        : `路径不存在: ${resolved.path}（默认隔离仍可开工）`,
       hint: '检查路径是否有效，或重新在「代码仓库 / 路径」保存',
       href: '/settings?tab=workspace',
       actionLabel: '修正路径',
@@ -200,7 +211,9 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
       id: 'cwd',
       label: '工作区目录',
       status: 'ok',
-      detail: `${resolved.path}（来源: ${resolved.source}）`,
+      detail: forceWorkspaceCwd
+        ? `${resolved.path}（来源: ${resolved.source} · 已启用工作区 cwd）`
+        : `${resolved.path}（来源: ${resolved.source} · 默认隔离；project 可绑本机目录）`,
       href: '/settings?tab=workspace',
       actionLabel: '查看路径',
     });

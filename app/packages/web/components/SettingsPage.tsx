@@ -382,6 +382,8 @@ export function SettingsPage() {
         </div>
         <p className="text-dim text-sm" style={{ marginBottom: 8 }}>
           保存到本地 DB（非密钥）。优先级：环境变量覆盖 DB。保存后立即生效，无需 shell export。
+          默认 Issue 在隔离目录执行；仅设置 <code>MA_ISSUE_USE_WORKSPACE_CWD=1</code> 时本路径才是派活硬闸。项目可另绑
+          localPath 进真仓。
         </p>
         <div className="settings-cwd-guide-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
           <input
@@ -413,10 +415,13 @@ export function SettingsPage() {
           aria-label="工作区配置引导"
         >
           <div className="settings-cwd-guide-title">
-            <strong>先修好工作区（最高优先级）</strong>
+            <strong>先修好工作区（已启用工作区 cwd）</strong>
             <span className="settings-cwd-guide-badge">阻塞派活</span>
           </div>
           <ol className="settings-cwd-steps">
+            <li>
+              当前环境开启了 <code>MA_ISSUE_USE_WORKSPACE_CWD</code>，未配置/无效路径会拒绝 enqueue
+            </li>
             <li>
               优先用上方「保存路径」写入本地 DB（推荐）；或导出 <code>MA_WORKSPACE_CWD</code>
             </li>
