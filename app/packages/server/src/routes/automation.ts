@@ -185,7 +185,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
 
     const plannedAt = Date.now();
     try {
-      const run = dispatchAutomationRule(id, plannedAt, 'manual');
+      const run = await dispatchAutomationRule(id, plannedAt, 'manual');
       return reply.status(201).send(run);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

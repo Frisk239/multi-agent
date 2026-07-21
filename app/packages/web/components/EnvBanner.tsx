@@ -47,10 +47,10 @@ export function EnvBanner() {
 
   const title =
     kind === 'cwd'
-      ? '工作区未就绪'
+      ? '工作区未就绪 · 指派不会开工'
       : kind === 'wiki_llm'
         ? 'Wiki LLM 未就绪'
-        : '运行时 CLI 缺失';
+        : '运行时 CLI 缺失 · 指派不会开工';
 
   const detail =
     kind === 'cwd'
@@ -64,11 +64,13 @@ export function EnvBanner() {
           const hint =
             cwd?.hint ??
             '在 Settings 保存工作区绝对路径，或设置 MA_WORKSPACE_CWD';
-          return `${base} · ${hint}`;
+          // Slice2：MA_ISSUE_USE_WORKSPACE_CWD 时 cwd 为硬闸；默认隔离 workdir 不拦派发
+          return `${base} · ${hint} · 启用工作区 cwd 时服务端拒绝 enqueue`;
         })()
       : kind === 'wiki_llm'
         ? `${wikiLlm?.detail ?? '未配置 WIKI_LLM_API_KEY'}${wikiLlm?.hint ? ` · ${wikiLlm.hint}` : ''}`
-        : runtimeErrors.map((c) => c.label).join('、') + ' 探测失败';
+        : runtimeErrors.map((c) => c.label).join('、') +
+          ' 探测失败 · 绑定该 runtime 的 agent 派发会被服务端拒绝';
 
   return (
     <div

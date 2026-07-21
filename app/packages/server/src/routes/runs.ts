@@ -123,7 +123,7 @@ export async function runRoutes(app: FastifyInstance) {
   // POST /api/runs/:runId/retry —— 人工再执行（新行）；QC 无 issue → 400
   app.post('/api/runs/:runId/retry', async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const res = retryRun(runId);
+    const res = await retryRun(runId);
     if (!res.ok) return reply.status(res.status).send({ error: res.error });
     return reply.status(201).send(res.run);
   });

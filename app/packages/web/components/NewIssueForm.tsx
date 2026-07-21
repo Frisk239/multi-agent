@@ -130,7 +130,7 @@ export function NewIssueForm() {
         >
           <span>
             <strong>工作区未就绪</strong>
-            {cwdDetail} — 指派后 run 可能立刻失败。
+            {cwdDetail} — 启用工作区 cwd 时服务端会拒绝开工（不会静默排队）。
           </span>
           <div className="new-issue-cwd-actions" data-testid="new-issue-cwd-actions">
             <Link href="/settings" className="btn-secondary btn-sm" data-testid="new-issue-settings">
@@ -273,7 +273,7 @@ export function NewIssueForm() {
         data-assignee-blocked={assigneeBlocked ? '1' : '0'}
         title={
           showCwdWarn
-            ? '工作区未就绪，指派后 run 可能失败'
+            ? '工作区未就绪时服务端拒绝开工'
             : assigneeBlocked
               ? '指派方可能无法执行'
               : undefined

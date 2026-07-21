@@ -55,7 +55,7 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
     const comment = toComment(row!);
     eventBus.publish({ type: 'comment:created', comment });
     // S04 + mention-visibility：解析 mention 派任务并写系统总结 comment
-    const dispatches = triggerFromComment(comment, { announce: true });
+    const dispatches = await triggerFromComment(comment, { announce: true });
 
     // bu01：普通评论写真 Inbox（status_change 在 writer 内过滤）
     notifyCommentCreated(comment, toIssue(issue));

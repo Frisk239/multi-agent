@@ -225,3 +225,42 @@ export function notifyAssigned(issue: Issue): void {
     dedupeKey: `assign:${issue.id}:${issue.assignee?.type ?? ''}:${issue.assignee?.id ?? ''}:${issue.updatedAt}`,
   });
 }
+
+/**
+ * Slice2：enqueue 被硬闸/熔断跳过 → action_required Inbox。
+ * already_active 不写（噪声）；dedupe 按 issue+reason 短窗（同 key 覆盖式跳过重复）。
+ */
+export function notifyEnqueueSkipped(
+  issueId: string,
+  agentId: string,
+  reason: string,
+  detail: string,
+): void {
+  if (reason === 'already_active') return;
+  const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
+  if (!issue) return;
+  ensureIssueSubscriber(issueId, 'member', LOCAL_MEMBER.id, 'run_watcher');
+  const label =
+    reason === 'cwd_missing'
+      ? 'cwd 未就绪'
+      : reason === 'runtime_missing'
+        ? 'runtime 缺失'
+        : reason === 'run_limit'
+          ? 'run 上限'
+          : reason === 'agent_missing'
+            ? 'agent 不存在'
+            : reason === 'readiness_error'
+              ? '就绪探测失败'
+              : reason;
+  // 按 issue+reason 去重，避免同一阻塞连点指派刷屏
+  notifyInbox({
+    type: 'run_failed',
+    severity: 'action_required',
+    title: `未开工 · ${issue.identifier} · ${label}`,
+    body: detail,
+    issueId,
+    actorType: 'agent',
+    actorId: agentId,
+    dedupeKey: `enqueue_skip:${issueId}:${reason}`,
+  });
+}

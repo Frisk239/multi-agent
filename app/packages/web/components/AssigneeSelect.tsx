@@ -34,12 +34,12 @@ function readinessBlockMessage(
   if (!rd) return null;
   if (rd.status === 'ready' || rd.status === 'busy') return null;
   if (rd.status === 'cwd_missing') {
-    return `${name} 当前不可执行：未配置 MA_WORKSPACE_CWD。请先到「环境诊断」配置工作区目录。仍要指派吗？`;
+    return `${name} 当前不可执行：工作区未就绪。服务端会拒绝开工；仍可指派以便修好后重派。继续？`;
   }
   if (rd.status === 'runtime_missing') {
-    return `${name} 当前不可执行：runtime ${rd.runtime} 未检测到。请到「运行时」页确认 CLI。仍要指派吗？`;
+    return `${name} 当前不可执行：runtime ${rd.runtime} 未检测到。服务端会拒绝开工；请到「运行时」确认 CLI。继续指派？`;
   }
-  return `${name} 就绪状态为 ${rd.status}${rd.detail ? `（${rd.detail}）` : ''}。仍要指派吗？`;
+  return `${name} 就绪状态为 ${rd.status}${rd.detail ? `（${rd.detail}）` : ''}。服务端可能拒绝开工。继续指派？`;
 }
 
 function squadRosterIds(

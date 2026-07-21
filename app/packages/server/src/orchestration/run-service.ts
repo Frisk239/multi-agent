@@ -6,7 +6,9 @@ import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from './event-bus.js';
 import { abortRun } from './run-control.js';
 import { wakeRunWorker } from './run-worker.js';
-import type { AgentRun } from '@ma/shared';
+import { computeAgentReadiness } from './readiness.js';
+import { notifyEnqueueSkipped } from './inbox-writer.js';
+import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
 const ACTIVE = ['queued', 'running'] as const;
 const RETRYABLE = ['failed', 'cancelled'] as const;
@@ -14,6 +16,79 @@ const RETRYABLE = ['failed', 'cancelled'] as const;
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
 // 15 给 3 倍余量，防住失控但不误杀正常多轮交互。
 const MAX_RUNS_PER_ISSUE = 15;
+
+/** 派发结果：ok 时必有 run；skipped 时 reason 可解释给 API/UI */
+export type EnqueueResult = {
+  run: AgentRun | null;
+  skipped: boolean;
+  reason: EnqueueSkipReason | null;
+  detail: string | null;
+};
+
+export function toIssueEnqueueMeta(result: EnqueueResult | null | undefined): IssueEnqueueMeta {
+  if (!result) return { status: 'not_applicable' };
+  if (result.run) {
+    return {
+      status: 'queued',
+      runId: result.run.id,
+      reason: null,
+      detail: null,
+    };
+  }
+  return {
+    status: 'skipped',
+    runId: null,
+    reason: result.reason,
+    detail: result.detail,
+  };
+}
+
+function allowNotReadyEnqueue(): boolean {
+  const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+  return v === '1' || v === 'true';
+}
+
+function skipped(
+  reason: EnqueueSkipReason,
+  detail: string,
+): EnqueueResult {
+  return { run: null, skipped: true, reason, detail };
+}
+
+function publishEnqueueBlockedComment(
+  issueId: string,
+  reason: EnqueueSkipReason,
+  detail: string,
+): void {
+  // 硬闸 / 熔断才写 system comment；already_active 太吵跳过
+  if (reason === 'already_active') return;
+  const cid = crypto.randomUUID();
+  const label =
+    reason === 'cwd_missing'
+      ? 'cwd 未就绪'
+      : reason === 'runtime_missing'
+        ? 'runtime 缺失'
+        : reason === 'run_limit'
+          ? 'run 上限'
+          : reason === 'agent_missing'
+            ? 'agent 不存在'
+            : reason === 'readiness_error'
+              ? '就绪探测失败'
+              : reason;
+  db.insert(comments)
+    .values({
+      id: cid,
+      issueId,
+      type: 'comment',
+      authorType: 'member',
+      authorId: 'system',
+      body: `⚠️ 未开工（${label}）：${detail}`,
+      createdAt: Date.now(),
+    })
+    .run();
+  const cRow = db.select().from(comments).where(eq(comments.id, cid)).get();
+  if (cRow) eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+}
 
 // cancelActiveRunsForIssue —— 清空/改指派时取消该 issue 所有 active run（spec §6.1）。
 export function cancelActiveRunsForIssue(issueId: string): void {
@@ -76,30 +151,81 @@ export function cancelRunsMany(ids: string[]): {
 // enqueueAgentRun —— 指派 agent 时插入 queued run（spec §6.1）。
 // S04：去重改 per-(issue,agent)（spec §6.1）——同一 agent 同一 issue 不重复排，
 //   不同 agent 可并存。熔断见 checkAndEnqueue（spec §7.4 R1）。
-export function enqueueAgentRun(issueId: string, agentId: string): AgentRun | null {
+// Slice2：cwd_missing / runtime_missing 默认硬闸（学 Multica agent_ready）。
+export async function enqueueAgentRun(
+  issueId: string,
+  agentId: string,
+): Promise<EnqueueResult> {
   return checkAndEnqueue(issueId, agentId);
 }
 
 // enqueueLeaderRun —— squad 指派时，解析 leader 排 leader run（spec §5.2）。
 // 复用 checkAndEnqueue 的去重 + 熔断逻辑，多设 is_leader=1 + squad_id。
-export function enqueueLeaderRun(
+export async function enqueueLeaderRun(
   issueId: string,
   leaderId: string,
   squadId: string,
-): AgentRun | null {
+): Promise<EnqueueResult> {
   return checkAndEnqueue(issueId, leaderId, { isLeader: true, squadId });
 }
 
 // checkAndEnqueue —— enqueueAgentRun / enqueueLeaderRun 的共用实现（排雷补充#3 DRY）。
-// 去重（per-(issue,agent)）+ 熔断（issue 总 run 数）+ insert + publish + wake。
-function checkAndEnqueue(
+// readiness 硬闸 + 去重（per-(issue,agent)）+ 熔断（issue 总 run 数）+ insert + publish + wake。
+async function checkAndEnqueue(
   issueId: string,
   agentId: string,
   opts?: { isLeader?: boolean; squadId?: string; rerunOfRunId?: string | null },
-): AgentRun | null {
+): Promise<EnqueueResult> {
   const isLeader = opts?.isLeader ?? false;
   const squadId = opts?.squadId ?? null;
   const rerunOfRunId = opts?.rerunOfRunId ?? null;
+
+  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
+  if (!agent) {
+    const res = skipped('agent_missing', `agent ${agentId} 不存在`);
+    publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+    notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+    return res;
+  }
+
+  // 硬闸：cwd_missing / runtime_missing / detect error（busy 仍可排队）
+  // 紧急旁路：MA_ENQUEUE_ALLOW_NOT_READY=1（仅本地排障）
+  if (!allowNotReadyEnqueue()) {
+    const rd = await computeAgentReadiness(agentId);
+    if (!rd) {
+      const res = skipped('agent_missing', `agent ${agentId} 不存在`);
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+    if (rd.status === 'cwd_missing') {
+      const res = skipped(
+        'cwd_missing',
+        rd.detail ?? '工作区未就绪，无法派发（设置 MA_ISSUE_USE_WORKSPACE_CWD 时强制）',
+      );
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+    if (rd.status === 'runtime_missing') {
+      const res = skipped(
+        'runtime_missing',
+        rd.detail ?? `runtime ${rd.runtime} 未安装或不在 PATH`,
+      );
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+    if (rd.status === 'error') {
+      const res = skipped(
+        'readiness_error',
+        rd.detail ?? 'agent 就绪探测失败',
+      );
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+  }
 
   // per-(issue,agent) 去重（spec §6.1）
   // bu03：仅对 kind=issue 工作 run 去重；quick_create 回链后可能仍 active，不能挡 M1 工作 enqueue
@@ -115,7 +241,12 @@ function checkAndEnqueue(
       ),
     )
     .get();
-  if (activeForAgent) return null;
+  if (activeForAgent) {
+    return skipped(
+      'already_active',
+      `该 agent 在此 issue 上已有进行中的 run（${activeForAgent.id.slice(0, 8)}…）`,
+    );
+  }
 
   // 乒乓熔断（spec §7.4 R1）：issue 总 run 数超限 → 拒绝 + system comment
   // bu03：只计 issue 工作 run，不把 quick_create 算进乒乓上限
@@ -125,25 +256,15 @@ function checkAndEnqueue(
     .where(and(eq(agentRuns.issueId, issueId), eq(agentRuns.kind, 'issue')))
     .get();
   if ((totalRow?.cnt ?? 0) >= MAX_RUNS_PER_ISSUE) {
-    const cid = crypto.randomUUID();
-    db.insert(comments)
-      .values({
-        id: cid,
-        issueId,
-        type: 'comment',
-        authorType: 'member',
-        authorId: 'system',
-        body: `⚠️ 已达 issue run 上限（${MAX_RUNS_PER_ISSUE}），停止派发。`,
-        createdAt: Date.now(),
-      })
-      .run();
-    const cRow = db.select().from(comments).where(eq(comments.id, cid)).get();
-    if (cRow) eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
-    return null;
+    const res = skipped(
+      'run_limit',
+      `已达 issue run 上限（${MAX_RUNS_PER_ISSUE}），停止派发`,
+    );
+    publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+    notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+    return res;
   }
 
-  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
-  if (!agent) return null;
   const id = crypto.randomUUID();
   const createdAt = Date.now();
   db.insert(agentRuns)
@@ -168,7 +289,7 @@ function checkAndEnqueue(
   const run = toAgentRun(row);
   eventBus.publish({ type: 'run:queued', run });
   wakeRunWorker();
-  return run;
+  return { run, skipped: false, reason: null, detail: null };
 }
 
 /** 仅取消同 issue + 同 agent 的 active 工作 run（学 Multica 不误杀其他 agent） */
@@ -199,7 +320,10 @@ export type RerunResult =
  * - 无 sourceRunId：当前 issue assignee → agent 或 squad leader
  * - 有 sourceRunId：该历史 run 的 agent / isLeader / squadId（须属于本 issue）
  */
-export function rerunIssue(issueId: string, sourceRunId?: string | null): RerunResult {
+export async function rerunIssue(
+  issueId: string,
+  sourceRunId?: string | null,
+): Promise<RerunResult> {
   const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
   if (!issue) return { ok: false, status: 404, error: 'issue 不存在' };
 
@@ -244,22 +368,32 @@ export function rerunIssue(issueId: string, sourceRunId?: string | null): RerunR
   // 人工 rerun：先清掉该 agent 在此 issue 上的 active，再 enqueue（避免 dedupe 静默 null）
   cancelActiveRunsForIssueAgent(issueId, agentId);
 
-  const run = isLeader && squadId
-    ? checkAndEnqueue(issueId, agentId, { isLeader: true, squadId, rerunOfRunId: rerunOf })
-    : checkAndEnqueue(issueId, agentId, { rerunOfRunId: rerunOf });
+  const enq =
+    isLeader && squadId
+      ? await checkAndEnqueue(issueId, agentId, {
+          isLeader: true,
+          squadId,
+          rerunOfRunId: rerunOf,
+        })
+      : await checkAndEnqueue(issueId, agentId, { rerunOfRunId: rerunOf });
 
-  if (!run) {
+  if (!enq.run) {
+    const detail = enq.detail ?? '无法排队新 run';
+    const hard =
+      enq.reason === 'cwd_missing' ||
+      enq.reason === 'runtime_missing' ||
+      enq.reason === 'readiness_error';
     return {
       ok: false,
-      status: 409,
-      error: '无法排队新 run（可能已达 issue run 上限）',
+      status: hard ? 409 : 409,
+      error: detail,
     };
   }
-  return { ok: true, run };
+  return { ok: true, run: enq.run };
 }
 
 /** POST /api/runs/:id/retry —— 仅 failed|cancelled；无 issueId 的 QC 拒绝 */
-export function retryRun(runId: string): RerunResult {
+export async function retryRun(runId: string): Promise<RerunResult> {
   const src = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!src) return { ok: false, status: 404, error: 'run 不存在' };
 

@@ -55,13 +55,42 @@ import type {
   IssueSubscription,
   UserProfile,
   UpdateUserProfileInput,
+  IssueEnqueueMeta,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
 const API = 'http://localhost:3001/api';
 
+/** Issue 写接口可能附带 enqueue 元数据（指派成功但可能未开工） */
+export type IssueWithEnqueue = Issue & { enqueue?: IssueEnqueueMeta };
+
 function errMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback;
+}
+
+/** Slice2：enqueue 硬闸/跳过 → 可行动 toast + 恢复链接 */
+function toastEnqueueMeta(issueId: string, enqueue?: IssueEnqueueMeta | null) {
+  if (!enqueue || enqueue.status !== 'skipped') return;
+  const reason = enqueue.reason;
+  let href = `/issues/${issueId}`;
+  let label = '打开 Issue';
+  if (reason === 'cwd_missing') {
+    href = '/settings';
+    label = '保存工作区';
+  } else if (reason === 'runtime_missing') {
+    href = '/runtimes';
+    label = '运行时探测';
+  } else if (reason === 'readiness_error') {
+    href = '/settings';
+    label = '环境诊断';
+  } else if (reason === 'already_active') {
+    href = `/runs?issueId=${encodeURIComponent(issueId)}`;
+    label = '查看运行';
+  }
+  toastError(enqueue.detail ?? '未开工：派发被跳过', {
+    action: { label, href },
+    durationMs: 8000,
+  });
 }
 
 async function apiError(res: Response, fallback: string): Promise<string> {
@@ -363,7 +392,7 @@ export function useCreateIssue() {
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error(await apiError(res, '创建失败'));
-      return res.json() as Promise<Issue>;
+      return res.json() as Promise<IssueWithEnqueue>;
     },
     onSuccess: (issue) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
@@ -379,6 +408,13 @@ export function useCreateIssue() {
         action: { label: '打开', href: `/issues/${issue.id}` },
         durationMs: 6000,
       });
+      if (issue.enqueue?.status === 'skipped') {
+        qc.invalidateQueries({ queryKey: ['inbox'] });
+        qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+        toastEnqueueMeta(issue.id, issue.enqueue);
+      } else if (issue.enqueue?.status === 'queued') {
+        qc.invalidateQueries({ queryKey: ['runs'] });
+      }
     },
     onError: (err) => toastError(errMessage(err, '创建失败')),
   });
@@ -569,7 +605,7 @@ export function useUpdateIssue() {
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error('更新失败');
-      return res.json() as Promise<Issue>;
+      return res.json() as Promise<IssueWithEnqueue>;
     },
     // D12 + R2：只乐观 Issue 字段
     // 注意：assignee 在 UpdateIssueInput 无 label，乐观展开会破坏 Issue.assignee 的 label 形状；
@@ -609,6 +645,15 @@ export function useUpdateIssue() {
       qc.invalidateQueries({ queryKey: ['projects'] });
       if (issue.projectId) {
         qc.invalidateQueries({ queryKey: ['project', issue.projectId] });
+      }
+      // Slice2：指派后未开工 → toast + 收件箱
+      if (issue.enqueue?.status === 'skipped') {
+        qc.invalidateQueries({ queryKey: ['inbox'] });
+        qc.invalidateQueries({ queryKey: ['inbox-unread'] });
+        qc.invalidateQueries({ queryKey: ['comments', issue.id] });
+        toastEnqueueMeta(issue.id, issue.enqueue);
+      } else if (issue.enqueue?.status === 'queued') {
+        qc.invalidateQueries({ queryKey: ['runs'] });
       }
     },
   });

@@ -80,10 +80,10 @@ function publishDispatchSummary(issueId: string, dispatches: MentionDispatch[]):
 }
 
 // triggerFromComment —— 解析 mention 并 enqueue；返回派发结果（UI/API 可感知）
-export function triggerFromComment(
+export async function triggerFromComment(
   comment: Comment,
   opts?: { announce?: boolean },
-): MentionDispatch[] {
+): Promise<MentionDispatch[]> {
   if (comment.type !== 'comment') return [];
 
   const mentions = parseMentions(comment.body);
@@ -92,15 +92,15 @@ export function triggerFromComment(
   for (const m of mentions) {
     if (m.kind === 'agent') {
       const label = agentLabel(m.id);
-      const run = enqueueAgentRun(comment.issueId, m.id);
+      const enq = await enqueueAgentRun(comment.issueId, m.id);
       dispatches.push({
         kind: 'agent',
         targetId: m.id,
         targetLabel: label,
-        runId: run?.id ?? null,
-        note: run
+        runId: enq.run?.id ?? null,
+        note: enq.run
           ? '已排队'
-          : '未新建 run（可能已有进行中的 run，或达到 issue 上限）',
+          : enq.detail ?? '未新建 run（可能已有进行中的 run，或达到 issue 上限）',
       });
     } else if (m.kind === 'squad') {
       const leaderId = getSquadLeaderId(m.id);
@@ -125,15 +125,15 @@ export function triggerFromComment(
         });
         continue;
       }
-      const run = enqueueLeaderRun(comment.issueId, leaderId, m.id);
+      const enq = await enqueueLeaderRun(comment.issueId, leaderId, m.id);
       dispatches.push({
         kind: 'squad',
         targetId: m.id,
         targetLabel: label,
-        runId: run?.id ?? null,
-        note: run
+        runId: enq.run?.id ?? null,
+        note: enq.run
           ? '已排队 leader run'
-          : '未新建 run（可能已有进行中的 run，或达到 issue 上限）',
+          : enq.detail ?? '未新建 run（可能已有进行中的 run，或达到 issue 上限）',
       });
     }
   }

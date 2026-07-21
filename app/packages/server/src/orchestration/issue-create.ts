@@ -1,10 +1,15 @@
 import { eq, sql, and } from 'drizzle-orm';
-import type { Issue, Priority } from '@ma/shared';
+import type { Issue, IssueEnqueueMeta, Priority } from '@ma/shared';
 import { db } from '../db/client.js';
 import { issues, agentRuns, projects } from '../db/schema.js';
 import { toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
-import { enqueueAgentRun, enqueueLeaderRun } from './run-service.js';
+import {
+  enqueueAgentRun,
+  enqueueLeaderRun,
+  toIssueEnqueueMeta,
+  type EnqueueResult,
+} from './run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { ensureIssueSubscriber, notifyAssigned } from './inbox-writer.js';
@@ -28,14 +33,16 @@ export type CreateIssueCoreInput = {
 };
 
 export type CreateIssueCoreResult =
-  | { ok: true; issue: Issue }
+  | { ok: true; issue: Issue; enqueue: IssueEnqueueMeta }
   | { ok: false; status: 400 | 404 | 409; error: string; issueId?: string };
 
 /**
  * 内部建 Issue 核心路径（bu05）：供 POST /api/issues 与 automation dispatch 共用。
  * 含 identifier/position、eventBus、inbox 订阅、可选 enqueue。
  */
-export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreResult {
+export async function createIssueCore(
+  input: CreateIssueCoreInput,
+): Promise<CreateIssueCoreResult> {
   const now = Date.now();
   const originType =
     input.originType === 'quick_create' || input.originType === 'automation'
@@ -172,24 +179,43 @@ export function createIssueCore(input: CreateIssueCoreInput): CreateIssueCoreRes
     notifyAssigned(issue);
   }
 
+  let enqResult: EnqueueResult | null = null;
   if (shouldEnqueue) {
     if (input.assignee?.type === 'agent' && input.assignee.id) {
       try {
-        enqueueAgentRun(id, input.assignee.id);
+        enqResult = await enqueueAgentRun(id, input.assignee.id);
       } catch (e) {
         console.error('[issue-create] enqueueAgentRun failed', e);
+        enqResult = {
+          run: null,
+          skipped: true,
+          reason: 'readiness_error',
+          detail: e instanceof Error ? e.message : String(e),
+        };
       }
     } else if (input.assignee?.type === 'squad' && input.assignee.id) {
       try {
         const squad = loadSquadDetail(input.assignee.id);
         if (squad?.leaderId) {
-          enqueueLeaderRun(id, squad.leaderId, squad.id);
+          enqResult = await enqueueLeaderRun(id, squad.leaderId, squad.id);
         }
       } catch (e) {
         console.error('[issue-create] enqueueLeaderRun failed', e);
+        enqResult = {
+          run: null,
+          skipped: true,
+          reason: 'readiness_error',
+          detail: e instanceof Error ? e.message : String(e),
+        };
       }
     }
   }
 
-  return { ok: true, issue };
+  return {
+    ok: true,
+    issue,
+    enqueue: toIssueEnqueueMeta(
+      shouldEnqueue && input.assignee?.type !== 'member' ? enqResult : null,
+    ),
+  };
 }

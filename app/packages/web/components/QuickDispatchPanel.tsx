@@ -184,7 +184,7 @@ export function QuickDispatchPanel({
               <strong>工作区未就绪</strong>
               <p className="text-sm">
                 {cwdDetail}
-                。仍可派发，但 run 很可能立刻失败。
+                。服务端会拒绝开工（不会静默排队）。
               </p>
             </div>
             <div className="quick-dispatch-cwd-actions" data-testid="quick-dispatch-cwd-actions">

@@ -35,6 +35,8 @@ import {
   enqueueAgentRun,
   enqueueLeaderRun,
   rerunIssue,
+  toIssueEnqueueMeta,
+  type EnqueueResult,
 } from '../orchestration/run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
@@ -247,7 +249,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     const input = parsed.data;
-    const result = createIssueCore({
+    const result = await createIssueCore({
       title: input.title,
       description: input.description,
       priority: input.priority,
@@ -265,7 +267,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         ...(result.issueId ? { issueId: result.issueId } : {}),
       });
     }
-    return reply.status(201).send(result.issue);
+    return reply.status(201).send({ ...result.issue, enqueue: result.enqueue });
   });
 
   // DELETE /api/issues/:id —— 硬删除（学 Multica DeleteIssue：先 cancel active run，再清关联）
@@ -413,6 +415,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     // assignee 副作用（spec §6.1）：identity=(type,id) 变化才触发。
     // 仅 label 变化不触发。→ cancelActiveRunsForIssue + 按 type 路由 enqueue。
     // S04：squad 指派 → 解析 leader → enqueueLeaderRun（spec §5.1）
+    // Slice2：enqueue 结果回传 enqueue 元数据（硬闸/去重可解释）
+    let enqResult: EnqueueResult | null = null;
     if (input.assignee !== undefined) {
       const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
       const nextType = input.assignee?.type ?? null;
@@ -427,11 +431,11 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         }
         cancelActiveRunsForIssue(id);
         if (nextType === 'agent' && nextId) {
-          enqueueAgentRun(id, nextId);
+          enqResult = await enqueueAgentRun(id, nextId);
         } else if (nextType === 'squad' && nextId) {
           const squad = loadSquadDetail(nextId);
           if (squad?.leaderId) {
-            enqueueLeaderRun(id, squad.leaderId, squad.id);
+            enqResult = await enqueueLeaderRun(id, squad.leaderId, squad.id);
           }
         }
       }
@@ -453,7 +457,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.send(issue);
+    const enqueue = toIssueEnqueueMeta(enqResult);
+    return reply.send({ ...issue, enqueue });
   });
 
   // PUT /api/issues/:id/labels —— 全量替换标签集合
@@ -510,7 +515,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const res = rerunIssue(id, parsed.data.runId);
+    const res = await rerunIssue(id, parsed.data.runId);
     if (!res.ok) return reply.status(res.status).send({ error: res.error });
     return reply.status(201).send(res.run);
   });

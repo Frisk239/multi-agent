@@ -52,13 +52,12 @@
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **真站对照：** live gap 已滚动到 **2026-07-21** — G1–G18 MVP 在；**新 P0 队列 G21–G23**
 - **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
-- **本会话：** **G26/G23/G24/G27/G25** 厚切片 `multica-detail-rails`（Playwright 对照真站 + 本仓 E2E）
-- **已交：**  
-  - G21 收件箱 · G22 model+发现 · 聊天 UI · UI 厚切片（侧栏/看板）  
-  - **G26** Issue 属性右栏 · **G23** 运行事件时间线弹层 · **G24** `/my-issues` Tab  
-  - **G27** 收件箱侧 **属性**可折叠（非问答 Helper）· **G25** 智能体 我的/全部/已归档  
-  - progress：`multica-detail-rails-impl-1.md` · `ui-multica-parity-tour-intake.md`
-- **下一厚切片（建议）：** G28 看板卡片密度/列表视图 · G23 opencode 流解析加固 · G20 Settings 叙事
+- **本会话主线：** UX gap vs Multica（`ux-gap-multica-2026-07-21.md`）垂直切片
+- **已交（近）：**  
+  - chat 隔离 cwd / 超时 · issue workdir 隔离 · **chat 多轮+诚实可观测**（Slice1）  
+  - **Slice2 enqueue 硬闸**（F4：`cwd_missing`/`runtime_missing` 禁派发 + enqueue meta + toast/Inbox）  
+  - progress：`chat-honest-observability-impl-1.md` · `enqueue-hard-gate-impl-1.md`
+- **下一厚切片（建议）：** F5 Runs CTA 诚实化 · F1 Project localPath · F3 issue idle timeout
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

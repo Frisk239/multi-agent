@@ -675,6 +675,30 @@ export const AgentReadiness = z.object({
 });
 export type AgentReadiness = z.infer<typeof AgentReadiness>;
 
+/**
+ * enqueue 跳过原因（学 Multica agent_ready 闸 + 本仓 cwd/runtime 硬闸）
+ * - cwd_missing / runtime_missing / readiness_error：硬拦，不入队
+ * - already_active / run_limit / agent_missing：业务跳过
+ */
+export const EnqueueSkipReason = z.enum([
+  'already_active',
+  'run_limit',
+  'agent_missing',
+  'cwd_missing',
+  'runtime_missing',
+  'readiness_error',
+]);
+export type EnqueueSkipReason = z.infer<typeof EnqueueSkipReason>;
+
+/** Issue 创建/指派响应上的 enqueue 元数据（assign 成功但可能未开工） */
+export const IssueEnqueueMeta = z.object({
+  status: z.enum(['queued', 'skipped', 'not_applicable']),
+  runId: BusinessId.nullable().optional(),
+  reason: EnqueueSkipReason.nullable().optional(),
+  detail: z.string().nullable().optional(),
+});
+export type IssueEnqueueMeta = z.infer<typeof IssueEnqueueMeta>;
+
 /** GET /api/agents/:id/work-stats —— 近窗工作仪表（G12 agent-work-dashboard） */
 export const AgentWorkStats = z.object({
   agentId: BusinessId,

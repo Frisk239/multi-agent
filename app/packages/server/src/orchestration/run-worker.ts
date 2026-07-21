@@ -303,7 +303,7 @@ async function tick(): Promise<void> {
       // S04：agent 终态 comment 的 mention 触发 worker 派发（spec §7.3 入口2）
       // QC 路径一般无 mention；issue run 保持原逻辑
       if (kind !== 'quick_create') {
-        triggerFromComment(comment);
+        await triggerFromComment(comment);
       }
       // bu01：agent 终态 comment 也进真 Inbox
       const issueForComment = db

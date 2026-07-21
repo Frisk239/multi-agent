@@ -161,11 +161,11 @@ function validateAssignee(rule: RuleRow): string | null {
  * 非法 assignee → failed run，不建卡。
  * issue 建成功即 success（enqueue 失败只打 log）。
  */
-export function dispatchAutomationRule(
+export async function dispatchAutomationRule(
   ruleId: string,
   plannedAt: number,
   source: AutomationRunSource,
-): AutomationRun {
+): Promise<AutomationRun> {
   const rule = db
     .select()
     .from(automationRules)
@@ -197,7 +197,7 @@ export function dispatchAutomationRule(
 
   let created;
   try {
-    created = createIssueCore({
+    created = await createIssueCore({
       title,
       description,
       priority: 'medium',

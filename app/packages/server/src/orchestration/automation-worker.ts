@@ -5,7 +5,7 @@ import { computeDuePlannedAt, dispatchAutomationRule } from './automation-dispat
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-function tick(): void {
+async function tick(): Promise<void> {
   try {
     const now = Date.now();
     const rules = db
@@ -17,7 +17,7 @@ function tick(): void {
       const due = computeDuePlannedAt(r, now);
       if (due == null) continue;
       try {
-        dispatchAutomationRule(r.id, due, 'schedule');
+        await dispatchAutomationRule(r.id, due, 'schedule');
       } catch (e) {
         console.error('[automation] dispatch failed', r.id, e);
       }
@@ -30,8 +30,10 @@ function tick(): void {
 /** 30s tick + 启动立即 tick 一次；仅 enabled 规则。disabled 仍可 run-now。 */
 export function startAutomationWorker(): void {
   if (timer) return;
-  tick();
-  timer = setInterval(tick, 30_000);
+  void tick();
+  timer = setInterval(() => {
+    void tick();
+  }, 30_000);
   // 不阻止进程退出
   if (typeof timer === 'object' && timer && 'unref' in timer) {
     (timer as NodeJS.Timeout).unref?.();
