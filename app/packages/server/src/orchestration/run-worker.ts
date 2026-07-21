@@ -149,17 +149,23 @@ async function tick(): Promise<void> {
   const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
 
   const signal = registerRunAbort(runRow.id);
-  // bu01：执行中每 5s touch heartbeat；finally 必清
-  const hb = setInterval(() => {
-    touchRunHeartbeat(runRow.id);
-  }, HEARTBEAT_INTERVAL_MS);
+  const kindForTimeout = (runRow.kind as string) ?? 'issue';
+  // F3：chat 保留 5s 进程 pulse（防 worker 假死）；issue/QC 仅事件 touch（idle 语义）
+  const useProcessPulse = kindForTimeout === 'chat';
+  const hb = useProcessPulse
+    ? setInterval(() => {
+        touchRunHeartbeat(runRow.id);
+      }, HEARTBEAT_INTERVAL_MS)
+    : null;
   let seq = 0;
   const nextSeq = () => ++seq;
 
   // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
   //   progress/log/delta → run:progress only（不进 DB）
   //   message/tool_* → run_message + run:message 事件
+  //   任意事件 → touch heartbeat（issue idle 续命）
   const onEvent = (e: AgentEvent) => {
+    touchRunHeartbeat(runRow.id);
     if (e.type === 'message_delta' || e.type === 'log') {
       eventBus.publish({
         type: 'run:progress',
@@ -202,18 +208,21 @@ async function tick(): Promise<void> {
     });
   };
 
-  // chat 硬超时：默认 15min（原 3min 对慢 CLI/首响过短）；MA_CHAT_TIMEOUT_MS 可覆盖；0=不限
-  const kindForTimeout = (runRow.kind as string) ?? 'issue';
-  const chatTimeoutRaw =
-    kindForTimeout === 'chat' ? process.env.MA_CHAT_TIMEOUT_MS : undefined;
-  const chatTimeoutMs =
-    kindForTimeout === 'chat'
-      ? Number(
-          chatTimeoutRaw === undefined || chatTimeoutRaw === ''
-            ? 900_000
-            : chatTimeoutRaw,
-        )
-      : undefined;
+  // 超时：chat 默认 15min wall；issue 默认无 wall（MA_ISSUE_TIMEOUT_MS），idle 见 stale sweeper
+  const { getIssueWallTimeoutMs } = await import('./stale-runs.js');
+  let wallTimeoutMs: number | null = null;
+  if (kindForTimeout === 'chat') {
+    const chatTimeoutRaw = process.env.MA_CHAT_TIMEOUT_MS;
+    const chatTimeoutMs = Number(
+      chatTimeoutRaw === undefined || chatTimeoutRaw === ''
+        ? 900_000
+        : chatTimeoutRaw,
+    );
+    wallTimeoutMs = chatTimeoutMs > 0 ? chatTimeoutMs : null;
+  } else {
+    const issueWall = getIssueWallTimeoutMs();
+    wallTimeoutMs = issueWall > 0 ? issueWall : null;
+  }
 
   try {
     const backend = getBackend(runRow.runtime);
@@ -226,7 +235,7 @@ async function tick(): Promise<void> {
         runId: runRow.id,
         mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
         model, // G22：空则 CLI 默认
-        timeoutMs: chatTimeoutMs && chatTimeoutMs > 0 ? chatTimeoutMs : null,
+        timeoutMs: wallTimeoutMs,
       },
       onEvent,
       signal,
@@ -377,7 +386,7 @@ async function tick(): Promise<void> {
     clearRunAbort(runRow.id);
     await failRun(runRow.id, String(err));
   } finally {
-    clearInterval(hb);
+    if (hb) clearInterval(hb);
   }
 }
 

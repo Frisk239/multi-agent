@@ -160,14 +160,23 @@ export function classifyRunFailure(error: string | null | undefined): RunFailure
       settingsHref: '/runtimes',
     };
   }
-  // chat/issue 硬超时（CLI exceeded Nms）优先于 heartbeat stale
+  // F3：issue idle 须先于通用 timeout 正则（文案含 "timeout"）
+  if (/stale:\s*idle timeout|idle timeout \(no agent events/i.test(e)) {
+    return {
+      code: 'stale_or_orphan',
+      title: '长时间无进度（idle）',
+      hint: '超过 MA_ISSUE_IDLE_MS（默认 30 分钟）无 CLI 事件。长编译/测试可调大该值；卡死可「再执行」。',
+      settingsHref: '/settings',
+    };
+  }
+  // wall / CLI 硬超时
   if (
     /timeout|timed?\s*out|exceeded\s+\d+\s*ms|CLI exceeded|wall.?clock|硬超时/i.test(e)
   ) {
     return {
       code: 'generic',
       title: '执行超时',
-      hint: 'CLI 超过时限未结束。可「重发上一条」再试；慢模型可调大 MA_CHAT_TIMEOUT_MS（chat）或检查本机 CLI 是否卡住。',
+      hint: 'CLI 超过 wall 时限未结束。chat 可调 MA_CHAT_TIMEOUT_MS；issue 可设 MA_ISSUE_TIMEOUT_MS（默认不硬杀，靠 idle）。',
       settingsHref: '/settings',
     };
   }
@@ -175,7 +184,7 @@ export function classifyRunFailure(error: string | null | undefined): RunFailure
     return {
       code: 'stale_or_orphan',
       title: '执行中断或进程丢失',
-      hint: '服务重启或心跳超时导致失败。环境正常后可「再执行」。',
+      hint: '服务重启或 chat 心跳超时导致失败。环境正常后可「再执行」。',
       settingsHref: '/settings',
     };
   }
@@ -1340,12 +1349,17 @@ export const SettingsRunHealth = z.object({
   oldestRunningAgeMs: z.number().int().nonnegative().nullable(),
   oldestRunningHeartbeatAgeMs: z.number().int().nonnegative().nullable(),
   thresholds: z.object({
-    staleRunningMs: z.number().int().positive(),
+    /** chat 进程心跳阈值 */
+    staleRunningMs: z.number().int().nonnegative(),
+    /** issue/QC 活动 idle 阈值；0=关闭 */
+    issueIdleMs: z.number().int().nonnegative().optional(),
+    /** issue/QC wall；0=不硬杀 */
+    issueWallTimeoutMs: z.number().int().nonnegative().optional(),
     staleQueuedMs: z.number().int().positive(),
     sweepIntervalMs: z.number().int().positive(),
   }),
   atRisk: z.object({
-    /** running 心跳龄 ≥ 阈值的 70%（接近收尸） */
+    /** running 心跳/活动龄 ≥ 对应阈值的 70%（接近收尸） */
     runningNearStale: z.number().int().nonnegative(),
     /** queued 龄 ≥ 阈值的 70% */
     queuedNearStale: z.number().int().nonnegative(),

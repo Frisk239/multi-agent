@@ -23,6 +23,8 @@ import {
   STALE_QUEUED_MS,
   STALE_RUNNING_MS,
   STALE_SWEEP_INTERVAL_MS,
+  getIssueIdleMs,
+  getIssueWallTimeoutMs,
 } from '../orchestration/stale-runs.js';
 import { allBackends } from '../runtime/registry.js';
 import { memoryManager } from '../memory/manager.js';
@@ -51,7 +53,11 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
   let oldestRunningHeartbeatAgeMs: number | null = null;
   let runningNearStale = 0;
   let queuedNearStale = 0;
-  const runNear = Math.floor(STALE_RUNNING_MS * 0.7);
+  const issueIdleMs = getIssueIdleMs();
+  const issueWallTimeoutMs = getIssueWallTimeoutMs();
+  const chatNear = Math.floor(STALE_RUNNING_MS * 0.7);
+  const issueNear =
+    issueIdleMs > 0 ? Math.floor(issueIdleMs * 0.7) : Number.POSITIVE_INFINITY;
   const queueNear = Math.floor(STALE_QUEUED_MS * 0.7);
 
   for (const row of rows) {
@@ -75,7 +81,9 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
       ) {
         oldestRunningHeartbeatAgeMs = hbAge;
       }
-      if (hbAge >= runNear) runningNearStale += 1;
+      const kind = (row.kind as string) ?? 'issue';
+      const near = kind === 'chat' ? chatNear : issueNear;
+      if (Number.isFinite(near) && hbAge >= near) runningNearStale += 1;
     }
   }
 
@@ -86,6 +94,8 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
     oldestRunningHeartbeatAgeMs,
     thresholds: {
       staleRunningMs: STALE_RUNNING_MS,
+      issueIdleMs,
+      issueWallTimeoutMs,
       staleQueuedMs: STALE_QUEUED_MS,
       sweepIntervalMs: STALE_SWEEP_INTERVAL_MS,
     },

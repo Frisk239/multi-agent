@@ -755,8 +755,24 @@ export function SettingsPage() {
               <strong>{formatAgeMs(data.runHealth.oldestRunningHeartbeatAgeMs)}</strong>
             </li>
             <li>
-              收尸阈值：running 心跳{' '}
+              收尸阈值：chat 心跳{' '}
               <code>{Math.round(data.runHealth.thresholds.staleRunningMs / 1000)}s</code>
+              {' · '}
+              issue idle{' '}
+              <code data-testid="settings-issue-idle">
+                {data.runHealth.thresholds.issueIdleMs === 0
+                  ? '关闭'
+                  : data.runHealth.thresholds.issueIdleMs != null
+                    ? `${Math.round(data.runHealth.thresholds.issueIdleMs / 60000)}min`
+                    : `${Math.round(data.runHealth.thresholds.staleRunningMs / 1000)}s`}
+              </code>
+              {' · '}
+              issue wall{' '}
+              <code data-testid="settings-issue-wall">
+                {data.runHealth.thresholds.issueWallTimeoutMs
+                  ? `${Math.round(data.runHealth.thresholds.issueWallTimeoutMs / 60000)}min`
+                  : '不限'}
+              </code>
               {' · '}
               queued{' '}
               <code>{Math.round(data.runHealth.thresholds.staleQueuedMs / 60000)}min</code>
