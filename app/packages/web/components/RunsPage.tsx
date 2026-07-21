@@ -192,8 +192,8 @@ function RunsPageInner() {
             运行
             <span className="count">{visibleRuns?.length ?? 0}</span>
           </h1>
-          <p className="page-desc">
-            工作区全部运行记录；可筛选失败与在途
+          <p className="page-desc page-desc--quiet">
+            运行观测（Sidecar Mission Control 式）：在途 / 失败 / 收尸。看板管派活，这里看执行轨迹。
           </p>
         </div>
         <div className="page-actions runs-page-actions">

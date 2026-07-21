@@ -28,8 +28,9 @@ type NavItem = {
   failBadge?: number;
 };
 
-// 2026-07-21 UI 厚切片：侧栏 IA 对齐 Multica 真站顺序
-// 个人入口 → 工作区（Issues/项目/自动化/智能体/小队/用量）→ 本仓超车（运行/Wiki/记忆）→ 配置
+// 侧栏 IA：Multica 工作区 + 本仓「知识 · 观测」超车（非运维腔）
+// 调研结论：Hermes dashboard / Sidecar Mission Control 把 run 观测与知识产物分列；
+// llm-wiki 模式强调 Wiki 为编译式知识层、Memory 为可插拔会话层——与 Issue 派活闭环，而非纯运维。
 const NAV_ITEMS: NavItem[] = [
   { id: 'inbox', label: '收件箱', icon: 'inbox', section: 'personal', href: '/inbox' },
   { id: 'chat', label: '聊天', icon: 'user', section: 'personal', href: '/chat' },
@@ -46,10 +47,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
   { id: 'usage', label: '用量', icon: 'usage', section: 'workspace', href: '/usage' },
-  // 本仓超车：真站侧栏无同级入口
-  { id: 'runs', label: '运行', icon: 'usage', section: 'local', href: '/runs' },
-  { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'local', href: '/wiki' },
-  { id: 'memory', label: '记忆', icon: 'memory', section: 'local', href: '/memory' },
+  // 知识层（编译式 Wiki + 可插拔记忆）— 先于 run 观测，贴近「读知识 / 写经验」
+  { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'knowledge', href: '/wiki' },
+  { id: 'memory', label: '记忆', icon: 'memory', section: 'knowledge', href: '/memory' },
+  // 运行观测（Sidecar Mission Control 式）
+  { id: 'runs', label: '运行', icon: 'usage', section: 'observe', href: '/runs' },
   { id: 'runtime', label: '本机 CLI', icon: 'runtime', section: 'config', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
   { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },
@@ -226,9 +228,14 @@ export function Sidebar() {
       items: navItems.filter((n) => n.section === 'workspace'),
     },
     {
-      key: 'local',
-      label: '本地运维',
-      items: navItems.filter((n) => n.section === 'local'),
+      key: 'knowledge',
+      label: '知识',
+      items: navItems.filter((n) => n.section === 'knowledge'),
+    },
+    {
+      key: 'observe',
+      label: '观测',
+      items: navItems.filter((n) => n.section === 'observe'),
     },
     {
       key: 'config',

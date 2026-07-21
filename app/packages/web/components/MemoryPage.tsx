@@ -216,8 +216,9 @@ function MemoryPageInner() {
             记忆
             <span className="count">{data?.length ?? 0}</span>
           </h1>
-          <p className="page-desc">
-            curated + ambient · provider {statusLabel}
+          <p className="page-desc page-desc--quiet">
+            可插拔会话经验层（Hermes MemoryProvider 思路）：curated 手写 + ambient 随 Issue 沉淀。
+            provider {statusLabel} · 与 Wiki 互补——Wiki 是编译页，记忆是可检索片段。
           </p>
         </div>
         <div className="page-actions">
@@ -227,8 +228,28 @@ function MemoryPageInner() {
           <Link href="/wiki" className="btn-ghost btn-sm" data-testid="memory-to-wiki">
             Wiki
           </Link>
+          <Link href="/inbox" className="btn-ghost btn-sm" data-testid="memory-to-inbox">
+            收件箱
+          </Link>
           <Link href="/settings" className="btn-secondary btn-sm" data-testid="memory-to-settings">
-            环境诊断
+            环境
+          </Link>
+        </div>
+      </div>
+
+      <div className="knowledge-bridge" data-testid="memory-knowledge-bridge">
+        <div className="knowledge-bridge-text">
+          <strong>怎么用</strong>
+          <span className="text-dim text-sm">
+            手写 curated；Issue 评论/完成会产 ambient。点行打开详情全文。需要结构化知识请去 Wiki。
+          </span>
+        </div>
+        <div className="knowledge-bridge-actions">
+          <Link href="/wiki" className="btn-ghost btn-sm">
+            打开 Wiki
+          </Link>
+          <Link href="/runs?status=failed" className="btn-ghost btn-sm">
+            失败运行
           </Link>
         </div>
       </div>

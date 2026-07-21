@@ -91,27 +91,24 @@ function WikiPageInner() {
               {hasQuery ? `${visiblePages.length}/${pages?.length ?? 0}` : (pages?.length ?? 0)}
             </span>
           </div>
-          <div className="page-desc">
-            Issue 完成时自动生成的知识页。选中页同步 URL（?slug=）可分享；列表支持 ?q=。
+          <div className="page-desc page-desc--quiet">
+            编译式项目知识库（llm-wiki）：Issue 完成后 ingest 成互链 Markdown；问答可引用页并回写。
+            与 Multica 看板派活互补——看板管「做」，Wiki 管「沉淀」。
           </div>
         </div>
         <div className="page-actions">
+          <Link href="/" className="btn-ghost btn-sm" data-testid="wiki-to-board">
+            看板
+          </Link>
           <Link href="/memory" className="btn-ghost btn-sm" data-testid="wiki-to-memory">
             记忆
           </Link>
-          <Link href="/settings" className="btn-ghost btn-sm" data-testid="wiki-to-settings">
-            环境
-          </Link>
-          <Link
-            href="/wiki?jobStatus=dead"
-            className="btn-secondary btn-sm"
-            data-testid="wiki-to-dead-jobs"
-          >
-            dead 任务
+          <Link href="/runs" className="btn-ghost btn-sm" data-testid="wiki-to-runs">
+            运行
           </Link>
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary btn-sm"
             data-testid="wiki-open-query"
             onClick={() => setShowQueryDialog(true)}
           >
@@ -120,11 +117,38 @@ function WikiPageInner() {
         </div>
       </div>
 
-      <Suspense fallback={<div className="text-dim text-sm">加载编译任务…</div>}>
-        <WikiJobsPanel />
-      </Suspense>
+      <div className="knowledge-bridge" data-testid="wiki-knowledge-bridge">
+        <div className="knowledge-bridge-text">
+          <strong>闭环</strong>
+          <span className="text-dim text-sm">
+            完成 Issue → 编译任务 → Wiki 页；提问结果可再沉淀。运维项默认折叠，避免盖住阅读。
+          </span>
+        </div>
+        <div className="knowledge-bridge-actions">
+          <Link
+            href="/wiki?jobStatus=dead"
+            className="btn-ghost btn-sm"
+            data-testid="wiki-to-dead-jobs"
+          >
+            编译任务
+          </Link>
+          <Link href="/settings" className="btn-ghost btn-sm" data-testid="wiki-to-settings">
+            环境
+          </Link>
+        </div>
+      </div>
 
-      <WikiHealthPanel onSelectPage={setSelectedSlug} />
+      <details className="wiki-ops-fold" data-testid="wiki-ops-fold">
+        <summary className="wiki-ops-fold-summary">
+          编译与健康 <span className="text-dim text-sm">ingest / dead / lint</span>
+        </summary>
+        <div className="wiki-ops-fold-body">
+          <Suspense fallback={<div className="text-dim text-sm">加载编译任务…</div>}>
+            <WikiJobsPanel />
+          </Suspense>
+          <WikiHealthPanel onSelectPage={setSelectedSlug} />
+        </div>
+      </details>
 
       {showQuery && <WikiQueryDialog onClose={() => setShowQueryDialog(false)} />}
 
