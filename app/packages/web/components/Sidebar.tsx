@@ -464,11 +464,6 @@ export function Sidebar() {
         >
           {theme === 'dark' ? '浅' : '深'}
         </button>
-        {!isCollapsed ? (
-          <button type="button" className="help-btn" title="帮助" aria-label="帮助">
-            <Icon name="help" size={16} />
-          </button>
-        ) : null}
         <Link
           href="/settings"
           className="help-btn sidebar-settings-link"
