@@ -375,7 +375,8 @@ function writeSkillMarkdown(opts: {
       name: opts.name,
       status: 'failed',
       source: opts.target,
-      error: '工作区 cwd 未配置，无法写入项目级 .skills',
+      error:
+        '工作区 cwd 未配置，无法写入项目级 .skills；请改用用户级 target=user，或配置工作区 / 项目 localPath',
     };
   }
 

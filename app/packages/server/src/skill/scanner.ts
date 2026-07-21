@@ -333,7 +333,8 @@ export function importLocalSkill(opts: {
       name,
       status: 'failed',
       source: opts.target,
-      error: '工作区 cwd 未配置，无法写入项目级 .skills',
+      error:
+        '工作区 cwd 未配置，无法写入项目级 .skills；请改用用户级（~/.multi-agent/skills）或在项目详情绑定 localPath 后从该仓 .skills 使用',
     };
   }
 

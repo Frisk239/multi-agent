@@ -132,7 +132,7 @@ function InboxRetryButton({
     if (!item.runId || pending || retry.isPending) return;
     setPending(true);
     try {
-      // F5 余量：按 run.kind 诚实分流，避免 chat 打到 issue retry 400
+      // F5/F10：按 run.kind 诚实分流；标题兜底（run 已删时仍可回会话）
       const res = await fetch(
         `http://localhost:3001/api/runs/${encodeURIComponent(item.runId)}`,
       );
@@ -161,12 +161,23 @@ function InboxRetryButton({
           setPending(false);
           return;
         }
+      } else if (/聊天失败|聊天/.test(item.title ?? '')) {
+        router.push('/chat');
+        onDone?.();
+        setPending(false);
+        return;
       }
       retry.mutate(item.runId, {
         onSuccess: () => onDone?.(),
         onSettled: () => setPending(false),
       });
     } catch {
+      if (/聊天失败|聊天/.test(item.title ?? '')) {
+        router.push('/chat');
+        onDone?.();
+        setPending(false);
+        return;
+      }
       retry.mutate(item.runId!, {
         onSuccess: () => onDone?.(),
         onSettled: () => setPending(false),

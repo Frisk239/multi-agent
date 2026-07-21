@@ -169,15 +169,52 @@ export function notifyCommentCreated(comment: Comment, issue: Issue): void {
   });
 }
 
+/**
+ * F10 Inbox 策略（降噪 + 补漏）：
+ * - failed：issue / QC / chat 一律进 Inbox（action_required）
+ * - completed：默认 **不** 推 issue 成功（主噪音源）；QC 成功仍推（建卡闭环）；chat 成功不推（会话 UI 已可见）
+ * - 紧急旁路：MA_INBOX_NOTIFY_SUCCESS=1 时恢复 issue 成功推送
+ */
 export function notifyRunTerminal(run: AgentRun): void {
   if (run.status !== 'completed' && run.status !== 'failed') return;
   const failed = run.status === 'failed';
+  const notifySuccess =
+    process.env.MA_INBOX_NOTIFY_SUCCESS === '1' ||
+    process.env.MA_INBOX_NOTIFY_SUCCESS === 'true';
+
+  // —— chat：仅失败进 Inbox（漏报修复）——
+  if (run.kind === 'chat') {
+    if (!failed) return;
+    const threadHint = run.chatThreadId
+      ? `会话 ${run.chatThreadId.slice(0, 8)}…`
+      : '聊天';
+    notifyInbox({
+      type: 'run_failed',
+      severity: 'action_required',
+      title: `聊天失败 · ${threadHint}`,
+      body: run.error ?? '执行失败，可打开会话重发',
+      issueId: null,
+      runId: run.id,
+      actorType: 'agent',
+      actorId: run.agentId,
+      dedupeKey: `run:${run.id}:${run.status}`,
+    });
+    return;
+  }
+
+  // —— issue 成功默认跳过（降噪）——
+  if (!failed && run.kind === 'issue' && !notifySuccess) {
+    return;
+  }
+
   // bu03：quick_create 可能尚无 issue（或已 Link）；有 issue 走旧文案，无 issue 走快速派活文案
   if (run.issueId) {
     const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
     if (!issue) return;
     ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'run_watcher');
     const isQc = run.kind === 'quick_create';
+    // QC 回链后的 completed：保留（建卡成功）；issue 仅 failed 或 notifySuccess
+    if (!failed && !isQc && !notifySuccess) return;
     notifyInbox({
       type: failed ? 'run_failed' : 'run_completed',
       severity: failed ? 'action_required' : 'info',
