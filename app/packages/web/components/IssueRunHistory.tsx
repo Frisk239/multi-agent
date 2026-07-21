@@ -80,7 +80,7 @@ export function IssueRunHistory({
     >
       <div className="issue-run-history-header">
         <div className="issue-run-history-title-row">
-          <h3>历史运行</h3>
+          <h3 className="issue-section-title">历史</h3>
           <span className="count" data-testid="issue-run-history-count">
             {runs.length}
           </span>
@@ -90,33 +90,33 @@ export function IssueRunHistory({
             </span>
           ) : null}
         </div>
-        <Link
-          href="/runs?status=all"
-          className="btn-ghost btn-sm"
-          data-testid="issue-run-history-workspace"
-        >
-          全部运行
-        </Link>
+        {usage ? (
+          <div className="issue-run-usage issue-run-usage--compact" data-testid="issue-run-usage">
+            <span>
+              <strong data-testid="issue-usage-total">{usage.total}</strong> 次
+            </span>
+            <span className="text-dim">·</span>
+            <span>
+              成功 <strong data-testid="issue-usage-rate">{rateLabel ?? '—'}</strong>
+            </span>
+            <span className="text-dim">·</span>
+            <span>
+              均耗{' '}
+              <strong data-testid="issue-usage-avg">
+                {formatDurationMs(usage.avgDurationMs)}
+              </strong>
+            </span>
+          </div>
+        ) : (
+          <Link
+            href="/runs?status=all"
+            className="btn btn-ghost btn-sm"
+            data-testid="issue-run-history-workspace"
+          >
+            全部运行
+          </Link>
+        )}
       </div>
-
-      {usage ? (
-        <div className="issue-run-usage issue-run-usage--compact" data-testid="issue-run-usage">
-          <span>
-            <strong data-testid="issue-usage-total">{usage.total}</strong> 次
-          </span>
-          <span className="text-dim">·</span>
-          <span>
-            成功 <strong data-testid="issue-usage-rate">{rateLabel ?? '—'}</strong>
-          </span>
-          <span className="text-dim">·</span>
-          <span>
-            均耗 <strong data-testid="issue-usage-avg">{formatDurationMs(usage.avgDurationMs)}</strong>
-          </span>
-          <span className="text-dim text-sm" data-testid="issue-usage-meta">
-            （Token 本地 CLI 暂无）
-          </span>
-        </div>
-      ) : null}
 
       <ul className="issue-run-rows" data-testid="issue-run-rows">
         {runs.map((r) => {
@@ -160,20 +160,13 @@ export function IssueRunHistory({
                 {onOpenTimeline ? (
                   <button
                     type="button"
-                    className="btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm"
                     data-testid="issue-run-history-timeline"
                     onClick={() => onOpenTimeline(r.id)}
                   >
                     时间线
                   </button>
                 ) : null}
-                <Link
-                  href={`/runs?run=${encodeURIComponent(r.id)}&status=${encodeURIComponent(r.status)}`}
-                  className="btn-ghost btn-sm"
-                  data-testid="issue-run-history-open-runs"
-                >
-                  列表
-                </Link>
               </div>
             </li>
           );

@@ -160,15 +160,15 @@ export function RunStatusBar({
                 轨迹
               </a>
             )}
-            {canRerun || failure ? (
+            {canRerun || failure || canStop ? (
               <button
                 type="button"
-                className={`btn-ghost btn-sm${opsOpen ? ' is-open' : ''}`}
+                className={`btn btn-ghost btn-sm${opsOpen ? ' is-open' : ''}`}
                 data-testid="run-ops-more"
                 aria-expanded={opsOpen}
                 onClick={() => setOpsOpen((v) => !v)}
               >
-                {opsOpen ? '收起运维' : '更多运维'}
+                {opsOpen ? '收起' : '更多'}
               </button>
             ) : null}
           </div>
@@ -213,12 +213,11 @@ export function RunStatusBar({
 
         {opsOpen ? (
           <div className="run-ops-drawer" data-testid="run-ops-drawer">
-            <div className="run-ops-label text-dim text-sm">本地运维</div>
             <div className="run-failure-actions" data-testid="run-failure-actions">
               {canRerun ? (
                 <button
                   type="button"
-                  className="btn-secondary btn-sm"
+                  className="btn btn-secondary btn-sm"
                   data-testid="run-retry-this"
                   disabled={retryRun.isPending}
                   onClick={() => retryRun.mutate(active.id)}
@@ -232,54 +231,22 @@ export function RunStatusBar({
                   failure?.settingsHref ||
                   (active.status === 'failed' ? '/settings' : '/runtimes')
                 }
-                className="btn-secondary btn-sm"
+                className="btn btn-ghost btn-sm"
                 data-testid="run-fail-open-diag"
               >
-                {failure?.settingsHref === '/runtimes' ? '运行时' : '环境诊断'}
+                {failure?.settingsHref === '/runtimes' ? '本机 CLI' : '环境诊断'}
               </Link>
               <Link
                 href={`/runs?run=${encodeURIComponent(active.id)}&status=${encodeURIComponent(active.status)}`}
-                className="btn-ghost btn-sm"
+                className="btn btn-ghost btn-sm"
                 data-testid="run-fail-open-runs"
               >
-                运行列表
+                运行页
               </Link>
-              <Link
-                href="/?failed=1"
-                className="btn-ghost btn-sm"
-                data-testid="run-fail-open-board"
-              >
-                看板仅失败
-              </Link>
-              <Link
-                href="/inbox?kind=run_failed&read=unread"
-                className="btn-ghost btn-sm"
-                data-testid="run-fail-open-inbox"
-              >
-                收件箱失败
-              </Link>
-              {active.agentId ? (
-                <Link
-                  href={`/agents/${encodeURIComponent(active.agentId)}`}
-                  className="btn-ghost btn-sm"
-                  data-testid="run-fail-open-agent"
-                >
-                  智能体
-                </Link>
-              ) : null}
-              {active.squadId ? (
-                <Link
-                  href={`/squads/${encodeURIComponent(active.squadId)}`}
-                  className="btn-ghost btn-sm"
-                  data-testid="run-fail-open-squad"
-                >
-                  小队
-                </Link>
-              ) : null}
               {active.error ? (
                 <button
                   type="button"
-                  className="btn-ghost btn-sm"
+                  className="btn btn-ghost btn-sm"
                   data-testid="run-fail-copy-error"
                   onClick={() => {
                     void navigator.clipboard?.writeText(active.error ?? '');

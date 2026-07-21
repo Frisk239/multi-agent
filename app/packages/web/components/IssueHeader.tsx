@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
@@ -40,10 +40,13 @@ type IssueHeaderVariant = 'full' | 'main' | 'props';
 export function IssueHeader({
   issue,
   variant = 'full',
+  endActions,
 }: {
   issue: Issue;
   /** full=旧单列；main=标题描述；props=右栏属性（G26） */
   variant?: IssueHeaderVariant;
+  /** 主列顶栏右侧附加（如属性开关） */
+  endActions?: ReactNode;
 }) {
   const update = useUpdateIssue();
   const { data: projects = [] } = useProjects();
@@ -213,98 +216,99 @@ export function IssueHeader({
         </div>
       ) : null}
       <div className="issue-header-top">
-        <Link href="/" className="back-link">
-          <Icon name="arrow-left" size={16} />
-          看板
-        </Link>
-        <span className="issue-id">{issue.identifier}</span>
-        {issue.originType === 'automation' ? (
-          <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
-            <Link
-              href="/?origin=automation"
-              className="issue-origin-badge"
-              data-testid="issue-origin-badge"
-              data-origin="automation"
-              title="看板筛选：自动化 Issue"
-            >
-              来源 · 自动化
-            </Link>
-            <Link
-              href="/automation"
-              className="issue-origin-side-link"
-              data-testid="issue-origin-to-automation"
-              title={issue.originRuleId ? `规则 ${issue.originRuleId}` : '打开自动化'}
-            >
-              规则
-            </Link>
+        <div className="issue-header-top-start">
+          <Link href="/" className="back-link">
+            <Icon name="arrow-left" size={16} />
+            看板
+          </Link>
+          <span className="issue-id" data-testid="issue-identifier">
+            {issue.identifier}
           </span>
-        ) : issue.originType === 'quick_create' ? (
-          <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
-            <Link
-              href="/?origin=quick_create"
-              className="issue-origin-badge"
-              data-testid="issue-origin-badge"
-              data-origin="quick_create"
-              title="看板筛选：快速派活 Issue"
-            >
-              来源 · 快速派活
-            </Link>
-            {issue.originRunId ? (
+          {issue.originType === 'automation' ? (
+            <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
               <Link
-                href={`/runs?run=${encodeURIComponent(issue.originRunId)}&status=all`}
+                href="/?origin=automation"
+                className="issue-origin-badge"
+                data-testid="issue-origin-badge"
+                data-origin="automation"
+                title="看板筛选：自动化 Issue"
+              >
+                自动化
+              </Link>
+              <Link
+                href="/automation"
                 className="issue-origin-side-link"
-                data-testid="issue-origin-to-run"
-                title={`QC run ${issue.originRunId}`}
+                data-testid="issue-origin-to-automation"
+                title={issue.originRuleId ? `规则 ${issue.originRuleId}` : '打开自动化'}
               >
-                运行
+                规则
               </Link>
-            ) : null}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className={`issue-subscribe-btn${subscribed ? ' issue-subscribe-btn--on' : ''}`}
-          data-testid="issue-subscribe-btn"
-          data-subscribed={subscribed ? '1' : '0'}
-          disabled={toggleSub.isPending || subscription == null}
-          title={
-            subscribed
-              ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击取消`
-              : '关注后接收此 Issue 相关收件箱通知'
-          }
-          onClick={() => toggleSub.mutate(subscribed)}
-        >
-          {subscribed ? '取消关注' : '关注'}
-        </button>
-        {variant === 'main' ? null : (
-          <span className="issue-status-field">
-            <select
-              className="status-select"
-              value={issue.status}
-              onChange={(e) =>
-                update.mutate({ id: issue.id, input: { status: e.target.value as IssueStatus } })
-              }
-              aria-label="状态"
-            >
-              {ALL_STATUS.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_ZH[s]}
-                </option>
-              ))}
-            </select>
-            {issue.status !== 'cancelled' ? (
+            </span>
+          ) : issue.originType === 'quick_create' ? (
+            <span className="issue-origin-badge-group" data-testid="issue-origin-badge-group">
               <Link
-                href={`/?status=${encodeURIComponent(issue.status)}`}
-                className="issue-status-board-link"
-                data-testid="issue-status-board-link"
-                data-status={issue.status}
-                title={`看板聚焦：${STATUS_ZH[issue.status]}`}
+                href="/?origin=quick_create"
+                className="issue-origin-badge"
+                data-testid="issue-origin-badge"
+                data-origin="quick_create"
+                title="看板筛选：快速派活 Issue"
               >
-                看板
+                快速派活
               </Link>
-            ) : null}
-          </span>
-        )}
+              {issue.originRunId ? (
+                <Link
+                  href={`/runs?run=${encodeURIComponent(issue.originRunId)}&status=all`}
+                  className="issue-origin-side-link"
+                  data-testid="issue-origin-to-run"
+                  title={`QC run ${issue.originRunId}`}
+                >
+                  运行
+                </Link>
+              ) : null}
+            </span>
+          ) : null}
+        </div>
+        <div className="issue-header-top-end">
+          <button
+            type="button"
+            className={`btn btn-ghost btn-sm issue-subscribe-btn${
+              subscribed ? ' issue-subscribe-btn--on' : ''
+            }`}
+            data-testid="issue-subscribe-btn"
+            data-subscribed={subscribed ? '1' : '0'}
+            disabled={toggleSub.isPending || subscription == null}
+            title={
+              subscribed
+                ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击取消`
+                : '关注后接收此 Issue 相关收件箱通知'
+            }
+            onClick={() => toggleSub.mutate(subscribed)}
+          >
+            {subscribed ? '已关注' : '关注'}
+          </button>
+          {endActions}
+          {variant === 'main' ? null : (
+            <span className="issue-status-field">
+              <select
+                className="status-select"
+                value={issue.status}
+                onChange={(e) =>
+                  update.mutate({
+                    id: issue.id,
+                    input: { status: e.target.value as IssueStatus },
+                  })
+                }
+                aria-label="状态"
+              >
+                {ALL_STATUS.map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS_ZH[s]}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
+        </div>
       </div>
 
       {showMain && editingTitle ? (

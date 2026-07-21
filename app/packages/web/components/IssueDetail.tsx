@@ -126,38 +126,44 @@ export function IssueDetail({ id }: { id: string }) {
     >
       <div className="issue-detail-layout" data-testid="issue-detail-layout">
         <div className="issue-detail-main" data-testid="issue-detail-main">
-          <div className="issue-detail-main-toolbar" data-testid="issue-props-toolbar">
-            <button
-              type="button"
-              className={`issue-props-toggle${showProps ? ' is-open' : ''}`}
-              data-testid="issue-props-toggle"
-              aria-expanded={showProps}
-              aria-controls="issue-props-rail"
-              title={showProps ? '收起属性' : '展开属性'}
-              onClick={toggleProps}
-            >
-              <span className="issue-props-toggle-icon" aria-hidden>
-                {showProps ? '⟩' : '⟨'}
-              </span>
-              属性
-            </button>
-          </div>
-
-          <IssueHeader issue={issue} variant="main" />
+          <IssueHeader
+            issue={issue}
+            variant="main"
+            endActions={
+              <button
+                type="button"
+                className={`btn btn-ghost btn-sm issue-props-toggle${
+                  showProps ? ' is-open' : ''
+                }`}
+                data-testid="issue-props-toggle"
+                aria-expanded={showProps}
+                aria-controls="issue-props-rail"
+                title={showProps ? '收起属性' : '展开属性'}
+                onClick={toggleProps}
+              >
+                {showProps ? '隐藏属性' : '属性'}
+              </button>
+            }
+          />
           <IssueSubtasks parent={issue} />
 
           <section className="issue-activity" data-testid="issue-activity">
-            <div className="issue-activity-head">
-              <h3 className="issue-activity-title">动态</h3>
-              <span className="text-dim text-sm">
+            <div className="issue-section-head">
+              <h3 className="issue-section-title">动态</h3>
+              <span className="text-dim text-sm" data-testid="issue-activity-count">
                 {commentCount > 0 ? `${commentCount} 条` : '暂无'}
               </span>
             </div>
-            <Timeline items={comments ?? []} />
+            <Timeline items={comments ?? []} hideHeader />
             <CommentComposer issueId={id} />
           </section>
 
-          <section className="issue-exec-section" data-testid="issue-exec-section">
+          <section
+            className={`issue-exec-section${execOpen ? ' is-open' : ''}${
+              live ? ' is-live' : ''
+            }`}
+            data-testid="issue-exec-section"
+          >
             <button
               type="button"
               className="issue-exec-toggle"
@@ -165,13 +171,15 @@ export function IssueDetail({ id }: { id: string }) {
               aria-expanded={execOpen}
               onClick={() => setExecOpen((v) => !v)}
             >
-              <span>执行日志</span>
-              <span className="text-dim text-sm">
+              <span className="issue-section-title">运行</span>
+              <span className="text-dim text-sm" data-testid="issue-exec-summary">
                 {historyCount > 0
                   ? live
-                    ? `进行中 · ${historyCount} 次运行`
-                    : `历史运行（${historyCount}）`
-                  : '无运行'}
+                    ? `进行中 · ${historyCount}`
+                    : selectedRun?.status === 'failed'
+                      ? `失败 · ${historyCount}`
+                      : `${historyCount} 次`
+                  : '尚未执行'}
               </span>
               <span className="issue-exec-chevron" aria-hidden>
                 {execOpen ? '▾' : '▸'}
@@ -186,16 +194,18 @@ export function IssueDetail({ id }: { id: string }) {
                     setTimelineOpen(true);
                   }}
                 />
-                <IssueRunHistory
-                  runs={runs}
-                  selectedRunId={selectedRunId}
-                  onSelect={setSelectedRunId}
-                  usage={usage}
-                  onOpenTimeline={(runId) => {
-                    setSelectedRunId(runId);
-                    setTimelineOpen(true);
-                  }}
-                />
+                {historyCount > 1 || usage ? (
+                  <IssueRunHistory
+                    runs={runs}
+                    selectedRunId={selectedRunId}
+                    onSelect={setSelectedRunId}
+                    usage={usage}
+                    onOpenTimeline={(runId) => {
+                      setSelectedRunId(runId);
+                      setTimelineOpen(true);
+                    }}
+                  />
+                ) : null}
                 <RunEventTimelineInline
                   run={selectedRun}
                   onOpenDrawer={() => setTimelineOpen(true)}
@@ -215,7 +225,7 @@ export function IssueDetail({ id }: { id: string }) {
               <h3 className="issue-props-rail-title">属性</h3>
               <button
                 type="button"
-                className="btn-ghost btn-sm"
+                className="btn btn-ghost btn-sm"
                 data-testid="issue-props-collapse"
                 aria-label="收起属性"
                 onClick={toggleProps}

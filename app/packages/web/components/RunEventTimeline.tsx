@@ -69,7 +69,7 @@ export function RunEventTimelineInline({
     >
       <div className="run-trace-header">
         <div className="run-trace-title-row">
-          <h3>事件轨迹</h3>
+          <h3 className="issue-section-title">轨迹</h3>
           <span className="text-dim text-sm" data-testid="run-trace-run-id">
             {run.id.slice(0, 8)}…
           </span>
@@ -88,28 +88,12 @@ export function RunEventTimelineInline({
           {onOpenDrawer ? (
             <button
               type="button"
-              className="btn-secondary btn-sm"
+              className="btn btn-ghost btn-sm"
               data-testid="run-event-open-drawer"
               onClick={() => onOpenDrawer(run.id)}
             >
-              展开
+              全屏
             </button>
-          ) : null}
-          <Link
-            href={`/runs?run=${encodeURIComponent(run.id)}&status=${encodeURIComponent(run.status)}`}
-            className="btn-ghost btn-sm"
-            data-testid="run-trace-to-runs"
-          >
-            列表
-          </Link>
-          {isFailed ? (
-            <Link
-              href="/settings"
-              className="btn-ghost btn-sm"
-              data-testid="run-trace-to-settings"
-            >
-              诊断
-            </Link>
           ) : null}
         </div>
       </div>
