@@ -857,12 +857,18 @@ export const AgentsReadinessQuery = z.object({
 });
 export type AgentsReadinessQuery = z.infer<typeof AgentsReadinessQuery>;
 
-// S05：skill 列表项契约（GET /api/skills 响应元素，spec §4.1/§4.2）
-// skill 本身是文件系统真源 + 内存索引（不进 DB）；usedBy 反查 agent_skill 分配关系
+// S05 + C3：skill 列表项契约（GET /api/skills）
+// source: user | workspace(工作区 .skills) | project(某 project.localPath/.skills)
+export const SkillSource = z.enum(['project', 'user', 'workspace']);
+export type SkillSource = z.infer<typeof SkillSource>;
+
 export const SkillInfo = z.object({
   name: z.string(),
   description: z.string(),
-  source: z.enum(['project', 'user']),
+  source: SkillSource,
+  /** C3：来自绑定 localPath 的项目时有值 */
+  projectId: BusinessId.nullable().optional(),
+  projectTitle: z.string().nullable().optional(),
   usedBy: z.array(AgentSummary),
 });
 export type SkillInfo = z.infer<typeof SkillInfo>;
@@ -875,7 +881,7 @@ export const SkillDetail = SkillInfo.extend({
 export type SkillDetail = z.infer<typeof SkillDetail>;
 
 /** 本机目录 skill 导入（学 Multica runtime-local-skill-import，目标改为本地 .skills） */
-export const SkillImportTarget = z.enum(['project', 'user']);
+export const SkillImportTarget = z.enum(['project', 'user', 'workspace']);
 export type SkillImportTarget = z.infer<typeof SkillImportTarget>;
 
 export const LocalSkillCandidate = z.object({
@@ -885,7 +891,7 @@ export const LocalSkillCandidate = z.object({
   path: z.string(),
   kind: z.enum(['dir', 'file']),
   alreadyIndexed: z.boolean(),
-  existingSource: z.enum(['project', 'user']).nullable(),
+  existingSource: SkillSource.nullable(),
 });
 export type LocalSkillCandidate = z.infer<typeof LocalSkillCandidate>;
 
@@ -894,11 +900,20 @@ export const ScanLocalSkillsInput = z.object({
 });
 export type ScanLocalSkillsInput = z.infer<typeof ScanLocalSkillsInput>;
 
+export const SkillImportDestHint = z.object({
+  id: z.string(),
+  label: z.string(),
+  path: z.string().nullable(),
+});
+export type SkillImportDestHint = z.infer<typeof SkillImportDestHint>;
+
 export const ScanLocalSkillsResponse = z.object({
   path: z.string(),
   candidates: z.array(LocalSkillCandidate),
   projectSkillsDir: z.string().nullable(),
   userSkillsDir: z.string(),
+  /** C3：可选写入目标列表（user / workspace / 各 project） */
+  destinations: z.array(SkillImportDestHint).optional(),
   error: z.string().nullable(),
 });
 export type ScanLocalSkillsResponse = z.infer<typeof ScanLocalSkillsResponse>;
@@ -912,7 +927,10 @@ export const ImportLocalSkillItem = z.object({
 export type ImportLocalSkillItem = z.infer<typeof ImportLocalSkillItem>;
 
 export const ImportLocalSkillsInput = z.object({
-  target: SkillImportTarget.default('project'),
+  /** 默认 user：无 workspace 时仍可导入 */
+  target: SkillImportTarget.default('user'),
+  /** target=project 时必填：写入该项目 localPath/.skills */
+  projectId: BusinessId.optional(),
   items: z.array(ImportLocalSkillItem).min(1).max(50),
 });
 export type ImportLocalSkillsInput = z.infer<typeof ImportLocalSkillsInput>;
@@ -923,6 +941,7 @@ export const ImportLocalSkillResult = z.object({
   source: SkillImportTarget,
   path: z.string().optional(),
   error: z.string().optional(),
+  projectId: BusinessId.nullable().optional(),
 });
 export type ImportLocalSkillResult = z.infer<typeof ImportLocalSkillResult>;
 
@@ -930,13 +949,15 @@ export const ImportLocalSkillsResponse = z.object({
   results: z.array(ImportLocalSkillResult),
   projectSkillsDir: z.string().nullable(),
   userSkillsDir: z.string(),
+  destinations: z.array(SkillImportDestHint).optional(),
 });
 export type ImportLocalSkillsResponse = z.infer<typeof ImportLocalSkillsResponse>;
 
 /** URL 导入 skill（学 Multica ImportSkill；本仓写入本地 .skills） */
 export const ImportSkillFromUrlInput = z.object({
   url: z.string().min(4).max(2000),
-  target: SkillImportTarget.default('project'),
+  target: SkillImportTarget.default('user'),
+  projectId: BusinessId.optional(),
   overwrite: z.boolean().optional().default(false),
   name: z.string().min(1).max(120).optional(),
 });
@@ -952,6 +973,8 @@ export const ImportSkillFromUrlResponse = z.object({
   sourceUrl: z.string().optional(),
   projectSkillsDir: z.string().nullable(),
   userSkillsDir: z.string(),
+  projectId: BusinessId.nullable().optional(),
+  destinations: z.array(SkillImportDestHint).optional(),
 });
 export type ImportSkillFromUrlResponse = z.infer<typeof ImportSkillFromUrlResponse>;
 

@@ -9,10 +9,10 @@ import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { CreateSkillDialog } from './CreateSkillDialog';
 
-type SourceFilter = '' | 'project' | 'user';
+type SourceFilter = '' | 'project' | 'user' | 'workspace';
 
 function parseSource(raw: string | null): SourceFilter {
-  if (raw === 'project' || raw === 'user') return raw;
+  if (raw === 'project' || raw === 'user' || raw === 'workspace') return raw;
   return '';
 }
 
@@ -89,8 +89,8 @@ function SkillsPageInner() {
             </span>
           </h1>
           <p className="page-desc page-desc--quiet">
-            工作区里任何智能体都能使用的指令。真源：项目 <code>.skills/</code> 与用户{' '}
-            <code>~/.multi-agent/skills/</code>
+            指令真源：用户 <code>~/.multi-agent/skills/</code>、工作区 <code>.skills/</code>、以及已绑
+            本机路径的项目 <code>localPath/.skills/</code>（无工作区 cwd 仍可管理用户级）
           </p>
         </div>
         <div className="page-actions">
@@ -153,8 +153,9 @@ function SkillsPageInner() {
               aria-label="按来源筛选 skill"
             >
               <option value="">全部</option>
-              <option value="project">项目级</option>
               <option value="user">用户级</option>
+              <option value="workspace">工作区</option>
+              <option value="project">项目本机</option>
             </select>
           </label>
         </div>
@@ -185,7 +186,13 @@ function SkillsPageInner() {
                 data-testid="skills-chip-source"
                 onClick={() => replaceParams({ source: null })}
               >
-                来源 · {sourceFromUrl === 'project' ? '项目级' : '用户级'} ×
+                来源 ·{' '}
+                {sourceFromUrl === 'project'
+                  ? '项目本机'
+                  : sourceFromUrl === 'workspace'
+                    ? '工作区'
+                    : '用户级'}{' '}
+                ×
               </button>
             ) : null}
             <button
@@ -202,7 +209,7 @@ function SkillsPageInner() {
         {data.length === 0 ? (
           <EmptyState
             title="还没有 skill"
-            description="点「新建 skill」从 URL 或本机路径导入到工作区。"
+            description="点「新建 skill」从 URL 或本机导入。默认写入用户级 skills，也可选工作区或项目本机目录。"
             action={
               <button
                 type="button"
@@ -293,7 +300,13 @@ function SkillsPageInner() {
                       data-testid="skill-source"
                       data-source={sk.source}
                     >
-                      {sk.source === 'project' ? '项目级' : '用户级'}
+                      {sk.source === 'project'
+                        ? sk.projectTitle
+                          ? `项目 · ${sk.projectTitle}`
+                          : '项目本机'
+                        : sk.source === 'workspace'
+                          ? '工作区'
+                          : '用户级'}
                     </span>
                     <span className="skills-list-desc text-dim text-sm">
                       {sk.description || '—'}

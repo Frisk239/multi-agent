@@ -9,11 +9,11 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import {
-  projectSkillsDir,
-  userSkillsDir,
+  resolveSkillWriteRoot,
   scanSkills,
   getSkillIndex,
   type ImportSkillResult,
+  type SkillSourceKind,
 } from './scanner.js';
 
 const MAX_FILE_BYTES = 1 << 20; // 1 MiB
@@ -364,19 +364,27 @@ function writeSkillMarkdown(opts: {
   name: string;
   description: string;
   content: string;
-  target: 'project' | 'user';
+  target: 'project' | 'user' | 'workspace';
+  projectId?: string | null;
   overwrite?: boolean;
   originType?: string;
   sourceUrl?: string;
 }): ImportSkillResult {
-  const destRoot = opts.target === 'user' ? userSkillsDir() : projectSkillsDir();
+  const writeTarget =
+    opts.target === 'project' && !opts.projectId?.trim()
+      ? ('workspace' as const)
+      : opts.target;
+  const resolved = resolveSkillWriteRoot(writeTarget, opts.projectId);
+  const destRoot = resolved.root;
   if (!destRoot) {
     return {
       name: opts.name,
       status: 'failed',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       error:
-        '工作区 cwd 未配置，无法写入项目级 .skills；请改用用户级 target=user，或配置工作区 / 项目 localPath',
+        resolved.error ??
+        '无法解析 skill 写入目录；请改用用户级或绑定项目本机路径',
     };
   }
 
@@ -386,7 +394,13 @@ function writeSkillMarkdown(opts: {
   const exists = existsSync(destDir) || existsSync(destFile);
 
   if (exists && !opts.overwrite) {
-    return { name: opts.name, status: 'skipped', source: opts.target, path: destDir };
+    return {
+      name: opts.name,
+      status: 'skipped',
+      source: resolved.source,
+      projectId: resolved.projectId,
+      path: destDir,
+    };
   }
 
   try {
@@ -417,14 +431,16 @@ function writeSkillMarkdown(opts: {
     return {
       name,
       status: exists ? 'updated' : 'created',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       path: destDir,
     };
   } catch (e) {
     return {
       name: opts.name,
       status: 'failed',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       error: e instanceof Error ? e.message : String(e),
     };
   }
@@ -442,10 +458,17 @@ export type ImportSkillFromUrlResult = ImportSkillResult & {
  */
 export async function importSkillFromUrl(opts: {
   url: string;
-  target: 'project' | 'user';
+  target: 'project' | 'user' | 'workspace';
+  projectId?: string | null;
   overwrite?: boolean;
   name?: string;
 }): Promise<ImportSkillFromUrlResult> {
+  const failSource: SkillSourceKind =
+    opts.target === 'workspace'
+      ? 'workspace'
+      : opts.target === 'user'
+        ? 'user'
+        : 'project';
   try {
     const detected = detectUrl(opts.url);
     const fetched = await fetchSkillBundle(detected);
@@ -454,7 +477,7 @@ export async function importSkillFromUrl(opts: {
       return {
         name: 'unknown',
         status: 'failed',
-        source: opts.target,
+        source: failSource,
         error: '无法解析 skill 名称',
         sourceUrl: fetched.sourceUrl,
         originType: fetched.originType,
@@ -466,6 +489,7 @@ export async function importSkillFromUrl(opts: {
       description: fetched.description,
       content: fetched.content,
       target: opts.target,
+      projectId: opts.projectId,
       overwrite: opts.overwrite,
       originType: fetched.originType,
       sourceUrl: fetched.sourceUrl,
@@ -480,7 +504,8 @@ export async function importSkillFromUrl(opts: {
     return {
       name: opts.name?.trim() || 'unknown',
       status: 'failed',
-      source: opts.target,
+      source: failSource,
+      projectId: opts.projectId ?? null,
       error: e instanceof Error ? e.message : String(e),
     };
   }

@@ -12,15 +12,22 @@ import {
 } from 'node:fs';
 import { join, resolve, basename, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { eq } from 'drizzle-orm';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
+import { db } from '../db/client.js';
+import { projects } from '../db/schema.js';
 
 // 内部索引类型（含 body/path）。与 shared 的 SkillInfo（API 响应契约，含 usedBy）不同。
+export type SkillSourceKind = 'project' | 'user' | 'workspace';
+
 export interface SkillInfo {
   name: string;
   description: string;
   body: string;
   path: string;
-  source: 'project' | 'user';
+  source: SkillSourceKind;
+  projectId?: string | null;
+  projectTitle?: string | null;
 }
 
 /** 从本机任意目录导入时的候选 skill（对齐 Multica RuntimeLocalSkillSummary 精简） */
@@ -31,15 +38,20 @@ export interface LocalSkillCandidate {
   path: string;
   kind: 'dir' | 'file';
   alreadyIndexed: boolean;
-  existingSource: 'project' | 'user' | null;
+  existingSource: SkillSourceKind | null;
 }
 
 let skillIndex = new Map<string, SkillInfo>();
 
+/** 工作区根 .skills（历史「project」目标；C3 起 source=workspace） */
 export function projectSkillsDir(): string | null {
   const cwd = resolveWorkspaceCwd().path;
   if (!cwd) return null;
   return resolve(cwd, '.skills');
+}
+
+export function workspaceSkillsDir(): string | null {
+  return projectSkillsDir();
 }
 
 export function userSkillsDir(): string {
@@ -52,14 +64,158 @@ export function skillsDirUnderRoot(root: string | null | undefined): string | nu
   return resolve(root.trim(), '.skills');
 }
 
-// 扫描两个目录（项目级优先覆盖用户级），建内存索引（照 hermes scan_skill_commands）
+export type SkillWriteTarget =
+  | { kind: 'user' }
+  | { kind: 'workspace' }
+  | { kind: 'project'; projectId: string };
+
+/**
+ * 解析写入根目录。project 需有效 localPath。
+ */
+export function resolveSkillWriteRoot(
+  target: 'user' | 'workspace' | 'project',
+  projectId?: string | null,
+): {
+  root: string | null;
+  source: SkillSourceKind;
+  projectId: string | null;
+  projectTitle: string | null;
+  error: string | null;
+} {
+  if (target === 'user') {
+    return {
+      root: userSkillsDir(),
+      source: 'user',
+      projectId: null,
+      projectTitle: null,
+      error: null,
+    };
+  }
+  if (target === 'workspace') {
+    const root = workspaceSkillsDir();
+    return {
+      root,
+      source: 'workspace',
+      projectId: null,
+      projectTitle: null,
+      error: root
+        ? null
+        : '工作区 cwd 未配置，无法写入工作区 .skills；请改用用户级，或在设置保存工作区路径',
+    };
+  }
+  // project
+  if (!projectId?.trim()) {
+    return {
+      root: null,
+      source: 'project',
+      projectId: null,
+      projectTitle: null,
+      error: '写入项目级 skill 需选择 projectId（项目详情绑定的本机路径）',
+    };
+  }
+  const proj = db.select().from(projects).where(eq(projects.id, projectId.trim())).get();
+  if (!proj) {
+    return {
+      root: null,
+      source: 'project',
+      projectId: projectId.trim(),
+      projectTitle: null,
+      error: '项目不存在',
+    };
+  }
+  const lp = proj.localPath?.trim();
+  if (!lp) {
+    return {
+      root: null,
+      source: 'project',
+      projectId: proj.id,
+      projectTitle: proj.title,
+      error: '项目未绑定本机路径（localPath），无法写入 .skills',
+    };
+  }
+  let abs: string;
+  try {
+    abs = resolve(lp);
+    if (!existsSync(abs) || !statSync(abs).isDirectory()) {
+      return {
+        root: null,
+        source: 'project',
+        projectId: proj.id,
+        projectTitle: proj.title,
+        error: `项目本机路径无效或不是目录: ${abs}`,
+      };
+    }
+  } catch (e) {
+    return {
+      root: null,
+      source: 'project',
+      projectId: proj.id,
+      projectTitle: proj.title,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+  return {
+    root: join(abs, '.skills'),
+    source: 'project',
+    projectId: proj.id,
+    projectTitle: proj.title,
+    error: null,
+  };
+}
+
+export function listSkillDestinations(): {
+  id: string;
+  label: string;
+  path: string | null;
+}[] {
+  const out: { id: string; label: string; path: string | null }[] = [
+    { id: 'user', label: '用户 · ~/.multi-agent/skills', path: userSkillsDir() },
+    {
+      id: 'workspace',
+      label: '工作区 · <cwd>/.skills',
+      path: workspaceSkillsDir(),
+    },
+  ];
+  try {
+    const rows = db.select().from(projects).all();
+    for (const p of rows) {
+      if (p.status === 'cancelled') continue;
+      const lp = p.localPath?.trim();
+      out.push({
+        id: `project:${p.id}`,
+        label: `项目 · ${p.title}${lp ? '' : '（未绑路径）'}`,
+        path: lp ? join(resolve(lp), '.skills') : null,
+      });
+    }
+  } catch {
+    /* ignore db */
+  }
+  return out;
+}
+
+// 扫描：user → workspace → 各 project.localPath（后扫覆盖同名；project 带 projectId）
 export function scanSkills(): void {
   const next = new Map<string, SkillInfo>();
-  // 用户级先扫（低优先级）
   scanDir(userSkillsDir(), 'user', next);
-  // 项目级后扫（覆盖同名）。ADR 0003：env > DB root_path
-  const projectDir = projectSkillsDir();
-  if (projectDir) scanDir(projectDir, 'project', next);
+  const wsDir = workspaceSkillsDir();
+  if (wsDir) scanDir(wsDir, 'workspace', next);
+  try {
+    const rows = db.select().from(projects).all();
+    for (const p of rows) {
+      const lp = p.localPath?.trim();
+      if (!lp) continue;
+      try {
+        const root = resolve(lp);
+        if (!existsSync(root) || !statSync(root).isDirectory()) continue;
+        const dir = join(root, '.skills');
+        scanDir(dir, 'project', next, { projectId: p.id, projectTitle: p.title });
+      } catch {
+        /* skip bad path */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
   skillIndex = next;
 }
 
@@ -74,7 +230,12 @@ export function loadSkillsFromRoot(root: string): Map<string, SkillInfo> {
   return out;
 }
 
-function scanDir(dir: string, source: 'project' | 'user', out: Map<string, SkillInfo>): void {
+function scanDir(
+  dir: string,
+  source: SkillSourceKind,
+  out: Map<string, SkillInfo>,
+  meta?: { projectId?: string | null; projectTitle?: string | null },
+): void {
   if (!existsSync(dir)) return;
   let entries;
   try {
@@ -86,15 +247,20 @@ function scanDir(dir: string, source: 'project' | 'user', out: Map<string, Skill
     if (entry.isDirectory()) {
       // 目录形态：<name>/SKILL.md（可含 references/ templates/ 子目录）
       const skillFile = join(dir, entry.name, 'SKILL.md');
-      if (existsSync(skillFile)) parseAndStore(skillFile, source, out);
+      if (existsSync(skillFile)) parseAndStore(skillFile, source, out, meta);
     } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'SKILL.md') {
       // 扁平形态：<name>.md
-      parseAndStore(join(dir, entry.name), source, out);
+      parseAndStore(join(dir, entry.name), source, out, meta);
     }
   }
 }
 
-function parseAndStore(path: string, source: 'project' | 'user', out: Map<string, SkillInfo>): void {
+function parseAndStore(
+  path: string,
+  source: SkillSourceKind,
+  out: Map<string, SkillInfo>,
+  meta?: { projectId?: string | null; projectTitle?: string | null },
+): void {
   let raw: string;
   try {
     raw = readFileSync(path, 'utf8');
@@ -110,6 +276,8 @@ function parseAndStore(path: string, source: 'project' | 'user', out: Map<string
     body,
     path,
     source,
+    projectId: meta?.projectId ?? null,
+    projectTitle: meta?.projectTitle ?? null,
   });
 }
 
@@ -245,21 +413,25 @@ function sanitizeSkillDirName(name: string): string {
 export type ImportSkillResult = {
   name: string;
   status: 'created' | 'updated' | 'skipped' | 'failed';
-  source: 'project' | 'user';
+  source: SkillSourceKind;
   path?: string;
   error?: string;
+  projectId?: string | null;
 };
 
 /**
- * 把候选 skill 写入本仓本地目录（project: <cwd>/.skills 或 user: ~/.multi-agent/skills）。
- * 学 Multica runtime local import，但目标是本地 filesystem 而非云 workspace blob。
+ * 把候选 skill 写入本仓本地目录。
+ * - user: ~/.multi-agent/skills
+ * - workspace: <MA_WORKSPACE_CWD>/.skills
+ * - project: <project.localPath>/.skills（需 projectId）
  */
 export function importLocalSkill(opts: {
   sourcePath: string;
   /** 写入后的 skill name；默认读 frontmatter / 文件名 */
   name?: string;
   description?: string;
-  target: 'project' | 'user';
+  target: 'project' | 'user' | 'workspace';
+  projectId?: string | null;
   /** 目标已存在时是否覆盖 */
   overwrite?: boolean;
 }): ImportSkillResult {
@@ -268,7 +440,7 @@ export function importLocalSkill(opts: {
     return {
       name: opts.name ?? basename(abs),
       status: 'failed',
-      source: opts.target,
+      source: opts.target === 'workspace' ? 'workspace' : opts.target,
       error: '源路径不存在',
     };
   }
@@ -326,17 +498,25 @@ export function importLocalSkill(opts: {
       ? opts.description
       : parsed.frontmatter.description ?? '';
 
-  const destRoot =
-    opts.target === 'user' ? userSkillsDir() : projectSkillsDir();
-  if (!destRoot) {
+  // 兼容：旧 target=project 且无 projectId → 当 workspace（历史语义）
+  const writeTarget =
+    opts.target === 'project' && !opts.projectId?.trim()
+      ? ('workspace' as const)
+      : opts.target;
+
+  const resolved = resolveSkillWriteRoot(writeTarget, opts.projectId);
+  if (!resolved.root) {
     return {
       name,
       status: 'failed',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       error:
-        '工作区 cwd 未配置，无法写入项目级 .skills；请改用用户级（~/.multi-agent/skills）或在项目详情绑定 localPath 后从该仓 .skills 使用',
+        resolved.error ??
+        '无法解析 skill 写入目录；请改用用户级或绑定项目本机路径',
     };
   }
+  const destRoot = resolved.root;
 
   mkdirSync(destRoot, { recursive: true });
   const dirName = sanitizeSkillDirName(name);
@@ -345,7 +525,13 @@ export function importLocalSkill(opts: {
   const exists = existsSync(destDir) || existsSync(destFile);
 
   if (exists && !opts.overwrite) {
-    return { name, status: 'skipped', source: opts.target, path: destDir };
+    return {
+      name,
+      status: 'skipped',
+      source: resolved.source,
+      projectId: resolved.projectId,
+      path: destDir,
+    };
   }
 
   try {
@@ -371,14 +557,16 @@ export function importLocalSkill(opts: {
     return {
       name,
       status: exists ? 'updated' : 'created',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       path: destDir,
     };
   } catch (e) {
     return {
       name,
       status: 'failed',
-      source: opts.target,
+      source: resolved.source,
+      projectId: resolved.projectId,
       error: e instanceof Error ? e.message : String(e),
     };
   }

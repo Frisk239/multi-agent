@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { LocalSkillCandidate, SkillImportTarget } from '@ma/shared';
 import {
   useImportLocalSkills,
   useImportSkillFromUrl,
+  useProjects,
   useScanLocalSkills,
 } from '@/lib/api';
 
@@ -21,7 +22,7 @@ function detectUrlSource(url: string): 'clawhub' | 'skills.sh' | 'github' | null
 /**
  * Multica CreateSkillDialog 本地版：
  * 仅「从 URL 导入」+「从本机复制」（放弃手动创建）。
- * 目标写入项目 .skills 或用户 ~/.multi-agent/skills。
+ * C3：默认用户级；可选工作区 / 绑定 localPath 的项目。
  */
 export function CreateSkillDialog({
   open,
@@ -35,9 +36,11 @@ export function CreateSkillDialog({
   const scanLocal = useScanLocalSkills();
   const importLocal = useImportLocalSkills();
   const importUrl = useImportSkillFromUrl();
+  const { data: projects = [] } = useProjects();
 
   const [method, setMethod] = useState<Method>('chooser');
-  const [target, setTarget] = useState<SkillImportTarget>('project');
+  const [target, setTarget] = useState<SkillImportTarget>('user');
+  const [projectId, setProjectId] = useState('');
   const [overwrite, setOverwrite] = useState(false);
 
   const [url, setUrl] = useState('');
@@ -47,8 +50,15 @@ export function CreateSkillDialog({
   const [scanError, setScanError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<LocalSkillCandidate[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [destHint, setDestHint] = useState<{ project: string | null; user: string } | null>(
-    null,
+  const [destHint, setDestHint] = useState<{
+    project: string | null;
+    user: string;
+    destinations?: { id: string; label: string; path: string | null }[];
+  } | null>(null);
+
+  const projectsWithPath = useMemo(
+    () => projects.filter((p) => Boolean(p.localPath?.trim()) && p.localPathExists !== false),
+    [projects],
   );
 
   useEffect(() => {
@@ -61,7 +71,8 @@ export function CreateSkillDialog({
     setCandidates([]);
     setSelected({});
     setOverwrite(false);
-    setTarget('project');
+    setTarget('user');
+    setProjectId('');
   }, [open]);
 
   useEffect(() => {
@@ -79,14 +90,34 @@ export function CreateSkillDialog({
   const selectedList = candidates.filter((c) => selected[c.key]);
   const busy = importUrl.isPending || importLocal.isPending || scanLocal.isPending;
 
+  function resolveImportTarget(): {
+    target: SkillImportTarget;
+    projectId?: string;
+    error?: string;
+  } {
+    if (target === 'project') {
+      if (!projectId.trim()) {
+        return { target, error: '请选择已绑定本机路径的项目' };
+      }
+      return { target: 'project', projectId: projectId.trim() };
+    }
+    return { target };
+  }
+
   async function submitUrl() {
     const trimmed = url.trim();
     if (!trimmed || importUrl.isPending) return;
     setUrlError(null);
+    const t = resolveImportTarget();
+    if (t.error) {
+      setUrlError(t.error);
+      return;
+    }
     try {
       const res = await importUrl.mutateAsync({
         url: trimmed,
-        target,
+        target: t.target,
+        projectId: t.projectId,
         overwrite,
       });
       if (res.status === 'failed') {
@@ -110,6 +141,7 @@ export function CreateSkillDialog({
       setDestHint({
         project: res.projectSkillsDir,
         user: res.userSkillsDir,
+        destinations: res.destinations,
       });
       if (res.error) {
         setCandidates([]);
@@ -133,8 +165,14 @@ export function CreateSkillDialog({
 
   async function submitLocal() {
     if (selectedList.length === 0 || importLocal.isPending) return;
+    const t = resolveImportTarget();
+    if (t.error) {
+      setScanError(t.error);
+      return;
+    }
     await importLocal.mutateAsync({
-      target,
+      target: t.target,
+      projectId: t.projectId,
       items: selectedList.map((c) => ({
         sourcePath: c.path,
         name: c.name,
@@ -250,14 +288,38 @@ export function CreateSkillDialog({
                 <span>写入目标</span>
                 <select
                   value={target}
-                  onChange={(e) => setTarget(e.target.value as SkillImportTarget)}
+                  onChange={(e) => {
+                    const v = e.target.value as SkillImportTarget;
+                    setTarget(v);
+                    if (v !== 'project') setProjectId('');
+                  }}
                   data-testid="create-skill-target"
                   aria-label="写入目标"
                 >
-                  <option value="project">项目 · .skills</option>
-                  <option value="user">用户 · ~/.multi-agent/skills</option>
+                  <option value="user">用户 · ~/.multi-agent/skills（推荐）</option>
+                  <option value="workspace">工作区 · &lt;cwd&gt;/.skills</option>
+                  <option value="project">项目本机 · localPath/.skills</option>
                 </select>
               </label>
+              {target === 'project' ? (
+                <label className="ops-field">
+                  <span>项目</span>
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    data-testid="create-skill-project"
+                    aria-label="选择项目"
+                  >
+                    <option value="">选择已绑路径的项目…</option>
+                    {projectsWithPath.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
+                        {p.localPath ? ` · ${p.localPath}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <label className="skills-import-overwrite">
                 <input
                   type="checkbox"
@@ -346,9 +408,15 @@ export function CreateSkillDialog({
               </form>
               {destHint ? (
                 <p className="text-dim text-sm skills-import-dest">
-                  项目：{destHint.project ?? '（cwd 未配置）'}
-                  <br />
                   用户：{destHint.user}
+                  <br />
+                  工作区：{destHint.project ?? '（cwd 未配置，可仍用用户级）'}
+                  {target === 'project' && projectId ? (
+                    <>
+                      <br />
+                      将写入所选项目的 .skills
+                    </>
+                  ) : null}
                 </p>
               ) : null}
               {scanError ? (

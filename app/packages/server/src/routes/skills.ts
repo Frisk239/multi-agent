@@ -11,6 +11,7 @@ import {
   getSkillIndex,
   importLocalSkill,
   listImportCandidates,
+  listSkillDestinations,
   projectSkillsDir,
   scanSkills,
   userSkillsDir,
@@ -49,6 +50,8 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
         name: skill.name,
         description: skill.description,
         source: skill.source,
+        projectId: skill.projectId ?? null,
+        projectTitle: skill.projectTitle ?? null,
         usedBy,
       });
     }
@@ -79,6 +82,8 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       name: skill.name,
       description: skill.description,
       source: skill.source,
+      projectId: skill.projectId ?? null,
+      projectTitle: skill.projectTitle ?? null,
       body: skill.body,
       path: skill.path,
       usedBy,
@@ -105,6 +110,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       candidates: scanned.candidates,
       projectSkillsDir: projectSkillsDir(),
       userSkillsDir: userSkillsDir(),
+      destinations: listSkillDestinations(),
       error: scanned.error,
     };
   });
@@ -115,13 +121,19 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { target, items } = parsed.data;
+    const { target, projectId, items } = parsed.data;
+    if (target === 'project' && !projectId?.trim()) {
+      return reply.status(400).send({
+        error: 'target=project 时需要 projectId（或改用 user / workspace）',
+      });
+    }
     const results = items.map((item) =>
       importLocalSkill({
         sourcePath: item.sourcePath,
         name: item.name,
         description: item.description,
         target,
+        projectId,
         overwrite: item.overwrite,
       }),
     );
@@ -129,6 +141,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       results,
       projectSkillsDir: projectSkillsDir(),
       userSkillsDir: userSkillsDir(),
+      destinations: listSkillDestinations(),
     };
   });
 
@@ -138,9 +151,15 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    if (parsed.data.target === 'project' && !parsed.data.projectId?.trim()) {
+      return reply.status(400).send({
+        error: 'target=project 时需要 projectId（或改用 user / workspace）',
+      });
+    }
     const result = await importSkillFromUrl({
       url: parsed.data.url,
       target: parsed.data.target,
+      projectId: parsed.data.projectId,
       overwrite: parsed.data.overwrite,
       name: parsed.data.name,
     });
@@ -148,6 +167,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       ...result,
       projectSkillsDir: projectSkillsDir(),
       userSkillsDir: userSkillsDir(),
+      destinations: listSkillDestinations(),
     };
     if (result.status === 'failed') {
       return reply.status(400).send(body);

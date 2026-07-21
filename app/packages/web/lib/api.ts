@@ -1174,7 +1174,8 @@ export function useImportSkillFromUrl() {
   return useMutation({
     mutationFn: async (input: {
       url: string;
-      target?: 'project' | 'user';
+      target?: 'project' | 'user' | 'workspace';
+      projectId?: string;
       overwrite?: boolean;
       name?: string;
     }) => {
