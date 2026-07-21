@@ -28,7 +28,7 @@ const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: 'none', label: '无' },
 ];
 
-// spec §7.2：6 列，cancelled 不建列
+// Multica 真站 7 列：backlog…cancelled（STATUS_ORDER）
 // G5：展示名对齐 Multica 中文产品列；status 枚举不变
 const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
   { title: '待规划', status: 'backlog', color: 'var(--status-backlog)' },
@@ -36,7 +36,8 @@ const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
   { title: '进行中', status: 'in_progress', color: 'var(--status-in-progress)' },
   { title: '审核中', status: 'in_review', color: 'var(--status-in-review)' },
   { title: '已完成', status: 'done', color: 'var(--status-done)' },
-  { title: '阻塞', status: 'blocked', color: 'var(--status-blocked)' },
+  { title: '已阻塞', status: 'blocked', color: 'var(--status-blocked)' },
+  { title: '已取消', status: 'cancelled', color: 'var(--status-cancelled)' },
 ];
 
 /** URL `assignee=` → IssuesQuery 字段 */
@@ -72,7 +73,7 @@ function KanbanBoardInner() {
   const projectFromUrl = searchParams.get('project') ?? '';
   // URL 可分享：?failed=1 仅显示最近有 failed run 的 issue
   const failedOnly = searchParams.get('failed') === '1';
-  // URL 可分享：?status= 仅显示该列（cancelled 不建列）
+  // URL 可分享：?status= 仅显示该列
   const statusFromUrl = searchParams.get('status') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
@@ -176,7 +177,7 @@ function KanbanBoardInner() {
   const setStatusFilter = useCallback(
     (value: string) => {
       const sp = new URLSearchParams(searchParams.toString());
-      if (value && value !== 'cancelled' && (IssueStatusEnum.options as string[]).includes(value)) {
+      if (value && (IssueStatusEnum.options as string[]).includes(value)) {
         sp.set('status', value);
       } else {
         sp.delete('status');
@@ -255,15 +256,13 @@ function KanbanBoardInner() {
 
   const statusQuery = useMemo(() => {
     if (!statusFromUrl) return undefined;
-    if (statusFromUrl === 'cancelled') return undefined;
     const ok = (IssueStatusEnum.options as string[]).includes(statusFromUrl);
     return ok ? (statusFromUrl as IssueStatus) : undefined;
   }, [statusFromUrl]);
 
-  // cancelled 不渲染；服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤
+  // 服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤（含 cancelled 列）
   const visible = useMemo(() => {
     return (issues ?? []).filter((i) => {
-      if (i.status === 'cancelled') return false;
       if (failedOnly && !failedIssueIds.has(i.id)) return false;
       if (statusQuery && i.status !== statusQuery) return false;
       return true;
