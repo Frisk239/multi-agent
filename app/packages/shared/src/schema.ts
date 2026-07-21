@@ -1229,9 +1229,12 @@ export type ChatMessageRole = z.infer<typeof ChatMessageRole>;
 
 /** Chat 执行目录元信息（服务端真源；对齐 resolveRunCwd） */
 export const ChatExecContext = z.object({
-  /** chat_scratch=默认隔离；workspace=MA_CHAT_USE_WORKSPACE_CWD；none=失败 */
-  mode: z.enum(['chat_scratch', 'workspace', 'none']),
-  /** 产品文案：隔离 / 工作区 / 未就绪 */
+  /**
+   * project_local=会话绑项目本机目录；
+   * chat_scratch=默认隔离；workspace=MA_CHAT_USE_WORKSPACE_CWD；none=失败/无效
+   */
+  mode: z.enum(['chat_scratch', 'workspace', 'project_local', 'none']),
+  /** 产品文案：项目本机 / 隔离 / 工作区 / 未就绪 */
   modeLabel: z.string(),
   path: z.string().nullable(),
   exists: z.boolean(),
@@ -1249,10 +1252,19 @@ export const ChatThread = z.object({
   pinnedAt: z.string().datetime().nullable().optional(),
   /** Multica：归档时间；null=活跃 */
   archivedAt: z.string().datetime().nullable().optional(),
+  /** B1：绑定项目 → 执行用 project.localPath */
+  projectId: BusinessId.nullable().optional(),
+  projectTitle: z.string().nullable().optional(),
   /** 详情接口可选：本会话 CLI cwd 模式与路径 */
   execContext: ChatExecContext.optional(),
 });
 export type ChatThread = z.infer<typeof ChatThread>;
+
+/** 会话绑/解绑项目（null 或 "" 清除） */
+export const UpdateChatThreadProjectInput = z.object({
+  projectId: BusinessId.nullable(),
+});
+export type UpdateChatThreadProjectInput = z.infer<typeof UpdateChatThreadProjectInput>;
 
 export const ListChatThreadsQuery = z.object({
   /** include archived rows (default false) */

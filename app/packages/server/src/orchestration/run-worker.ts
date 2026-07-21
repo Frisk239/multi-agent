@@ -10,6 +10,7 @@ import {
   chatMessages,
   chatThreads,
 } from '../db/schema.js';
+// chatThreads used for B1 chat project cwd
 import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
@@ -91,9 +92,24 @@ async function tick(): Promise<void> {
 // bu03：resolveRunPrompt（QC 专用）；completed 但 QC 未 Link issue → fail。
   async function executeRun(runRow: typeof agentRuns.$inferSelect): Promise<void> {
     // Multica execenv：默认隔离；有 project.localPath 则本机仓；opt-in 全局 workspace
+    // B1：chat 从 chat_thread.projectId 读 localPath
     const kindEarly = (runRow.kind as string) ?? 'issue';
     let projectLocalPath: string | null = null;
-    if (runRow.issueId && kindEarly !== 'chat') {
+    if (kindEarly === 'chat' && runRow.chatThreadId) {
+      const thr = db
+        .select()
+        .from(chatThreads)
+        .where(eq(chatThreads.id, runRow.chatThreadId))
+        .get();
+      if (thr?.projectId) {
+        const proj = db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, thr.projectId))
+          .get();
+        projectLocalPath = proj?.localPath ?? null;
+      }
+    } else if (runRow.issueId && kindEarly !== 'chat') {
       const issueRow = db
         .select()
         .from(issues)

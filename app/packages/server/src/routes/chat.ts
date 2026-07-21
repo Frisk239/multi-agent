@@ -1,18 +1,20 @@
 // agent-chat：人↔agent 会话 API（对齐 Multica /chat：置顶 / 归档）
+// B1 UX Trust：会话可绑 project → CLI cwd = project.localPath
 import type { FastifyInstance } from 'fastify';
-import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   ArchiveChatThreadInput,
   CreateChatThreadInput,
   ListChatThreadsQuery,
   PinChatThreadInput,
   PostChatMessageInput,
+  UpdateChatThreadProjectInput,
   type ChatExecContext,
   type ChatMessage,
   type ChatThread,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, agents, chatMessages, chatThreads } from '../db/schema.js';
+import { agentRuns, agents, chatMessages, chatThreads, projects } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
@@ -23,10 +25,33 @@ function iso(ms: number | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
+function projectLocalPathFor(projectId: string | null | undefined): {
+  path: string | null;
+  title: string | null;
+} {
+  if (!projectId) return { path: null, title: null };
+  const proj = db.select().from(projects).where(eq(projects.id, projectId)).get();
+  if (!proj) return { path: null, title: null };
+  return { path: proj.localPath ?? null, title: proj.title };
+}
+
+function execForThread(threadId: string, projectId: string | null | undefined): ChatExecContext {
+  const { path } = projectLocalPathFor(projectId);
+  const exec = resolveChatExecContext(threadId, path);
+  return {
+    mode: exec.mode,
+    modeLabel: exec.modeLabel,
+    path: exec.path,
+    exists: exec.exists,
+  };
+}
+
 function toThread(
   row: typeof chatThreads.$inferSelect,
   lastPreview?: string | null,
 ): ChatThread {
+  const projectId = (row as { projectId?: string | null }).projectId ?? null;
+  const { title: projectTitle } = projectLocalPathFor(projectId);
   return {
     id: row.id,
     agentId: row.agentId,
@@ -36,6 +61,8 @@ function toThread(
     lastMessagePreview: lastPreview ?? null,
     pinnedAt: iso(row.pinnedAt ?? null),
     archivedAt: iso(row.archivedAt ?? null),
+    projectId,
+    projectTitle,
   };
 }
 
@@ -104,6 +131,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         updatedAt: now,
         pinnedAt: null,
         archivedAt: null,
+        projectId: null,
       })
       .run();
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
@@ -116,13 +144,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
     if (!row) return reply.status(404).send({ error: '会话不存在' });
     const base = toThread(row, lastPreviewFor(row.id));
-    const exec = resolveChatExecContext(id);
-    const execContext: ChatExecContext = {
-      mode: exec.mode,
-      modeLabel: exec.modeLabel,
-      path: exec.path,
-      exists: exec.exists,
-    };
+    const execContext = execForThread(id, base.projectId);
     return { ...base, execContext };
   });
 
@@ -131,14 +153,36 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
     if (!row) return reply.status(404).send({ error: '会话不存在' });
-    const exec = resolveChatExecContext(id);
-    const body: ChatExecContext = {
-      mode: exec.mode,
-      modeLabel: exec.modeLabel,
-      path: exec.path,
-      exists: exec.exists,
-    };
-    return body;
+    return execForThread(id, (row as { projectId?: string | null }).projectId);
+  });
+
+  // PATCH /api/chat/threads/:id/project  { projectId: string | null }
+  app.patch('/api/chat/threads/:id/project', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = UpdateChatThreadProjectInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ error: '会话不存在' });
+
+    let projectId: string | null = parsed.data.projectId;
+    if (projectId) {
+      const proj = db.select().from(projects).where(eq(projects.id, projectId)).get();
+      if (!proj) return reply.status(404).send({ error: 'project 不存在' });
+    } else {
+      projectId = null;
+    }
+
+    const now = Date.now();
+    db.update(chatThreads)
+      .set({ projectId, updatedAt: now })
+      .where(eq(chatThreads.id, id))
+      .run();
+    const next = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
+    const base = toThread(next, lastPreviewFor(id));
+    const execContext = execForThread(id, base.projectId);
+    return { ...base, execContext };
   });
 
   // PATCH /api/chat/threads/:id/pin  { pinned: boolean }

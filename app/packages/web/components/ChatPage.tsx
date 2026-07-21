@@ -14,6 +14,8 @@ import {
   useCreateChatThread,
   usePinChatThread,
   usePostChatMessage,
+  useProjects,
+  useUpdateChatThreadProject,
   useWorkspaceRuns,
 } from '@/lib/api';
 import { useRunProgressStore } from '@/lib/ws';
@@ -66,11 +68,13 @@ export function ChatPage() {
   const [showArchived, setShowArchived] = useState(false);
 
   const { data: agents = [] } = useAgents();
+  const { data: projects = [] } = useProjects();
   const { data: threads = [], isLoading: threadsLoading } = useChatThreads({
     archived: showArchived,
   });
   const pinThread = usePinChatThread();
   const archiveThread = useArchiveChatThread();
+  const updateThreadProject = useUpdateChatThreadProject();
   const { data: messages = [], isLoading: messagesLoading } = useChatMessages(
     threadId || undefined,
   );
@@ -362,7 +366,7 @@ export function ChatPage() {
                 </div>
                 <h2>和你的智能体对话</h2>
                 <p data-testid="chat-empty-copy">
-                  一对一聊天：默认在隔离目录跑 CLI，不会自动「读懂」你的项目 issue。
+                  一对一聊天：默认在隔离目录跑 CLI。会话头可绑项目本机目录，下一句即进真仓。
                   从左侧选会话，或点下方新建对话。
                 </p>
                 <button
@@ -390,32 +394,72 @@ export function ChatPage() {
                       </span>
                     ) : null}
                   </p>
-                  {execContext ? (
-                    <p
-                      className="chat-main-cwd"
-                      data-testid="chat-exec-context"
-                      data-cwd-mode={execContext.mode}
-                      title={execContext.path ?? undefined}
-                    >
-                      <span
-                        className="chat-cwd-mode"
-                        data-testid="chat-cwd-mode"
+                  <div className="chat-main-project-row" data-testid="chat-project-row">
+                    <label className="chat-project-field">
+                      <span className="chat-project-label">项目</span>
+                      <select
+                        className="chat-project-select"
+                        value={selectedThread.projectId ?? ''}
+                        aria-label="会话绑定项目"
+                        data-testid="chat-project-select"
+                        disabled={updateThreadProject.isPending}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          updateThreadProject.mutate({
+                            id: selectedThread.id,
+                            projectId: v ? v : null,
+                          });
+                        }}
                       >
-                        {execContext.modeLabel}
-                      </span>
-                      {execContext.path ? (
-                        <>
-                          {' · '}
-                          <span
-                            className="chat-cwd-path"
-                            data-testid="chat-cwd-path"
-                          >
-                            {truncatePath(execContext.path)}
+                        <option value="">无项目（隔离执行）</option>
+                        {projects.map((p) => {
+                          const hint = p.localPath
+                            ? p.localPathExists
+                              ? ' · 已绑目录'
+                              : ' · 路径无效'
+                            : ' · 未绑目录';
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.title}
+                              {hint}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    {execContext ? (
+                      <p
+                        className="chat-main-cwd"
+                        data-testid="chat-exec-context"
+                        data-cwd-mode={execContext.mode}
+                        title={execContext.path ?? undefined}
+                      >
+                        <span
+                          className="chat-cwd-mode"
+                          data-testid="chat-cwd-mode"
+                        >
+                          {execContext.modeLabel}
+                        </span>
+                        {execContext.path ? (
+                          <>
+                            {' · '}
+                            <span
+                              className="chat-cwd-path"
+                              data-testid="chat-cwd-path"
+                            >
+                              {truncatePath(execContext.path)}
+                            </span>
+                          </>
+                        ) : null}
+                        {execContext.mode === 'none' && selectedThread.projectId ? (
+                          <span className="chat-cwd-warn" data-testid="chat-cwd-invalid">
+                            {' '}
+                            · 路径无效，run 会失败
                           </span>
-                        </>
-                      ) : null}
-                    </p>
-                  ) : null}
+                        ) : null}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               </header>
 

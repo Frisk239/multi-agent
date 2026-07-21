@@ -217,7 +217,7 @@ function resolveIsolated(
 /**
  * 解析本 run 的 CLI cwd。
  * - issue：projectLocalPath（若配置）> MA_ISSUE_USE_WORKSPACE_CWD > 隔离
- * - chat：MA_CHAT_USE_WORKSPACE_CWD > chat scratch
+ * - chat：projectLocalPath（会话绑项目）> MA_CHAT_USE_WORKSPACE_CWD > chat scratch
  * - QC 无 project：同 issue 后两档
  */
 export function resolveRunCwd(opts: {
@@ -226,22 +226,22 @@ export function resolveRunCwd(opts: {
   issueId?: string | null;
   chatThreadId?: string | null;
   workspaceId?: string;
-  /** issue 所属 project.localPath（已从 DB 读出） */
+  /** issue 或 chat thread 绑定的 project.localPath（已从 DB 读出） */
   projectLocalPath?: string | null;
 }): ResolvedRunCwd {
   const kind = opts.kind || 'issue';
+
+  // 各 kind 优先项目本机目录（学 Multica LocalWorkDir）
+  const pl = opts.projectLocalPath?.trim();
+  if (pl) {
+    return resolveProjectLocal(pl);
+  }
 
   if (kind === 'chat') {
     if (envFlag('MA_CHAT_USE_WORKSPACE_CWD')) {
       return resolveWorkspacePath();
     }
     return resolveIsolated(kind, opts);
-  }
-
-  // issue / quick_create：优先项目本机目录（学 Multica LocalWorkDir）
-  const pl = opts.projectLocalPath?.trim();
-  if (pl) {
-    return resolveProjectLocal(pl);
   }
 
   if (envFlag('MA_ISSUE_USE_WORKSPACE_CWD')) {
@@ -253,9 +253,13 @@ export function resolveRunCwd(opts: {
 /**
  * Chat 会话头展示用：mode + path（不 spawn CLI）。
  * runId 用占位即可；chat scratch 按 threadId 建目录。
+ * projectLocalPath：会话已绑 project 时传入其 localPath。
  */
-export function resolveChatExecContext(threadId: string): {
-  mode: 'chat_scratch' | 'workspace' | 'none';
+export function resolveChatExecContext(
+  threadId: string,
+  projectLocalPath?: string | null,
+): {
+  mode: 'chat_scratch' | 'workspace' | 'project_local' | 'none';
   modeLabel: string;
   path: string | null;
   exists: boolean;
@@ -264,7 +268,16 @@ export function resolveChatExecContext(threadId: string): {
     kind: 'chat',
     runId: 'exec-context',
     chatThreadId: threadId,
+    projectLocalPath,
   });
+  if (resolved.mode === 'project_local') {
+    return {
+      mode: 'project_local',
+      modeLabel: '项目本机',
+      path: resolved.path,
+      exists: resolved.exists,
+    };
+  }
   if (resolved.mode === 'workspace') {
     return {
       mode: 'workspace',
@@ -283,7 +296,7 @@ export function resolveChatExecContext(threadId: string): {
   }
   return {
     mode: 'none',
-    modeLabel: '未就绪',
+    modeLabel: projectLocalPath?.trim() ? '路径无效' : '未就绪',
     path: resolved.path,
     exists: false,
   };

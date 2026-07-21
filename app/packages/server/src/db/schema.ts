@@ -344,6 +344,8 @@ export const chatThreads = sqliteTable(
     // Multica：pinned_at 排序置顶；archived_at 软归档（列表默认隐藏）
     pinnedAt: integer('pinned_at'),
     archivedAt: integer('archived_at'),
+    // B1 UX Trust：会话绑 project → CLI cwd = project.localPath
+    projectId: text('project_id'),
   },
   (t) => ({
     updatedIdx: index('idx_chat_thread_updated').on(t.updatedAt),

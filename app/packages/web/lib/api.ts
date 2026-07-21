@@ -2051,7 +2051,45 @@ export function useChatExecContext(threadId: string | undefined) {
       return res.json();
     },
     enabled: !!threadId,
-    staleTime: 30_000,
+    staleTime: 5_000,
+  });
+}
+
+/** B1：会话绑 / 解绑项目 → CLI cwd = project.localPath */
+export function useUpdateChatThreadProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      projectId,
+    }: {
+      id: string;
+      projectId: string | null;
+    }) => {
+      const res = await fetch(
+        `${API}/chat/threads/${encodeURIComponent(id)}/project`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId }),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '绑定项目失败'));
+      return res.json() as Promise<ChatThread & { execContext?: ChatExecContext }>;
+    },
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      qc.invalidateQueries({ queryKey: ['chat-exec-context', vars.id] });
+      if (data.execContext) {
+        qc.setQueryData(['chat-exec-context', vars.id], data.execContext);
+      }
+      toastSuccess(
+        data.projectId
+          ? `已绑项目「${data.projectTitle ?? data.projectId.slice(0, 8)}」`
+          : '已解除项目绑定（隔离执行）',
+      );
+    },
+    onError: (err) => toastError(errMessage(err, '绑定项目失败')),
   });
 }
 

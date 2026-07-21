@@ -5726,8 +5726,40 @@ button.memory-kind-chip.is-active {
   color: var(--text-dim);
 }
 
+.chat-main-project-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.chat-project-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.chat-project-label {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.chat-project-select {
+  max-width: 240px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
 .chat-main-cwd {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 11.5px;
   color: var(--text-dim);
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -5749,6 +5781,12 @@ button.memory-kind-chip.is-active {
 
 .chat-cwd-path {
   opacity: 0.92;
+}
+
+.chat-cwd-warn {
+  color: color-mix(in srgb, var(--color-red, #ef4444) 85%, var(--text-dim));
+  font-family: var(--font-ui);
+  font-weight: 500;
 }
 
 .chat-messages {

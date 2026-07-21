@@ -60,7 +60,9 @@
   - **A1 ✅** 新建绑项目 + cwd 预检 · `ux-trust-a1-new-issue-project-impl-1.md`  
   - **A2 ✅** run cwd 落库 + UI · `ux-trust-a2-run-cwd-display-impl-1.md`  
   - **A3 ✅** 文案与 QC 闸 · `ux-trust-a3-copy-qc-gate-impl-1.md`  
-  - **Wave A 出口 ✅** · 默认队列：**B1 Chat 绑仓 → B2 QC project → B3 静默点 → …**  
+  - **Wave A 出口 ✅** · E2E `ux-trust-wave-a-e2e-2026-07-21.md`  
+  - **B1 ✅** Chat 绑 Project · `ux-trust-b1-chat-project-impl-1.md`  
+  - 默认队列：**B2 QC project → B3 静默点 → C…**  
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
