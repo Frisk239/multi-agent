@@ -1,7 +1,7 @@
 # 下一阶段计划：Multica 体验诚实与多仓日用
 
 Date: 2026-07-21  
-Status: **计划中 / 可开干**  
+Status: **进行中**（A1 ✅）  
 Code name: **UX Trust**（暂名）
 
 > 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交。  
@@ -123,7 +123,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 
 同时满足即可宣称 **UX Trust 阶段收官**（可再开下一阶段）：
 
-- [ ] 看板新建 Issue 可关联 project；无/坏 path 有预检或明确隔离提示  
+- [x] 看板新建 Issue 可关联 project；无/坏 path 有预检或明确隔离提示  
 - [ ] 任意 issue run 在 UI 可见 cwd mode + path（或明确「隔离」）  
 - [ ] EnvBanner / Settings / QC 文案与「默认隔离」一致；QC 与 Issue 同级 readiness 闸  
 - [ ] Chat 至少能绑一个 project.localPath 执行  
@@ -137,7 +137,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 
 | 刀 | 状态 | progress | 备注 |
 |---|---|---|---|
-| A1 新建绑项目 + cwd 预检 | pending | | |
+| A1 新建绑项目 + cwd 预检 | ✅ | `ux-trust-a1-new-issue-project-impl-1.md` | 看板新建 project + 隔离/本机/无效预检 |
 | A2 run cwd 落库 + UI | pending | | |
 | A3 文案与 QC 闸对齐 | pending | | |
 | B1 Chat 绑 Project | pending | | |

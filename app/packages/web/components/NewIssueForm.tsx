@@ -8,27 +8,38 @@ import {
   useAgents,
   useAgentsReadinessMap,
   useCreateIssue,
+  useProjects,
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
 import { Icon } from './Icon';
 
+type ExecPreview =
+  | { kind: 'isolated'; reason: 'no_project' | 'no_path'; projectTitle?: string; projectId?: string }
+  | { kind: 'project_local'; path: string; projectTitle: string; projectId: string }
+  | { kind: 'invalid_path'; path: string; projectTitle: string; projectId: string };
+
 // S12：内联表单升级——可指派 agent/squad；侧栏 /?new=1 触发展开
 // issue-cwd-gate：有指派且 cwd 未就绪时警告（与快速派活对齐）
+// A1 UX Trust：可选 project + 执行目录预检（隔离 / 项目本机 / 路径无效）
 export function NewIssueForm() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('none');
   const [assigneeValue, setAssigneeValue] = useState('');
+  const [projectId, setProjectId] = useState('');
   const create = useCreateIssue();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: projects = [] } = useProjects();
   const { data: settings } = useSettingsStatus();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+
+  const projectFromUrl = searchParams.get('project') ?? '';
 
   const cwdBlocked = useMemo(() => {
     const cwd = settings?.checks?.find((c) => c.id === 'cwd');
@@ -40,6 +51,40 @@ export function NewIssueForm() {
   }, [settings]);
   const willEnqueue = Boolean(assigneeValue);
   const showCwdWarn = cwdBlocked && willEnqueue;
+
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === projectId) ?? null,
+    [projects, projectId],
+  );
+
+  const execPreview: ExecPreview = useMemo(() => {
+    if (!selectedProject) {
+      return { kind: 'isolated', reason: 'no_project' };
+    }
+    const path = selectedProject.localPath?.trim() || '';
+    if (!path) {
+      return {
+        kind: 'isolated',
+        reason: 'no_path',
+        projectTitle: selectedProject.title,
+        projectId: selectedProject.id,
+      };
+    }
+    if (selectedProject.localPathExists === false) {
+      return {
+        kind: 'invalid_path',
+        path,
+        projectTitle: selectedProject.title,
+        projectId: selectedProject.id,
+      };
+    }
+    return {
+      kind: 'project_local',
+      path,
+      projectTitle: selectedProject.title,
+      projectId: selectedProject.id,
+    };
+  }, [selectedProject]);
 
   const selectedAssignee = useMemo(() => {
     if (assigneeValue.startsWith('agent:')) {
@@ -85,10 +130,16 @@ export function NewIssueForm() {
     }
   }, [searchParams, router, pathname]);
 
+  // 看板 ?project= 筛选时预填表单（不删除 URL，保留筛选）
+  useEffect(() => {
+    if (projectFromUrl) setProjectId(projectFromUrl);
+  }, [projectFromUrl]);
+
   function reset() {
     setTitle('');
     setPriority('none');
     setAssigneeValue('');
+    if (!projectFromUrl) setProjectId('');
     setOpen(false);
   }
 
@@ -118,7 +169,12 @@ export function NewIssueForm() {
     }
 
     create.mutate(
-      { title: title.trim(), priority, assignee },
+      {
+        title: title.trim(),
+        priority,
+        assignee,
+        projectId: projectId || undefined,
+      },
       {
         onSuccess: () => reset(),
       },
@@ -167,6 +223,71 @@ export function NewIssueForm() {
           </div>
         </div>
       ) : null}
+
+      <div
+        className={
+          'new-issue-exec-banner' +
+          (execPreview.kind === 'invalid_path'
+            ? ' is-bad'
+            : execPreview.kind === 'project_local'
+              ? ' is-ok'
+              : ' is-warn')
+        }
+        data-testid="new-issue-exec-banner"
+        data-mode={
+          execPreview.kind === 'project_local'
+            ? 'project_local'
+            : execPreview.kind === 'invalid_path'
+              ? 'invalid'
+              : 'isolated'
+        }
+        role="status"
+      >
+        {execPreview.kind === 'isolated' && execPreview.reason === 'no_project' ? (
+          <span>
+            <strong>将在隔离目录执行</strong>
+            未关联项目 — agent 不会改动业务仓。绑定项目并配置本机目录后，才在真仓跑。
+          </span>
+        ) : null}
+        {execPreview.kind === 'isolated' && execPreview.reason === 'no_path' ? (
+          <span>
+            <strong>将在隔离目录执行</strong>
+            项目「{execPreview.projectTitle}」未绑定本机目录。
+          </span>
+        ) : null}
+        {execPreview.kind === 'invalid_path' ? (
+          <span>
+            <strong>项目路径无效</strong>
+            「{execPreview.projectTitle}」· <code>{execPreview.path}</code>
+            — 不存在或不是目录；指派后 run 会失败。
+          </span>
+        ) : null}
+        {execPreview.kind === 'project_local' ? (
+          <span>
+            <strong>将在项目本机目录执行</strong>
+            「{execPreview.projectTitle}」· <code>{execPreview.path}</code>
+          </span>
+        ) : null}
+        <div className="new-issue-cwd-actions" data-testid="new-issue-exec-actions">
+          {execPreview.kind === 'isolated' && execPreview.reason === 'no_project' ? (
+            <Link href="/projects" className="btn-ghost btn-sm" data-testid="new-issue-projects">
+              项目列表
+            </Link>
+          ) : null}
+          {(execPreview.kind === 'isolated' && execPreview.reason === 'no_path') ||
+          execPreview.kind === 'invalid_path' ||
+          execPreview.kind === 'project_local' ? (
+            <Link
+              href={`/projects/${execPreview.projectId}`}
+              className="btn-secondary btn-sm"
+              data-testid="new-issue-project-detail"
+            >
+              {execPreview.kind === 'project_local' ? '项目详情' : '绑定本机目录'}
+            </Link>
+          ) : null}
+        </div>
+      </div>
+
       <input
         className="new-issue-input"
         value={title}
@@ -186,6 +307,28 @@ export function NewIssueForm() {
         <option value="medium">中</option>
         <option value="high">高</option>
         <option value="urgent">紧急</option>
+      </select>
+      <select
+        className="new-issue-select new-issue-project"
+        value={projectId}
+        onChange={(e) => setProjectId(e.target.value)}
+        aria-label="所属项目"
+        data-testid="new-issue-project"
+      >
+        <option value="">无项目（隔离执行）</option>
+        {projects.map((p) => {
+          const pathHint = p.localPath
+            ? p.localPathExists
+              ? ' · 已绑目录'
+              : ' · 路径无效'
+            : ' · 未绑目录';
+          return (
+            <option key={p.id} value={p.id}>
+              {p.title}
+              {pathHint}
+            </option>
+          );
+        })}
       </select>
       <select
         className="new-issue-select new-issue-assignee"
@@ -285,12 +428,23 @@ export function NewIssueForm() {
         data-testid="new-issue-submit"
         data-cwd-blocked={showCwdWarn ? '1' : '0'}
         data-assignee-blocked={assigneeBlocked ? '1' : '0'}
+        data-exec-mode={
+          execPreview.kind === 'project_local'
+            ? 'project_local'
+            : execPreview.kind === 'invalid_path'
+              ? 'invalid'
+              : 'isolated'
+        }
         title={
           showCwdWarn
             ? '工作区未就绪时服务端拒绝开工'
             : assigneeBlocked
               ? '指派方可能无法执行'
-              : undefined
+              : execPreview.kind === 'invalid_path'
+                ? '项目路径无效，指派后 run 可能失败'
+                : execPreview.kind === 'isolated'
+                  ? '将在隔离目录执行（不会改动业务仓）'
+                  : undefined
         }
         disabled={create.isPending || !title.trim()}
       >
