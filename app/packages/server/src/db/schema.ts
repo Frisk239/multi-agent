@@ -243,6 +243,8 @@ export const agentRuns = sqliteTable(
     // A2 UX Trust：CLI cwd 审计（resolve-run-cwd）
     cwdPath: text('cwd_path'),
     cwdMode: text('cwd_mode'),
+    // B2 UX Trust：QC 等无 issue 时仍可绑 project → cwd
+    projectId: text('project_id'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

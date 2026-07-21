@@ -236,6 +236,7 @@ export function toAgentRun(row: RunRow): AgentRun {
     cwdMode:
       ((row as { cwdMode?: AgentRun['cwdMode'] }).cwdMode as AgentRun['cwdMode']) ??
       null,
+    projectId: (row as { projectId?: string | null }).projectId ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

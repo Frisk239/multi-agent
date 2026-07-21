@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { CreateQuickRunInput } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agents, agentRuns } from '../db/schema.js';
+import { agents, agentRuns, projects } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from '../orchestration/event-bus.js';
@@ -16,6 +16,7 @@ function allowNotReadyEnqueue(): boolean {
 
 // bu03：POST /api/quick-runs —— 无 Issue 先 enqueue quick_create run
 // A3：与 Issue enqueue 同级 readiness 硬闸（runtime / opt-in cwd），不静默 queued
+// B2：可选 projectId → run.project_id → cwd = project.localPath
 export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/quick-runs', async (req, reply) => {
     const parsed = CreateQuickRunInput.safeParse(req.body);
@@ -23,6 +24,14 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     const { prompt, assignee } = parsed.data;
+    let projectId: string | null = parsed.data.projectId?.trim() || null;
+
+    if (projectId) {
+      const proj = db.select().from(projects).where(eq(projects.id, projectId)).get();
+      if (!proj) {
+        return reply.status(404).send({ error: 'project 不存在' });
+      }
+    }
 
     let agentId: string;
     let isLeader = false;
@@ -88,6 +97,7 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
         quickPrompt: prompt,
         isLeader: isLeader ? 1 : 0,
         squadId,
+        projectId,
         error: null,
         startedAt: null,
         finishedAt: null,

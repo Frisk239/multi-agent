@@ -74,6 +74,10 @@ export async function createIssueCore(
         issueId: run.issueId,
       };
     }
+    // B2：QC 绑了 project 时，建卡继承（agent 未显式传 projectId 也进真仓）
+    if (!projectId && run.projectId) {
+      projectId = run.projectId;
+    }
   }
 
   // issue-subtasks：校验父存在、同 workspace、禁止孙级

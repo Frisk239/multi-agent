@@ -7,6 +7,7 @@ import {
   useAgents,
   useAgentsReadinessMap,
   useCreateQuickRun,
+  useProjects,
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
@@ -20,6 +21,11 @@ type QuickDispatchPanelProps = {
   /** wiki-memory-ops D1：从 /runs 失败 QC 预填 */
   initialPrompt?: string;
 };
+
+type ExecPreview =
+  | { kind: 'isolated'; reason: 'no_project' | 'no_path'; projectTitle?: string }
+  | { kind: 'project_local'; path: string; projectTitle: string }
+  | { kind: 'invalid_path'; path: string; projectTitle: string };
 
 async function pollRunUntilIssueId(
   runId: string,
@@ -44,6 +50,7 @@ async function pollRunUntilIssueId(
 
 // bu03：快速派活 — prompt + agent|squad，无标题；侧栏 / Ctrl+K 共用
 // qc-cwd-gate：cwd 未就绪时面板内警告，按钮改为「仍要派活」
+// B2：可选 project + 执行目录预检；服务端 readiness 硬闸
 export function QuickDispatchPanel({
   open,
   onClose,
@@ -51,8 +58,10 @@ export function QuickDispatchPanel({
 }: QuickDispatchPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [assigneeValue, setAssigneeValue] = useState('');
+  const [projectId, setProjectId] = useState('');
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: projects = [] } = useProjects();
   const { data: settings } = useSettingsStatus();
   const createQuickRun = useCreateQuickRun();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
@@ -66,6 +75,35 @@ export function QuickDispatchPanel({
     const cwd = settings?.checks?.find((c) => c.id === 'cwd');
     return cwd?.detail ?? '未配置 MA_WORKSPACE_CWD';
   }, [settings]);
+
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === projectId) ?? null,
+    [projects, projectId],
+  );
+
+  const execPreview: ExecPreview = useMemo(() => {
+    if (!selectedProject) return { kind: 'isolated', reason: 'no_project' };
+    const path = selectedProject.localPath?.trim() || '';
+    if (!path) {
+      return {
+        kind: 'isolated',
+        reason: 'no_path',
+        projectTitle: selectedProject.title,
+      };
+    }
+    if (selectedProject.localPathExists === false) {
+      return {
+        kind: 'invalid_path',
+        path,
+        projectTitle: selectedProject.title,
+      };
+    }
+    return {
+      kind: 'project_local',
+      path,
+      projectTitle: selectedProject.title,
+    };
+  }, [selectedProject]);
 
   const selectedAssignee = useMemo(() => {
     if (assigneeValue.startsWith('agent:')) {
@@ -102,6 +140,13 @@ export function QuickDispatchPanel({
     selectedAssignee.status !== 'ready' &&
     selectedAssignee.status !== 'busy';
 
+  const hardAssigneeBlock =
+    assigneeBlocked &&
+    selectedAssignee &&
+    (selectedAssignee.status === 'cwd_missing' ||
+      selectedAssignee.status === 'runtime_missing' ||
+      selectedAssignee.status === 'error');
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -118,6 +163,7 @@ export function QuickDispatchPanel({
     if (!open) {
       setPrompt('');
       setAssigneeValue('');
+      setProjectId('');
       return;
     }
     if (initialPrompt?.trim()) {
@@ -131,6 +177,14 @@ export function QuickDispatchPanel({
     e.preventDefault();
     if (!prompt.trim() || !assigneeValue || createQuickRun.isPending) return;
 
+    // 与 Issue 硬闸一致：cwd_missing / runtime_missing / error 禁止提交
+    if (hardAssigneeBlock && selectedAssignee) {
+      window.alert(
+        `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时。`,
+      );
+      return;
+    }
+
     let assignee: { type: 'agent' | 'squad'; id: string } | null = null;
     if (assigneeValue.startsWith('agent:')) {
       assignee = { type: 'agent', id: assigneeValue.slice('agent:'.length) };
@@ -143,6 +197,7 @@ export function QuickDispatchPanel({
       const { run } = await createQuickRun.mutateAsync({
         prompt: prompt.trim(),
         assignee,
+        projectId: projectId || undefined,
       });
       onClose();
       // 可选短轮询：agent 建卡并 Link 后 toast identifier/id
@@ -172,7 +227,7 @@ export function QuickDispatchPanel({
       >
         <div className="quick-dispatch-header">快速派活</div>
         <p className="quick-dispatch-hint">
-          无需标题。提交后先派出建卡任务，agent 会创建 Issue 并自动开工。
+          无需标题。提交后先派出建卡任务，agent 会创建 Issue 并自动开工。可选绑定项目，在真仓执行。
         </p>
         {cwdBlocked ? (
           <div
@@ -223,6 +278,53 @@ export function QuickDispatchPanel({
             </div>
           </div>
         ) : null}
+
+        <div
+          className={
+            'quick-dispatch-exec-banner' +
+            (execPreview.kind === 'invalid_path'
+              ? ' is-bad'
+              : execPreview.kind === 'project_local'
+                ? ' is-ok'
+                : ' is-warn')
+          }
+          data-testid="quick-dispatch-exec-banner"
+          data-mode={
+            execPreview.kind === 'project_local'
+              ? 'project_local'
+              : execPreview.kind === 'invalid_path'
+                ? 'invalid'
+                : 'isolated'
+          }
+          role="status"
+        >
+          {execPreview.kind === 'isolated' && execPreview.reason === 'no_project' ? (
+            <span>
+              <strong>将在隔离目录执行</strong>
+              未关联项目 — 不会改动业务仓。绑项目后进真仓。
+            </span>
+          ) : null}
+          {execPreview.kind === 'isolated' && execPreview.reason === 'no_path' ? (
+            <span>
+              <strong>将在隔离目录执行</strong>
+              项目「{execPreview.projectTitle}」未绑定本机目录。
+            </span>
+          ) : null}
+          {execPreview.kind === 'invalid_path' ? (
+            <span>
+              <strong>项目路径无效</strong>
+              「{execPreview.projectTitle}」· <code>{execPreview.path}</code>
+              — run 会失败。
+            </span>
+          ) : null}
+          {execPreview.kind === 'project_local' ? (
+            <span>
+              <strong>将在项目本机目录执行</strong>
+              「{execPreview.projectTitle}」· <code>{execPreview.path}</code>
+            </span>
+          ) : null}
+        </div>
+
         <form className="quick-dispatch-form" onSubmit={handleSubmit}>
           <label className="ops-field">
             <span>指派给</span>
@@ -263,6 +365,30 @@ export function QuickDispatchPanel({
               </optgroup>
             </select>
           </label>
+          <label className="ops-field">
+            <span>项目（可选）</span>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              aria-label="所属项目"
+              data-testid="quick-dispatch-project"
+            >
+              <option value="">无项目（隔离执行）</option>
+              {projects.map((p) => {
+                const pathHint = p.localPath
+                  ? p.localPathExists
+                    ? ' · 已绑目录'
+                    : ' · 路径无效'
+                  : ' · 未绑目录';
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                    {pathHint}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
           {selectedAssignee && assigneeBlocked ? (
             <div
               className="quick-dispatch-assignee-banner"
@@ -276,6 +402,7 @@ export function QuickDispatchPanel({
                   {selectedAssignee.type === 'agent' ? '智能体' : '小队队长'}「
                   {selectedAssignee.name}」：{selectedAssignee.status}
                   {selectedAssignee.detail ? ` · ${selectedAssignee.detail}` : ''}
+                  {hardAssigneeBlock ? ' · 服务端将拒绝排队' : ''}
                 </p>
               </div>
               <div
@@ -345,6 +472,7 @@ export function QuickDispatchPanel({
               placeholder="用自然语言描述你想让 agent 做什么…"
               rows={5}
               required
+              data-testid="quick-dispatch-prompt"
             />
           </label>
           <div className="quick-dispatch-actions">
@@ -356,14 +484,37 @@ export function QuickDispatchPanel({
               className="btn-primary"
               data-testid="quick-dispatch-submit"
               data-cwd-blocked={cwdBlocked ? '1' : '0'}
-              title={cwdBlocked ? '工作区未就绪，run 可能失败' : undefined}
-              disabled={!prompt.trim() || !assigneeValue || createQuickRun.isPending}
+              data-assignee-blocked={assigneeBlocked ? '1' : '0'}
+              data-exec-mode={
+                execPreview.kind === 'project_local'
+                  ? 'project_local'
+                  : execPreview.kind === 'invalid_path'
+                    ? 'invalid'
+                    : 'isolated'
+              }
+              title={
+                hardAssigneeBlock
+                  ? '指派方不可开工，服务端拒绝排队'
+                  : cwdBlocked
+                    ? '工作区未就绪，服务端拒绝开工'
+                    : execPreview.kind === 'invalid_path'
+                      ? '项目路径无效，run 可能失败'
+                      : undefined
+              }
+              disabled={
+                !prompt.trim() ||
+                !assigneeValue ||
+                createQuickRun.isPending ||
+                Boolean(hardAssigneeBlock)
+              }
             >
               {createQuickRun.isPending
                 ? '派发中…'
-                : cwdBlocked
-                  ? '仍要派活'
-                  : '派活'}
+                : hardAssigneeBlock
+                  ? '不可派活'
+                  : cwdBlocked || assigneeBlocked
+                    ? '仍要派活'
+                    : '派活'}
             </button>
           </div>
         </form>

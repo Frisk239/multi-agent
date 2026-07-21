@@ -79,6 +79,8 @@ export const AgentRun = z.object({
     ])
     .nullable()
     .optional(),
+  // B2：QC 等无 issue 时绑定的 project（cwd / 建卡继承）
+  projectId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -248,6 +250,8 @@ export const CreateQuickRunInput = z.object({
     type: z.enum(['agent', 'squad']),
     id: BusinessId,
   }),
+  /** B2：可选项目 → QC run cwd = project.localPath；建卡可继承 */
+  projectId: BusinessId.optional(),
 });
 export type CreateQuickRunInput = z.infer<typeof CreateQuickRunInput>;
 

@@ -109,6 +109,14 @@ async function tick(): Promise<void> {
           .get();
         projectLocalPath = proj?.localPath ?? null;
       }
+    } else if (kindEarly === 'quick_create' && runRow.projectId) {
+      // B2：QC 无 issue 时用 run.projectId
+      const proj = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, runRow.projectId))
+        .get();
+      projectLocalPath = proj?.localPath ?? null;
     } else if (runRow.issueId && kindEarly !== 'chat') {
       const issueRow = db
         .select()

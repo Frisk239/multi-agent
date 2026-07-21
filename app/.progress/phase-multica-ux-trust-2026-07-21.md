@@ -1,7 +1,7 @@
 # 下一阶段计划：Multica 体验诚实与多仓日用
 
 Date: 2026-07-21  
-Status: **进行中**（Wave A ✅ · B1 ✅）  
+Status: **进行中**（Wave A ✅ · B1–B2 ✅）  
 Code name: **UX Trust**（暂名）
 
 > 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交。  
@@ -141,7 +141,7 @@ A1 → A2 → A3 → B1 → B2 → B3 → C1 → C2 → C3
 | A2 run cwd 落库 + UI | ✅ | `ux-trust-a2-run-cwd-display-impl-1.md` | cwd_path/mode 落库 + 详情/列表展示 |
 | A3 文案与 QC 闸对齐 | ✅ | `ux-trust-a3-copy-qc-gate-impl-1.md` | 默认隔离文案 + QC readiness 409 |
 | B1 Chat 绑 Project | ✅ | `ux-trust-b1-chat-project-impl-1.md` | 会话头选项目 · exec project_local |
-| B2 QC project + 硬闸 | pending | | |
+| B2 QC project + 硬闸 | ✅ | `ux-trust-b2-qc-project-impl-1.md` | projectId + cwd + UI 预检 |
 | B3 静默点收口 | pending | | |
 | C1 同 path 串行 | pending | | |
 | C2 tool idle/watchdog | pending | | |
