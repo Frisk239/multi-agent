@@ -609,81 +609,94 @@ function SkillsPageInner() {
               </button>
             }
           />
+        ) : filtered.length === 0 ? (
+          <div className="skills-empty-filter" data-testid="skills-empty">
+            <p className="text-dim">没有匹配的 skill</p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                data-testid="skills-clear-search"
+                onClick={clearAll}
+              >
+                清除筛选
+              </button>
+            ) : null}
+          </div>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table" data-testid="skills-table">
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>被谁使用</th>
-                  <th>来源</th>
-                  <th>简介</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((sk) => (
-                  <tr key={sk.name} data-skill-name={sk.name}>
-                    <td>
+          <div className="skills-list-wrap" data-testid="skills-table">
+            <div className="skills-list-head" aria-hidden>
+              <span>名称</span>
+              <span>被谁使用</span>
+              <span>来源</span>
+              <span className="skills-list-head-desc">简介</span>
+            </div>
+            <ul className="skills-list" data-testid="skills-list">
+              {filtered.map((sk) => (
+                <li key={sk.name}>
+                  <button
+                    type="button"
+                    className="skills-list-row"
+                    data-testid="skills-list-row"
+                    data-skill-name={sk.name}
+                    onClick={() =>
+                      router.push(`/skills/${encodeURIComponent(sk.name)}`)
+                    }
+                  >
+                    <span className="skills-list-name">
                       <strong>{sk.name}</strong>
-                    </td>
-                    <td>
-                      {sk.usedBy.length > 0 ? (
-                        sk.usedBy.map((a) => (
-                          <Link
-                            key={a.id}
-                            href={`/agents/${a.id}`}
-                            className="skill-tag skill-tag--link"
-                            data-testid="skill-used-by"
-                            data-agent-id={a.id}
-                          >
-                            {a.name}
-                          </Link>
-                        ))
+                    </span>
+                    <span className="skills-list-usedby" data-testid="skill-used-by-cell">
+                      {sk.usedBy.length === 0 ? (
+                        <span className="text-dim skills-unused">— 未使用</span>
+                      ) : sk.usedBy.length === 1 ? (
+                        <span
+                          className="skills-usedby-one"
+                          data-testid="skill-used-by"
+                          title={sk.usedBy[0]!.name}
+                        >
+                          <span className="skills-usedby-avatar" aria-hidden>
+                            {sk.usedBy[0]!.name.slice(0, 1)}
+                          </span>
+                          <span className="skills-usedby-label">{sk.usedBy[0]!.name}</span>
+                        </span>
                       ) : (
-                        <span className="text-dim">— 未使用</span>
-                      )}
-                    </td>
-                    <td>
-                      <Link
-                        href={`/skills?source=${encodeURIComponent(sk.source)}`}
-                        className={`source-badge source-${sk.source} source-badge--link`}
-                        data-testid="skill-source-link"
-                        data-source={sk.source}
-                        title={`筛选${sk.source === 'project' ? '项目级' : '用户级'} skill`}
-                      >
-                        {sk.source === 'project' ? '项目级' : '用户级'}
-                      </Link>
-                    </td>
-                    <td className="text-dim text-sm">{sk.description || '—'}</td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
-                      {isFetching ? (
-                        '加载中…'
-                      ) : (
-                        <div data-testid="skills-empty">
-                          <div>没有匹配的 skill</div>
-                          {hasActiveFilters ? (
-                            <div style={{ marginTop: 8 }}>
-                              <button
-                                type="button"
-                                className="btn-secondary btn-sm"
-                                data-testid="skills-clear-search"
-                                onClick={clearAll}
-                              >
-                                清除筛选
-                              </button>
-                            </div>
+                        <span className="skills-usedby-stack" title={sk.usedBy.map((a) => a.name).join('、')}>
+                          {sk.usedBy.slice(0, 3).map((a) => (
+                            <span
+                              key={a.id}
+                              className="skills-usedby-avatar"
+                              data-testid="skill-used-by"
+                              data-agent-id={a.id}
+                            >
+                              {a.name.slice(0, 1)}
+                            </span>
+                          ))}
+                          {sk.usedBy.length > 3 ? (
+                            <span className="skills-usedby-extra">+{sk.usedBy.length - 3}</span>
                           ) : null}
-                        </div>
+                        </span>
                       )}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    </span>
+                    <span
+                      className={`source-badge source-${sk.source}`}
+                      data-testid="skill-source"
+                      data-source={sk.source}
+                    >
+                      {sk.source === 'project' ? '项目级' : '用户级'}
+                    </span>
+                    <span className="skills-list-desc text-dim text-sm">
+                      {sk.description || '—'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {isFetching ? (
+              <p className="text-dim text-sm" style={{ padding: '8px 4px' }}>
+                刷新中…
+              </p>
+            ) : null}
           </div>
         )}
       </div>

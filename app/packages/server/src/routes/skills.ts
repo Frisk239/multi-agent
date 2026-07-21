@@ -52,7 +52,37 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
         usedBy,
       });
     }
+    // 名称稳定排序（Multica 列表默认可读）
+    result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
+  });
+
+  // GET /api/skills/:name —— 详情（body + path + usedBy）
+  app.get('/api/skills/:name', async (req, reply) => {
+    const { name: rawName } = req.params as { name: string };
+    const name = decodeURIComponent(rawName);
+    const index = getSkillIndex();
+    const skill = index.get(name);
+    if (!skill) return reply.status(404).send({ error: 'skill 不存在' });
+    const allAssigns = db.select().from(agentSkills).all();
+    const allAgents = db.select().from(agents).all();
+    const assignedAgentIds = allAssigns
+      .filter((a) => a.skillId === skill.name)
+      .map((a) => a.agentId);
+    const usedBy =
+      assignedAgentIds.length > 0
+        ? allAgents
+            .filter((a) => assignedAgentIds.includes(a.id))
+            .map((a) => ({ id: a.id, name: a.name, runtime: a.runtime }))
+        : [];
+    return {
+      name: skill.name,
+      description: skill.description,
+      source: skill.source,
+      body: skill.body,
+      path: skill.path,
+      usedBy,
+    };
   });
 
   // POST /api/skills/refresh —— 重扫目录刷新内存索引

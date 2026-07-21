@@ -948,6 +948,26 @@ export function useSkills() {
   });
 }
 
+/** GET /api/skills/:name —— Multica 式详情 */
+export function useSkill(name: string | undefined) {
+  return useQuery({
+    queryKey: ['skill', name],
+    queryFn: async () => {
+      const res = await fetch(`${API}/skills/${encodeURIComponent(name!)}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载 skill 失败'));
+      return res.json() as Promise<{
+        name: string;
+        description: string;
+        source: 'project' | 'user';
+        body: string;
+        path: string;
+        usedBy: { id: string; name: string; runtime: string }[];
+      }>;
+    },
+    enabled: Boolean(name),
+  });
+}
+
 // POST /api/skills/refresh —— 重扫目录刷新索引
 export function useRefreshSkills() {
   const qc = useQueryClient();

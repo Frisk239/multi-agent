@@ -779,6 +779,13 @@ export const SkillInfo = z.object({
 });
 export type SkillInfo = z.infer<typeof SkillInfo>;
 
+/** GET /api/skills/:name —— 详情（含 body，供 Multica 式详情页） */
+export const SkillDetail = SkillInfo.extend({
+  body: z.string(),
+  path: z.string(),
+});
+export type SkillDetail = z.infer<typeof SkillDetail>;
+
 /** 本机目录 skill 导入（学 Multica runtime-local-skill-import，目标改为本地 .skills） */
 export const SkillImportTarget = z.enum(['project', 'user']);
 export type SkillImportTarget = z.infer<typeof SkillImportTarget>;
