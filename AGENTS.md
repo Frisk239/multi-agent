@@ -139,40 +139,44 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 > 工具层仍是 Matt skills（`/implement`、`/tdd`、`/code-review`、`/handoff`、`/research`…）；技能需显式调用或 `/ask-matt`。  
 > 决策记录：[docs/adr/0001-slice-owner-and-research-subagents.md](docs/adr/0001-slice-owner-and-research-subagents.md)
 
-### 核心方法：垂直切片 × Slice Owner × 子代理调研 × Matt skills
+### 核心方法：垂直切片 × Slice Owner × 子代理优先 × Matt skills
 
 | 维度 | 决定什么 | 落地 |
 |---|---|---|
 | **垂直切片** | 做什么、多厚 | 一刀端到端可演示；默认同会话做完 |
-| **Slice Owner** | 从缺口到做绿 | **可自主**调研 → **选题+拍板选项** → implement → Playwright → **push main** |
-| **调研** | 对齐 Multica 等 | **默认可主动**；子代理可选；窗内只留摘要 |
+| **Slice Owner** | 从缺口到做绿 | **编排**：选题拍板 → **派探索/实现子代理** → 路径验收 → Playwright → **push main** |
+| **探索 / 调研** | 对齐 Multica、摸树 | **优先子代理 / `/research`**（默认可主动）；Owner 窗只留摘要 |
+| **实现** | 多文件 / 票级代码 | **优先实现子代理**（自包含 brief）；Owner 不独自扛整条厚路径 |
 | **审查** | 可选 | 不挡 main 直推 |
 | **人** | 北星、禁区、喊停 | **不必须每刀点题**；可随时否决/改向 |
 
-**为何改掉计划者/执行者：** Matt 的 grill 很深，计划者会话常先烧半窗；双角色 = 双倍固定成本。偏见隔离改由 **分支 diff 上的 code-review + CI** 承担。长上下文问题用 **按切片/票拆会话 + handoff** 解决，不靠角色名。
+> **长程默认（`/slice-owner` skill）：** 探索 + 实现 **优先出窗派子代理**，省 Owner 上下文。细则：skill `references/subagents.md`。
+
+**为何改掉计划者/执行者：** Matt 的 grill 很深，计划者会话常先烧半窗；双角色 = 双倍固定成本。偏见隔离改由 **分支 diff 上的 code-review + CI** 承担。长上下文问题用 **按切片/票拆会话 + handoff + 子代理出窗** 解决，不靠角色名。
 
 ### Grill 深度（省 Owner 上下文）
 
 | 情况 | 做法 |
 |---|---|
-| 主题清晰、对标已有结论 | **短对齐**（少量决策）或直接 implement；**不要**默认满血 `/grill-with-docs` |
+| 主题清晰、对标已有结论 | **短对齐**（少量决策）→ **实现子代理**；**不要**默认满血 `/grill-with-docs` |
 | 要改领域词 / 难逆决策 | 再开 grill-with-docs + ADR |
-| 要对齐参考实现 / 源码细节 | **调研子代理**（见下），Owner 只吃**结构化摘要** |
+| 要对齐参考 / 源码细节 / 宽搜树 | **探索·调研子代理**（默认），Owner 只吃**结构化摘要** |
+| 多文件实现、票级红绿 | **实现子代理**（默认），Owner 路径验收 + 关刀 |
 
 ### 调研与选型（自动迭代 · 最高优先级之一）
 
-1. **默认可主动调研**（人不点「去调研」也要在不确定时先查 Multica）。  
+1. **默认可主动调研**（人不点「去调研」也要在不确定时先查 Multica）——**优先子代理**，Owner 只合并摘要。  
 2. 产出：**短结论 + file:line + 与本仓差异 + 选项 + 推荐**；写入 progress。  
 3. **选型：Owner 自行拍板** 最贴「Multica 体验 + 本仓宪法」的选项并记录；**仅**难逆架构 / 安全 / 人禁区才停问人。  
-4. 禁止实现窗灌大段上游源码。细则：[workflow.md](docs/agents/workflow.md)「自动迭代授权」。
+4. 禁止实现窗灌大段上游源码。细则：[workflow.md](docs/agents/workflow.md)「自动迭代授权」· skill `subagents.md`。
 
 ### 一个 feature 的生命周期（默认 · 自动迭代）
 
 ```
 人（可只定北星）或续会话
      ├─ intake 上一刀
-     ├─ 主动调研 Multica / 债 / CONTEXT → 选项 → **自行选定下一刀与方案**
-     ├─ implement 厚路径 → Playwright
+     ├─ 探索/调研子代理（Multica / 债 / 树）→ 选项 → **Owner 选定**下一刀与方案
+     ├─ 实现子代理（厚路径）→ Owner 路径验收 + Playwright
      ├─ commit + push main → 关刀（证据/决策/下一刀建议）
      └─ 窗满 → /handoff 续作同一刀
 ```
@@ -184,8 +188,9 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 | 会话 | 必须 | 禁止 |
 |---|---|---|
-| **Slice Owner** | 自主调研与选型；可验交付；**Playwright**；**push main**；决策写 progress | 灌上游全文；无证据宣称完成；擅自推翻宪法钉 |
-| **调研子代理** | 摘要 + 出处 + 选项 | 擅自改业务（除非同任务授权） |
+| **Slice Owner** | 选型拍板；派探索/实现子代理；路径验收；**Playwright**；**push main**；决策写 progress | 灌上游全文；有子代理时独自硬扛多文件实现；无证据宣称完成；擅自推翻宪法钉 |
+| **探索 / 调研子代理** | 摘要 + 出处 + 选项；宽搜不回灌全文 | 擅自定产品范围 |
+| **实现子代理** | 按 brief 改代码；回传「改了啥/怎么验」 | brief 无 Must/Out；自称刀完成（须 Owner 验路径） |
 | **人** | 北星 / 禁区 / 否决；可不每刀点题 | — |
 
 ### 票与进度写在哪
@@ -213,7 +218,8 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 | 一窗装不下决策 | wayfinder 或设计-only 会话 → 下一会话 Owner 实现 |
 | 外来 bug | `/triage` → Owner `/implement` |
 | 难复现 | `/diagnosing-bugs` |
-| 要对齐 upstream | **调研子代理** → Owner 决策 |
+| 要对齐 upstream | **探索·调研子代理** → Owner 决策 |
+| 大块写码 | **实现子代理** → Owner 路径验收 |
 
 ### 跨会话
 

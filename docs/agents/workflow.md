@@ -2,7 +2,8 @@
 
 > 技能总路由：`/ask-matt`。  
 > **默认编排（2026-07-17 人授权自动迭代）：**  
-> Slice Owner **可自行** intake → **调研** → **选定下一刀** → implement → **Playwright** → **commit/push main**。  
+> Slice Owner **可自行** intake → **（子代理）探索/调研** → **选定下一刀** → **（子代理）implement** → Owner 路径验收 → **Playwright** → **commit/push main**。  
+> **长程默认：** 探索 + 实现 **优先子代理**（`/slice-owner` → `references/subagents.md`）。  
 > 交接：[slice-handoff.md](./slice-handoff.md) · 合码：[merge.md](./merge.md) · ADR 0001。
 
 ## 模型
@@ -12,12 +13,12 @@
    │  （可不每刀点题）
    ▼
 ┌────────────────────────────────────────────┐
-│  Slice Owner（自动迭代）                      │
+│  Slice Owner（自动迭代 · 编排者）              │
 │  1) intake 上一刀                             │
-│  2) 调研（默认可主动：Multica 优先）            │
-│  3) 列出选项 → **自行选最优** → 写进 progress   │
-│  4) implement 厚切片                           │
-│  5) Playwright 自测 → commit/push main → 关刀  │
+│  2) 探索/调研 → **子代理优先**（Multica 等）     │
+│  3) 选项 → **Owner 选最优** → progress         │
+│  4) implement → **实现子代理优先** → 路径验收    │
+│  5) Playwright → commit/push main → 关刀      │
 └──────────────────┬───────────────────────────┘
                    │ 每 1～3 刀
                    ▼
@@ -26,8 +27,9 @@
 
 | 角色 | 干什么 |
 |---|---|
-| **Slice Owner** | **自主**选题（在授权范围内）→ 调研 → **拍板选项** → 实现 → Playwright → main 直推 → 关刀 |
-| **调研** | 默认可 **主动**跑；优先 `references/deep/multica.md` + 必要时 repos/子代理；Owner 只保留摘要 |
+| **Slice Owner** | **编排**：选题拍板 → 派探索/实现子代理 → 路径验收 → Playwright → main 直推 → 关刀 |
+| **探索 / 调研** | **默认主动 + 默认子代理**；deep/repos；Owner 只保留摘要 |
+| **实现子代理** | 多文件/票级代码；brief 自包含；不代替 Owner 签 demo |
 | **人** | 定北星与禁区；可不点每刀主题；可随时否决/改向/要求 feat 隔离 |
 | **CI / review** | 可选；不挡 main 直推 |
 
@@ -35,7 +37,8 @@
 
 **人已授权（默认开启）：**
 
-1. **主动调研** — 不必等人说「去调研」；路线不清、交互对不齐 Multica、或开新刀前，Owner **应先**查 Multica（deep → 必要时 repos），再动手。  
+1. **主动调研（优先子代理）** — 不必等人说「去调研」；路线不清、交互对不齐 Multica、或开新刀前，**应先**查 Multica（deep → 必要时 repos），**宽读/宽搜派子代理**，Owner 只合并摘要再动手。  
+1b. **主动实现委派** — 多文件厚路径默认 **实现子代理**；Owner 不在主窗独自硬扛整刀代码。
 2. **自行选定下一刀** — 人未点题时，根据：上一刀债、CONTEXT 下一刀提示、**Multica 差距表**、日常可用价值，**直接选定一个厚切片**并实现。  
 3. **选项拍板** — 实现中的 A/B（API 形状、UI 形态、是否做某附属）由 Owner **选最贴 Multica + 本仓约束** 的方案；写入 progress「决策记录」，**不必每步等人**。  
 4. **main 直推** — 关刀证据齐后 push main（见 [merge.md](./merge.md)）。

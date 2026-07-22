@@ -97,8 +97,8 @@
 
 1. 读人指定的下一主题；若无主题，据 CONTEXT + 上一刀债 **提 2 个候选等人拍板**（勿擅自开超大刀）  
 2. **短对齐**（少量决策）；默认 **不满血** `/grill-with-docs`  
-3. 要对齐参考实现 → **调研子代理**，Owner 只收摘要  
-4. 需要则 `to-spec` / `to-tickets` → `/implement` → push → 人远程合并  
+3. 要对齐参考实现 / 摸陌生树 → **探索·调研子代理**，Owner 只收摘要  
+4. 需要则 `to-spec` / `to-tickets` → **实现子代理**（或 `/implement` 由子代理跑）→ Owner 路径验收 → push（本仓可 main 直推，见 merge.md） 
 
 ---
 
@@ -107,19 +107,23 @@
 把 `<PREV_SLUG>` / `<NEXT_THEME>` 换成实际值；下一主题未定时写「待我拍板」。
 
 ```markdown
-你是本仓 **Slice Owner**（见 AGENTS.md §工程模式、docs/agents/workflow.md、docs/agents/slice-handoff.md、docs/agents/merge.md、ADR 0001/0002）。
+你是本仓 **Slice Owner**（`/slice-owner` · AGENTS.md §工程模式、docs/agents/workflow.md、slice-handoff.md、merge.md、ADR 0001）。
+
+## 长程默认：探索 + 实现优先子代理
+- 探索/调研/宽搜 → 子代理；多文件实现 → 实现子代理；你只摘要合并 + 路径验收 + 关刀。
+- 禁止主窗灌上游全文或整文件 dump。见 skill `references/subagents.md`。
 
 ## 硬顺序（不要跳）
 1) **交接验收上一刀** `<PREV_SLUG>`  
 2) 写出通过 / 有条件通过 / 需返工  
 3) 仅 1–2 通过后，再 **短对齐 brainstorm 下一刀**：`<NEXT_THEME>`  
-4) 再 spec/tickets（若需要）→ implement → push feat/*  
+4) 再 spec/tickets（若需要）→ **实现子代理** → 路径验收 → push（本仓默认可 main，见 merge.md）
 
 ## 上一刀交接包（必读）
 - `.scratch/<PREV_SLUG>/spec.md` 与 issues
 - `app/.progress/<PREV_SLUG>-*.md`（impl / closeout / review）
 - CONTEXT.md 当前方位
-- git：fetch 后看 `main` 与 `feat/<PREV_SLUG>` 是否已合（人负责远程合并；禁止 push main）
+- git：fetch；合并规则以 AGENTS/merge 为准
 
 ## 验收上一刀时
 - 核对证据（typecheck/smoke/手验）与 ticket 声称
@@ -129,11 +133,11 @@
 
 ## 下一刀 brainstorm（验收后再做）
 - 短对齐，默认不满血 grill-with-docs
-- 「去调研 / 对齐参考」→ 派调研子代理，你只收摘要
+- 对齐参考 / 摸树 → **探索·调研子代理**，你只收摘要
 - 产品立场：真实产品日常价值，非答辩清单
 
 ## 合码
-- push `feat/<slug>` → CI + 分支 review → 人远程合并
+- 按仓库：`feat/*` 或 **main 直推**（见 merge.md / AGENTS）
 - 不以开 PR 为必做步骤
 
 先从 **git 状态 + 上一刀交接包** 开始，报告验收结论，再等/进入下一刀对齐。
