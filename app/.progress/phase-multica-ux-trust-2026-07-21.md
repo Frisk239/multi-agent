@@ -1,8 +1,8 @@
 # 下一阶段计划：Multica 体验诚实与多仓日用
 
-Date: 2026-07-21  
-Status: **进行中**（Wave A–B ✅ · **下一刀 Wave C/D P0–P1**）  
-Code name: **UX Trust**（暂名）
+Date: 2026-07-21 · 滚动 2026-07-22  
+Status: **Wave A–D 收官**（P0/P1 队列 ✅；main 推送可能仍有债）  
+Code name: **UX Trust**
 
 > 依据：2026-07-21 三子代理硬缺口审计 + Multica 对照 + 本轮 F1–F8/F10 已交 · **P0/P1 体验缺口收口计划**。  
 > 北星不变：本地 Multica **控制台体验**，非 daemon/云 1:1。  
@@ -148,7 +148,8 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 - [x] Skills 用户级不依赖 workspace；项目级可对 localPath（C3）  
 - [x] Chat 执行中过程信息可持续更新（D1）  
 - [x] Issue 隔离目录复用对用户可见（D2）  
-- [ ] 每刀 progress + typecheck；C1/C2 有脚本或 Playwright 证据  
+- [x] 每刀 progress + typecheck；C1/C2/C3/D 有脚本证据  
+- [x] D3 tool 轨迹摘要可扫
 
 ---
 
@@ -167,7 +168,7 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 | **C3** skills per-project | ✅ | `ux-trust-c3-skills-project-impl-1.md` | user/workspace/project 三态 |
 | **D1** Chat 过程可感 | ✅ | `ux-trust-d1-chat-live-impl-1.md` | progress + tool 名 / partial |
 | **D2** workdir 复用叙事 | ✅ | `ux-trust-d2-workdir-reuse-impl-1.md` | 沿用隔离目录文案 |
-| **D3** tool 叙事加厚 | **pending · 下一刀** | | Run 时间线 |
+| **D3** tool 叙事加厚 | ✅ | `ux-trust-d3-tool-narrative-impl-1.md` | tool 名+args 摘要 |
 
 ---
 

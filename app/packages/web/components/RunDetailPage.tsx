@@ -113,6 +113,36 @@ function toolNameFromBody(body: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** D3：工具事件一行摘要（name + args/result 截断） */
+function toolSummaryLine(
+  kind: RunMessage['kind'],
+  body: string,
+  max = 160,
+): string {
+  try {
+    const j = JSON.parse(body) as {
+      name?: string;
+      args?: unknown;
+      result?: unknown;
+    };
+    const parts: string[] = [];
+    if (kind === 'tool_end') parts.push('完成');
+    if (j.args != null) {
+      const s =
+        typeof j.args === 'string' ? j.args : JSON.stringify(j.args);
+      parts.push(s.replace(/\s+/g, ' ').trim().slice(0, max));
+    } else if (j.result != null) {
+      const s =
+        typeof j.result === 'string' ? j.result : JSON.stringify(j.result);
+      parts.push(s.replace(/\s+/g, ' ').trim().slice(0, max));
+    }
+    if (parts.length) return parts.join(' · ');
+  } catch {
+    /* fall through */
+  }
+  return previewBody(body, max);
+}
+
 function previewBody(body: string, max = 420): string {
   const t = body.replace(/\s+/g, ' ').trim();
   if (t.length <= max) return t;
@@ -509,17 +539,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
           <ol className="run-transcript-list" data-testid="run-detail-events">
             {filtered.map((m) => {
               const tool = toolNameFromBody(m.body);
+              const isTool = m.kind === 'tool_start' || m.kind === 'tool_end';
               const isLong = (m.body?.length ?? 0) > 280;
               const open = expanded[m.id] ?? !isLong;
-              const label =
-                m.kind === 'tool_start' || m.kind === 'tool_end'
-                  ? tool || kindLabel(m.kind)
-                  : kindLabel(m.kind);
+              const label = isTool ? tool || kindLabel(m.kind) : kindLabel(m.kind);
+              const collapsedText = isTool
+                ? toolSummaryLine(m.kind, m.body || '', 160)
+                : previewBody(m.body || '—');
               return (
                 <li
                   key={m.id}
                   className={`run-transcript-row run-transcript-row--${kindTone(m.kind)}`}
                   data-kind={m.kind}
+                  data-tool-name={tool ?? undefined}
                   data-testid="run-detail-event"
                 >
                   <button
@@ -549,8 +581,11 @@ export function RunDetailPage({ runId }: { runId: string }) {
                     ) : (
                       <span className="run-transcript-toggle-spacer" />
                     )}
-                    <div className="run-transcript-text">
-                      {open ? m.body || '—' : previewBody(m.body || '—')}
+                    <div
+                      className="run-transcript-text"
+                      data-testid="run-detail-event-preview"
+                    >
+                      {open ? m.body || '—' : collapsedText}
                     </div>
                   </div>
                   <div className="run-transcript-meta text-dim">

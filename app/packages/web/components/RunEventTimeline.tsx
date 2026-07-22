@@ -28,13 +28,46 @@ function previewBody(body: string, max = 280): string {
   return `${t.slice(0, max)}…`;
 }
 
-function parseToolName(body: string): string | null {
-  // 常见：`bash: …` / `Tool: Read` / JSON name
+/** D3：tool_start/end body 常为 JSON `{ name, args|result }`（run-worker） */
+function parseToolPayload(body: string): {
+  name: string | null;
+  summary: string | null;
+} {
+  const raw = body.trim();
+  if (!raw) return { name: null, summary: null };
+  try {
+    const j = JSON.parse(raw) as {
+      name?: unknown;
+      args?: unknown;
+      result?: unknown;
+    };
+    const name =
+      typeof j.name === 'string' && j.name.trim() ? j.name.trim() : null;
+    let summary: string | null = null;
+    if (j.args != null) {
+      const s =
+        typeof j.args === 'string'
+          ? j.args
+          : JSON.stringify(j.args);
+      summary = previewBody(s, 100);
+    } else if (j.result != null) {
+      const s =
+        typeof j.result === 'string' ? j.result : JSON.stringify(j.result);
+      summary = previewBody(s, 100);
+    }
+    if (name || summary) return { name, summary };
+  } catch {
+    /* not JSON */
+  }
   const m =
-    body.match(/^(?:tool[_ ]?name|name)\s*[:=]\s*["']?([\w./-]+)/i) ||
-    body.match(/^([A-Za-z][\w./-]{0,40})\s*[:(]/) ||
-    body.match(/"name"\s*:\s*"([^"]+)"/);
-  return m?.[1] ?? null;
+    raw.match(/^(?:tool[_ ]?name|name)\s*[:=]\s*["']?([\w./-]+)/i) ||
+    raw.match(/^([A-Za-z][\w./-]{0,40})\s*[:(]/) ||
+    raw.match(/"name"\s*:\s*"([^"]+)"/);
+  return { name: m?.[1] ?? null, summary: null };
+}
+
+function parseToolName(body: string): string | null {
+  return parseToolPayload(body).name;
 }
 
 export function RunEventTimelineInline({
@@ -135,14 +168,26 @@ function RunEventItem({
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(!compact && message.kind === 'assistant');
-  const tool = parseToolName(message.body);
+  const isTool =
+    message.kind === 'tool_start' || message.kind === 'tool_end';
+  const payload = isTool ? parseToolPayload(message.body) : null;
+  const tool = payload?.name ?? (isTool ? parseToolName(message.body) : null);
   const tone = kindTone(message.kind);
+  const preview = isTool
+    ? [
+        message.kind === 'tool_end' ? '完成' : null,
+        payload?.summary,
+      ]
+        .filter(Boolean)
+        .join(' · ') || previewBody(message.body, compact ? 120 : 200)
+    : previewBody(message.body, compact ? 120 : 200);
 
   return (
     <li
       className={`run-event-item run-event-item--${tone}`}
       data-testid="run-event-item"
       data-kind={message.kind}
+      data-tool-name={tool ?? undefined}
     >
       <button
         type="button"
@@ -152,12 +197,16 @@ function RunEventItem({
         onClick={() => setOpen((v) => !v)}
       >
         <span className={`run-event-chip run-event-chip--${tone}`}>
-          {tool && (message.kind === 'tool_start' || message.kind === 'tool_end')
-            ? tool
-            : kindLabel(message.kind)}
+          {tool && isTool ? tool : kindLabel(message.kind)}
         </span>
         <code className="run-event-seq">#{message.seq}</code>
-        <span className="run-event-preview">{previewBody(message.body, compact ? 120 : 200)}</span>
+        <span
+          className="run-event-preview"
+          data-testid="run-event-preview"
+          title={message.body.slice(0, 500)}
+        >
+          {preview}
+        </span>
         <span className="run-event-chevron" aria-hidden>
           {open ? '▾' : '▸'}
         </span>
