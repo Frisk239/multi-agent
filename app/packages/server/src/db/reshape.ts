@@ -241,6 +241,11 @@ export function toAgentRun(row: RunRow): AgentRun {
     pathWaitReason: null,
     pathBlockedByRunId: null,
     pathHolding: false,
+    tokensInput: (row as { tokensInput?: number | null }).tokensInput ?? null,
+    tokensOutput: (row as { tokensOutput?: number | null }).tokensOutput ?? null,
+    tokensCacheRead: (row as { tokensCacheRead?: number | null }).tokensCacheRead ?? null,
+    tokensCacheWrite:
+      (row as { tokensCacheWrite?: number | null }).tokensCacheWrite ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }
@@ -297,6 +302,7 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
     runtime: row.runtime,
     category: row.category ?? null,
     model: row.model?.trim() ? row.model.trim() : null,
+    thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
   };
@@ -309,6 +315,7 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     runtime: row.runtime,
     category: row.category ?? null,
     model: row.model?.trim() ? row.model.trim() : null,
+    thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
     concurrency: row.concurrency,
     mcpServers: row.mcpServers ?? null,
     instructions: row.instructions ?? '',

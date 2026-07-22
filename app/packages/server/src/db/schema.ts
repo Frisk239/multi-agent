@@ -46,6 +46,8 @@ export const agents = sqliteTable('agent', {
     .default('opencode'),
   // null/空串 = 跟随 CLI 默认；仅对新 dispatch 的 run 生效
   model: text('model'),
+  // DS4：thinking/effort 档（null=CLI 默认；backend 能传则传）
+  thinkingLevel: text('thinking_level'),
   concurrency: integer('concurrency').notNull().default(1),
   mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
   instructions: text('instructions').notNull().default(''),
@@ -245,6 +247,11 @@ export const agentRuns = sqliteTable(
     cwdMode: text('cwd_mode'),
     // B2 UX Trust：QC 等无 issue 时仍可绑 project → cwd
     projectId: text('project_id'),
+    // DS4：CLI 尽力解析的 token（可空；无则保持 null）
+    tokensInput: integer('tokens_input'),
+    tokensOutput: integer('tokens_output'),
+    tokensCacheRead: integer('tokens_cache_read'),
+    tokensCacheWrite: integer('tokens_cache_write'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

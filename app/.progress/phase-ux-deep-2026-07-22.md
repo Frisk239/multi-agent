@@ -9,8 +9,8 @@ Status: **进行中**
 | ID | 主题 | 状态 | 备注 |
 |---|---|---|---|
 | **DS2** | 看板手动排序（position） | ✅ | `ds2-manual-sort-impl-1.md` |
-| **DS4** | Token 尽力 + thinking level | pending · **建议下一刀** | 先 4.0 探针 |
-| **DS1** | CLI session resume | pending | 先调研+ADR；claude MVP |
+| **DS4** | Token 尽力 + thinking level | ✅ | `ds4-token-thinking-impl-1.md` · research 同前缀 |
+| **DS1** | CLI session resume | pending · **建议下一刀** | 先调研+ADR；claude MVP |
 | **DS3** | Wiki per-project 根 | pending | 必 ADR；轻量分根 |
 
 ## 前序已合（勿重做）

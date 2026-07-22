@@ -683,6 +683,38 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
+    // DS4：SUM 非空 token 列
+    let tokensInSum = 0;
+    let tokensOutSum = 0;
+    let tokensCacheReadSum = 0;
+    let tokensCacheWriteSum = 0;
+    let tokensInN = 0;
+    let tokensOutN = 0;
+    let tokensCacheReadN = 0;
+    let tokensCacheWriteN = 0;
+    for (const r of rows) {
+      const ti = (r as { tokensInput?: number | null }).tokensInput;
+      const to = (r as { tokensOutput?: number | null }).tokensOutput;
+      const cr = (r as { tokensCacheRead?: number | null }).tokensCacheRead;
+      const cw = (r as { tokensCacheWrite?: number | null }).tokensCacheWrite;
+      if (typeof ti === 'number') {
+        tokensInSum += ti;
+        tokensInN += 1;
+      }
+      if (typeof to === 'number') {
+        tokensOutSum += to;
+        tokensOutN += 1;
+      }
+      if (typeof cr === 'number') {
+        tokensCacheReadSum += cr;
+        tokensCacheReadN += 1;
+      }
+      if (typeof cw === 'number') {
+        tokensCacheWriteSum += cw;
+        tokensCacheWriteN += 1;
+      }
+    }
+
     const terminal = completed + failed;
     const usage: IssueRunUsage = {
       issueId: id,
@@ -695,10 +727,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       avgDurationMs: durationN > 0 ? Math.round(durationSum / durationN) : null,
       totalDurationMs: durationN > 0 ? durationSum : null,
       lastRunAt: lastRunAtMs != null ? new Date(lastRunAtMs).toISOString() : null,
-      tokensInput: null,
-      tokensOutput: null,
-      tokensCacheRead: null,
-      tokensCacheWrite: null,
+      tokensInput: tokensInN > 0 ? tokensInSum : null,
+      tokensOutput: tokensOutN > 0 ? tokensOutSum : null,
+      tokensCacheRead: tokensCacheReadN > 0 ? tokensCacheReadSum : null,
+      tokensCacheWrite: tokensCacheWriteN > 0 ? tokensCacheWriteSum : null,
     };
     return usage;
   });

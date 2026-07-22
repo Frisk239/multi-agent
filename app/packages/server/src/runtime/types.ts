@@ -8,6 +8,14 @@ export type AgentEvent =
   | { type: 'tool_end'; name: string; result?: string }
   | { type: 'log'; text: string };
 
+/** DS4：CLI 尽力解析的 token 用量（字段可空） */
+export interface TokenUsage {
+  input?: number | null;
+  output?: number | null;
+  cacheRead?: number | null;
+  cacheWrite?: number | null;
+}
+
 export interface ExecutionInput {
   prompt: string;
   cwd: string;
@@ -18,6 +26,8 @@ export interface ExecutionInput {
   mcpServers?: string | null; // S05：MCP 配置 JSON 字符串（agent.mcpServers）
   // G22：agent.model；空则 backend 不传 --model
   model?: string | null;
+  // DS4：agent.thinkingLevel；backend 能传则传，不能则忽略
+  thinkingLevel?: string | null;
   /** chat 等短任务：CLI 硬超时（ms），防挂起变 orphan */
   timeoutMs?: number | null;
 }
@@ -26,6 +36,7 @@ export interface ExecutionResult {
   finalText: string;
   exitReason: 'completed' | 'cancelled' | 'failed';
   error?: string;
+  usage?: TokenUsage | null;
 }
 
 export interface DetectResult {

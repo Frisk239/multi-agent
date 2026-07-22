@@ -133,6 +133,9 @@ export class GrokBackend implements RuntimeBackend {
     const args = ['--no-auto-update', 'agent', '--always-approve'];
     const model = input.model?.trim();
     if (model) args.push('--model', model);
+    // DS4：best-effort --effort（Multica grok 模式）
+    const effort = input.thinkingLevel?.trim();
+    if (effort) args.push('--effort', effort);
     args.push(input.prompt);
 
     const fallback = await spawnLineProcess(

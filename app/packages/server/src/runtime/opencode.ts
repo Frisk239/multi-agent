@@ -32,6 +32,9 @@ export class OpencodeBackend implements RuntimeBackend {
     const args = ['run'];
     const model = input.model?.trim();
     if (model) args.push('--model', model);
+    // DS4：best-effort --variant（CLI 不支持则失败可见，用户可清空 thinking）
+    const variant = input.thinkingLevel?.trim();
+    if (variant) args.push('--variant', variant);
     args.push(input.prompt);
     return spawnLineProcess(
       det.path,

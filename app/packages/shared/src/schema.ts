@@ -86,6 +86,11 @@ export const AgentRun = z.object({
   pathBlockedByRunId: BusinessId.nullable().optional(),
   /** running + project_local 时 true：正在占用本机目录 */
   pathHolding: z.boolean().optional(),
+  // DS4：CLI 尽力解析的 token（可空）
+  tokensInput: z.number().int().nonnegative().nullable().optional(),
+  tokensOutput: z.number().int().nonnegative().nullable().optional(),
+  tokensCacheRead: z.number().int().nonnegative().nullable().optional(),
+  tokensCacheWrite: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -658,6 +663,10 @@ export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
 export const AgentModelId = z.string().max(200);
 export type AgentModelId = z.infer<typeof AgentModelId>;
 
+/** DS4：thinking/effort 档（自由文本；常见 low/medium/high/max 或 CLI variant） */
+export const AgentThinkingLevel = z.string().max(80);
+export type AgentThinkingLevel = z.infer<typeof AgentThinkingLevel>;
+
 export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
@@ -666,6 +675,8 @@ export const AgentSummary = z.object({
   category: z.string().nullable().optional(),
   // G22：列表可展示 model（空则省略/null）
   model: z.string().nullable().optional(),
+  // DS4：thinking level（空则省略/null）
+  thinkingLevel: z.string().nullable().optional(),
   // G25：软归档；null=活跃
   archivedAt: z.string().datetime().nullable().optional(),
 });
@@ -675,10 +686,12 @@ export type AgentSummary = z.infer<typeof AgentSummary>;
 // AgentSummary 扩展：含 category/concurrency（profile 展示）+ mcpServers（MCP Tab 回填）
 // bu02：+ instructions（执行 prompt 注入）
 // G22：+ model（runtime 内模型）
+// DS4：+ thinkingLevel
 // G25：+ archivedAt
 export const AgentDetail = AgentSummary.extend({
   category: z.string().nullable(),
   model: z.string().nullable(),
+  thinkingLevel: z.string().nullable(),
   concurrency: z.number(),
   mcpServers: z.string().nullable(),
   instructions: z.string(),
@@ -696,6 +709,8 @@ export const CreateAgentInput = z.object({
   runtime: RuntimeId,
   // G22：可选；空串→null
   model: AgentModelId.optional().nullable(),
+  // DS4：可选 thinking/effort
+  thinkingLevel: AgentThinkingLevel.optional().nullable(),
   category: z.string().max(80).optional().nullable(),
   concurrency: z.number().int().min(1).max(8).optional().default(1),
   instructions: z.string().max(20000).optional().default(''),
@@ -709,6 +724,7 @@ export const UpdateAgentInput = z
     name: z.string().min(1).max(80).optional(),
     runtime: RuntimeId.optional(),
     model: AgentModelId.nullable().optional(),
+    thinkingLevel: AgentThinkingLevel.nullable().optional(),
     category: z.string().max(80).nullable().optional(),
     concurrency: z.number().int().min(1).max(8).optional(),
     instructions: z.string().max(20000).optional(),
@@ -781,8 +797,8 @@ export const AgentWorkStats = z.object({
 export type AgentWorkStats = z.infer<typeof AgentWorkStats>;
 
 /**
- * GET /api/issues/:id/run-usage —— Issue 详情用量摘要（G4）
- * 本仓 run 无 token 字段：以次数 / 成功率 / 耗时为主；token* 固定 null。
+ * GET /api/issues/:id/run-usage —— Issue 详情用量摘要（G4 + DS4）
+ * 次数/成功率/耗时为主；token* 有 run 落库则 SUM，否则 null。
  */
 export const IssueRunUsage = z.object({
   issueId: BusinessId,
@@ -795,7 +811,7 @@ export const IssueRunUsage = z.object({
   avgDurationMs: z.number().nonnegative().nullable(),
   totalDurationMs: z.number().nonnegative().nullable(),
   lastRunAt: z.string().datetime().nullable(),
-  /** 本地 CLI 路径暂无 token 计量 */
+  /** DS4：CLI 尽力；全 null 则保持 null */
   tokensInput: z.number().nonnegative().nullable(),
   tokensOutput: z.number().nonnegative().nullable(),
   tokensCacheRead: z.number().nonnegative().nullable(),
@@ -804,8 +820,8 @@ export const IssueRunUsage = z.object({
 export type IssueRunUsage = z.infer<typeof IssueRunUsage>;
 
 /**
- * GET /api/usage?days=30 —— 工作区用量中心（G17）
- * 本地 CLI 无 token/费用：token* 与 cost 为 null；以 run 次数 / 成功率 / 时长为主。
+ * GET /api/usage?days=30 —— 工作区用量中心（G17 + DS4）
+ * token*：有落库则 SUM，否则 null；costUsd 仍恒 null（无美元账单）。
  */
 export const UsageAgentRow = z.object({
   agentId: BusinessId,

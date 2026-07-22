@@ -154,10 +154,14 @@ function UsagePageInner() {
           <div className="agent-stat-card">
             <div className="agent-stat-label">Token / 费用</div>
             <div className="agent-stat-value agent-stat-value--sm" data-testid="usage-kpi-tokens">
-              本地不可用
+              {data.tokensInput != null || data.tokensOutput != null
+                ? `in ${data.tokensInput ?? '—'} · out ${data.tokensOutput ?? '—'}`
+                : '本地不可用'}
             </div>
             <div className="agent-stat-hint text-dim text-sm">
-              CLI 路径无 token 账单（对标 Multica 云端 KPI 的空位）
+              {data.tokensInput != null || data.tokensOutput != null
+                ? 'CLI 尽力汇总（无美元账单）'
+                : '尚无 CLI 上报 token；费用恒不可用'}
             </div>
           </div>
         </div>

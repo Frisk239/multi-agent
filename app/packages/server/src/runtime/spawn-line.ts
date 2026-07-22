@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import type { AgentEvent, ExecutionResult } from './types.js';
+import type { AgentEvent, ExecutionResult, TokenUsage } from './types.js';
 
 // ANSI 转义序列剥离（opencode 等 CLI 输出含 \x1b[0m 色码，进 finalText 前清掉）
 export function stripAnsi(s: string): string {
@@ -12,6 +12,8 @@ export function stripAnsi(s: string): string {
 // 比拼 stdoutAll 更准）。
 export interface LineContext {
   resultText: string | null;
+  /** DS4：result 行解析到的 token 用量 */
+  usage: TokenUsage | null;
 }
 export type LineHandler = (
   line: string,
@@ -60,12 +62,16 @@ export function spawnLineProcess(
     let stdoutAll = '';
     let stderrAll = '';
     let settled = false;
-    const lineCtx: LineContext = { resultText: null };
+    const lineCtx: LineContext = { resultText: null, usage: null };
 
     const finish = (result: ExecutionResult) => {
       if (settled) return;
       settled = true;
       if (timeoutTimer) clearTimeout(timeoutTimer);
+      // 终态结果带上 line 解析到的 usage（若调用方未显式传入）
+      if (result.usage === undefined && lineCtx.usage) {
+        result = { ...result, usage: lineCtx.usage };
+      }
       resolve(result);
     };
 

@@ -54,6 +54,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [category, setCategory] = useState('');
   const [runtime, setRuntime] = useState<RuntimeId>('opencode');
   const [model, setModel] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState('');
   const [concurrency, setConcurrency] = useState(1);
   const [profileReady, setProfileReady] = useState(false);
   const { data: modelCatalog, isFetching: modelsLoading } = useRuntimeModels(runtime);
@@ -64,6 +65,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     setCategory(agent.category ?? '');
     setRuntime(agent.runtime);
     setModel(agent.model ?? '');
+    setThinkingLevel(agent.thinkingLevel ?? '');
     setConcurrency(agent.concurrency);
     setProfileReady(true);
   }, [agent]);
@@ -88,6 +90,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       category: category.trim() ? category.trim() : null,
       runtime,
       model: model.trim() ? model.trim() : null,
+      thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
       concurrency,
     });
   }
@@ -255,6 +258,45 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                     已发现 {modelCatalog.models.length} 个（{modelCatalog.source}）
                   </span>
                 ) : null}
+              </label>
+              <label className="ops-field">
+                <span>Thinking / Effort</span>
+                <select
+                  value={
+                    ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
+                      ? thinkingLevel
+                      : thinkingLevel
+                        ? '__custom__'
+                        : ''
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__custom__') return;
+                    setThinkingLevel(v);
+                  }}
+                  data-testid="agent-thinking-select"
+                >
+                  <option value="">CLI 默认（不指定）</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="max">max</option>
+                  {thinkingLevel &&
+                  !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
+                    <option value="__custom__">{thinkingLevel}（当前）</option>
+                  ) : null}
+                </select>
+                <input
+                  value={thinkingLevel}
+                  onChange={(e) => setThinkingLevel(e.target.value)}
+                  placeholder="或手填 effort/variant"
+                  data-testid="agent-thinking-input"
+                  autoComplete="off"
+                  className="agent-model-freeform"
+                />
+                <span className="text-dim text-sm">
+                  claude/grok → --effort；cursor/opencode → --variant（CLI 不支持会失败，可清空）
+                </span>
               </label>
               <label className="ops-field">
                 <span>并发</span>

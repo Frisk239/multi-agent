@@ -216,9 +216,13 @@ async function tick(): Promise<void> {
 
   // S05：claim 后查 agent.mcpServers，传进 ExecutionInput（claude-code 写临时文件 + --mcp-config）
   // G22：agent.model → backend --model
+  // DS4：agent.thinkingLevel → backend --effort/--variant（能传则传）
   const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
   const mcpServers = agentRow?.mcpServers ?? null;
   const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
+  const thinkingLevel = agentRow?.thinkingLevel?.trim()
+    ? agentRow.thinkingLevel.trim()
+    : null;
 
   const signal = registerRunAbort(runRow.id);
   const kindForTimeout = (runRow.kind as string) ?? 'issue';
@@ -313,6 +317,7 @@ async function tick(): Promise<void> {
         runId: runRow.id,
         mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
         model, // G22：空则 CLI 默认
+        thinkingLevel, // DS4：空则 CLI 默认
         timeoutMs: wallTimeoutMs,
       },
       onEvent,
@@ -320,13 +325,30 @@ async function tick(): Promise<void> {
     );
     clearRunAbort(runRow.id);
     const finishedAt = Date.now();
+    // DS4：有 usage 则落库（终态任意；失败/取消也尽量保留）
+    const tokenPatch = {
+      tokensInput: result.usage?.input ?? null,
+      tokensOutput: result.usage?.output ?? null,
+      tokensCacheRead: result.usage?.cacheRead ?? null,
+      tokensCacheWrite: result.usage?.cacheWrite ?? null,
+    } as const;
+    const hasTokens =
+      tokenPatch.tokensInput != null ||
+      tokenPatch.tokensOutput != null ||
+      tokenPatch.tokensCacheRead != null ||
+      tokenPatch.tokensCacheWrite != null;
 
     if (result.exitReason === 'cancelled' || signal.aborted) {
       // A1 修复（审计）：终态 UPDATE 加 WHERE status IN active，
       // 避免 signal 在 execute 返回后才 abort 把已落定的 completed 覆写成 cancelled。
       // 与 cancelRunById 的条件 UPDATE 对齐。
       db.update(agentRuns)
-        .set({ status: 'cancelled', finishedAt, error: result.error ?? null })
+        .set({
+          status: 'cancelled',
+          finishedAt,
+          error: result.error ?? null,
+          ...(hasTokens ? tokenPatch : {}),
+        })
         .where(
           and(
             eq(agentRuns.id, runRow.id),
@@ -342,6 +364,12 @@ async function tick(): Promise<void> {
     }
 
     if (result.exitReason === 'failed') {
+      if (hasTokens) {
+        db.update(agentRuns)
+          .set({ ...tokenPatch })
+          .where(eq(agentRuns.id, runRow.id))
+          .run();
+      }
       await failRun(runRow.id, result.error ?? '执行失败');
       return;
     }
@@ -360,7 +388,12 @@ async function tick(): Promise<void> {
     // completed —— 写终态；有 issueId 才写时间线 comment
     // A1 修复（审计）：加 WHERE status IN active，防 cancelled 后被覆写成 completed。
     db.update(agentRuns)
-      .set({ status: 'completed', finishedAt, error: null })
+      .set({
+        status: 'completed',
+        finishedAt,
+        error: null,
+        ...(hasTokens ? tokenPatch : {}),
+      })
       .where(
         and(
           eq(agentRuns.id, runRow.id),

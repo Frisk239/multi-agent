@@ -85,11 +85,27 @@ export async function usageRoutes(app: FastifyInstance): Promise<void> {
       return d;
     }
 
+    let tokensInSum = 0;
+    let tokensOutSum = 0;
+    let tokensInN = 0;
+    let tokensOutN = 0;
+
     for (const r of rows) {
       const ag = touchAgent(r.agentId);
       const day = touchDay(localDayKey(r.createdAt));
       ag.total += 1;
       day.total += 1;
+
+      const ti = (r as { tokensInput?: number | null }).tokensInput;
+      const to = (r as { tokensOutput?: number | null }).tokensOutput;
+      if (typeof ti === 'number') {
+        tokensInSum += ti;
+        tokensInN += 1;
+      }
+      if (typeof to === 'number') {
+        tokensOutSum += to;
+        tokensOutN += 1;
+      }
 
       let runDur: number | null = null;
       if (r.startedAt != null && r.finishedAt != null && r.finishedAt >= r.startedAt) {
@@ -169,8 +185,9 @@ export async function usageRoutes(app: FastifyInstance): Promise<void> {
       successRate: terminal > 0 ? completed / terminal : null,
       totalDurationMs: durationN > 0 ? durationSum : null,
       avgDurationMs: durationN > 0 ? Math.round(durationSum / durationN) : null,
-      tokensInput: null,
-      tokensOutput: null,
+      // DS4：有落库则 SUM，否则诚实 null
+      tokensInput: tokensInN > 0 ? tokensInSum : null,
+      tokensOutput: tokensOutN > 0 ? tokensOutSum : null,
       costUsd: null,
       byAgent: byAgentRows,
       byDay: byDayRows,

@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, type LineContext } from './spawn-line.js';
+import { parseUsageFromResultLine } from './usage-parse.js';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -67,6 +68,11 @@ function parseClaudeLine(
       if (typeof j.result === 'string') {
         ctx.resultText = j.result;
       }
+      // DS4：usage / modelUsage 尽力解析
+      {
+        const usage = parseUsageFromResultLine(j);
+        if (usage) ctx.usage = usage;
+      }
       break;
   }
 }
@@ -95,6 +101,9 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     // G22：agent.model → claude --model（空则 CLI 默认）
     const model = input.model?.trim();
     if (model) args.push('--model', model);
+    // DS4：thinking → claude --effort（CLI 不支持时失败体现在 run error，用户可清空）
+    const effort = input.thinkingLevel?.trim();
+    if (effort) args.push('--effort', effort);
 
     // S05 MCP 注入（spec §7.2 R3）：mcpServers JSON → 写临时文件 → --mcp-config argv。
     // claude-code 的 --mcp-config 接受 {"mcpServers": {<name>: {...}}} 格式（object，spike 确认）。

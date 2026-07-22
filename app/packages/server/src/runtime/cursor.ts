@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, type LineContext } from './spawn-line.js';
+import { parseUsageFromResultLine } from './usage-parse.js';
 
 // parseCursorLine —— 对齐 multica cursor.go 的 cursorStreamEvent 解析。
 // Cursor agent 的 stream-json 与 Claude 高度同构（multica deep §5 + 本机 spike）：
@@ -62,6 +63,9 @@ function parseCursorLine(
       if (typeof j.result === 'string') {
         ctx.resultText = j.result;
       }
+      // DS4：usage 尽力解析
+      const usage = parseUsageFromResultLine(j);
+      if (usage) ctx.usage = usage;
       break;
   }
 }
@@ -95,6 +99,9 @@ export class CursorBackend implements RuntimeBackend {
     const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
     const model = input.model?.trim();
     if (model) args.push('--model', model);
+    // DS4：Multica 用 thinking_level 作 --variant；本仓 best-effort
+    const variant = input.thinkingLevel?.trim();
+    if (variant) args.push('--variant', variant);
     return spawnLineProcess(
       det.path,
       args,

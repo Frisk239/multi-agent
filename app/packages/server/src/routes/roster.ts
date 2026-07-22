@@ -99,12 +99,17 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       input.model == null || !String(input.model).trim()
         ? null
         : String(input.model).trim();
+    const thinkingLevel =
+      input.thinkingLevel == null || !String(input.thinkingLevel).trim()
+        ? null
+        : String(input.thinkingLevel).trim();
     db.insert(agents)
       .values({
         id,
         name: input.name,
         runtime: input.runtime,
         model,
+        thinkingLevel,
         category: input.category ?? null,
         concurrency: input.concurrency ?? 1,
         instructions: input.instructions ?? '',
@@ -135,6 +140,12 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         patch.model == null || !String(patch.model).trim()
           ? null
           : String(patch.model).trim();
+    }
+    if (patch.thinkingLevel !== undefined) {
+      updates.thinkingLevel =
+        patch.thinkingLevel == null || !String(patch.thinkingLevel).trim()
+          ? null
+          : String(patch.thinkingLevel).trim();
     }
     if (patch.category !== undefined) updates.category = patch.category;
     if (patch.concurrency !== undefined) updates.concurrency = patch.concurrency;
