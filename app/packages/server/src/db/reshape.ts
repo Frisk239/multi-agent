@@ -246,6 +246,15 @@ export function toAgentRun(row: RunRow): AgentRun {
     tokensCacheRead: (row as { tokensCacheRead?: number | null }).tokensCacheRead ?? null,
     tokensCacheWrite:
       (row as { tokensCacheWrite?: number | null }).tokensCacheWrite ?? null,
+    providerSessionId:
+      (row as { providerSessionId?: string | null }).providerSessionId ?? null,
+    resumedSessionId:
+      (row as { resumedSessionId?: string | null }).resumedSessionId ?? null,
+    sessionResumeStatus:
+      ((row as { sessionResumeStatus?: AgentRun['sessionResumeStatus'] })
+        .sessionResumeStatus as AgentRun['sessionResumeStatus']) ?? null,
+    sessionPoisoned:
+      (row as { sessionPoisoned?: number | null }).sessionPoisoned === 1,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

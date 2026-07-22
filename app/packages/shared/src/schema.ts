@@ -91,6 +91,14 @@ export const AgentRun = z.object({
   tokensOutput: z.number().int().nonnegative().nullable().optional(),
   tokensCacheRead: z.number().int().nonnegative().nullable().optional(),
   tokensCacheWrite: z.number().int().nonnegative().nullable().optional(),
+  // DS1：CLI provider session（ADR 0004；非 claude 多为 null / unsupported）
+  providerSessionId: z.string().nullable().optional(),
+  resumedSessionId: z.string().nullable().optional(),
+  sessionResumeStatus: z
+    .enum(['fresh', 'resumed', 'poison_fresh', 'unsupported', 'resume_miss'])
+    .nullable()
+    .optional(),
+  sessionPoisoned: z.boolean().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;

@@ -111,8 +111,10 @@ function serverUrlFromEnv(): string {
 }
 
 // bu03：按 run.kind 选择 prompt；QC 不走 issue buildPrompt
+// DS1 opts.skipChatHistoryForResume：真 CLI resume 时不塞假历史（ADR 0004）
 export async function resolveRunPrompt(
   runRow: typeof agentRuns.$inferSelect,
+  opts?: { skipChatHistoryForResume?: boolean },
 ): Promise<string | null> {
   const kind = (runRow.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue';
   if (kind === 'chat') {
@@ -132,18 +134,27 @@ export async function resolveRunPrompt(
           '不要主动探索/搜索上级目录或其它仓库；用户未给出路径时，用对话回答即可。',
           '只有用户明确给出本机路径并要求读写时，才访问该路径。',
         ].join('\n');
-    // 多轮：注入同 thread 历史（本仓无 Multica session 复用，每次 CLI 冷启动）
+    // 多轮：默认注入同 thread 历史（假 resume）。
+    // DS1：真 CLI resume 时跳过历史块，避免双倍上下文（ADR 0004）。
     const threadId = runRow.chatThreadId?.trim() ?? '';
-    const prior = threadId
-      ? loadPriorChatMessages(threadId, runRow.id, chatHistoryLimit())
-      : [];
+    const skipHistory = opts?.skipChatHistoryForResume === true;
+    const prior =
+      !skipHistory && threadId
+        ? loadPriorChatMessages(threadId, runRow.id, chatHistoryLimit())
+        : [];
     const historyBlock = formatChatHistoryBlock(prior);
+    const resumeNote = skipHistory
+      ? '本轮已连接同一 Claude CLI 会话（真 resume）；勿重复复述全部历史，直接回应当前消息。'
+      : null;
     const parts = [
       `你是智能体「${name}」，正在与用户进行一对一聊天（非 Issue 任务）。`,
       instructions ? `你的指令：\n${instructions}` : null,
       cwdNote,
       '请直接、简洁地回答用户。不要擅自改仓库代码，除非用户明确要求。',
-      '若上方有会话历史，请结合历史连贯作答；当前用户消息以最后一节为准。',
+      skipHistory
+        ? null
+        : '若上方有会话历史，请结合历史连贯作答；当前用户消息以最后一节为准。',
+      resumeNote,
       historyBlock,
       `## 当前用户消息\n${userText}`,
     ];

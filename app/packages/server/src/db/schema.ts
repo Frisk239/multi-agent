@@ -252,6 +252,11 @@ export const agentRuns = sqliteTable(
     tokensOutput: integer('tokens_output'),
     tokensCacheRead: integer('tokens_cache_read'),
     tokensCacheWrite: integer('tokens_cache_write'),
+    // DS1：provider CLI session resume（claude-code MVP；见 ADR 0004）
+    providerSessionId: text('provider_session_id'),
+    resumedSessionId: text('resumed_session_id'),
+    sessionResumeStatus: text('session_resume_status'),
+    sessionPoisoned: integer('session_poisoned').notNull().default(0),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

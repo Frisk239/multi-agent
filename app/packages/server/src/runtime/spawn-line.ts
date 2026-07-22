@@ -14,6 +14,8 @@ export interface LineContext {
   resultText: string | null;
   /** DS4：result 行解析到的 token 用量 */
   usage: TokenUsage | null;
+  /** DS1：stream-json session_id（claude 等） */
+  providerSessionId: string | null;
 }
 export type LineHandler = (
   line: string,
@@ -62,7 +64,11 @@ export function spawnLineProcess(
     let stdoutAll = '';
     let stderrAll = '';
     let settled = false;
-    const lineCtx: LineContext = { resultText: null, usage: null };
+    const lineCtx: LineContext = {
+      resultText: null,
+      usage: null,
+      providerSessionId: null,
+    };
 
     const finish = (result: ExecutionResult) => {
       if (settled) return;
@@ -71,6 +77,12 @@ export function spawnLineProcess(
       // 终态结果带上 line 解析到的 usage（若调用方未显式传入）
       if (result.usage === undefined && lineCtx.usage) {
         result = { ...result, usage: lineCtx.usage };
+      }
+      if (
+        result.providerSessionId === undefined &&
+        lineCtx.providerSessionId
+      ) {
+        result = { ...result, providerSessionId: lineCtx.providerSessionId };
       }
       resolve(result);
     };

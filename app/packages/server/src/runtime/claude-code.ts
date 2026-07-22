@@ -17,6 +17,12 @@ import { tmpdir } from 'node:os';
 //   {"type":"assistant","message":{content:[...]}}   → text / tool_use block
 //   {"type":"result","result":"<finalText>",...}     → 覆盖 ctx.resultText
 // 字段映射依据 multica server/pkg/agent/claude.go:162-203 + 本机 spike。
+function pickSessionId(j: Record<string, any>): string | null {
+  const raw = j.session_id ?? j.sessionId;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  return null;
+}
+
 function parseClaudeLine(
   line: string,
   onEvent: (e: AgentEvent) => void,
@@ -28,10 +34,19 @@ function parseClaudeLine(
   } catch {
     return; // 非 JSON 行忽略
   }
+  // DS1：init/result 等行可能带 session_id
+  const sid = pickSessionId(j);
+  if (sid) ctx.providerSessionId = sid;
+
   switch (j.type) {
     case 'system':
       // init 心跳，仅作 progress 提示
-      onEvent({ type: 'log', text: `[claude] ${j.subtype ?? 'system'}` });
+      onEvent({
+        type: 'log',
+        text: sid
+          ? `[claude] ${j.subtype ?? 'system'} session=${sid.slice(0, 12)}…`
+          : `[claude] ${j.subtype ?? 'system'}`,
+      });
       break;
     case 'assistant': {
       // message.content[] —— 对齐 multica handleAssistant
@@ -104,6 +119,9 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     // DS4：thinking → claude --effort（CLI 不支持时失败体现在 run error，用户可清空）
     const effort = input.thinkingLevel?.trim();
     if (effort) args.push('--effort', effort);
+    // DS1：真 session resume（Multica claude.go --resume）
+    const resume = input.resumeSessionId?.trim();
+    if (resume) args.push('--resume', resume);
 
     // S05 MCP 注入（spec §7.2 R3）：mcpServers JSON → 写临时文件 → --mcp-config argv。
     // claude-code 的 --mcp-config 接受 {"mcpServers": {<name>: {...}}} 格式（object，spike 确认）。

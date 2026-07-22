@@ -100,6 +100,32 @@ function cwdModeLabel(mode: string | null | undefined): string {
   }
 }
 
+/** DS1：session resume 状态诚实文案（ADR 0004） */
+function sessionResumeLabel(
+  status: string | null | undefined,
+): string {
+  switch (status) {
+    case 'resumed':
+      return '已复用 CLI 会话';
+    case 'fresh':
+      return '新鲜启动';
+    case 'poison_fresh':
+      return '中毒后新会话';
+    case 'unsupported':
+      return '本 runtime 不支持真 resume';
+    case 'resume_miss':
+      return 'resume 未命中（已降级）';
+    default:
+      return status ? status : '未记录';
+  }
+}
+
+function shortSessionId(id: string | null | undefined): string | null {
+  const s = id?.trim();
+  if (!s) return null;
+  return s.length > 16 ? `${s.slice(0, 12)}…` : s;
+}
+
 function toolNameFromBody(body: string): string | null {
   try {
     const j = JSON.parse(body) as { name?: string };
@@ -420,6 +446,48 @@ export function RunDetailPage({ runId }: { runId: string }) {
             {run.createdAt ? new Date(run.createdAt).toLocaleString() : ''}
           </span>
         </div>
+
+        {(run.sessionResumeStatus ||
+          run.providerSessionId ||
+          run.resumedSessionId ||
+          run.sessionPoisoned) ? (
+          <div
+            className="run-detail-cwd"
+            data-testid="run-session"
+            data-session-status={run.sessionResumeStatus ?? 'unknown'}
+            data-session-poisoned={run.sessionPoisoned ? '1' : '0'}
+          >
+            <span className="run-detail-cwd-label">
+              CLI 会话 · {sessionResumeLabel(run.sessionResumeStatus)}
+            </span>
+            {shortSessionId(run.providerSessionId) ? (
+              <code className="run-detail-cwd-path" data-testid="run-session-id">
+                {shortSessionId(run.providerSessionId)}
+              </code>
+            ) : shortSessionId(run.resumedSessionId) ? (
+              <code
+                className="run-detail-cwd-path text-dim"
+                data-testid="run-session-resumed-id"
+                title="尝试 resume 的 id"
+              >
+                尝试 {shortSessionId(run.resumedSessionId)}
+              </code>
+            ) : (
+              <span className="text-dim">（无 session id）</span>
+            )}
+            {run.sessionPoisoned ? (
+              <p className="run-path-lock-note" data-testid="run-session-poison">
+                本 run 的 session 已标记<strong>不可再 resume</strong>
+                （下次将新鲜启动）。与 workdir 复用无关。
+              </p>
+            ) : null}
+            {run.sessionResumeStatus === 'unsupported' ? (
+              <p className="run-path-lock-note text-dim" data-testid="run-session-unsupported">
+                仅 claude-code 支持真 session resume；其它 runtime 可能仍复用隔离目录或塞 prompt 历史。
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {run.cwdMode || run.cwdPath ? (
           <div

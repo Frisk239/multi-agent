@@ -18,6 +18,10 @@ import { touchRunHeartbeat } from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
 import { resolveRunPrompt } from '../runtime/prompt.js';
+import {
+  finalizeSessionFields,
+  resolvePriorSession,
+} from '../runtime/session-resume.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
@@ -199,8 +203,33 @@ async function tick(): Promise<void> {
       );
       return;
     }
-    // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt
-    const prompt = await resolveRunPrompt(runRow);
+
+  // DS1：execute 前解析 prior session（ADR 0004）
+  const priorSession = resolvePriorSession({
+    id: runRow.id,
+    runtime: runRow.runtime,
+    agentId: runRow.agentId,
+    issueId: runRow.issueId ?? null,
+    chatThreadId: runRow.chatThreadId ?? null,
+    kind: (runRow.kind as string) ?? 'issue',
+    rerunOfRunId: runRow.rerunOfRunId ?? null,
+  });
+  try {
+    db.update(agentRuns)
+      .set({
+        resumedSessionId: priorSession.resumeSessionId,
+        sessionResumeStatus: priorSession.status,
+      })
+      .where(eq(agentRuns.id, runRow.id))
+      .run();
+  } catch {
+    /* ignore */
+  }
+  // bu03：按 kind 选 prompt；QC 不走 issue buildPrompt
+  // DS1：真 resume 时 chat 不塞假历史
+  const prompt = await resolveRunPrompt(runRow, {
+    skipChatHistoryForResume: Boolean(priorSession.resumeSessionId),
+  });
   if (!prompt) {
     const kind = (runRow.kind as string) ?? 'issue';
     await failRun(
@@ -307,6 +336,24 @@ async function tick(): Promise<void> {
   }
 
   try {
+    // DS1：启动前日志（真 resume / fresh / poison）
+    if (priorSession.resumeSessionId) {
+      onEvent({
+        type: 'log',
+        text: `[session] resume ${priorSession.resumeSessionId.slice(0, 12)}… (${priorSession.reason})\n`,
+      });
+    } else if (priorSession.status === 'poison_fresh') {
+      onEvent({
+        type: 'log',
+        text: `[session] poison→fresh (${priorSession.reason})\n`,
+      });
+    } else if (priorSession.status === 'unsupported') {
+      onEvent({
+        type: 'log',
+        text: `[session] unsupported for runtime ${runRow.runtime}（仅 workdir/假历史）\n`,
+      });
+    }
+
     const backend = getBackend(runRow.runtime);
     const result = await backend.execute(
       {
@@ -319,6 +366,7 @@ async function tick(): Promise<void> {
         model, // G22：空则 CLI 默认
         thinkingLevel, // DS4：空则 CLI 默认
         timeoutMs: wallTimeoutMs,
+        resumeSessionId: priorSession.resumeSessionId, // DS1
       },
       onEvent,
       signal,
@@ -338,6 +386,17 @@ async function tick(): Promise<void> {
       tokenPatch.tokensCacheRead != null ||
       tokenPatch.tokensCacheWrite != null;
 
+    // DS1：session 终态字段
+    const sessionPatch = finalizeSessionFields({
+      planned: priorSession,
+      emittedSessionId: result.providerSessionId,
+      exitReason:
+        result.exitReason === 'cancelled' || signal.aborted
+          ? 'cancelled'
+          : result.exitReason,
+      errorText: result.error ?? null,
+    });
+
     if (result.exitReason === 'cancelled' || signal.aborted) {
       // A1 修复（审计）：终态 UPDATE 加 WHERE status IN active，
       // 避免 signal 在 execute 返回后才 abort 把已落定的 completed 覆写成 cancelled。
@@ -348,6 +407,7 @@ async function tick(): Promise<void> {
           finishedAt,
           error: result.error ?? null,
           ...(hasTokens ? tokenPatch : {}),
+          ...sessionPatch,
         })
         .where(
           and(
@@ -364,12 +424,13 @@ async function tick(): Promise<void> {
     }
 
     if (result.exitReason === 'failed') {
-      if (hasTokens) {
-        db.update(agentRuns)
-          .set({ ...tokenPatch })
-          .where(eq(agentRuns.id, runRow.id))
-          .run();
-      }
+      db.update(agentRuns)
+        .set({
+          ...(hasTokens ? tokenPatch : {}),
+          ...sessionPatch,
+        })
+        .where(eq(agentRuns.id, runRow.id))
+        .run();
       await failRun(runRow.id, result.error ?? '执行失败');
       return;
     }
@@ -393,6 +454,7 @@ async function tick(): Promise<void> {
         finishedAt,
         error: null,
         ...(hasTokens ? tokenPatch : {}),
+        ...sessionPatch,
       })
       .where(
         and(

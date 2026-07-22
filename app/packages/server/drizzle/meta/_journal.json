@@ -211,6 +211,13 @@
       "when": 1786454400000,
       "tag": "0029_ds4_tokens_thinking",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1786540800000,
+      "tag": "0030_ds1_session_resume",
+      "breakpoints": true
     }
   ]
 }

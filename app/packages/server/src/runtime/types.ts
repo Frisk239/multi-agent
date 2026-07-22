@@ -30,6 +30,8 @@ export interface ExecutionInput {
   thinkingLevel?: string | null;
   /** chat 等短任务：CLI 硬超时（ms），防挂起变 orphan */
   timeoutMs?: number | null;
+  /** DS1：claude-code `--resume <id>`；其它 backend 忽略 */
+  resumeSessionId?: string | null;
 }
 
 export interface ExecutionResult {
@@ -37,6 +39,8 @@ export interface ExecutionResult {
   exitReason: 'completed' | 'cancelled' | 'failed';
   error?: string;
   usage?: TokenUsage | null;
+  /** DS1：CLI 报告的 provider session id（可空） */
+  providerSessionId?: string | null;
 }
 
 export interface DetectResult {
