@@ -411,6 +411,15 @@ export function RunDetailPage({ runId }: { runId: string }) {
 
         <div className="run-detail-chip-row" data-testid="run-detail-meta">
           <span className="run-detail-chip">{run.runtime}</span>
+          <span
+            className="run-detail-chip"
+            data-testid="run-model-line"
+            title="本 run 启动时的 model / thinking 快照（与 agent 当前配置可能不同）"
+          >
+            模型 {run.model?.trim() ? run.model.trim() : 'CLI 默认'}
+            {' · '}
+            thinking {run.thinkingLevel?.trim() ? run.thinkingLevel.trim() : 'CLI 默认'}
+          </span>
           {run.issueId ? (
             <Link
               href={`/issues/${run.issueId}`}

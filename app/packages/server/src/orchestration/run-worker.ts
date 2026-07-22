@@ -246,12 +246,21 @@ async function tick(): Promise<void> {
   // S05：claim 后查 agent.mcpServers，传进 ExecutionInput（claude-code 写临时文件 + --mcp-config）
   // G22：agent.model → backend --model
   // DS4：agent.thinkingLevel → backend --effort/--variant（能传则传）
+  // G22 residual：把本 run 使用的 model/thinking 快照到 agent_run（agent 后改不影响历史）
   const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
   const mcpServers = agentRow?.mcpServers ?? null;
   const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
   const thinkingLevel = agentRow?.thinkingLevel?.trim()
     ? agentRow.thinkingLevel.trim()
     : null;
+  try {
+    db.update(agentRuns)
+      .set({ model, thinkingLevel })
+      .where(eq(agentRuns.id, runRow.id))
+      .run();
+  } catch {
+    /* ignore write race */
+  }
 
   const signal = registerRunAbort(runRow.id);
   const kindForTimeout = (runRow.kind as string) ?? 'issue';
@@ -353,6 +362,16 @@ async function tick(): Promise<void> {
         text: `[session] unsupported for runtime ${runRow.runtime}（仅 workdir/假历史）\n`,
       });
     }
+
+    // G22 residual：执行前诚实 log（与落库快照一致）
+    onEvent({
+      type: 'log',
+      text: `[model] ${model ?? 'default'}\n`,
+    });
+    onEvent({
+      type: 'log',
+      text: `[thinking] ${thinkingLevel ?? 'default'}\n`,
+    });
 
     const backend = getBackend(runRow.runtime);
     const result = await backend.execute(

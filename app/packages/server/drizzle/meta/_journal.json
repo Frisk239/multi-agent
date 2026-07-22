@@ -218,6 +218,13 @@
       "when": 1786540800000,
       "tag": "0030_ds1_session_resume",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1786627200000,
+      "tag": "0031_run_model_thinking",
+      "breakpoints": true
     }
   ]
 }

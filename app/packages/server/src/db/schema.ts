@@ -257,6 +257,9 @@ export const agentRuns = sqliteTable(
     resumedSessionId: text('resumed_session_id'),
     sessionResumeStatus: text('session_resume_status'),
     sessionPoisoned: integer('session_poisoned').notNull().default(0),
+    // G22 residual：本 run 启动时从 agent 快照；null=未指定/CLI 默认（与 agent 后期改绑解耦）
+    model: text('model'),
+    thinkingLevel: text('thinking_level'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

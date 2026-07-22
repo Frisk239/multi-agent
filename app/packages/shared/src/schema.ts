@@ -99,6 +99,9 @@ export const AgentRun = z.object({
     .nullable()
     .optional(),
   sessionPoisoned: z.boolean().optional(),
+  // G22 residual：run 启动快照（null/缺省 = CLI 默认）
+  model: z.string().nullable().optional(),
+  thinkingLevel: z.string().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;

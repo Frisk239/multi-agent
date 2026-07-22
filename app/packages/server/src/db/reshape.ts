@@ -255,6 +255,15 @@ export function toAgentRun(row: RunRow): AgentRun {
         .sessionResumeStatus as AgentRun['sessionResumeStatus']) ?? null,
     sessionPoisoned:
       (row as { sessionPoisoned?: number | null }).sessionPoisoned === 1,
+    // G22 residual：run 快照（trim 空串 → null）
+    model: (() => {
+      const m = (row as { model?: string | null }).model?.trim();
+      return m ? m : null;
+    })(),
+    thinkingLevel: (() => {
+      const t = (row as { thinkingLevel?: string | null }).thinkingLevel?.trim();
+      return t ? t : null;
+    })(),
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

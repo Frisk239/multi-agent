@@ -65,6 +65,22 @@ function parseGrokLine(
   }
 }
 
+/** 构建 grok agent argv 公共段（print / fallback 共用 model+effort） */
+export function buildGrokAgentArgs(
+  input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt'>,
+  opts: { print: boolean },
+): string[] {
+  const args = ['--no-auto-update', 'agent', '--always-approve'];
+  if (opts.print) args.push('-p');
+  const model = input.model?.trim();
+  if (model) args.push('--model', model);
+  // DS4 / G22 residual：print 路径也要传 --effort（与 fallback 对齐）
+  const effort = input.thinkingLevel?.trim();
+  if (effort) args.push('--effort', effort);
+  args.push(input.prompt);
+  return args;
+}
+
 /** 尝试 `-p` 打印模式；失败则返回 null 让调用方降级 */
 async function tryPrintMode(
   bin: string,
@@ -72,12 +88,7 @@ async function tryPrintMode(
   onEvent: (e: AgentEvent) => void,
   signal: AbortSignal,
 ): Promise<ExecutionResult | null> {
-  const args = ['--no-auto-update', 'agent', '--always-approve', '-p'];
-  const model = input.model?.trim();
-  if (model) {
-    args.push('--model', model);
-  }
-  args.push(input.prompt);
+  const args = buildGrokAgentArgs(input, { print: true });
   const result = await spawnLineProcess(
     bin,
     args,
@@ -130,13 +141,7 @@ export class GrokBackend implements RuntimeBackend {
     if (printed) return printed;
 
     // 2) 降级：agent --always-approve + prompt 作参数（部分版本）
-    const args = ['--no-auto-update', 'agent', '--always-approve'];
-    const model = input.model?.trim();
-    if (model) args.push('--model', model);
-    // DS4：best-effort --effort（Multica grok 模式）
-    const effort = input.thinkingLevel?.trim();
-    if (effort) args.push('--effort', effort);
-    args.push(input.prompt);
+    const args = buildGrokAgentArgs(input, { print: false });
 
     const fallback = await spawnLineProcess(
       det.path,

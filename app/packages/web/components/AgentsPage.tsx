@@ -94,10 +94,12 @@ function AgentsPageInner() {
   const [name, setName] = useState('');
   const [runtime, setRuntime] = useState<RuntimeId>('opencode');
   const [model, setModel] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState('');
   const [category, setCategory] = useState('');
   const [concurrency, setConcurrency] = useState(1);
   const [instructions, setInstructions] = useState('');
-  const { data: createModelCatalog } = useRuntimeModels(open ? runtime : '');
+  const { data: createModelCatalog, isFetching: createModelsLoading } =
+    useRuntimeModels(open ? runtime : '');
 
   const qFromUrl = searchParams.get('q') ?? '';
   const runtimeFromUrl = searchParams.get('runtime') ?? '';
@@ -177,6 +179,7 @@ function AgentsPageInner() {
     setName('');
     setRuntime('opencode');
     setModel('');
+    setThinkingLevel('');
     setCategory('');
     setConcurrency(1);
     setInstructions('');
@@ -190,6 +193,7 @@ function AgentsPageInner() {
       name: name.trim(),
       runtime,
       model: model.trim() ? model.trim() : null,
+      thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
       category: category.trim() ? category.trim() : null,
       concurrency,
       instructions,
@@ -351,22 +355,106 @@ function AgentsPageInner() {
             <label className="ops-field">
               <span>模型</span>
               <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
+                value={
+                  model &&
+                  (createModelCatalog?.models ?? []).some((m) => m.id === model)
+                    ? model
+                    : model
+                      ? '__custom__'
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__custom__') return;
+                  setModel(v);
+                }}
                 data-testid="agents-create-model"
               >
-                <option value="">CLI 默认</option>
-                {(createModelCatalog?.models ?? []).slice(0, 100).map((m) => (
+                <option value="">
+                  {createModelsLoading ? '加载模型…' : 'CLI 默认（不指定）'}
+                </option>
+                {(createModelCatalog?.models ?? []).map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
+                    {m.isDefault ? ' · 推荐' : ''}
                   </option>
                 ))}
+                {model &&
+                !(createModelCatalog?.models ?? []).some((m) => m.id === model) ? (
+                  <option value="__custom__">{model}（当前）</option>
+                ) : null}
               </select>
-              {createModelCatalog && createModelCatalog.models.length > 0 ? (
-                <span className="text-dim text-sm">
-                  已发现 {createModelCatalog.models.length} 个
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="或手填 model id"
+                list="agents-create-model-suggestions"
+                data-testid="agents-create-model-freeform"
+                autoComplete="off"
+                className="agent-model-freeform"
+              />
+              <datalist id="agents-create-model-suggestions">
+                {(createModelCatalog?.models ?? []).slice(0, 80).map((m) => (
+                  <option key={m.id} value={m.id} />
+                ))}
+              </datalist>
+              {createModelCatalog?.error ? (
+                <span className="text-dim text-sm" data-testid="agents-create-model-source">
+                  {createModelCatalog.installed === false
+                    ? 'runtime 未安装'
+                    : createModelCatalog.source === 'cli'
+                      ? 'CLI'
+                      : createModelCatalog.source}
+                  ：{createModelCatalog.error}
+                </span>
+              ) : createModelCatalog && createModelCatalog.models.length > 0 ? (
+                <span className="text-dim text-sm" data-testid="agents-create-model-source">
+                  已发现 {createModelCatalog.models.length} 个（{createModelCatalog.source}）
+                </span>
+              ) : createModelCatalog && createModelCatalog.installed === false ? (
+                <span className="text-dim text-sm" data-testid="agents-create-model-source">
+                  runtime 未安装，可手填 model id
                 </span>
               ) : null}
+            </label>
+            <label className="ops-field">
+              <span>Thinking / Effort</span>
+              <select
+                value={
+                  ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
+                    ? thinkingLevel
+                    : thinkingLevel
+                      ? '__custom__'
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__custom__') return;
+                  setThinkingLevel(v);
+                }}
+                data-testid="agents-create-thinking"
+              >
+                <option value="">CLI 默认（不指定）</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="max">max</option>
+                {thinkingLevel &&
+                !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
+                  <option value="__custom__">{thinkingLevel}（当前）</option>
+                ) : null}
+              </select>
+              <input
+                value={thinkingLevel}
+                onChange={(e) => setThinkingLevel(e.target.value)}
+                placeholder="或手填 effort/variant"
+                data-testid="agents-create-thinking-freeform"
+                autoComplete="off"
+                className="agent-model-freeform"
+              />
+              <span className="text-dim text-sm">
+                claude/grok → --effort；cursor/opencode → --variant（CLI 不支持会失败，可清空）
+              </span>
             </label>
             <label className="ops-field">
               <span>分类</span>
@@ -568,6 +656,7 @@ function AgentsPageInner() {
               <th>智能体</th>
               <th>分类</th>
               <th>运行时</th>
+              <th>模型</th>
               <th>就绪</th>
               <th />
             </tr>
@@ -575,13 +664,13 @@ function AgentsPageInner() {
           <tbody>
             {agents.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   暂无智能体，点「新建智能体」开始
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   <div data-testid="agents-empty-filter">
                     <div>没有匹配的智能体</div>
                     <div style={{ marginTop: 8 }}>
@@ -622,6 +711,13 @@ function AgentsPageInner() {
                       >
                         <code>{ag.runtime}</code>
                       </Link>
+                    </td>
+                    <td className="text-dim" data-testid="agent-list-model">
+                      {ag.model?.trim() ? (
+                        <code title={ag.model}>{ag.model}</code>
+                      ) : (
+                        'CLI 默认'
+                      )}
                     </td>
                     <td>
                       <Link
