@@ -1876,6 +1876,49 @@ export type IsolatedWorkspaceEntry = {
   mtimeMs: number;
 };
 
+export type InboxPrefs = {
+  notifyIssueSuccess: boolean;
+  envForcesSuccess?: boolean;
+  effectiveNotifyIssueSuccess?: boolean;
+};
+
+/** GET/PUT /api/settings/inbox-prefs */
+export function useInboxPrefs() {
+  return useQuery({
+    queryKey: ['inbox-prefs'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/settings/inbox-prefs`);
+      if (!res.ok) throw new Error(await apiError(res, '加载通知偏好失败'));
+      return res.json() as Promise<InboxPrefs>;
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useSetInboxPrefs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { notifyIssueSuccess: boolean }) => {
+      const res = await fetch(`${API}/settings/inbox-prefs`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '保存通知偏好失败'));
+      return res.json() as Promise<InboxPrefs & { ok: true }>;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(['inbox-prefs'], data);
+      toastSuccess(
+        data.notifyIssueSuccess
+          ? '已开启：Issue 成功完成也推送收件箱'
+          : '已关闭：Issue 成功不再推送（默认降噪）',
+      );
+    },
+    onError: (err) => toastError(errMessage(err, '保存通知偏好失败')),
+  });
+}
+
 /** GET /api/settings/isolated-workspaces */
 export function useIsolatedWorkspaces() {
   return useQuery({

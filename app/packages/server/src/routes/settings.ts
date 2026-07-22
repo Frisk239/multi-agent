@@ -374,6 +374,32 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
+  // P2-B：Inbox 偏好
+  app.get('/api/settings/inbox-prefs', async () => {
+    const { readInboxPrefs } = await import('../orchestration/inbox-prefs.js');
+    const prefs = readInboxPrefs();
+    const envForce =
+      process.env.MA_INBOX_NOTIFY_SUCCESS === '1' ||
+      process.env.MA_INBOX_NOTIFY_SUCCESS === 'true';
+    return {
+      ...prefs,
+      envForcesSuccess: envForce,
+      effectiveNotifyIssueSuccess: envForce || prefs.notifyIssueSuccess,
+    };
+  });
+
+  app.put('/api/settings/inbox-prefs', async (req, reply) => {
+    const body = (req.body ?? {}) as { notifyIssueSuccess?: boolean };
+    if (typeof body.notifyIssueSuccess !== 'boolean') {
+      return reply.status(400).send({ error: '需要 notifyIssueSuccess: boolean' });
+    }
+    const { writeInboxPrefs } = await import('../orchestration/inbox-prefs.js');
+    const prefs = writeInboxPrefs({
+      notifyIssueSuccess: body.notifyIssueSuccess,
+    });
+    return { ok: true as const, ...prefs };
+  });
+
   // E4：隔离 CLI 目录列表（~/.multi-agent/run-workspaces|chat-sessions）
   app.get('/api/settings/isolated-workspaces', async () => {
     const { listIsolatedWorkspaces } = await import(

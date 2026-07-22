@@ -5,10 +5,25 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, append
 import { join, resolve } from 'node:path';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 
-// 目录定位（spec §3.6 / ADR 0003）：env > DB root_path > process.cwd()
-export function getWikiDir(): string {
+// 目录定位（spec §3.6 / ADR 0003 + P2-D）：
+// MA_WIKI_DIR 绝对路径 > workspace/wiki > process.cwd()/wiki
+export function getWikiDirSource(): {
+  path: string;
+  source: 'env' | 'workspace' | 'cwd';
+} {
+  const envRaw = process.env.MA_WIKI_DIR?.trim();
+  if (envRaw) {
+    return { path: resolve(envRaw), source: 'env' };
+  }
   const cwd = resolveWorkspaceCwd().path;
-  return resolve(cwd && cwd.length > 0 ? cwd : process.cwd(), 'wiki');
+  if (cwd && cwd.length > 0) {
+    return { path: resolve(cwd, 'wiki'), source: 'workspace' };
+  }
+  return { path: resolve(process.cwd(), 'wiki'), source: 'cwd' };
+}
+
+export function getWikiDir(): string {
+  return getWikiDirSource().path;
 }
 
 // 启动时确保目录 + 初始文件存在（spec §3.7 ensureWikiDir）

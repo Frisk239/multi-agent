@@ -75,6 +75,8 @@ function KanbanBoardInner() {
   const failedOnly = searchParams.get('failed') === '1';
   // URL 可分享：?status= 仅显示该列
   const statusFromUrl = searchParams.get('status') ?? '';
+  // P2-A：?view=list|board（默认看板）
+  const viewMode = searchParams.get('view') === 'list' ? 'list' : 'board';
   const [qDraft, setQDraft] = useState(qFromUrl);
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
@@ -135,6 +137,17 @@ function KanbanBoardInner() {
       const sp = new URLSearchParams(searchParams.toString());
       if (value) sp.set('priority', value);
       else sp.delete('priority');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const setViewMode = useCallback(
+    (mode: 'board' | 'list') => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (mode === 'list') sp.set('view', 'list');
+      else sp.delete('view');
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -344,6 +357,7 @@ function KanbanBoardInner() {
       data-failed-only={failedOnly ? '1' : '0'}
       data-origin-filter={originQuery ?? ''}
       data-status-filter={statusQuery ?? ''}
+      data-view={viewMode}
       data-visible-count={visibleCount}
       data-testid="kanban-board"
     >
@@ -419,6 +433,33 @@ function KanbanBoardInner() {
               ))}
             </optgroup>
           </select>
+          <div
+            className="kanban-view-tabs"
+            role="tablist"
+            aria-label="视图"
+            data-testid="kanban-view-tabs"
+          >
+            <button
+              type="button"
+              role="tab"
+              className={`kanban-scope-tab${viewMode === 'board' ? ' is-active' : ''}`}
+              aria-selected={viewMode === 'board'}
+              data-testid="kanban-view-board"
+              onClick={() => setViewMode('board')}
+            >
+              看板
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={`kanban-scope-tab${viewMode === 'list' ? ' is-active' : ''}`}
+              aria-selected={viewMode === 'list'}
+              data-testid="kanban-view-list"
+              onClick={() => setViewMode('list')}
+            >
+              列表
+            </button>
+          </div>
           <button
             type="button"
             className={`kanban-more-toggle${showMore ? ' is-open' : ''}${moreFilterCount ? ' has-active' : ''}`}
@@ -717,6 +758,84 @@ function KanbanBoardInner() {
           />
         </div>
       ) : null}
+      {viewMode === 'list' ? (
+        <div className="issue-list-view" data-testid="issue-list-view">
+          <table className="issue-list-table">
+            <thead>
+              <tr>
+                <th>标识</th>
+                <th>标题</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>指派</th>
+                <th>项目</th>
+                <th>更新</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((iss) => {
+                const stLabel =
+                  COLUMNS.find((c) => c.status === iss.status)?.title ?? iss.status;
+                const pri =
+                  PRIORITY_OPTIONS.find((p) => p.value === iss.priority)?.label ??
+                  iss.priority ??
+                  '—';
+                const assignee =
+                  iss.assignee?.label ??
+                  (iss.assignee ? `${iss.assignee.type}:${iss.assignee.id.slice(0, 6)}` : '—');
+                const proj =
+                  iss.projectTitle ??
+                  (iss.projectId
+                    ? projects.find((p) => p.id === iss.projectId)?.title
+                    : null) ??
+                  '—';
+                return (
+                  <tr
+                    key={iss.id}
+                    data-testid="issue-list-row"
+                    data-issue-id={iss.id}
+                    className={
+                      failedIssueIds.has(iss.id)
+                        ? 'issue-list-row is-failed'
+                        : activeIssueIds.has(iss.id)
+                          ? 'issue-list-row is-active'
+                          : 'issue-list-row'
+                    }
+                  >
+                    <td>
+                      <Link
+                        href={`/issues/${iss.id}`}
+                        className="issue-list-id"
+                      >
+                        {iss.identifier}
+                      </Link>
+                    </td>
+                    <td className="issue-list-title">
+                      <Link href={`/issues/${iss.id}`}>{iss.title}</Link>
+                    </td>
+                    <td>
+                      <span className={`run-pill run-pill--${iss.status}`}>{stLabel}</span>
+                    </td>
+                    <td className="text-dim text-sm">{pri || '—'}</td>
+                    <td className="text-sm">{assignee}</td>
+                    <td className="text-dim text-sm">{proj}</td>
+                    <td className="text-dim text-sm">
+                      {iss.updatedAt
+                        ? new Date(iss.updatedAt).toLocaleString()
+                        : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {visible.length === 0 ? (
+            <p className="text-dim text-sm" style={{ padding: 12 }}>
+              无 Issue
+            </p>
+          ) : null}
+        </div>
+      ) : (
       <div className="kanban-columns" data-status-focus={statusQuery ?? ''}>
         {visibleColumns.map((col) => (
           <KanbanColumn
@@ -734,6 +853,7 @@ function KanbanBoardInner() {
           />
         ))}
       </div>
+      )}
     </div>
   );
 }

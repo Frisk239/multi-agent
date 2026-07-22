@@ -58,9 +58,10 @@
   - 主题：**Multica 体验诚实 → 多仓韧性与执行手感（UX Trust）**  
   - Wave A 计划（✅）：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
   - **Wave C/D 计划（当前）：** [2026-07-21-ux-trust-wave-c-p0-p1.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)  
-  - **UX Trust A–D 收官 ✅** · **Day-0 E1–E4 收官 ✅**（首启 / Wiki 诚实 / 隔离清理 / 烟测）  
-  - 计划：`docs/superpowers/plans/2026-07-22-ux-day0-polish.md` · phase `phase-ux-day0-2026-07-22.md`  
-  - **▶ 下一主题 TBD**（P2：看板列表视图 / 通知偏好 / Chat 更深流式 / Wiki 物理分根…）
+  - **UX Trust A–D ✅ · Day-0 E1–E4 ✅ · P2 可交付子集 ✅**（列表视图 / 通知偏好 / Chat partial / MA_WIKI_DIR）  
+  - 计划：`docs/superpowers/plans/2026-07-22-ux-p2-polish.md` · `phase-ux-p2-2026-07-22.md`  
+  - **债：** CLI session 真 resume（P2-E）· 看板手动排序 · Wiki per-project 分根  
+  - **▶ 下一主题 TBD**（真 session resume 调研 / 用量 / thinking level…）
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1/首启向导（P2）
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  

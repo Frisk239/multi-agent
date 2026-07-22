@@ -5,6 +5,7 @@ import { inboxItems, issueSubscribers, issues } from '../db/schema.js';
 import { toInboxItem } from '../db/reshape.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { eventBus } from './event-bus.js';
+import { shouldNotifyIssueSuccess } from './inbox-prefs.js';
 
 const WS = 'ws-local';
 
@@ -170,17 +171,15 @@ export function notifyCommentCreated(comment: Comment, issue: Issue): void {
 }
 
 /**
- * F10 Inbox 策略（降噪 + 补漏）：
+ * F10 + P2-B Inbox 策略：
  * - failed：issue / QC / chat 一律进 Inbox（action_required）
- * - completed：默认 **不** 推 issue 成功（主噪音源）；QC 成功仍推（建卡闭环）；chat 成功不推（会话 UI 已可见）
- * - 紧急旁路：MA_INBOX_NOTIFY_SUCCESS=1 时恢复 issue 成功推送
+ * - completed：默认不推 issue 成功；QC 成功仍推；chat 成功不推
+ * - 开启：MA_INBOX_NOTIFY_SUCCESS=1 或 inbox-prefs.notifyIssueSuccess
  */
 export function notifyRunTerminal(run: AgentRun): void {
   if (run.status !== 'completed' && run.status !== 'failed') return;
   const failed = run.status === 'failed';
-  const notifySuccess =
-    process.env.MA_INBOX_NOTIFY_SUCCESS === '1' ||
-    process.env.MA_INBOX_NOTIFY_SUCCESS === 'true';
+  const notifySuccess = shouldNotifyIssueSuccess();
 
   // —— chat：仅失败进 Inbox（漏报修复）——
   if (run.kind === 'chat') {

@@ -245,9 +245,21 @@ export function useWsEvents() {
         }
       }
 
-      // S12 run:progress：仅前端短时 map
+      // S12 + P2-C run:progress：短时 map；像正文的片段也推进 partial
       if (event.type === 'run:progress') {
         setProgress(event.runId, event.text);
+        const t = event.text?.trim() ?? '';
+        const noise =
+          !t ||
+          t.length < 8 ||
+          /^(进度|等待|排队|工具|\[claude\]|\[cursor\]|\[opencode\]|\[grok\]|stale:|heartbeat)/i.test(
+            t,
+          ) ||
+          t.includes('等待本机目录') ||
+          t.includes('等待进度');
+        if (!noise && t.length >= 12) {
+          appendPartial(event.runId, t);
+        }
       }
 
       // S06 wiki:page-created：invalidate wiki 列表 cache（spec §7.2）

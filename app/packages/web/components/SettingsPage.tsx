@@ -6,8 +6,10 @@ import { useSearchParams } from 'next/navigation';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
 import {
   useCleanupIsolatedWorkspaces,
+  useInboxPrefs,
   useIsolatedWorkspaces,
   useRecoverStuckRuns,
+  useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
   useSetWorkspaceCwd,
   useSettingsStatus,
@@ -97,6 +99,8 @@ export function SettingsPage() {
   const setCwd = useSetWorkspaceCwd();
   const { data: isolatedWs, refetch: refetchIsolated } = useIsolatedWorkspaces();
   const cleanupIsolated = useCleanupIsolatedWorkspaces();
+  const { data: inboxPrefs } = useInboxPrefs();
+  const setInboxPrefs = useSetInboxPrefs();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [profileName, setProfileName] = useState('');
@@ -489,6 +493,44 @@ export function SettingsPage() {
           </p>
         </section>
       ) : null}
+
+        <section
+          className="settings-card"
+          data-testid="settings-inbox-prefs"
+          aria-label="收件箱通知"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>收件箱通知</strong>
+          </div>
+          <p className="text-dim text-sm" style={{ marginTop: 6 }}>
+            默认不推送 Issue 成功完成（降噪）。失败、指派、聊天失败仍会通知。
+            {inboxPrefs?.envForcesSuccess
+              ? ' 当前 env MA_INBOX_NOTIFY_SUCCESS 强制开启成功推送。'
+              : null}
+          </p>
+          <label
+            className="text-sm"
+            style={{
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              marginTop: 10,
+            }}
+          >
+            <input
+              type="checkbox"
+              data-testid="settings-notify-issue-success"
+              checked={Boolean(inboxPrefs?.notifyIssueSuccess)}
+              disabled={
+                setInboxPrefs.isPending || Boolean(inboxPrefs?.envForcesSuccess)
+              }
+              onChange={(e) =>
+                setInboxPrefs.mutate({ notifyIssueSuccess: e.target.checked })
+              }
+            />
+            Issue 运行成功时也写入收件箱
+          </label>
+        </section>
 
         <section
           className="settings-card"

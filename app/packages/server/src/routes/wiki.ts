@@ -17,6 +17,7 @@ import {
   appendIndex,
   appendLog,
   getWikiDir,
+  getWikiDirSource,
 } from '../wiki/store.js';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { generateSlug } from '../wiki/slug.js';
@@ -36,13 +37,17 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/wiki/meta — E3：根路径诚实（非 per-project）
   app.get('/api/wiki/meta', async () => {
     const cwd = resolveWorkspaceCwd();
-    const rootPath = getWikiDir();
+    const wiki = getWikiDirSource();
     return {
-      rootPath,
+      rootPath: wiki.path,
       workspacePath: cwd.path,
-      source: cwd.configured ? cwd.source : 'process.cwd',
+      source: wiki.source,
+      workspaceCwdSource: cwd.configured ? cwd.source : 'none',
       perProject: false as const,
-      note: 'Wiki 文件在工作区（或 process.cwd）下的 wiki/ 目录，不随 Issue 绑定的 project.localPath 切换',
+      note:
+        wiki.source === 'env'
+          ? 'Wiki 根来自 MA_WIKI_DIR；仍非 per-project（不按 project.localPath 分目录）'
+          : 'Wiki 文件在工作区（或 process.cwd）下的 wiki/ 目录，不随 Issue 绑定的 project.localPath 切换；可用 MA_WIKI_DIR 覆盖',
     };
   });
 
