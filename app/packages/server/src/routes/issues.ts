@@ -6,6 +6,7 @@ import {
   RerunIssueInput,
   SetIssueLabelsInput,
   ListIssuesQuery,
+  ReorderIssuesInput,
   validateUpdateIssue,
   type IssueRunUsage,
 } from '@ma/shared';
@@ -106,16 +107,22 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       assigneeId,
       unassigned,
       assigned,
+      sort,
     } = parsed.data;
     const qTrim = q?.trim() ?? '';
     const unassignedOn = unassigned === '1' || unassigned === 'true';
     const assignedOn = assigned === '1' || assigned === 'true';
+    // DS2：默认 manual（看板 position）；列表可传 updated
+    const orderBy =
+      sort === 'updated'
+        ? [sql`updated_at DESC`, issues.position]
+        : [issues.position, sql`created_at DESC`];
 
     let rows = db
       .select()
       .from(issues)
       .where(eq(issues.workspaceId, WS_ID))
-      .orderBy(issues.position, sql`created_at DESC`)
+      .orderBy(...orderBy)
       .all();
 
     if (status) {
@@ -178,6 +185,117 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return issuesWithRelations(rows);
+  });
+
+  // POST /api/issues/reorder —— DS2：整列重排（orderedIds → position 0..n-1）
+  // 注意：须注册在 /api/issues/:id 之前，避免被 :id 吃掉 "reorder"
+  app.post('/api/issues/reorder', async (req, reply) => {
+    const parsed = ReorderIssuesInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const { status: targetStatus, orderedIds } = parsed.data;
+    if (new Set(orderedIds).size !== orderedIds.length) {
+      return reply.status(400).send({ error: 'orderedIds 含重复 id' });
+    }
+
+    const now = Date.now();
+    const statusChanges: Array<{
+      issueId: string;
+      from: (typeof issues.$inferSelect)['status'];
+      to: (typeof issues.$inferSelect)['status'];
+      commentId: string;
+    }> = [];
+
+    try {
+      sqlite.transaction(() => {
+        const rows = orderedIds.map((id) => {
+          const row = db.select().from(issues).where(eq(issues.id, id)).get();
+          if (!row) throw new Error(`missing:${id}`);
+          if (row.workspaceId !== WS_ID) throw new Error(`workspace:${id}`);
+          return row;
+        });
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i]!;
+          const nextPos = i;
+          const statusChanged = row.status !== targetStatus;
+          const patch: Partial<typeof issues.$inferInsert> = {
+            position: nextPos,
+            updatedAt: now,
+          };
+          if (statusChanged) {
+            patch.status = targetStatus;
+            const commentId = crypto.randomUUID();
+            db.insert(comments)
+              .values({
+                id: commentId,
+                issueId: row.id,
+                type: 'status_change',
+                authorType: 'member',
+                authorId: LOCAL_MEMBER.id,
+                body: JSON.stringify({ from: row.status, to: targetStatus }),
+                createdAt: now,
+              })
+              .run();
+            statusChanges.push({
+              issueId: row.id,
+              from: row.status,
+              to: targetStatus,
+              commentId,
+            });
+          }
+          db.update(issues).set(patch).where(eq(issues.id, row.id)).run();
+        }
+      })();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith('missing:')) {
+        return reply.status(404).send({ error: `issue 不存在: ${msg.slice(8)}` });
+      }
+      if (msg.startsWith('workspace:')) {
+        return reply.status(404).send({ error: `issue 不存在: ${msg.slice(10)}` });
+      }
+      throw e;
+    }
+
+    const updatedRows = orderedIds.map(
+      (id) => db.select().from(issues).where(eq(issues.id, id)).get()!,
+    );
+    const result = issuesWithRelations(updatedRows);
+
+    for (const issue of result) {
+      const sc = statusChanges.find((s) => s.issueId === issue.id);
+      eventBus.publish({
+        type: 'issue:updated',
+        issue,
+        statusChanged: Boolean(sc),
+        prevStatus: sc?.from ?? null,
+      });
+    }
+    for (const sc of statusChanges) {
+      const cRow = db.select().from(comments).where(eq(comments.id, sc.commentId)).get();
+      if (cRow) {
+        eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+      }
+      if (sc.to === 'done') {
+        const jobId = enqueueWikiIngest(sc.issueId);
+        if (jobId) wakeWikiIngestWorker();
+        const iss = result.find((i) => i.id === sc.issueId);
+        if (iss) {
+          const desc = iss.description?.trim()
+            ? `\n${iss.description.length > 500 ? iss.description.slice(0, 500) : iss.description}`
+            : '';
+          memoryManager.ambientCapture({
+            kind: 'issue_done',
+            issueId: sc.issueId,
+            text: `[ambient:issue_done] Issue ${iss.identifier}: ${iss.title}\nStatus → done${desc}`,
+          });
+        }
+      }
+    }
+
+    return reply.send(result);
   });
 
   // GET /api/issues/:id —— 与 list 共用 toIssue（R6）
@@ -338,6 +456,19 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (input.status !== undefined) updates.status = input.status;
     if (input.priority !== undefined) updates.priority = input.priority;
     if (input.position !== undefined) updates.position = input.position;
+    // DS2：跨列改 status 且未显式传 position → 插入目标列顶
+    if (
+      input.status !== undefined &&
+      input.status !== prev.status &&
+      input.position === undefined
+    ) {
+      const minRow = db
+        .select({ minPos: sql<number>`COALESCE(MIN(${issues.position}), 0) - 1` })
+        .from(issues)
+        .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, input.status)))
+        .get();
+      updates.position = minRow?.minPos ?? -1;
+    }
     // assignee 多态指派对（spec §3.5）：放开输入，GET 时服务端填 label
     if (input.assignee !== undefined) {
       updates.assigneeType = input.assignee?.type ?? null;

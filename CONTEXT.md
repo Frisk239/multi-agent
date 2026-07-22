@@ -44,25 +44,18 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-21）
+## 当前方位（2026-07-22）
 
 - **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [主航道 gap](app/.progress/multica-gap-2026-07-17.md) · [真站 live gap](app/.progress/multica-gap-live-2026-07-19.md)
-- **工程：** 自动迭代 Slice Owner · Playwright 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
+- **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
-- **真站对照：** live gap 已滚动到 **2026-07-21** — G1–G18 MVP 在；**新 P0 队列 G21–G23**
-- **已推（历史）：** G1–G3 / G5–G10 / G12–G18 等 · `runtime-cli-naming`（G14）
-- **本会话主线：** UX Trust A/B（派活诚实）✅；进入 **Wave C/D（P0/P1 韧性+手感）**
-- **已交（近）：** F1–F8 + F10 · A1–A3 · B1–B3 · progress 见 `*-impl-1.md`
-- **▶ 阶段计划：** [phase-multica-ux-trust-2026-07-21.md](app/.progress/phase-multica-ux-trust-2026-07-21.md)  
-  - 主题：**Multica 体验诚实 → 多仓韧性与执行手感（UX Trust）**  
-  - Wave A 计划（✅）：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
-  - **Wave C/D 计划（当前）：** [2026-07-21-ux-trust-wave-c-p0-p1.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)  
-  - **UX Trust A–D ✅ · Day-0 ✅ · P2 薄刀 ✅**  
-  - **▶ 下一阶段（厚债）：** [phase-ux-deep-2026-07-22.md](app/.progress/phase-ux-deep-2026-07-22.md)  
-    · 计划 [2026-07-22-ux-deep-slices.md](docs/superpowers/plans/2026-07-22-ux-deep-slices.md)  
-    · 默认 **DS2 手动排序 → DS4 token/thinking → DS1 session resume → DS3 Wiki 分根**  
-  - 非目标：云账单 · daemon 多机 · 密钥入库
+- **已交（近）：** UX Trust A–D · Day-0 · P2 薄刀 · **DS2 看板手动排序**（`ds2-manual-sort-impl-1.md`）
+- **▶ 阶段计划：** [phase-ux-deep-2026-07-22.md](app/.progress/phase-ux-deep-2026-07-22.md)  
+  · 计划 [2026-07-22-ux-deep-slices.md](docs/superpowers/plans/2026-07-22-ux-deep-slices.md)  
+  · **DS2 ✅** → 下一刀默认 **DS4 token/thinking** → DS1 session resume → DS3 Wiki 分根  
+  · 非目标：云账单 · daemon 多机 · 密钥入库
+- **上一刀 intake：** [ux-p2-polish-intake.md](app/.progress/ux-p2-polish-intake.md)（通过）
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

@@ -8755,7 +8755,8 @@ a.issue-card-run-fail--link:hover {
   gap: 8px 10px;
 }
 
-.kanban-view-tabs {
+.kanban-view-tabs,
+.kanban-sort-tabs {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -8763,6 +8764,10 @@ a.issue-card-run-fail--link:hover {
   border-radius: 8px;
   border: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+}
+
+.kanban-card-slot {
+  display: block;
 }
 
 .issue-list-view {

@@ -56,6 +56,7 @@ import type {
   UserProfile,
   UpdateUserProfileInput,
   IssueEnqueueMeta,
+  IssueStatus,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -122,6 +123,8 @@ export type IssuesQuery = {
   unassigned?: boolean;
   /** 任一 agent/squad 指派（侧栏「我的 issue」） */
   assigned?: boolean;
+  /** DS2：manual | updated */
+  sort?: 'manual' | 'updated';
 };
 
 function issuesQueryKey(params?: IssuesQuery) {
@@ -137,6 +140,7 @@ function issuesQueryKey(params?: IssuesQuery) {
     params?.assigneeId || '',
     params?.unassigned ? '1' : '',
     params?.assigned ? '1' : '',
+    params?.sort || '',
   ] as const;
 }
 
@@ -154,6 +158,7 @@ function buildIssuesUrl(params?: IssuesQuery) {
   }
   if (params?.unassigned) sp.set('unassigned', '1');
   if (params?.assigned) sp.set('assigned', '1');
+  if (params?.sort) sp.set('sort', params.sort);
   const qs = sp.toString();
   return qs ? `${API}/issues?${qs}` : `${API}/issues`;
 }
@@ -635,6 +640,59 @@ export function useCreateComment(issueId: string) {
       }
     },
     onError: (err) => toastError(errMessage(err, '评论失败')),
+  });
+}
+
+/** DS2：整列重排 */
+export function useReorderIssues() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { status: IssueStatus; orderedIds: string[] }) => {
+      const res = await fetch(`${API}/issues/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '重排失败'));
+      return res.json() as Promise<Issue[]>;
+    },
+    onMutate: async ({ status, orderedIds }) => {
+      await qc.cancelQueries({ queryKey: ['issues'] });
+      const prevLists = qc.getQueriesData<Issue[]>({ queryKey: ['issues'] });
+      qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => {
+        if (!old) return old;
+        const byId = new Map(old.map((i) => [i.id, i]));
+        const touched = new Set(orderedIds);
+        const rest = old.filter((i) => !touched.has(i.id));
+        const reordered = orderedIds
+          .map((id, index) => {
+            const base = byId.get(id);
+            if (!base) return null;
+            return { ...base, status, position: index };
+          })
+          .filter((x): x is Issue => Boolean(x));
+        return [...rest, ...reordered].sort((a, b) => {
+          if (a.status !== b.status) return a.status.localeCompare(b.status);
+          if (a.position !== b.position) return a.position - b.position;
+          return a.createdAt < b.createdAt ? 1 : -1;
+        });
+      });
+      return { prevLists };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.prevLists) {
+        for (const [key, data] of ctx.prevLists) {
+          qc.setQueryData(key, data);
+        }
+      }
+      toastError(errMessage(err, '重排失败'));
+    },
+    onSuccess: (issues) => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      for (const issue of issues) {
+        qc.setQueryData<Issue>(['issue', issue.id], issue);
+      }
+    },
   });
 }
 

@@ -401,6 +401,8 @@ export const ListIssuesQuery = z
     // unassigned=1：仅未指派；assigned=1：任一 agent/squad
     unassigned: QueryBool.optional(),
     assigned: QueryBool.optional(),
+    // DS2：manual=看板 position 序；updated=最近更新
+    sort: z.enum(['manual', 'updated']).optional(),
   })
   .superRefine((data, ctx) => {
     const hasType = data.assigneeType != null;
@@ -430,6 +432,13 @@ export const ListIssuesQuery = z
     }
   });
 export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
+
+/** DS2：整列重排（同 status 内 orderedIds → position 0..n-1；可含跨列迁入的一张卡） */
+export const ReorderIssuesInput = z.object({
+  status: IssueStatus,
+  orderedIds: z.array(BusinessId).min(1).max(500),
+});
+export type ReorderIssuesInput = z.infer<typeof ReorderIssuesInput>;
 
 // —— Project（projects-mvp）——
 export const ProjectStatus = z.enum(['planned', 'active', 'completed', 'cancelled']);

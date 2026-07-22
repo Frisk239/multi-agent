@@ -7,7 +7,8 @@ interface Props {
   color: string;
   issues: Issue[];
   onDragStart: (id: string) => void;
-  onDrop: (status: IssueStatus) => void;
+  /** DS2：落到列（可带 beforeId 表示插到该卡之前；null=列末） */
+  onDrop: (status: IssueStatus, beforeId: string | null) => void;
   readinessByAgentId?: Record<string, AgentReadiness | null>;
   failedIssueIds?: Set<string>;
   /** queued/running run 覆盖的 issue */
@@ -36,10 +37,12 @@ export function KanbanColumn({
     <section
       className="kanban-column"
       data-status={status}
+      data-testid="kanban-column"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
-        onDrop(status);
+        // 落到列空白区 → 末尾
+        onDrop(status, null);
       }}
     >
       <header className="kanban-column-header">
@@ -73,14 +76,30 @@ export function KanbanColumn({
             const agentId = assigneeAgentByIssueId?.[iss.id];
             const rd = agentId ? readinessByAgentId?.[agentId] : null;
             return (
-              <IssueCard
+              <div
                 key={iss.id}
-                issue={iss}
-                onDragStart={onDragStart}
-                readiness={rd}
-                lastRunFailed={failedIssueIds?.has(iss.id)}
-                runActive={activeIssueIds?.has(iss.id)}
-              />
+                className="kanban-card-slot"
+                data-testid="kanban-card-slot"
+                data-issue-id={iss.id}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // 落到某卡上 → 插到该卡之前
+                  onDrop(status, iss.id);
+                }}
+              >
+                <IssueCard
+                  issue={iss}
+                  onDragStart={onDragStart}
+                  readiness={rd}
+                  lastRunFailed={failedIssueIds?.has(iss.id)}
+                  runActive={activeIssueIds?.has(iss.id)}
+                />
+              </div>
             );
           })
         )}

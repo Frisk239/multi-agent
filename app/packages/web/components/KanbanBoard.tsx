@@ -10,8 +10,8 @@ import {
   useIssues,
   useLabels,
   useProjects,
+  useReorderIssues,
   useSquads,
-  useUpdateIssue,
   useWorkspaceRuns,
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
@@ -77,6 +77,9 @@ function KanbanBoardInner() {
   const statusFromUrl = searchParams.get('status') ?? '';
   // P2-A：?view=list|board（默认看板）
   const viewMode = searchParams.get('view') === 'list' ? 'list' : 'board';
+  // DS2：列表 sort=manual|updated（默认 manual 与看板一致）
+  const sortMode =
+    searchParams.get('sort') === 'updated' ? 'updated' : 'manual';
   const [qDraft, setQDraft] = useState(qFromUrl);
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
@@ -147,7 +150,23 @@ function KanbanBoardInner() {
     (mode: 'board' | 'list') => {
       const sp = new URLSearchParams(searchParams.toString());
       if (mode === 'list') sp.set('view', 'list');
-      else sp.delete('view');
+      else {
+        sp.delete('view');
+        // 看板固定 manual 序；离开列表时清 sort 参数
+        sp.delete('sort');
+      }
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const setSortMode = useCallback(
+    (mode: 'manual' | 'updated') => {
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set('view', 'list');
+      if (mode === 'updated') sp.set('sort', 'updated');
+      else sp.delete('sort');
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -223,10 +242,11 @@ function KanbanBoardInner() {
     priority: priorityQuery,
     originType: originQuery,
     projectId: projectFromUrl || undefined,
+    sort: viewMode === 'list' && sortMode === 'updated' ? 'updated' : undefined,
     ...assigneeQuery,
   });
   const { data: labels } = useLabels();
-  const update = useUpdateIssue();
+  const reorder = useReorderIssues();
   const [dragId, setDragId] = useState<string | null>(null);
 
   const squadLeaderById = useMemo(() => {
@@ -318,14 +338,62 @@ function KanbanBoardInner() {
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
-  function handleDrop(targetStatus: IssueStatus) {
+  /**
+   * DS2：同列/跨列拖放 → 整列 orderedIds 调 reorder API。
+   * beforeId=null：插到列末；beforeId=某卡：插到该卡前。
+   * 同卡落到自己上 / 无位移时 no-op。
+   */
+  function handleDrop(targetStatus: IssueStatus, beforeId: string | null) {
     if (!dragId) return;
-    const dragged = visible.find((i) => i.id === dragId);
-    if (!dragged || dragged.status === targetStatus) {
+    const dragged = (issues ?? []).find((i) => i.id === dragId);
+    if (!dragged) {
       setDragId(null);
       return;
     }
-    update.mutate({ id: dragId, input: { status: targetStatus } });
+    if (beforeId === dragId) {
+      setDragId(null);
+      return;
+    }
+
+    const columnIds = (issues ?? [])
+      .filter((i) => i.status === targetStatus && i.id !== dragId)
+      .sort((a, b) => {
+        if (a.position !== b.position) return a.position - b.position;
+        return a.createdAt < b.createdAt ? 1 : -1;
+      })
+      .map((i) => i.id);
+
+    let orderedIds: string[];
+    if (beforeId && columnIds.includes(beforeId)) {
+      const idx = columnIds.indexOf(beforeId);
+      orderedIds = [
+        ...columnIds.slice(0, idx),
+        dragId,
+        ...columnIds.slice(idx),
+      ];
+    } else {
+      orderedIds = [...columnIds, dragId];
+    }
+
+    // 同列且顺序未变 → 跳过
+    if (dragged.status === targetStatus) {
+      const prevIds = (issues ?? [])
+        .filter((i) => i.status === targetStatus)
+        .sort((a, b) => {
+          if (a.position !== b.position) return a.position - b.position;
+          return a.createdAt < b.createdAt ? 1 : -1;
+        })
+        .map((i) => i.id);
+      if (
+        prevIds.length === orderedIds.length &&
+        prevIds.every((id, i) => id === orderedIds[i])
+      ) {
+        setDragId(null);
+        return;
+      }
+    }
+
+    reorder.mutate({ status: targetStatus, orderedIds });
     setDragId(null);
   }
 
@@ -460,6 +528,35 @@ function KanbanBoardInner() {
               列表
             </button>
           </div>
+          {viewMode === 'list' ? (
+            <div
+              className="kanban-sort-tabs"
+              role="tablist"
+              aria-label="列表排序"
+              data-testid="kanban-sort-tabs"
+            >
+              <button
+                type="button"
+                role="tab"
+                className={`kanban-scope-tab${sortMode === 'manual' ? ' is-active' : ''}`}
+                aria-selected={sortMode === 'manual'}
+                data-testid="kanban-sort-manual"
+                onClick={() => setSortMode('manual')}
+              >
+                手动序
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={`kanban-scope-tab${sortMode === 'updated' ? ' is-active' : ''}`}
+                aria-selected={sortMode === 'updated'}
+                data-testid="kanban-sort-updated"
+                onClick={() => setSortMode('updated')}
+              >
+                最近更新
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             className={`kanban-more-toggle${showMore ? ' is-open' : ''}${moreFilterCount ? ' has-active' : ''}`}
