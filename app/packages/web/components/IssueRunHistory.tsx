@@ -82,6 +82,17 @@ export function IssueRunHistory({
       ? null
       : `${Math.round(usage.successRate * 1000) / 10}%`;
 
+  // D2：同 issue 隔离目录是否跨 run 复用（cwd_path 相同）
+  const isolatedPaths = runs
+    .filter((r) => r.cwdMode === 'isolated_issue' && r.cwdPath?.trim())
+    .map((r) => r.cwdPath!.trim());
+  const reusePath =
+    isolatedPaths.length >= 2 && isolatedPaths.every((p) => p === isolatedPaths[0])
+      ? isolatedPaths[0]
+      : isolatedPaths.length === 1
+        ? isolatedPaths[0]
+        : null;
+
   return (
     <section
       className="issue-run-history issue-run-history--compact"
@@ -100,6 +111,16 @@ export function IssueRunHistory({
             </span>
           ) : null}
         </div>
+        {reusePath ? (
+          <p
+            className="issue-run-workdir-reuse text-dim text-sm"
+            data-testid="issue-run-workdir-reuse"
+            title={reusePath}
+          >
+            隔离工作目录沿用 ·{' '}
+            <code className="issue-run-workdir-path">{reusePath}</code>
+          </p>
+        ) : null}
         {usage ? (
           <div className="issue-run-usage issue-run-usage--compact" data-testid="issue-run-usage">
             <span>

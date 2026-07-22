@@ -10207,6 +10207,17 @@ a.issue-card-run-fail--link:hover {
   background: color-mix(in srgb, #f87171 16%, transparent);
 }
 
+.issue-run-workdir-reuse {
+  margin: 0 0 8px;
+  line-height: 1.4;
+  width: 100%;
+}
+
+.issue-run-workdir-path {
+  font-size: 0.92em;
+  word-break: break-all;
+}
+
 .issue-run-usage--compact {
   display: flex;
   flex-wrap: wrap;

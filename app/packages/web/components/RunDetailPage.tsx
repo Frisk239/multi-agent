@@ -422,6 +422,32 @@ export function RunDetailPage({ runId }: { runId: string }) {
                 （结束后自动开工，不会标失败）
               </p>
             ) : null}
+            {run.cwdMode === 'isolated_issue' ? (
+              <p className="run-path-lock-note" data-testid="run-cwd-reuse-note">
+                同 Issue 再执行会<strong>沿用此隔离工作目录</strong>
+                （~/.multi-agent/run-workspaces/…/workdir），不重新建空目录。
+                {run.rerunOfRunId ? (
+                  <>
+                    {' '}
+                    本 run 再执行自{' '}
+                    <Link href={`/runs/${run.rerunOfRunId}`}>
+                      {shortId(run.rerunOfRunId)}
+                    </Link>
+                    。
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+            {run.cwdMode === 'chat_scratch' ? (
+              <p className="run-path-lock-note" data-testid="run-cwd-chat-note">
+                聊天会话目录按 thread 固定；同会话后续轮次共用该隔离目录。
+              </p>
+            ) : null}
+            {run.cwdMode === 'project_local' && !run.pathHolding ? (
+              <p className="run-path-lock-note text-dim" data-testid="run-cwd-project-note">
+                项目本机目录：再执行仍进入同一 localPath（同 path 串行见 C1）。
+              </p>
+            ) : null}
           </div>
         ) : null}
 
