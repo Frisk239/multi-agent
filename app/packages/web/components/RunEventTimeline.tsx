@@ -4,6 +4,16 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun, RunMessage } from '@ma/shared';
 import { useRunMessages } from '@/lib/api';
+import {
+  filterRunEventView,
+  pairCollapsedPreview,
+  pairRunToolEvents,
+  parseToolName,
+  parseToolPayload,
+  previewBody,
+  type RunEventDrawerFilter,
+  type RunEventViewItem,
+} from '@/lib/run-event-pairs';
 import { useRunProgressStore } from '@/lib/ws';
 
 function kindLabel(kind: RunMessage['kind']): string {
@@ -22,54 +32,6 @@ function kindTone(kind: RunMessage['kind']): string {
   return 'system';
 }
 
-function previewBody(body: string, max = 280): string {
-  const t = body.replace(/\s+/g, ' ').trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max)}…`;
-}
-
-/** D3：tool_start/end body 常为 JSON `{ name, args|result }`（run-worker） */
-function parseToolPayload(body: string): {
-  name: string | null;
-  summary: string | null;
-} {
-  const raw = body.trim();
-  if (!raw) return { name: null, summary: null };
-  try {
-    const j = JSON.parse(raw) as {
-      name?: unknown;
-      args?: unknown;
-      result?: unknown;
-    };
-    const name =
-      typeof j.name === 'string' && j.name.trim() ? j.name.trim() : null;
-    let summary: string | null = null;
-    if (j.args != null) {
-      const s =
-        typeof j.args === 'string'
-          ? j.args
-          : JSON.stringify(j.args);
-      summary = previewBody(s, 100);
-    } else if (j.result != null) {
-      const s =
-        typeof j.result === 'string' ? j.result : JSON.stringify(j.result);
-      summary = previewBody(s, 100);
-    }
-    if (name || summary) return { name, summary };
-  } catch {
-    /* not JSON */
-  }
-  const m =
-    raw.match(/^(?:tool[_ ]?name|name)\s*[:=]\s*["']?([\w./-]+)/i) ||
-    raw.match(/^([A-Za-z][\w./-]{0,40})\s*[:(]/) ||
-    raw.match(/"name"\s*:\s*"([^"]+)"/);
-  return { name: m?.[1] ?? null, summary: null };
-}
-
-function parseToolName(body: string): string | null {
-  return parseToolPayload(body).name;
-}
-
 export function RunEventTimelineInline({
   run,
   onOpenDrawer,
@@ -85,6 +47,7 @@ export function RunEventTimelineInline({
   const isLive = run?.status === 'queued' || run?.status === 'running';
   const isFailed = run?.status === 'failed' || Boolean(run?.error);
 
+  const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
   const toolCount = useMemo(
     () => messages.filter((m) => m.kind === 'tool_start' || m.kind === 'tool_end').length,
     [messages],
@@ -151,12 +114,103 @@ export function RunEventTimelineInline({
         </div>
       ) : (
         <ul className="run-event-list" data-testid="run-event-list">
-          {messages.map((m) => (
-            <RunEventItem key={m.id} message={m} compact />
+          {viewItems.map((item) => (
+            <RunEventViewRow key={viewItemKey(item)} item={item} compact />
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function viewItemKey(item: RunEventViewItem): string {
+  if (item.type === 'pair') return `pair-${item.start.id}-${item.end.id}`;
+  return item.message.id;
+}
+
+function RunEventViewRow({
+  item,
+  compact,
+}: {
+  item: RunEventViewItem;
+  compact?: boolean;
+}) {
+  if (item.type === 'pair') {
+    return (
+      <RunEventToolPair
+        start={item.start}
+        end={item.end}
+        toolName={item.toolName}
+        compact={compact}
+      />
+    );
+  }
+  return <RunEventItem message={item.message} compact={compact} />;
+}
+
+/** G23：tool_start + tool_end 折叠为一组（默认收起） */
+function RunEventToolPair({
+  start,
+  end,
+  toolName,
+  compact,
+}: {
+  start: RunMessage;
+  end: RunMessage;
+  toolName: string | null;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const startP = parseToolPayload(start.body);
+  const endP = parseToolPayload(end.body);
+  const name = toolName ?? startP.name ?? endP.name ?? 'tool';
+  const preview = pairCollapsedPreview(start, end, compact ? 100 : 140);
+
+  return (
+    <li
+      className="run-event-item run-event-item--tool-pair"
+      data-testid="run-event-tool-pair"
+      data-kind="tool_pair"
+      data-tool-name={name}
+    >
+      <button
+        type="button"
+        className="run-event-item-head"
+        data-testid="run-event-tool-pair-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="run-event-chip run-event-chip--tool">工具</span>
+        <span className="run-event-tool-name" data-testid="run-event-tool-pair-name">
+          {name}
+        </span>
+        <code className="run-event-seq">
+          #{start.seq}–{end.seq}
+        </code>
+        <span
+          className="run-event-preview"
+          data-testid="run-event-preview"
+          title={`${start.body.slice(0, 240)}\n---\n${end.body.slice(0, 240)}`}
+        >
+          {preview}
+        </span>
+        <span className="run-event-chevron" aria-hidden>
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
+      {open ? (
+        <div className="run-event-pair-body" data-testid="run-event-tool-pair-body">
+          <div className="run-event-pair-part">
+            <span className="run-event-pair-label">调用 · args</span>
+            <pre className="run-event-body">{start.body}</pre>
+          </div>
+          <div className="run-event-pair-part">
+            <span className="run-event-pair-label">结果 · result</span>
+            <pre className="run-event-body">{end.body}</pre>
+          </div>
+        </div>
+      ) : null}
+    </li>
   );
 }
 
@@ -220,6 +274,12 @@ function RunEventItem({
   );
 }
 
+const DRAWER_FILTERS: { id: RunEventDrawerFilter; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'tool', label: '工具' },
+  { id: 'assistant', label: '助手' },
+];
+
 /** G23：全屏/抽屉事件时间线（Issue / Runs 共用） */
 export function RunEventTimelineDrawer({
   run,
@@ -236,6 +296,13 @@ export function RunEventTimelineDrawer({
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const isLive = run?.status === 'queued' || run?.status === 'running';
+  const [filter, setFilter] = useState<RunEventDrawerFilter>('all');
+
+  const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
+  const filteredItems = useMemo(
+    () => filterRunEventView(viewItems, filter),
+    [viewItems, filter],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -245,6 +312,10 @@ export function RunEventTimelineDrawer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) setFilter('all');
+  }, [open, runId]);
 
   if (!open || !run) return null;
 
@@ -291,8 +362,9 @@ export function RunEventTimelineDrawer({
               复制
             </button>
             <Link
-              href={`/runs?run=${encodeURIComponent(run.id)}&status=all`}
+              href={`/runs?run=${encodeURIComponent(run.id)}&timeline=1&status=all`}
               className="btn-ghost btn-sm"
+              data-testid="run-event-drawer-to-runs"
             >
               运行页
             </Link>
@@ -312,6 +384,27 @@ export function RunEventTimelineDrawer({
           <span className="run-event-stat">工具 {toolStarts}</span>
           <span className="run-event-stat">助手 {assistants}</span>
         </div>
+
+        <div
+          className="run-event-drawer-filters"
+          data-testid="run-event-drawer-filters"
+          role="tablist"
+        >
+          {DRAWER_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.id}
+              className={`memory-kind-chip${filter === f.id ? ' is-active' : ''}`}
+              data-testid={`run-event-drawer-filter-${f.id}`}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {isLive && progress ? (
           <p className="run-trace-live-progress" data-testid="run-event-drawer-progress">
             进度：{progress}
@@ -327,10 +420,14 @@ export function RunEventTimelineDrawer({
                   ? `无事件 · 错误：${run.error}`
                   : '无事件消息'}
             </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="run-trace-empty" data-testid="run-event-drawer-filter-empty">
+              当前筛选无事件
+            </div>
           ) : (
             <ul className="run-event-list run-event-list--drawer">
-              {messages.map((m) => (
-                <RunEventItem key={m.id} message={m} />
+              {filteredItems.map((item) => (
+                <RunEventViewRow key={viewItemKey(item)} item={item} />
               ))}
             </ul>
           )}

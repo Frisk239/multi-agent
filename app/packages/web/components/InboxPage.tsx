@@ -707,6 +707,16 @@ function InboxPageInner() {
                   {isFailItem(selected) && selected.runId ? (
                     <InboxRetryButton item={selected} />
                   ) : null}
+                  {selected.runId ? (
+                    <Link
+                      href={`/runs?run=${encodeURIComponent(selected.runId)}&timeline=1&status=all`}
+                      className="inbox-action-btn inbox-action-link"
+                      data-testid="inbox-open-timeline"
+                      title="打开运行事件时间线"
+                    >
+                      时间线
+                    </Link>
+                  ) : null}
                   {isFailItem(selected) &&
                   isCwdFailBody(selected.body ?? selected.summary) ? (
                     <Link

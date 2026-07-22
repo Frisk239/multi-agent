@@ -164,27 +164,43 @@ export function IssueDetail({ id }: { id: string }) {
             }`}
             data-testid="issue-exec-section"
           >
-            <button
-              type="button"
-              className="issue-exec-toggle"
-              data-testid="issue-exec-toggle"
-              aria-expanded={execOpen}
-              onClick={() => setExecOpen((v) => !v)}
-            >
-              <span className="issue-section-title">运行</span>
-              <span className="text-dim text-sm" data-testid="issue-exec-summary">
-                {historyCount > 0
-                  ? live
-                    ? `进行中 · ${historyCount}`
-                    : selectedRun?.status === 'failed'
-                      ? `失败 · ${historyCount}`
-                      : `${historyCount} 次`
-                  : '尚未执行'}
-              </span>
-              <span className="issue-exec-chevron" aria-hidden>
-                {execOpen ? '▾' : '▸'}
-              </span>
-            </button>
+            <div className="issue-exec-head-row">
+              <button
+                type="button"
+                className="issue-exec-toggle"
+                data-testid="issue-exec-toggle"
+                aria-expanded={execOpen}
+                onClick={() => setExecOpen((v) => !v)}
+              >
+                <span className="issue-section-title">运行</span>
+                <span className="text-dim text-sm" data-testid="issue-exec-summary">
+                  {historyCount > 0
+                    ? live
+                      ? `进行中 · ${historyCount}`
+                      : selectedRun?.status === 'failed'
+                        ? `失败 · ${historyCount}`
+                        : `${historyCount} 次`
+                    : '尚未执行'}
+                </span>
+                <span className="issue-exec-chevron" aria-hidden>
+                  {execOpen ? '▾' : '▸'}
+                </span>
+              </button>
+              {selectedRun ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  data-testid="issue-open-timeline"
+                  title="打开运行事件时间线"
+                  onClick={() => {
+                    setExecOpen(true);
+                    setTimelineOpen(true);
+                  }}
+                >
+                  时间线
+                </button>
+              ) : null}
+            </div>
             {execOpen ? (
               <div className="issue-exec-body" data-testid="issue-exec-body">
                 <RunStatusBar

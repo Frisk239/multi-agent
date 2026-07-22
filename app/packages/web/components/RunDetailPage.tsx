@@ -11,6 +11,14 @@ import {
   useRunMessages,
 } from '@/lib/api';
 import {
+  pairCollapsedPreview,
+  pairRunToolEvents,
+  parseToolName,
+  parseToolPayload,
+  previewBody,
+  type RunEventViewItem,
+} from '@/lib/run-event-pairs';
+import {
   chatThreadHref,
   qcRetryHref,
   runRecoveryKind,
@@ -126,53 +134,20 @@ function shortSessionId(id: string | null | undefined): string | null {
   return s.length > 16 ? `${s.slice(0, 12)}…` : s;
 }
 
-function toolNameFromBody(body: string): string | null {
-  try {
-    const j = JSON.parse(body) as { name?: string };
-    if (j?.name) return String(j.name);
-  } catch {
-    /* not json */
-  }
-  const m =
-    body.match(/^(?:tool[_ ]?name|name)\s*[:=]\s*["']?([\w./-]+)/i) ||
-    body.match(/^([A-Za-z][\w./-]{0,40})\s*[:(]/);
-  return m?.[1] ?? null;
-}
-
 /** D3：工具事件一行摘要（name + args/result 截断） */
 function toolSummaryLine(
   kind: RunMessage['kind'],
   body: string,
   max = 160,
 ): string {
-  try {
-    const j = JSON.parse(body) as {
-      name?: string;
-      args?: unknown;
-      result?: unknown;
-    };
-    const parts: string[] = [];
-    if (kind === 'tool_end') parts.push('完成');
-    if (j.args != null) {
-      const s =
-        typeof j.args === 'string' ? j.args : JSON.stringify(j.args);
-      parts.push(s.replace(/\s+/g, ' ').trim().slice(0, max));
-    } else if (j.result != null) {
-      const s =
-        typeof j.result === 'string' ? j.result : JSON.stringify(j.result);
-      parts.push(s.replace(/\s+/g, ' ').trim().slice(0, max));
-    }
-    if (parts.length) return parts.join(' · ');
-  } catch {
-    /* fall through */
-  }
+  const p = parseToolPayload(body);
+  const parts: string[] = [];
+  if (kind === 'tool_end') parts.push('完成');
+  if (p.summary) parts.push(previewBody(p.summary, max));
+  else if (p.argsText) parts.push(previewBody(p.argsText, max));
+  else if (p.resultText) parts.push(previewBody(p.resultText, max));
+  if (parts.length) return parts.join(' · ');
   return previewBody(body, max);
-}
-
-function previewBody(body: string, max = 420): string {
-  const t = body.replace(/\s+/g, ' ').trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max)}…`;
 }
 
 const KIND_FILTERS: { id: '' | RunMessage['kind']; label: string }[] = [
@@ -183,6 +158,33 @@ const KIND_FILTERS: { id: '' | RunMessage['kind']; label: string }[] = [
   { id: 'user', label: '用户' },
   { id: 'system', label: '系统' },
 ];
+
+function viewItemKey(item: RunEventViewItem): string {
+  if (item.type === 'pair') return `pair-${item.start.id}-${item.end.id}`;
+  return item.message.id;
+}
+
+function filterViewItems(
+  items: RunEventViewItem[],
+  kindFilter: '' | RunMessage['kind'],
+): RunEventViewItem[] {
+  if (!kindFilter) return items;
+  if (kindFilter === 'tool_start') {
+    return items.filter((it) => {
+      if (it.type === 'pair') return true;
+      const k = it.message.kind;
+      return k === 'tool_start' || k === 'tool_end';
+    });
+  }
+  if (kindFilter === 'tool_end') {
+    return items.filter(
+      (it) => it.type === 'single' && it.message.kind === 'tool_end',
+    );
+  }
+  return items.filter(
+    (it) => it.type === 'single' && it.message.kind === kindFilter,
+  );
+}
 
 export function RunDetailPage({ runId }: { runId: string }) {
   const { data: run, isLoading, isError, error, refetch, isFetching } = useRun(runId);
@@ -202,15 +204,11 @@ export function RunDetailPage({ runId }: { runId: string }) {
       ? classifyRunFailure(run.error)
       : null;
 
-  const filtered = useMemo(() => {
-    if (!kindFilter) return messages;
-    if (kindFilter === 'tool_start') {
-      return messages.filter(
-        (m) => m.kind === 'tool_start' || m.kind === 'tool_end',
-      );
-    }
-    return messages.filter((m) => m.kind === kindFilter);
-  }, [messages, kindFilter]);
+  const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
+  const filtered = useMemo(
+    () => filterViewItems(viewItems, kindFilter),
+    [viewItems, kindFilter],
+  );
 
   const toolCount = useMemo(
     () => messages.filter((m) => m.kind === 'tool_start').length,
@@ -614,8 +612,91 @@ export function RunDetailPage({ runId }: { runId: string }) {
           </div>
         ) : (
           <ol className="run-transcript-list" data-testid="run-detail-events">
-            {filtered.map((m) => {
-              const tool = toolNameFromBody(m.body);
+            {filtered.map((item) => {
+              if (item.type === 'pair') {
+                const key = viewItemKey(item);
+                const name =
+                  item.toolName ??
+                  parseToolName(item.start.body) ??
+                  parseToolName(item.end.body) ??
+                  'tool';
+                const open = expanded[key] ?? false;
+                const collapsedText = pairCollapsedPreview(
+                  item.start,
+                  item.end,
+                  160,
+                );
+                return (
+                  <li
+                    key={key}
+                    className="run-transcript-row run-transcript-row--tool-pair"
+                    data-kind="tool_pair"
+                    data-tool-name={name}
+                    data-testid="run-detail-tool-pair"
+                  >
+                    <button
+                      type="button"
+                      className="run-transcript-chip run-event-chip--tool"
+                      data-testid="run-detail-tool-pair-toggle"
+                      onClick={() =>
+                        setExpanded((s) => ({ ...s, [key]: !(s[key] ?? false) }))
+                      }
+                      title="展开/折叠工具调用"
+                    >
+                      工具 · {name}
+                    </button>
+                    <div className="run-transcript-body-wrap">
+                      <button
+                        type="button"
+                        className="run-transcript-toggle"
+                        onClick={() =>
+                          setExpanded((s) => ({
+                            ...s,
+                            [key]: !(s[key] ?? false),
+                          }))
+                        }
+                      >
+                        {open ? '▾' : '▸'}
+                      </button>
+                      <div
+                        className="run-transcript-text"
+                        data-testid="run-detail-event-preview"
+                      >
+                        {open ? (
+                          <div className="run-event-pair-body">
+                            <div className="run-event-pair-part">
+                              <span className="run-event-pair-label">
+                                调用 · #{item.start.seq}
+                              </span>
+                              <pre className="run-event-body">{item.start.body}</pre>
+                            </div>
+                            <div className="run-event-pair-part">
+                              <span className="run-event-pair-label">
+                                结果 · #{item.end.seq}
+                              </span>
+                              <pre className="run-event-body">{item.end.body}</pre>
+                            </div>
+                          </div>
+                        ) : (
+                          collapsedText
+                        )}
+                      </div>
+                    </div>
+                    <div className="run-transcript-meta text-dim">
+                      <span>
+                        #{item.start.seq}–{item.end.seq}
+                      </span>
+                      <span>
+                        {clockTime(item.end.createdAt) ||
+                          relativeTime(item.end.createdAt)}
+                      </span>
+                    </div>
+                  </li>
+                );
+              }
+
+              const m = item.message;
+              const tool = parseToolName(m.body);
               const isTool = m.kind === 'tool_start' || m.kind === 'tool_end';
               const isLong = (m.body?.length ?? 0) > 280;
               const open = expanded[m.id] ?? !isLong;
