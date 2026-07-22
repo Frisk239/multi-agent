@@ -1,8 +1,9 @@
 // S08 AGENTS.md 桥梁（spec §3，学 multica runtime_config.go marker-pair）
+// DS3 / ADR 0005：project 根写 {localPath}/AGENTS.md；global 仍写 workspace/cwd
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
-import { listWikiPages, readLog } from './store.js';
+import { listWikiPages, readLog, resolveWikiDir, type WikiRootOpts } from './store.js';
 
 export const MA_WIKI_BEGIN = '<!-- BEGIN MA-WIKI (auto-managed; do not edit) -->';
 export const MA_WIKI_END = '<!-- END MA-WIKI -->';
@@ -11,6 +12,15 @@ export function getAgentsMdPath(): string {
   // ADR 0003：与 wiki/store 一致
   const cwd = resolveWorkspaceCwd().path;
   return resolve(cwd && cwd.length > 0 ? cwd : process.cwd(), 'AGENTS.md');
+}
+
+/** project 根：{localPath}/AGENTS.md；global：workspace/cwd AGENTS.md */
+export function getAgentsMdPathForRoot(opts?: WikiRootOpts): string {
+  const root = resolveWikiDir(opts);
+  if (root.source === 'project' && root.projectLocalPath) {
+    return resolve(root.projectLocalPath, 'AGENTS.md');
+  }
+  return getAgentsMdPath();
 }
 
 export function writeManagedBlock(
@@ -79,8 +89,13 @@ ${pageLines}
 ${logLines || '- （暂无）'}`;
 }
 
-export function updateAgentsMdBridge(): void {
-  const pages = listWikiPages();
-  const body = renderBridgeBody(pages, readLog());
-  writeManagedBlock(getAgentsMdPath(), MA_WIKI_BEGIN, MA_WIKI_END, body);
+/**
+ * 更新 AGENTS.md 的 MA-WIKI managed 块。
+ * - global：workspace/cwd AGENTS.md + 全局 wiki 列表
+ * - project：{localPath}/AGENTS.md + 该 project wiki 列表（ADR 0005 §4）
+ */
+export function updateAgentsMdBridge(opts?: WikiRootOpts): void {
+  const pages = listWikiPages(opts);
+  const body = renderBridgeBody(pages, readLog(opts));
+  writeManagedBlock(getAgentsMdPathForRoot(opts), MA_WIKI_BEGIN, MA_WIKI_END, body);
 }

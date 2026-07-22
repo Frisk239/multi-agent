@@ -1674,22 +1674,33 @@ export function useUpdateAgentMcp(agentId: string) {
   });
 }
 
-// —— S06 Wiki hooks ——
+// —— S06 Wiki hooks + DS3 per-project root ——
+
+function wikiProjectQs(projectId?: string | null): string {
+  const pid = projectId?.trim();
+  if (!pid) return '';
+  return `projectId=${encodeURIComponent(pid)}`;
+}
 
 export type WikiMeta = {
   rootPath: string;
   workspacePath: string | null;
-  source: string;
-  perProject: false;
+  source: 'project' | 'env' | 'workspace' | 'cwd' | string;
+  workspaceCwdSource?: string;
+  /** 能力开关：服务端支持按 project 分根（ADR 0005） */
+  perProject: boolean;
+  projectId?: string | null;
   note: string;
 };
 
-// GET /api/wiki/meta —— E3 根路径诚实
-export function useWikiMeta() {
+// GET /api/wiki/meta —— 根路径诚实（可选 ?projectId=）
+export function useWikiMeta(projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useQuery<WikiMeta>({
-    queryKey: ['wiki-meta'],
+    queryKey: ['wiki-meta', pid],
     queryFn: async () => {
-      const res = await fetch(`${API}/wiki/meta`);
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/meta${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('加载 wiki meta 失败');
       return res.json();
     },
@@ -1698,11 +1709,13 @@ export function useWikiMeta() {
 }
 
 // GET /api/wiki/pages —— wiki 页列表（spec §6）
-export function useWikiPages() {
+export function useWikiPages(projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useQuery<WikiPageSummary[]>({
-    queryKey: ['wiki-pages'],
+    queryKey: ['wiki-pages', pid],
     queryFn: async () => {
-      const res = await fetch(`${API}/wiki/pages`);
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('加载 wiki 失败');
       return res.json();
     },
@@ -1710,11 +1723,15 @@ export function useWikiPages() {
 }
 
 // GET /api/wiki/pages/:slug —— 单页内容（spec §6）
-export function useWikiPage(slug: string | null) {
+export function useWikiPage(slug: string | null, projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useQuery<WikiPage>({
-    queryKey: ['wiki-page', slug],
+    queryKey: ['wiki-page', slug, pid],
     queryFn: async () => {
-      const res = await fetch(`${API}/wiki/pages/${slug}`);
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(
+        `${API}/wiki/pages/${encodeURIComponent(slug!)}${qs ? `?${qs}` : ''}`,
+      );
       if (!res.ok) throw new Error('加载 wiki 页失败');
       return res.json();
     },
@@ -1724,11 +1741,13 @@ export function useWikiPage(slug: string | null) {
 
 // —— S07 Wiki query / health / lint / 存回 hooks ——
 
-// POST /api/wiki/query — 问答（spec §5.5）
-export function useWikiQuery() {
+// POST /api/wiki/query — 问答（spec §5.5）；可选 project 根
+export function useWikiQuery(projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useMutation({
     mutationFn: async (question: string) => {
-      const res = await fetch(`${API}/wiki/query`, {
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/query${qs ? `?${qs}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
@@ -1740,11 +1759,13 @@ export function useWikiQuery() {
 }
 
 // GET /api/wiki/health — 结构检查（手动触发，spec §5.5）
-export function useWikiHealth() {
+export function useWikiHealth(projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useQuery<WikiHealthResult>({
-    queryKey: ['wiki-health'],
+    queryKey: ['wiki-health', pid],
     queryFn: async () => {
-      const res = await fetch(`${API}/wiki/health`);
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/health${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('检查失败');
       return res.json();
     },
@@ -1753,10 +1774,14 @@ export function useWikiHealth() {
 }
 
 // POST /api/wiki/lint — 语义检查（spec §5.5）
-export function useWikiLint() {
+export function useWikiLint(projectId?: string | null) {
+  const pid = projectId?.trim() || '';
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API}/wiki/lint`, { method: 'POST' });
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/lint${qs ? `?${qs}` : ''}`, {
+        method: 'POST',
+      });
       if (!res.ok) throw new Error('语义检查失败');
       return res.json() as Promise<WikiLintResult>;
     },
@@ -1830,12 +1855,14 @@ export function useRetryAllDeadWikiJobs() {
   });
 }
 
-// POST /api/wiki/pages — 存回 wiki 页（spec §5.5）
-export function useCreateWikiPage() {
+// POST /api/wiki/pages — 存回 wiki 页（spec §5.5）；可选 project 根
+export function useCreateWikiPage(projectId?: string | null) {
   const qc = useQueryClient();
+  const pid = projectId?.trim() || '';
   return useMutation({
     mutationFn: async (input: CreateWikiPageInput) => {
-      const res = await fetch(`${API}/wiki/pages`, {
+      const qs = wikiProjectQs(pid);
+      const res = await fetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),

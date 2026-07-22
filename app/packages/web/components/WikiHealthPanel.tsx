@@ -5,26 +5,40 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useSettingsStatus, useWikiHealth, useWikiLint } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 
+function wikiShareHref(slug: string, projectId?: string | null): string {
+  const sp = new URLSearchParams();
+  sp.set('slug', slug);
+  const pid = projectId?.trim();
+  if (pid) sp.set('projectId', pid);
+  return `/wiki?${sp.toString()}`;
+}
+
 // S07 health + lint 面板（spec §5.4）
 // 结构检查（零 LLM，瞬时）+ 语义检查（LLM，异步）
 // onSelectPage：点击「跳转」定位到左侧列表对应页（spec §6.3）
+// DS3：projectId 限定当前 wiki 根
 export function WikiHealthPanel({
   onSelectPage,
+  projectId,
 }: {
   onSelectPage?: (slug: string) => void;
+  projectId?: string | null;
 }) {
-  const health = useWikiHealth();
-  const lint = useWikiLint();
+  const health = useWikiHealth(projectId);
+  const lint = useWikiLint(projectId);
   const { data: settings } = useSettingsStatus();
   const autoRan = useRef(false);
+  const lastRoot = useRef(projectId ?? '');
 
-  // 进入 Wiki 自动跑一次结构检查（可刷新按钮复跑）
+  // 进入 Wiki / 切换根 自动跑一次结构检查
   useEffect(() => {
-    if (autoRan.current) return;
+    const root = projectId ?? '';
+    if (autoRan.current && lastRoot.current === root) return;
     autoRan.current = true;
+    lastRoot.current = root;
     void health.refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅首屏
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 根切换触发
+  }, [projectId]);
 
   const wikiLlmBlocked = useMemo(() => {
     const c = settings?.checks?.find((x) => x.id === 'wiki_llm');
@@ -154,7 +168,7 @@ export function WikiHealthPanel({
                         </button>
                       ) : null}
                       <Link
-                        href={`/wiki?slug=${encodeURIComponent(o.slug)}`}
+                        href={wikiShareHref(o.slug, projectId)}
                         className="btn-ghost btn-sm"
                         data-testid="wiki-health-share"
                         data-slug={o.slug}
@@ -184,7 +198,7 @@ export function WikiHealthPanel({
                         </button>
                       ) : null}
                       <Link
-                        href={`/wiki?slug=${encodeURIComponent(b.from)}`}
+                        href={wikiShareHref(b.from, projectId)}
                         className="btn-ghost btn-sm"
                         data-testid="wiki-health-share"
                         data-slug={b.from}
@@ -214,7 +228,7 @@ export function WikiHealthPanel({
                         </button>
                       ) : null}
                       <Link
-                        href={`/wiki?slug=${encodeURIComponent(s.slug)}`}
+                        href={wikiShareHref(s.slug, projectId)}
                         className="btn-ghost btn-sm"
                         data-testid="wiki-health-share"
                         data-slug={s.slug}

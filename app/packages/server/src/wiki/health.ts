@@ -1,14 +1,15 @@
 // S07 health 结构检查（零 LLM，spec §4.1）
 // 照 llm-wiki-agent health.py：孤儿页（零入链）/ 断链 / 空短页（正文 <100 字）
-import { listWikiPages, readWikiPage } from './store.js';
+// DS3：仅检查所选 wiki 根（不跨根）
+import { listWikiPages, readWikiPage, type WikiRootOpts } from './store.js';
 
-export function checkHealth(): {
+export function checkHealth(opts?: WikiRootOpts): {
   orphans: { slug: string; title: string }[];
   brokenLinks: { from: string; to: string }[];
   stubs: { slug: string; title: string; bodyChars: number }[];
   total: number;
 } {
-  const pages = listWikiPages();
+  const pages = listWikiPages(opts);
   const allSlugs = new Set(pages.map((p) => p.slug));
   const inboundCount = new Map<string, number>();
   const brokenLinks: { from: string; to: string }[] = [];
@@ -18,7 +19,7 @@ export function checkHealth(): {
 
   // 扫每页的 markdown 链接 [text](target.md)
   for (const p of pages) {
-    const page = readWikiPage(p.slug);
+    const page = readWikiPage(p.slug, opts);
     if (!page) continue;
     const links = page.content.matchAll(/\[([^\]]+)\]\(([^)]+\.md)\)/g);
     for (const link of links) {
@@ -40,7 +41,7 @@ export function checkHealth(): {
   // 空/短页 = 正文 <100 字（去掉首行标题后的内容）
   const stubs = pages
     .map((p) => {
-      const page = readWikiPage(p.slug);
+      const page = readWikiPage(p.slug, opts);
       if (!page) return null;
       const body = page.content.replace(/^#\s+.+$/m, '').trim();
       return { slug: p.slug, title: p.title, bodyChars: body.length };

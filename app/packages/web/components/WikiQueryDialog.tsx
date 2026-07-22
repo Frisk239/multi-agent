@@ -5,14 +5,21 @@ import { MarkdownBody } from './MarkdownBody';
 
 // S07 query 对话框（spec §5.3）
 // 弹出 modal：输入问题 → LLM 合成答案 + 引用 → 可"存为 wiki 页"
-export function WikiQueryDialog({ onClose }: { onClose: () => void }) {
+// DS3：projectId 限定当前 wiki 根
+export function WikiQueryDialog({
+  onClose,
+  projectId,
+}: {
+  onClose: () => void;
+  projectId?: string | null;
+}) {
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<{
     answer: string;
     citations: { slug: string; title: string }[];
   } | null>(null);
-  const query = useWikiQuery();
-  const createPage = useCreateWikiPage();
+  const query = useWikiQuery(projectId);
+  const createPage = useCreateWikiPage(projectId);
 
   function handleSubmit() {
     if (!question.trim()) return;

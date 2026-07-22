@@ -1,11 +1,13 @@
 // S06 Wiki API 路由（spec §6）+ S07 扩展（query / health / lint / 存回）+ S08 jobs
+// DS3 / ADR 0005：浏览与写 API 可选 ?projectId= 选根（缺省 = global）
+// GET  /api/wiki/meta         根路径诚实（perProject: true + source/rootPath）
 // GET  /api/wiki/pages        列表：扫 wiki/*.md → WikiPageSummary[]
 // GET  /api/wiki/pages/:slug  单页：读 wiki/<slug>.md → WikiPage
 // POST /api/wiki/query        问答：{question} → {answer, citations[]}
 // GET  /api/wiki/health       结构检查（零 LLM）
 // POST /api/wiki/lint         语义检查（LLM）
 // POST /api/wiki/pages        存回：{title, content} → {slug, title} + WS
-// GET  /api/wiki/jobs         ingest job 列表（可选 ?status=）
+// GET  /api/wiki/jobs         ingest job 列表（可选 ?status=；jobs 仍 global）
 // GET  /api/wiki/jobs/:id     单条 job
 // POST /api/wiki/jobs/:id/retry  dead→pending + wake
 import type { FastifyInstance } from 'fastify';
@@ -16,8 +18,8 @@ import {
   writeWikiPage,
   appendIndex,
   appendLog,
-  getWikiDir,
-  getWikiDirSource,
+  resolveWikiDir,
+  type WikiRootOpts,
 } from '../wiki/store.js';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { generateSlug } from '../wiki/slug.js';
@@ -33,33 +35,54 @@ import {
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { eventBus } from '../orchestration/event-bus.js';
 
+function rootOptsFromQuery(query: { projectId?: string }): WikiRootOpts {
+  const projectId = query.projectId?.trim();
+  return projectId ? { projectId } : {};
+}
+
+function metaNote(source: string, projectId?: string): string {
+  if (source === 'project') {
+    return projectId
+      ? `按项目分根：当前 wiki 在 project ${projectId} 的 localPath/wiki；切换项目或清空 projectId 可回全局根`
+      : '按项目分根：当前 wiki 在所选 project.localPath/wiki';
+  }
+  if (source === 'env') {
+    return '全局 Wiki 根来自 MA_WIKI_DIR；传入 ?projectId= 且 project.localPath 有效时可切到该项目 wiki/';
+  }
+  return '全局 Wiki 在工作区（或 process.cwd）下的 wiki/；传入 ?projectId= 且 project.localPath 有效时可切到该项目 wiki/（不自动迁移历史页）';
+}
+
 export async function wikiRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/wiki/meta — E3：根路径诚实（非 per-project）
-  app.get('/api/wiki/meta', async () => {
+  // GET /api/wiki/meta — DS3：perProject 能力 + 当前所选根
+  app.get('/api/wiki/meta', async (req) => {
+    const { projectId: rawPid } = req.query as { projectId?: string };
+    const opts = rootOptsFromQuery({ projectId: rawPid });
     const cwd = resolveWorkspaceCwd();
-    const wiki = getWikiDirSource();
+    const wiki = resolveWikiDir(opts);
+    const projectId =
+      wiki.source === 'project' ? wiki.projectId ?? rawPid?.trim() : undefined;
     return {
       rootPath: wiki.path,
       workspacePath: cwd.path,
       source: wiki.source,
       workspaceCwdSource: cwd.configured ? cwd.source : 'none',
-      perProject: false as const,
-      note:
-        wiki.source === 'env'
-          ? 'Wiki 根来自 MA_WIKI_DIR；仍非 per-project（不按 project.localPath 分目录）'
-          : 'Wiki 文件在工作区（或 process.cwd）下的 wiki/ 目录，不随 Issue 绑定的 project.localPath 切换；可用 MA_WIKI_DIR 覆盖',
+      perProject: true as const,
+      projectId: projectId ?? null,
+      note: metaNote(wiki.source, projectId),
     };
   });
 
   // GET /api/wiki/pages — 列表（spec §6）
-  app.get('/api/wiki/pages', async () => {
-    return listWikiPages();
+  app.get('/api/wiki/pages', async (req) => {
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
+    return listWikiPages(opts);
   });
 
   // GET /api/wiki/pages/:slug — 单页（spec §6）
   app.get('/api/wiki/pages/:slug', async (req, reply) => {
     const { slug } = req.params as { slug: string };
-    const page = readWikiPage(slug);
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
+    const page = readWikiPage(slug, opts);
     if (!page) return reply.status(404).send({ error: 'wiki 页不存在' });
     return page;
   });
@@ -70,22 +93,25 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const result = await queryWiki(parsed.data.question);
-    appendLog({ type: 'query', identifier: '-', issueId: 'query' });
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
+    const result = await queryWiki(parsed.data.question, opts);
+    appendLog({ type: 'query', identifier: '-', issueId: 'query' }, opts);
     return result;
   });
 
   // GET /api/wiki/health — 结构检查（零 LLM，瞬时，spec §5.2）
-  app.get('/api/wiki/health', async () => {
-    const result = checkHealth();
-    appendLog({ type: 'health', identifier: '-', issueId: '-' });
+  app.get('/api/wiki/health', async (req) => {
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
+    const result = checkHealth(opts);
+    appendLog({ type: 'health', identifier: '-', issueId: '-' }, opts);
     return result;
   });
 
   // POST /api/wiki/lint — 语义检查（LLM，异步，spec §5.2）
-  app.post('/api/wiki/lint', async () => {
-    const result = await checkLint();
-    appendLog({ type: 'lint', identifier: '-', issueId: '-' });
+  app.post('/api/wiki/lint', async (req) => {
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
+    const result = await checkLint(opts);
+    appendLog({ type: 'lint', identifier: '-', issueId: '-' }, opts);
     return result;
   });
 
@@ -95,16 +121,17 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    const opts = rootOptsFromQuery(req.query as { projectId?: string });
     const { title, content } = parsed.data;
     const slug = generateSlug('query', title);
-    writeWikiPage(slug, content);
-    appendIndex({ slug, title, identifier: 'query' });
-    appendLog({ type: 'query', identifier: 'query', issueId: 'query', slug });
+    writeWikiPage(slug, content, opts);
+    appendIndex({ slug, title, identifier: 'query' }, opts);
+    appendLog({ type: 'query', identifier: 'query', issueId: 'query', slug }, opts);
     eventBus.publish({ type: 'wiki:page-created', slug, title });
     return reply.status(201).send({ slug, title });
   });
 
-  // S08：ingest job 管理（spec §4.3）
+  // S08：ingest job 管理（spec §4.3）— jobs 仍 global（队列在 DB）
   app.get('/api/wiki/jobs', async (req) => {
     const { status } = req.query as { status?: string };
     return listWikiIngestJobs(status).map(toWikiIngestJob);

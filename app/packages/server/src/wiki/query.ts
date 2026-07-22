@@ -4,7 +4,8 @@
 // Step 2: 命中 ≤1 页时 LLM 选页 fallback（单次 JSON）
 // Step 3: 塞 ≤15 页（每页截断 1500 字）
 // Step 4: LLM 合成答案 + 引用
-import { readIndex, readWikiPage } from './store.js';
+// DS3：仅检索所选 wiki 根（不跨根）
+import { readIndex, readWikiPage, type WikiRootOpts } from './store.js';
 import { createLlm, generateWikiPage } from './llm.js';
 
 const MAX_PAGES = 15;             // cap（照 llm-wiki-agent query.py:81）
@@ -77,12 +78,15 @@ ${context}
 }
 
 // 完整 query 管线（spec §3.2）
-export async function queryWiki(question: string): Promise<{
+export async function queryWiki(
+  question: string,
+  opts?: WikiRootOpts,
+): Promise<{
   answer: string;
   citations: { slug: string; title: string }[];
 }> {
   // Step 1: 关键词匹配 index
-  const indexEntries = readIndex();
+  const indexEntries = readIndex(opts);
   let candidates = keywordMatch(indexEntries, question);
 
   // Step 2: LLM 选页 fallback（≤1 页命中时）
@@ -94,7 +98,7 @@ export async function queryWiki(question: string): Promise<{
   // candidates 是 {slug, title}[]，map 时取 slug 读页
   const pages = candidates
     .slice(0, MAX_PAGES)
-    .map((c) => readWikiPage(c.slug))
+    .map((c) => readWikiPage(c.slug, opts))
     .filter((p): p is { slug: string; title: string; content: string } => p !== null);
 
   if (pages.length === 0) {

@@ -3,14 +3,19 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useWikiMeta, useWikiPages, useWikiPage } from '@/lib/api';
+import {
+  useProjects,
+  useWikiMeta,
+  useWikiPages,
+  useWikiPage,
+} from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 import { WikiQueryDialog } from './WikiQueryDialog';
 import { WikiHealthPanel } from './WikiHealthPanel';
 import { WikiJobsPanel } from './WikiJobsPanel';
 import { PageHeaderMore } from './PageHeaderMore';
 
-// S06 Wiki 浏览器 + S07 + wiki-memory-ops；?slug= / ?q= 可分享
+// S06 Wiki 浏览器 + S07 + wiki-memory-ops + DS3 per-project；?slug= / ?q= / ?projectId= 可分享
 function WikiPageInner() {
   const router = useRouter();
   const pathname = usePathname();
@@ -18,52 +23,72 @@ function WikiPageInner() {
   const selectedSlug = searchParams.get('slug');
   const showQuery = searchParams.get('query') === '1';
   const qFromUrl = searchParams.get('q') ?? '';
+  const projectIdFromUrl = searchParams.get('projectId') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
 
-  const { data: pages, isFetching } = useWikiPages();
-  const { data: currentPage } = useWikiPage(selectedSlug);
-  const { data: wikiMeta } = useWikiMeta();
+  const { data: projects = [] } = useProjects();
+  const { data: pages, isFetching } = useWikiPages(projectIdFromUrl || null);
+  const { data: currentPage } = useWikiPage(selectedSlug, projectIdFromUrl || null);
+  const { data: wikiMeta } = useWikiMeta(projectIdFromUrl || null);
 
   useEffect(() => {
     setQDraft(qFromUrl);
   }, [qFromUrl]);
 
-  const setSelectedSlug = useCallback(
-    (slug: string | null) => {
+  const patchSearch = useCallback(
+    (mutate: (sp: URLSearchParams) => void) => {
       const sp = new URLSearchParams(searchParams.toString());
-      if (slug) sp.set('slug', slug);
-      else sp.delete('slug');
+      mutate(sp);
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [pathname, router, searchParams],
   );
 
+  const setSelectedSlug = useCallback(
+    (slug: string | null) => {
+      patchSearch((sp) => {
+        if (slug) sp.set('slug', slug);
+        else sp.delete('slug');
+      });
+    },
+    [patchSearch],
+  );
+
+  const setProjectId = useCallback(
+    (next: string) => {
+      patchSearch((sp) => {
+        if (next) sp.set('projectId', next);
+        else sp.delete('projectId');
+        // 换根后 slug 可能无效；交给下方 effect 清
+      });
+    },
+    [patchSearch],
+  );
+
   const setShowQueryDialog = useCallback(
     (open: boolean) => {
-      const sp = new URLSearchParams(searchParams.toString());
-      if (open) sp.set('query', '1');
-      else sp.delete('query');
-      const qs = sp.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      patchSearch((sp) => {
+        if (open) sp.set('query', '1');
+        else sp.delete('query');
+      });
     },
-    [pathname, router, searchParams],
+    [patchSearch],
   );
 
   useEffect(() => {
     const t = window.setTimeout(() => {
       const next = qDraft.trim();
       if (next === qFromUrl.trim()) return;
-      const sp = new URLSearchParams(searchParams.toString());
-      if (next) sp.set('q', next);
-      else sp.delete('q');
-      const qs = sp.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      patchSearch((sp) => {
+        if (next) sp.set('q', next);
+        else sp.delete('q');
+      });
     }, 250);
     return () => window.clearTimeout(t);
-  }, [qDraft, qFromUrl, pathname, router, searchParams]);
+  }, [qDraft, qFromUrl, patchSearch]);
 
-  // 无效 slug：列表加载后若不存在则清掉（保留其它 query）
+  // 无效 slug：列表加载后若不存在则清掉（保留其它 query；换 project 时自然触发）
   useEffect(() => {
     if (!selectedSlug || !pages) return;
     if (pages.some((p) => p.slug === selectedSlug)) return;
@@ -82,6 +107,14 @@ function WikiPageInner() {
   }, [pages, qFromUrl]);
 
   const hasQuery = qFromUrl.trim().length > 0;
+  const isProjectRoot = wikiMeta?.source === 'project';
+  const shareSlugHref = useMemo(() => {
+    const sp = new URLSearchParams();
+    if (selectedSlug) sp.set('slug', selectedSlug);
+    if (projectIdFromUrl) sp.set('projectId', projectIdFromUrl);
+    const qs = sp.toString();
+    return qs ? `/wiki?${qs}` : '/wiki';
+  }, [selectedSlug, projectIdFromUrl]);
 
   return (
     <div className="page-container" data-testid="wiki-page">
@@ -105,12 +138,42 @@ function WikiPageInner() {
             >
               存储根 · <code>{wikiMeta.rootPath}</code>
               {' · '}
-              <strong>非按项目分根</strong>
-              （不随 project.localPath 切换；来源 {wikiMeta.source}）
+              {isProjectRoot ? (
+                <strong>按项目分根</strong>
+              ) : (
+                <strong>全局根</strong>
+              )}
+              （来源 {wikiMeta.source}
+              {wikiMeta.projectId ? ` · project ${wikiMeta.projectId}` : ''}）
             </p>
           ) : null}
         </div>
         <div className="page-actions">
+          <label className="text-sm text-dim" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="sr-only">Wiki 项目根</span>
+            <select
+              className="new-issue-select"
+              value={projectIdFromUrl}
+              onChange={(e) => setProjectId(e.target.value)}
+              aria-label="Wiki 项目根"
+              data-testid="wiki-project-select"
+            >
+              <option value="">全局 Wiki</option>
+              {projects.map((p) => {
+                const pathHint = p.localPath
+                  ? p.localPathExists
+                    ? ' · 已绑目录'
+                    : ' · 路径无效'
+                  : ' · 未绑目录';
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                    {pathHint}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
           <PageHeaderMore testId="wiki-header-more">
             <Link href="/memory" data-testid="wiki-to-memory" role="menuitem">
               记忆
@@ -147,7 +210,8 @@ function WikiPageInner() {
         <div className="knowledge-bridge-text">
           <strong>闭环</strong>
           <span className="text-dim text-sm">
-            完成 Issue → 编译任务 → Wiki 页；提问结果可再沉淀。运维项默认折叠，避免盖住阅读。
+            完成 Issue → 编译任务 → Wiki 页；提问结果可再沉淀。绑 project 的 Issue 写入该仓
+            localPath/wiki。运维项默认折叠，避免盖住阅读。
           </span>
         </div>
         <div className="knowledge-bridge-actions">
@@ -172,11 +236,19 @@ function WikiPageInner() {
           <Suspense fallback={<div className="text-dim text-sm">加载编译任务…</div>}>
             <WikiJobsPanel />
           </Suspense>
-          <WikiHealthPanel onSelectPage={setSelectedSlug} />
+          <WikiHealthPanel
+            projectId={projectIdFromUrl || null}
+            onSelectPage={setSelectedSlug}
+          />
         </div>
       </details>
 
-      {showQuery && <WikiQueryDialog onClose={() => setShowQueryDialog(false)} />}
+      {showQuery && (
+        <WikiQueryDialog
+          projectId={projectIdFromUrl || null}
+          onClose={() => setShowQueryDialog(false)}
+        />
+      )}
 
       <div className="wiki-list-search" data-testid="wiki-list-search">
         <div className="table-search memory-search-wrap">
@@ -195,10 +267,9 @@ function WikiPageInner() {
               data-testid="wiki-search-clear"
               onClick={() => {
                 setQDraft('');
-                const sp = new URLSearchParams(searchParams.toString());
-                sp.delete('q');
-                const qs = sp.toString();
-                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+                patchSearch((sp) => {
+                  sp.delete('q');
+                });
               }}
             >
               清除
@@ -213,10 +284,9 @@ function WikiPageInner() {
               data-testid="wiki-chip-q"
               onClick={() => {
                 setQDraft('');
-                const sp = new URLSearchParams(searchParams.toString());
-                sp.delete('q');
-                const qs = sp.toString();
-                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+                patchSearch((sp) => {
+                  sp.delete('q');
+                });
               }}
             >
               搜索「{qFromUrl.trim()}」 ×
@@ -233,6 +303,9 @@ function WikiPageInner() {
               <div>
                 还没有 Wiki 页。完成一个 Issue（拖到 Done）试试。若一直为空，检查上方编译任务是否
                 dead，以及设置页 Wiki LLM 是否就绪。
+                {projectIdFromUrl
+                  ? ' 当前为项目根：无 localPath 或路径无效时会回退全局根。'
+                  : ''}
               </div>
               <div className="memory-empty-actions" style={{ marginTop: 8 }}>
                 <Link href="/" className="btn-secondary btn-sm" data-testid="wiki-empty-board">
@@ -265,10 +338,9 @@ function WikiPageInner() {
                 data-testid="wiki-clear-filter"
                 onClick={() => {
                   setQDraft('');
-                  const sp = new URLSearchParams(searchParams.toString());
-                  sp.delete('q');
-                  const qs = sp.toString();
-                  router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+                  patchSearch((sp) => {
+                    sp.delete('q');
+                  });
                 }}
               >
                 清除筛选
@@ -296,10 +368,10 @@ function WikiPageInner() {
               <div className="wiki-page-meta" data-testid="wiki-page-meta">
                 <code className="text-dim text-sm">{currentPage.slug ?? selectedSlug}</code>
                 <Link
-                  href={`/wiki?slug=${encodeURIComponent(currentPage.slug ?? selectedSlug ?? '')}`}
+                  href={shareSlugHref}
                   className="btn-ghost btn-sm"
                   data-testid="wiki-copy-slug-link"
-                  title="可分享链接（当前页）"
+                  title="可分享链接（当前页 + 当前根）"
                 >
                   分享链
                 </Link>

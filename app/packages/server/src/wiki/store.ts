@@ -1,9 +1,39 @@
-// S06 Wiki 存储层（spec §3）
+// S06 Wiki 存储层（spec §3）+ DS3 按 project 轻量分根（ADR 0005）
 // 文件系统 markdown 存储：wiki/ 目录（index.md + log.md + raw/ + *.md）
 // 照 concepts llm-wiki-pattern.md 的 raw/wiki 三层 + index/log 导航
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
+import { join, resolve, isAbsolute } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
+import { db } from '../db/client.js';
+import { projects } from '../db/schema.js';
+
+// —— 根解析（ADR 0005）——
+// project: {localPath}/wiki ；global: MA_WIKI_DIR > workspace/wiki > cwd/wiki
+export type WikiRootOpts = {
+  /** 浏览 API ?projectId= 或 issue.projectId */
+  projectId?: string | null;
+  /** 已知 project.localPath 时可直传，避免二次查库 */
+  projectLocalPath?: string | null;
+};
+
+export type WikiRootSource = 'project' | 'env' | 'workspace' | 'cwd';
+
+export type ResolvedWikiDir = {
+  path: string;
+  source: WikiRootSource;
+  projectId?: string;
+  /** source=project 时的仓根（wiki 的父目录） */
+  projectLocalPath?: string;
+};
+
+function isUsableDir(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 // 目录定位（spec §3.6 / ADR 0003 + P2-D）：
 // MA_WIKI_DIR 绝对路径 > workspace/wiki > process.cwd()/wiki
@@ -26,9 +56,49 @@ export function getWikiDir(): string {
   return getWikiDirSource().path;
 }
 
+/**
+ * 解析 wiki 根（ADR 0005 §2）。
+ * - 有效绝对 projectLocalPath 且为目录 → {localPath}/wiki · source=project
+ * - 仅 projectId → 查 projects.local_path 再同上；无效则 global
+ * - 无 project → global（getWikiDirSource）
+ */
+export function resolveWikiDir(opts?: WikiRootOpts): ResolvedWikiDir {
+  let projectId = opts?.projectId?.trim() || undefined;
+  let localPath = opts?.projectLocalPath?.trim() || '';
+
+  if (!localPath && projectId) {
+    const row = db.select().from(projects).where(eq(projects.id, projectId)).get();
+    localPath = row?.localPath?.trim() ?? '';
+  }
+
+  if (localPath) {
+    const abs = isAbsolute(localPath) ? resolve(localPath) : '';
+    if (abs && isUsableDir(abs)) {
+      return {
+        path: join(abs, 'wiki'),
+        source: 'project',
+        projectId,
+        projectLocalPath: abs,
+      };
+    }
+  }
+
+  const g = getWikiDirSource();
+  return {
+    path: g.path,
+    source: g.source,
+    projectId: undefined,
+    projectLocalPath: undefined,
+  };
+}
+
+function wikiPath(opts?: WikiRootOpts): string {
+  return resolveWikiDir(opts).path;
+}
+
 // 启动时确保目录 + 初始文件存在（spec §3.7 ensureWikiDir）
-export function ensureWikiDir(): void {
-  const wikiDir = getWikiDir();
+export function ensureWikiDir(opts?: WikiRootOpts): void {
+  const wikiDir = wikiPath(opts);
   if (!existsSync(wikiDir)) {
     mkdirSync(wikiDir, { recursive: true });
   }
@@ -50,8 +120,8 @@ export function ensureWikiDir(): void {
 
 // 列表：扫 wiki/*.md（排除 index.md/log.md）→ [{slug, title}]（spec §3.7）
 // slug 不含 .md；title 从首行 `# ` 提取，无标题行用 slug 兜底
-export function listWikiPages(): { slug: string; title: string }[] {
-  const wikiDir = getWikiDir();
+export function listWikiPages(opts?: WikiRootOpts): { slug: string; title: string }[] {
+  const wikiDir = wikiPath(opts);
   if (!existsSync(wikiDir)) return [];
   const entries = readdirSync(wikiDir);
   const result: { slug: string; title: string }[] = [];
@@ -69,8 +139,11 @@ export function listWikiPages(): { slug: string; title: string }[] {
 }
 
 // 读单页（spec §3.7）：slug 不含 .md，内部拼扩展名
-export function readWikiPage(slug: string): { slug: string; title: string; content: string } | null {
-  const filePath = join(getWikiDir(), `${slug}.md`);
+export function readWikiPage(
+  slug: string,
+  opts?: WikiRootOpts,
+): { slug: string; title: string; content: string } | null {
+  const filePath = join(wikiPath(opts), `${slug}.md`);
   if (!existsSync(filePath)) return null;
   const content = readFileSync(filePath, 'utf-8');
   const titleMatch = content.match(/^#\s+(.+)$/m);
@@ -79,14 +152,19 @@ export function readWikiPage(slug: string): { slug: string; title: string; conte
 }
 
 // 写 wiki 页（spec §3.7）
-export function writeWikiPage(slug: string, content: string): void {
-  const filePath = join(getWikiDir(), `${slug}.md`);
+export function writeWikiPage(slug: string, content: string, opts?: WikiRootOpts): void {
+  ensureWikiDir(opts);
+  const filePath = join(wikiPath(opts), `${slug}.md`);
   writeFileSync(filePath, content, 'utf-8');
 }
 
 // 追加 index 条目（spec §3.2）：读现有 index → 追加 → 重写
-export function appendIndex(entry: { slug: string; title: string; identifier: string }): void {
-  const indexPath = join(getWikiDir(), 'index.md');
+export function appendIndex(
+  entry: { slug: string; title: string; identifier: string },
+  opts?: WikiRootOpts,
+): void {
+  ensureWikiDir(opts);
+  const indexPath = join(wikiPath(opts), 'index.md');
   const date = new Date().toISOString().slice(0, 10);
   // index.md 条目格式：- [标题](slug.md) — 摘要（日期）
   // slug 在 index 里带 .md 后缀（markdown 链接标准格式）
@@ -99,14 +177,18 @@ export function appendIndex(entry: { slug: string; title: string; identifier: st
 
 // 追加 log（spec §3.3）：append-only，前缀可 grep
 // S07 扩展：从 if/else 改 switch，加 query/health/lint 分支（原 ingest/ingest-failed 行为不变）
-export function appendLog(entry: {
-  type: string; // 'ingest' | 'ingest-failed' | 'query' | 'health' | 'lint'
-  identifier: string;
-  issueId: string;
-  slug?: string;
-  error?: string;
-}): void {
-  const logPath = join(getWikiDir(), 'log.md');
+export function appendLog(
+  entry: {
+    type: string; // 'ingest' | 'ingest-failed' | 'query' | 'health' | 'lint'
+    identifier: string;
+    issueId: string;
+    slug?: string;
+    error?: string;
+  },
+  opts?: WikiRootOpts,
+): void {
+  ensureWikiDir(opts);
+  const logPath = join(wikiPath(opts), 'log.md');
   const date = new Date().toISOString().slice(0, 10);
   let block: string;
   switch (entry.type) {
@@ -135,8 +217,9 @@ export function appendLog(entry: {
 }
 
 // 存 raw 快照（spec §3.4）：不可变，文件名含 timestamp 防覆盖
-export function saveRaw(issueId: string, content: string): void {
-  const rawDir = join(getWikiDir(), 'raw');
+export function saveRaw(issueId: string, content: string, opts?: WikiRootOpts): void {
+  ensureWikiDir(opts);
+  const rawDir = join(wikiPath(opts), 'raw');
   if (!existsSync(rawDir)) {
     mkdirSync(rawDir, { recursive: true });
   }
@@ -147,8 +230,8 @@ export function saveRaw(issueId: string, content: string): void {
 
 // S07：读 index.md，解析为 [{slug, title}]（spec §4.3）
 // index.md 条目格式（appendIndex 写入）：- [标题](slug.md) — identifier（date）
-export function readIndex(): { slug: string; title: string }[] {
-  const indexPath = join(getWikiDir(), 'index.md');
+export function readIndex(opts?: WikiRootOpts): { slug: string; title: string }[] {
+  const indexPath = join(wikiPath(opts), 'index.md');
   if (!existsSync(indexPath)) return [];
   const content = readFileSync(indexPath, 'utf-8');
   const entries: { slug: string; title: string }[] = [];
@@ -163,8 +246,8 @@ export function readIndex(): { slug: string; title: string }[] {
 }
 
 // S07：读 log.md 全文（spec §4.3）
-export function readLog(): string {
-  const logPath = join(getWikiDir(), 'log.md');
+export function readLog(opts?: WikiRootOpts): string {
+  const logPath = join(wikiPath(opts), 'log.md');
   if (!existsSync(logPath)) return '';
   return readFileSync(logPath, 'utf-8');
 }

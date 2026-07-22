@@ -1,16 +1,17 @@
 // S07 lint 语义检查（LLM，spec §4.2）
 // 照 llm-wiki-agent lint.py:280-298：读 ≤20 页（截断 1500 字）→ LLM 查矛盾/过期/缺引用/需深化
-import { listWikiPages, readWikiPage } from './store.js';
+// DS3：仅检查所选 wiki 根（不跨根）
+import { listWikiPages, readWikiPage, type WikiRootOpts } from './store.js';
 import { createLlm, generateWikiPage } from './llm.js';
 
 const MAX_LINT_PAGES = 20;
 const MAX_LINT_CHARS = 1500;
 
-export async function checkLint(): Promise<{
+export async function checkLint(opts?: WikiRootOpts): Promise<{
   report: string;
   checkedPages: { slug: string; title: string }[];
 }> {
-  const allPages = listWikiPages();
+  const allPages = listWikiPages(opts);
   const pages = allPages.slice(0, MAX_LINT_PAGES);
 
   if (pages.length === 0) {
@@ -19,7 +20,7 @@ export async function checkLint(): Promise<{
 
   const context = pages
     .map((p) => {
-      const page = readWikiPage(p.slug);
+      const page = readWikiPage(p.slug, opts);
       if (!page) return null;
       return `--- ${p.title} (${p.slug}) ---\n${page.content.slice(0, MAX_LINT_CHARS)}`;
     })
