@@ -2,7 +2,7 @@
 
 Date: 2026-07-22  
 Slug: `ds4-token-thinking`  
-Commit: pending push main
+Commit: `370eacc` on `main`（已 `push origin main`）
 
 ## 交付
 
