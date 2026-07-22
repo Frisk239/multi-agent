@@ -1023,7 +1023,10 @@ export function useRerunIssue(issueId: string) {
   });
 }
 
-export function useRunMessages(runId: string | undefined) {
+export function useRunMessages(
+  runId: string | undefined,
+  opts?: { refetchIntervalMs?: number | false },
+) {
   return useQuery<RunMessage[]>({
     queryKey: ['run-messages', runId],
     queryFn: async () => {
@@ -1032,6 +1035,10 @@ export function useRunMessages(runId: string | undefined) {
       return res.json();
     },
     enabled: !!runId,
+    refetchInterval:
+      opts?.refetchIntervalMs === false
+        ? false
+        : opts?.refetchIntervalMs ?? false,
   });
 }
 

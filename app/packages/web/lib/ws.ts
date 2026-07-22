@@ -16,25 +16,55 @@ export const useWsStore = create<WsState>((set) => ({
   setStatus: (s) => set({ status: s }),
 }));
 
-// S12：run:progress 短时状态（仅最后一条 / runId，不进 RQ）
+// S12 + D1：run 活过程短时状态（progress / 最近 tool / partial 助手文本；不进 RQ）
 interface RunProgressState {
   byRunId: Record<string, string>;
+  toolByRunId: Record<string, string>;
+  /** running 时累积的 assistant 片段（run:message） */
+  partialByRunId: Record<string, string>;
   setProgress: (runId: string, text: string) => void;
+  setTool: (runId: string, toolName: string) => void;
+  appendPartial: (runId: string, text: string) => void;
   clearProgress: (runId: string) => void;
 }
 
 export const useRunProgressStore = create<RunProgressState>((set) => ({
   byRunId: {},
+  toolByRunId: {},
+  partialByRunId: {},
   setProgress: (runId, text) =>
     set((s) => ({
-      byRunId: { ...s.byRunId, [runId]: text.slice(0, 200) },
+      byRunId: { ...s.byRunId, [runId]: text.slice(0, 400) },
     })),
+  setTool: (runId, toolName) =>
+    set((s) => ({
+      toolByRunId: { ...s.toolByRunId, [runId]: toolName.slice(0, 80) },
+    })),
+  appendPartial: (runId, text) =>
+    set((s) => {
+      const prev = s.partialByRunId[runId] ?? '';
+      const t = text.trim();
+      if (!t) return s;
+      // 整段消息：扩展/替换；独立块：换行拼接（非 token 流）
+      let next: string;
+      if (!prev) next = t;
+      else if (t.startsWith(prev) || prev.startsWith(t))
+        next = t.length >= prev.length ? t : prev;
+      else if (prev.includes(t)) next = prev;
+      else next = `${prev}\n\n${t}`;
+      return {
+        partialByRunId: { ...s.partialByRunId, [runId]: next.slice(-2000) },
+      };
+    }),
   clearProgress: (runId) =>
     set((s) => {
-      if (!(runId in s.byRunId)) return s;
-      const next = { ...s.byRunId };
-      delete next[runId];
-      return { byRunId: next };
+      const byRunId = { ...s.byRunId };
+      const toolByRunId = { ...s.toolByRunId };
+      const partialByRunId = { ...s.partialByRunId };
+      delete byRunId[runId];
+      delete toolByRunId[runId];
+      delete partialByRunId[runId];
+      return { byRunId, toolByRunId, partialByRunId };
     }),
 }));
 
@@ -43,6 +73,8 @@ export function useWsEvents() {
   const qc = useQueryClient();
   const setStatus = useWsStore((s) => s.setStatus);
   const setProgress = useRunProgressStore((s) => s.setProgress);
+  const setTool = useRunProgressStore((s) => s.setTool);
+  const appendPartial = useRunProgressStore((s) => s.appendPartial);
   const clearProgress = useRunProgressStore((s) => s.clearProgress);
 
   useEffect(() => {
@@ -178,6 +210,7 @@ export function useWsEvents() {
       }
 
       // S03 run:message：按 id 幂等插入 ['run-messages', runId]（spec D12 禁止乐观插，等 WS）
+      // D1：tool_start → 最近工具名；assistant → partial 气泡
       if (event.type === 'run:message') {
         const { message }: { message: RunMessage } = event;
         qc.setQueryData<RunMessage[]>(['run-messages', message.runId], (old) => {
@@ -185,9 +218,34 @@ export function useWsEvents() {
           if (old.some((m) => m.id === message.id)) return old;
           return [...old, message].sort((a, b) => a.seq - b.seq);
         });
+        if (message.kind === 'tool_start') {
+          let name = 'tool';
+          try {
+            const j = JSON.parse(message.body) as { name?: string };
+            if (j?.name?.trim()) name = j.name.trim();
+          } catch {
+            if (message.body.trim()) name = message.body.trim().slice(0, 80);
+          }
+          setTool(message.runId, name);
+          setProgress(message.runId, `工具 · ${name}`);
+        } else if (message.kind === 'tool_end') {
+          let name = '';
+          try {
+            const j = JSON.parse(message.body) as { name?: string };
+            if (j?.name?.trim()) name = j.name.trim();
+          } catch {
+            /* ignore */
+          }
+          setProgress(
+            message.runId,
+            name ? `工具完成 · ${name}` : '工具步骤完成',
+          );
+        } else if (message.kind === 'assistant' && message.body?.trim()) {
+          appendPartial(message.runId, message.body);
+        }
       }
 
-      // S12 run:progress：仅前端短时 map，截断 200
+      // S12 run:progress：仅前端短时 map
       if (event.type === 'run:progress') {
         setProgress(event.runId, event.text);
       }
@@ -206,5 +264,5 @@ export function useWsEvents() {
       mounted = false;
       ws.close();
     };
-  }, [qc, setStatus, setProgress, clearProgress]);
+  }, [qc, setStatus, setProgress, setTool, appendPartial, clearProgress]);
 }

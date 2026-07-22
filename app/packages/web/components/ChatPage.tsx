@@ -15,6 +15,7 @@ import {
   usePinChatThread,
   usePostChatMessage,
   useProjects,
+  useRunMessages,
   useUpdateChatThreadProject,
   useWorkspaceRuns,
 } from '@/lib/api';
@@ -93,6 +94,8 @@ export function ChatPage() {
   });
 
   const progressByRun = useRunProgressStore((s) => s.byRunId);
+  const toolByRun = useRunProgressStore((s) => s.toolByRunId);
+  const partialByRun = useRunProgressStore((s) => s.partialByRunId);
 
   const agentFromUrl = searchParams.get('agent') ?? '';
   const [agentId, setAgentId] = useState('');
@@ -133,14 +136,57 @@ export function ChatPage() {
     );
   }, [threadRuns, liveRun]);
 
+  // D1：订阅 run-messages（WS 写入 cache；在途轮询补丢包）
+  const { data: liveRunMessages = [] } = useRunMessages(liveRun?.id, {
+    refetchIntervalMs: liveRun ? 2000 : false,
+  });
+
+  const derivedFromTrace = useMemo(() => {
+    let tool: string | undefined;
+    const assistantParts: string[] = [];
+    for (const m of liveRunMessages) {
+      if (m.kind === 'tool_start') {
+        try {
+          const j = JSON.parse(m.body) as { name?: string };
+          if (j?.name?.trim()) tool = j.name.trim();
+        } catch {
+          if (m.body.trim()) tool = m.body.trim().slice(0, 80);
+        }
+      }
+      if (m.kind === 'assistant' && m.body?.trim()) {
+        assistantParts.push(m.body.trim());
+      }
+    }
+    return {
+      tool,
+      partial: assistantParts.length ? assistantParts.join('\n\n') : undefined,
+    };
+  }, [liveRunMessages]);
+
   const liveProgress =
-    liveRun && liveRun.status === 'running'
+    liveRun && (liveRun.status === 'running' || liveRun.status === 'queued')
       ? progressByRun[liveRun.id]?.trim()
+      : undefined;
+  const liveTool =
+    liveRun && liveRun.status === 'running'
+      ? toolByRun[liveRun.id]?.trim() || derivedFromTrace.tool
+      : undefined;
+  const livePartial =
+    liveRun && liveRun.status === 'running'
+      ? partialByRun[liveRun.id]?.trim() || derivedFromTrace.partial
       : undefined;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length, threadId, liveRun?.id, liveProgress, lastFailedRun?.id]);
+  }, [
+    messages.length,
+    threadId,
+    liveRun?.id,
+    liveProgress,
+    liveTool,
+    livePartial,
+    lastFailedRun?.id,
+  ]);
 
   function selectThread(id: string) {
     const sp = new URLSearchParams(searchParams.toString());
@@ -521,6 +567,8 @@ export function ChatPage() {
                     run={liveRun}
                     agentLabel={agentName(selectedThread.agentId)}
                     progress={liveProgress}
+                    toolName={liveTool}
+                    partialText={livePartial}
                   />
                 ) : null}
 
@@ -648,18 +696,31 @@ function ThinkingRow({
   run,
   agentLabel,
   progress,
+  toolName,
+  partialText,
 }: {
   run: AgentRun;
   agentLabel: string;
   progress?: string;
+  toolName?: string;
+  partialText?: string;
 }) {
-  const statusLabel = run.status === 'queued' ? '排队中' : '正在思考';
+  const statusLabel =
+    run.status === 'queued'
+      ? '排队中'
+      : toolName
+        ? `使用工具 · ${toolName}`
+        : partialText
+          ? '正在回复'
+          : '正在思考';
+  const hasLive = Boolean(progress || toolName || partialText);
   return (
     <div
       className="chat-row chat-row--assistant"
       data-testid="chat-thinking-row"
       data-run-status={run.status}
       data-run-id={run.id}
+      data-has-live={hasLive ? '1' : '0'}
     >
       <span className="chat-avatar chat-avatar--sm" aria-hidden>
         {initials(agentLabel)}
@@ -671,7 +732,14 @@ function ThinkingRow({
             <i />
             <i />
           </span>
-          <span className="chat-thinking-label">{statusLabel}</span>
+          <span className="chat-thinking-label" data-testid="chat-thinking-label">
+            {statusLabel}
+          </span>
+          {toolName ? (
+            <span className="chat-thinking-tool" data-testid="chat-thinking-tool">
+              {toolName}
+            </span>
+          ) : null}
           <Link
             href={`/runs/${encodeURIComponent(run.id)}`}
             className="chat-run-link"
@@ -686,15 +754,25 @@ function ThinkingRow({
           </div>
         ) : null}
         <p
-          className={`chat-thinking-progress${progress ? '' : ' is-idle'}`}
+          className={`chat-thinking-progress${progress || toolName ? '' : ' is-idle'}`}
           data-testid="chat-thinking-progress"
         >
           {progress
             ? progress
-            : run.status === 'queued'
-              ? '已入队，等待本机 CLI 执行…'
-              : '执行中，等待进度推送（部分 runtime 结束才有输出）…'}
+            : toolName
+              ? `正在调用 ${toolName}…`
+              : run.status === 'queued'
+                ? '已入队，等待本机 CLI 执行…'
+                : '执行中，等待进度推送（部分 runtime 结束才有输出）…'}
         </p>
+        {partialText ? (
+          <div
+            className="chat-thinking-partial"
+            data-testid="chat-thinking-partial"
+          >
+            <MarkdownBody source={partialText} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

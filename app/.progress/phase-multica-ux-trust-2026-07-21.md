@@ -146,7 +146,7 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 - [x] 同 `project_local` 任意时刻 ≤1 running；等待可解释（C1）  
 - [x] tool in-flight 用 tool idle 窗口；失败文案可区分 idle vs tool（C2）  
 - [x] Skills 用户级不依赖 workspace；项目级可对 localPath（C3）  
-- [ ] Chat 执行中过程信息可持续更新（D1）  
+- [x] Chat 执行中过程信息可持续更新（D1）  
 - [ ] Issue 隔离目录复用对用户可见（D2）  
 - [ ] 每刀 progress + typecheck；C1/C2 有脚本或 Playwright 证据  
 
@@ -165,8 +165,8 @@ A1 → A2 → A3 → B1 → B2 → B3 ✅
 | **C1** 同 path 串行 | ✅ | `ux-trust-c1-path-serial-impl-1.md` | 仅 project_local；queued 等待不假失败 |
 | **C2** tool idle/watchdog | ✅ | `ux-trust-c2-tool-watchdog-impl-1.md` | 默认 tool 2h / idle 30m |
 | **C3** skills per-project | ✅ | `ux-trust-c3-skills-project-impl-1.md` | user/workspace/project 三态 |
-| **D1** Chat 过程可感 | **pending · 下一刀** | | progress + tool 名 / partial |
-| **D2** workdir 复用叙事 | pending | | 几乎只 UI |
+| **D1** Chat 过程可感 | ✅ | `ux-trust-d1-chat-live-impl-1.md` | progress + tool 名 / partial |
+| **D2** workdir 复用叙事 | **pending · 下一刀** | | 几乎只 UI |
 | **D3** tool 叙事加厚 | pending | | Run 时间线 |
 
 ---
