@@ -373,4 +373,41 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       },
     };
   });
+
+  // E4：隔离 CLI 目录列表（~/.multi-agent/run-workspaces|chat-sessions）
+  app.get('/api/settings/isolated-workspaces', async () => {
+    const { listIsolatedWorkspaces } = await import(
+      '../orchestration/isolated-workspaces.js'
+    );
+    const entries = listIsolatedWorkspaces();
+    return {
+      rootHint: '~/.multi-agent/{run-workspaces,chat-sessions}',
+      count: entries.length,
+      entries,
+    };
+  });
+
+  // E4：清理隔离目录（禁 project_local）
+  app.post('/api/settings/isolated-workspaces/cleanup', async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      ids?: string[];
+      olderThanDays?: number;
+    };
+    if (
+      (!body.ids || body.ids.length === 0) &&
+      !(body.olderThanDays != null && body.olderThanDays > 0)
+    ) {
+      return reply.status(400).send({
+        error: '需要 ids[] 或 olderThanDays>0',
+      });
+    }
+    const { cleanupIsolatedWorkspaces } = await import(
+      '../orchestration/isolated-workspaces.js'
+    );
+    const result = cleanupIsolatedWorkspaces({
+      ids: body.ids,
+      olderThanDays: body.olderThanDays,
+    });
+    return { ok: true as const, ...result };
+  });
 }

@@ -221,6 +221,17 @@ function MemoryPageInner() {
             可插拔会话经验层（Hermes MemoryProvider 思路）：curated 手写 + ambient 随 Issue 沉淀。
             provider {statusLabel} · 与 Wiki 互补——Wiki 是编译页，记忆是可检索片段。
           </p>
+          {status ? (
+            <p
+              className="knowledge-root-banner"
+              data-testid="memory-root-banner"
+              title={status.note}
+            >
+              <strong>非按项目分库</strong>
+              {status.note ? ` · ${status.note}` : ' · 编排主库 / 全局 provider'}
+              {status.backend ? ` · backend ${status.backend}` : null}
+            </p>
+          ) : null}
         </div>
         <div className="page-actions">
           <PageHeaderMore testId="memory-header-more">

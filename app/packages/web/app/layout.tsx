@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
 import { EnvBanner } from '@/components/EnvBanner';
+import { OnboardingCard } from '@/components/OnboardingCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HelperRail } from '@/components/HelperRail';
 
@@ -30,7 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Suspense>
             <div className="main-column">
               <EnvBanner />
-              <main className="main-content">{children}</main>
+              <main className="main-content">
+                <Suspense fallback={null}>
+                  <OnboardingCard />
+                </Suspense>
+                {children}
+              </main>
             </div>
             <Suspense fallback={null}>
               <HelperRail />

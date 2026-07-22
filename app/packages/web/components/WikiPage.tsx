@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useWikiPages, useWikiPage } from '@/lib/api';
+import { useWikiMeta, useWikiPages, useWikiPage } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 import { WikiQueryDialog } from './WikiQueryDialog';
 import { WikiHealthPanel } from './WikiHealthPanel';
@@ -22,6 +22,7 @@ function WikiPageInner() {
 
   const { data: pages, isFetching } = useWikiPages();
   const { data: currentPage } = useWikiPage(selectedSlug);
+  const { data: wikiMeta } = useWikiMeta();
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -96,6 +97,18 @@ function WikiPageInner() {
             编译式项目知识库（llm-wiki）：Issue 完成后 ingest 成互链 Markdown；问答可引用页并回写。
             与 Multica 看板派活互补——看板管「做」，Wiki 管「沉淀」。
           </div>
+          {wikiMeta ? (
+            <p
+              className="knowledge-root-banner"
+              data-testid="wiki-root-banner"
+              title={wikiMeta.note}
+            >
+              存储根 · <code>{wikiMeta.rootPath}</code>
+              {' · '}
+              <strong>非按项目分根</strong>
+              （不随 project.localPath 切换；来源 {wikiMeta.source}）
+            </p>
+          ) : null}
         </div>
         <div className="page-actions">
           <PageHeaderMore testId="wiki-header-more">

@@ -1618,6 +1618,27 @@ export function useUpdateAgentMcp(agentId: string) {
 
 // —— S06 Wiki hooks ——
 
+export type WikiMeta = {
+  rootPath: string;
+  workspacePath: string | null;
+  source: string;
+  perProject: false;
+  note: string;
+};
+
+// GET /api/wiki/meta —— E3 根路径诚实
+export function useWikiMeta() {
+  return useQuery<WikiMeta>({
+    queryKey: ['wiki-meta'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/wiki/meta`);
+      if (!res.ok) throw new Error('加载 wiki meta 失败');
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+}
+
 // GET /api/wiki/pages —— wiki 页列表（spec §6）
 export function useWikiPages() {
   return useQuery<WikiPageSummary[]>({
@@ -1778,6 +1799,8 @@ export type MemoryStatus = {
   provider: string | null;
   available: boolean;
   backend?: string;
+  perProject?: false;
+  note?: string;
 };
 
 export type MemoryItem = {
@@ -1842,6 +1865,60 @@ export function useUpdateUserProfile() {
       toastSuccess('已保存「关于你」');
     },
     onError: (err) => toastError(errMessage(err, '保存用户资料失败')),
+  });
+}
+
+export type IsolatedWorkspaceEntry = {
+  id: string;
+  kind: 'run_workspace' | 'chat_session';
+  path: string;
+  label: string;
+  mtimeMs: number;
+};
+
+/** GET /api/settings/isolated-workspaces */
+export function useIsolatedWorkspaces() {
+  return useQuery({
+    queryKey: ['isolated-workspaces'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/settings/isolated-workspaces`);
+      if (!res.ok) throw new Error(await apiError(res, '加载隔离目录失败'));
+      return res.json() as Promise<{
+        rootHint: string;
+        count: number;
+        entries: IsolatedWorkspaceEntry[];
+      }>;
+    },
+    staleTime: 15_000,
+  });
+}
+
+/** POST /api/settings/isolated-workspaces/cleanup */
+export function useCleanupIsolatedWorkspaces() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { ids?: string[]; olderThanDays?: number }) => {
+      const res = await fetch(`${API}/settings/isolated-workspaces/cleanup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '清理隔离目录失败'));
+      return res.json() as Promise<{
+        ok: true;
+        deleted: string[];
+        skipped: string[];
+        errors: string[];
+      }>;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['isolated-workspaces'] });
+      toastSuccess(
+        `已清理 ${data.deleted.length} 个隔离目录` +
+          (data.errors.length ? ` · ${data.errors.length} 失败` : ''),
+      );
+    },
+    onError: (err) => toastError(errMessage(err, '清理隔离目录失败')),
   });
 }
 

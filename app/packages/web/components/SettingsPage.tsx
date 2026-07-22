@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { SettingsCheck, SettingsOverall } from '@ma/shared';
 import {
+  useCleanupIsolatedWorkspaces,
+  useIsolatedWorkspaces,
   useRecoverStuckRuns,
   useRetryAllDeadWikiJobs,
   useSetWorkspaceCwd,
@@ -93,6 +95,8 @@ export function SettingsPage() {
   const recoverStuck = useRecoverStuckRuns();
   const retryAllDeadWiki = useRetryAllDeadWikiJobs();
   const setCwd = useSetWorkspaceCwd();
+  const { data: isolatedWs, refetch: refetchIsolated } = useIsolatedWorkspaces();
+  const cleanupIsolated = useCleanupIsolatedWorkspaces();
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdCopyState, setCwdCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [profileName, setProfileName] = useState('');
@@ -485,6 +489,97 @@ export function SettingsPage() {
           </p>
         </section>
       ) : null}
+
+        <section
+          className="settings-card"
+          data-testid="settings-isolated-workspaces"
+          aria-label="隔离工作目录"
+        >
+          <div className="settings-cwd-guide-title">
+            <strong>隔离 CLI 目录</strong>
+            <span className="text-dim text-sm">
+              {isolatedWs?.count ?? '…'} 个 · 仅 ~/.multi-agent
+            </span>
+          </div>
+          <p className="text-dim text-sm" style={{ marginTop: 6 }}>
+            Issue/Chat 默认隔离 workdir 会沿用；可清理过旧目录回收磁盘。
+            <strong>不会</strong>删除 project.localPath 真仓。
+          </p>
+          <div className="settings-cwd-recovery-links" style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="settings-isolated-refresh"
+              onClick={() => void refetchIsolated()}
+            >
+              刷新列表
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="settings-isolated-cleanup-7d"
+              disabled={cleanupIsolated.isPending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    '删除超过 7 天未修改的隔离 workdir（run-workspaces / chat-sessions）？不可恢复。',
+                  )
+                ) {
+                  return;
+                }
+                cleanupIsolated.mutate({ olderThanDays: 7 });
+              }}
+            >
+              {cleanupIsolated.isPending ? '清理中…' : '清理 &gt;7 天'}
+            </button>
+          </div>
+          {(isolatedWs?.entries?.length ?? 0) > 0 ? (
+            <ul
+              className="text-sm"
+              data-testid="settings-isolated-list"
+              style={{
+                margin: '10px 0 0',
+                padding: 0,
+                listStyle: 'none',
+                maxHeight: 160,
+                overflow: 'auto',
+              }}
+            >
+              {isolatedWs!.entries.slice(0, 12).map((e) => (
+                <li
+                  key={e.id}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                    padding: '4px 0',
+                    borderBottom: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <code className="text-dim" style={{ flex: 1, wordBreak: 'break-all' }}>
+                    {e.label}
+                  </code>
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    data-testid="settings-isolated-delete-one"
+                    disabled={cleanupIsolated.isPending}
+                    onClick={() => {
+                      if (!window.confirm(`删除隔离目录 ${e.label}？`)) return;
+                      cleanupIsolated.mutate({ ids: [e.id] });
+                    }}
+                  >
+                    删
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-dim text-sm" style={{ marginTop: 8 }}>
+              暂无隔离目录（派过 Issue/Chat 后会出现）
+            </p>
+          )}
+        </section>
       </section>
       ) : null}
 

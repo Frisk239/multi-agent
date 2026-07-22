@@ -16,7 +16,9 @@ import {
   writeWikiPage,
   appendIndex,
   appendLog,
+  getWikiDir,
 } from '../wiki/store.js';
+import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { generateSlug } from '../wiki/slug.js';
 import { queryWiki } from '../wiki/query.js';
 import { checkHealth } from '../wiki/health.js';
@@ -31,6 +33,19 @@ import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { eventBus } from '../orchestration/event-bus.js';
 
 export async function wikiRoutes(app: FastifyInstance): Promise<void> {
+  // GET /api/wiki/meta — E3：根路径诚实（非 per-project）
+  app.get('/api/wiki/meta', async () => {
+    const cwd = resolveWorkspaceCwd();
+    const rootPath = getWikiDir();
+    return {
+      rootPath,
+      workspacePath: cwd.path,
+      source: cwd.configured ? cwd.source : 'process.cwd',
+      perProject: false as const,
+      note: 'Wiki 文件在工作区（或 process.cwd）下的 wiki/ 目录，不随 Issue 绑定的 project.localPath 切换',
+    };
+  });
+
   // GET /api/wiki/pages — 列表（spec §6）
   app.get('/api/wiki/pages', async () => {
     return listWikiPages();

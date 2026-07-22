@@ -58,9 +58,9 @@
   - 主题：**Multica 体验诚实 → 多仓韧性与执行手感（UX Trust）**  
   - Wave A 计划（✅）：[2026-07-21-ux-trust-wave-a.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-a.md)  
   - **Wave C/D 计划（当前）：** [2026-07-21-ux-trust-wave-c-p0-p1.md](docs/superpowers/plans/2026-07-21-ux-trust-wave-c-p0-p1.md)  
-  - **UX Trust A–D 收官 ✅**（派活诚实 · 多仓韧性 · 执行手感）  
-  - **▶ 下一主题 TBD**（P2：首启向导 / 看板列表视图 / 通知偏好 / Wiki 分根…）  
-  - **推送债：** main ahead origin（需补 `git push origin main`）
+  - **UX Trust A–D 收官 ✅** · **Day-0 E1–E4 收官 ✅**（首启 / Wiki 诚实 / 隔离清理 / 烟测）  
+  - 计划：`docs/superpowers/plans/2026-07-22-ux-day0-polish.md` · phase `phase-ux-day0-2026-07-22.md`  
+  - **▶ 下一主题 TBD**（P2：看板列表视图 / 通知偏好 / Chat 更深流式 / Wiki 物理分根…）
   - 非目标：daemon/云/Wiki 分根大迁移/session 1:1/首启向导（P2）
 - **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  

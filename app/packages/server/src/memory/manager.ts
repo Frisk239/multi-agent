@@ -101,12 +101,24 @@ export class MemoryManager {
     provider: string | null;
     available: boolean;
     backend: 'sqlite' | 'pgvector' | 'none';
+    /** E3：与 Wiki 一样非 per-project；sqlite 用主库，pgvector 为连接串后端 */
+    perProject: false;
+    note: string;
   } {
     const name = this.getExternalName();
     const available = name != null && (this.external?.isAvailable() ?? false);
     const backend =
       name === 'pgvector' ? 'pgvector' : name === 'sqlite-text' ? 'sqlite' : 'none';
-    return { provider: name, available, backend };
+    return {
+      provider: name,
+      available,
+      backend,
+      perProject: false,
+      note:
+        backend === 'pgvector'
+          ? 'Memory 使用 pgvector 连接，不按 project.localPath 分库'
+          : 'Memory 落在编排主库（sqlite-text 默认），不按 project.localPath 分库',
+    };
   }
 
   /**
