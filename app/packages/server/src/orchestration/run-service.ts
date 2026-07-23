@@ -10,7 +10,7 @@ import { computeAgentReadiness } from './readiness.js';
 import { notifyEnqueueSkipped } from './inbox-writer.js';
 import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
-const ACTIVE = ['queued', 'running'] as const;
+const ACTIVE = ['queued', 'waiting_local_directory', 'running'] as const;
 const RETRYABLE = ['failed', 'cancelled'] as const;
 
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。

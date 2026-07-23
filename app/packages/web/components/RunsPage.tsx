@@ -31,6 +31,7 @@ type StatusFilter =
   | ''
   | 'active'
   | 'queued'
+  | 'waiting_local_directory'
   | 'running'
   | 'failed'
   | 'cancelled'
@@ -40,6 +41,7 @@ const STATUS_VALUES: StatusFilter[] = [
   '',
   'active',
   'queued',
+  'waiting_local_directory',
   'running',
   'failed',
   'cancelled',
@@ -216,7 +218,12 @@ function RunsPageInner() {
   const activeVisibleIds = useMemo(() => {
     if (!visibleRuns) return [] as string[];
     return visibleRuns
-      .filter((r) => r.status === 'queued' || r.status === 'running')
+      .filter(
+        (r) =>
+          r.status === 'queued' ||
+          r.status === 'waiting_local_directory' ||
+          r.status === 'running',
+      )
       .map((r) => r.id);
   }, [visibleRuns]);
 
@@ -252,7 +259,12 @@ function RunsPageInner() {
   const hasExtraFilters = Boolean(agentId || squadId || leaderOnly);
 
   const rareStatus =
-    status === 'queued' || status === 'running' || status === 'cancelled' ? status : null;
+    status === 'queued' ||
+    status === 'waiting_local_directory' ||
+    status === 'running' ||
+    status === 'cancelled'
+      ? status
+      : null;
 
   return (
     <div
@@ -458,9 +470,10 @@ function RunsPageInner() {
                 aria-label="细分状态"
               >
                 <option value="">全部</option>
-                <option value="active">活跃 (queued+running)</option>
+                <option value="active">活跃 (queued+running+waiting)</option>
                 <option value="failed">failed</option>
                 <option value="running">running</option>
+                <option value="waiting_local_directory">waiting_local_directory</option>
                 <option value="queued">queued</option>
                 <option value="cancelled">cancelled</option>
                 <option value="completed">completed</option>
@@ -620,7 +633,9 @@ function RunsPageInner() {
                           data-testid="runs-status-pill"
                           data-status={r.status}
                         >
-                          {r.status}
+                          {r.status === 'waiting_local_directory'
+                            ? '等待本地目录锁'
+                            : r.status}
                         </span>
                         {r.isLeader ? (
                           <span className="leader-badge runs-leader-badge" title="小队队长 run">

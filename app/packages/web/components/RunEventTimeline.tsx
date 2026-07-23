@@ -44,7 +44,10 @@ export function RunEventTimelineInline({
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
-  const isLive = run?.status === 'queued' || run?.status === 'running';
+  const isLive =
+    run?.status === 'queued' ||
+    run?.status === 'waiting_local_directory' ||
+    run?.status === 'running';
   const isFailed = run?.status === 'failed' || Boolean(run?.error);
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
@@ -295,7 +298,10 @@ export function RunEventTimelineDrawer({
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
-  const isLive = run?.status === 'queued' || run?.status === 'running';
+  const isLive =
+    run?.status === 'queued' ||
+    run?.status === 'waiting_local_directory' ||
+    run?.status === 'running';
   const [filter, setFilter] = useState<RunEventDrawerFilter>('all');
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);

@@ -224,7 +224,14 @@ export const agentRuns = sqliteTable(
       enum: ['claude-code', 'opencode', 'cursor', 'grok'],
     }).notNull(),
     status: text('status', {
-      enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
+      enum: [
+        'queued',
+        'waiting_local_directory',
+        'running',
+        'completed',
+        'failed',
+        'cancelled',
+      ],
     }).notNull(),
     kind: text('kind', { enum: ['issue', 'quick_create', 'chat'] })
       .notNull()

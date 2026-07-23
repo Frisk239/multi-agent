@@ -196,7 +196,10 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const [kindFilter, setKindFilter] = useState<'' | RunMessage['kind']>('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const isLive = run?.status === 'queued' || run?.status === 'running';
+  const isLive =
+    run?.status === 'queued' ||
+    run?.status === 'waiting_local_directory' ||
+    run?.status === 'running';
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const failure =
@@ -220,17 +223,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
   );
 
   const statusZh =
-    run?.status === 'completed'
-      ? '已完成'
-      : run?.status === 'failed'
-        ? '失败'
-        : run?.status === 'running'
-          ? '执行中'
-          : run?.status === 'queued'
-            ? '排队'
-            : run?.status === 'cancelled'
-              ? '已取消'
-              : run?.status;
+    run?.status === 'waiting_local_directory'
+      ? '等待本地目录锁'
+      : run?.status === 'completed'
+        ? '已完成'
+        : run?.status === 'failed'
+          ? '失败'
+          : run?.status === 'running'
+            ? '执行中'
+            : run?.status === 'queued'
+              ? '排队'
+              : run?.status === 'cancelled'
+                ? '已取消'
+                : run?.status;
 
   if (isLoading) {
     return <div className="page-container">加载运行…</div>;
@@ -251,7 +256,10 @@ export function RunDetailPage({ runId }: { runId: string }) {
     );
   }
 
-  const canStop = run.status === 'queued' || run.status === 'running';
+  const canStop =
+    run.status === 'queued' ||
+    run.status === 'waiting_local_directory' ||
+    run.status === 'running';
   const recovery = runRecoveryKind(run);
   const chatHref = chatThreadHref(run);
 
@@ -449,6 +457,15 @@ export function RunDetailPage({ runId }: { runId: string }) {
           <span className="run-detail-chip">工具 {toolCount}</span>
           <span className="run-detail-chip">事件 {messages.length}</span>
           <span className="run-detail-chip">助手 {assistantCount}</span>
+          {run.tokensInput != null || run.tokensOutput != null ? (
+            <span
+              className="run-detail-chip run-detail-chip--tokens"
+              data-testid="run-detail-tokens"
+              title="CLI 尽力解析的 token 用量（可空）"
+            >
+              Token in {run.tokensInput ?? '—'} · out {run.tokensOutput ?? '—'}
+            </span>
+          ) : null}
           <span className="run-detail-chip text-dim">
             {run.createdAt ? new Date(run.createdAt).toLocaleString() : ''}
           </span>

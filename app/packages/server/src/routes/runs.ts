@@ -12,7 +12,11 @@ import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-se
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 
-const ACTIVE_STATUSES = ['queued', 'running'] as const;
+const ACTIVE_STATUSES = [
+  'queued',
+  'waiting_local_directory',
+  'running',
+] as const;
 
 // runs list / detail / messages / cancel / retry（S03 + run-observability）
 // runs-active-nav：active 筛选 + active-count 角标
@@ -58,16 +62,19 @@ export async function runRoutes(app: FastifyInstance) {
       .all();
     let queued = 0;
     let running = 0;
+    let waitingLocalDirectory = 0;
     const agents = new Set<string>();
     for (const r of rows) {
       if (r.status === 'queued') queued += 1;
+      else if (r.status === 'waiting_local_directory') waitingLocalDirectory += 1;
       else if (r.status === 'running') running += 1;
       if (r.agentId) agents.add(r.agentId);
     }
     return {
-      count: queued + running,
+      count: queued + waitingLocalDirectory + running,
       queued,
       running,
+      waitingLocalDirectory,
       agentsWorking: agents.size,
     };
   });

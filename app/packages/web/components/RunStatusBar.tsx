@@ -33,7 +33,12 @@ export function RunStatusBar({
   const [opsOpen, setOpsOpen] = useState(false);
 
   const active =
-    runs.find((r) => r.status === 'queued' || r.status === 'running') ?? runs[0];
+    runs.find(
+      (r) =>
+        r.status === 'queued' ||
+        r.status === 'waiting_local_directory' ||
+        r.status === 'running',
+    ) ?? runs[0];
 
   const showBriefing = Boolean(active?.isLeader && active?.squadId);
   const { data: squad, isLoading: squadLoading } = useSquad(
@@ -48,7 +53,10 @@ export function RunStatusBar({
     );
   }
 
-  const canStop = active.status === 'queued' || active.status === 'running';
+  const canStop =
+    active.status === 'queued' ||
+    active.status === 'waiting_local_directory' ||
+    active.status === 'running';
   const canRerun = active.status === 'failed' || active.status === 'cancelled';
   const progress =
     active.status === 'running' ? progressByRun[active.id]?.trim() : undefined;
@@ -56,7 +64,10 @@ export function RunStatusBar({
     active.status === 'failed' || active.error
       ? classifyRunFailure(active.error)
       : null;
-  const isLive = active.status === 'queued' || active.status === 'running';
+  const isLive =
+    active.status === 'queued' ||
+    active.status === 'waiting_local_directory' ||
+    active.status === 'running';
 
   const rosterLines =
     squad?.members
@@ -73,16 +84,18 @@ export function RunStatusBar({
     : '';
 
   const statusLabel =
-    active.status === 'queued'
-      ? '排队中'
-      : active.status === 'running'
-        ? '执行中'
-        : active.status === 'completed'
-          ? '已完成'
-          : active.status === 'failed'
-            ? '失败'
-            : active.status === 'cancelled'
-              ? '已取消'
+    active.status === 'waiting_local_directory'
+      ? '等待本地目录锁'
+      : active.status === 'queued'
+        ? '排队中'
+        : active.status === 'running'
+          ? '执行中'
+          : active.status === 'completed'
+            ? '已完成'
+            : active.status === 'failed'
+              ? '失败'
+              : active.status === 'cancelled'
+                ? '已取消'
               : active.status;
 
   return (

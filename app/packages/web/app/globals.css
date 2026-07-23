@@ -5336,6 +5336,20 @@ button.memory-kind-chip.is-active {
   box-shadow: inset 2px 0 0 var(--accent, #5b8def);
 }
 
+/* G21 residual：右栏阅读器（双栏加厚，非三栏） */
+.inbox-reader {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.inbox-reader-empty-title {
+  margin: 0 0 4px;
+  font-size: var(--text-base, 1rem);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .inbox-detail-empty {
   display: flex;
   flex-direction: column;
@@ -5351,6 +5365,12 @@ button.memory-kind-chip.is-active {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+}
+
+.inbox-detail--no-issue {
+  /* 正文优先，次要 meta 安静 */
 }
 
 .inbox-detail-head {
@@ -5372,6 +5392,7 @@ button.memory-kind-chip.is-active {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
+  opacity: 0.85;
 }
 
 .inbox-detail-body {
@@ -5390,14 +5411,17 @@ button.memory-kind-chip.is-active {
   overflow: auto;
 }
 
-.inbox-detail-md {
-  padding: var(--space-4);
+.inbox-detail-md,
+.inbox-reader-md {
+  flex: 1;
+  min-height: 120px;
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   font-size: var(--text-sm);
-  line-height: 1.55;
-  max-height: min(50vh, 480px);
+  line-height: 1.6;
+  max-height: min(58vh, 560px);
   overflow: auto;
 }
 
@@ -5405,10 +5429,12 @@ button.memory-kind-chip.is-active {
   padding-left: 0;
 }
 
-.inbox-issue-pane {
+.inbox-issue-pane,
+.inbox-issue-pane-inner {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  flex: 1;
 }
 
 .inbox-issue-toolbar {
@@ -5425,6 +5451,22 @@ button.memory-kind-chip.is-active {
   z-index: 2;
 }
 
+.inbox-issue-toolbar--dense {
+  padding: 6px var(--space-3);
+  gap: 6px;
+  backdrop-filter: blur(6px);
+}
+
+.inbox-issue-toolbar--dense .inbox-action-btn {
+  padding: 3px 8px;
+  font-size: var(--text-xs);
+}
+
+.inbox-issue-id-chip {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 .inbox-issue-toolbar-meta {
   display: flex;
   flex-wrap: wrap;
@@ -5437,6 +5479,12 @@ button.memory-kind-chip.is-active {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.inbox-action-btn--static {
+  cursor: default;
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .inbox-event-snippet {
@@ -5459,10 +5507,58 @@ button.memory-kind-chip.is-active {
   overflow: auto;
 }
 
-.inbox-issue-pane .issue-detail {
-  padding: var(--space-4);
+.inbox-issue-pane .issue-detail,
+.inbox-reader .issue-detail {
+  padding: var(--space-3) var(--space-4) var(--space-4);
   border: 0;
   max-width: none;
+  flex: 1;
+}
+
+/* 读后即回：Issue 评论区 sticky；无 issue 为诚实 CTA 区 */
+.issue-reply-zone,
+.inbox-reply-zone {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, var(--accent, #5b8def) 4%);
+}
+
+.issue-reply-zone-label {
+  margin-bottom: 6px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.inbox-issue-pane .issue-reply-zone,
+.inbox-reader .issue-reply-zone {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: 0 -6px 16px color-mix(in srgb, var(--bg-base, #0b0d12) 35%, transparent);
+}
+
+.inbox-reply-zone--no-issue {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: 0 -6px 16px color-mix(in srgb, var(--bg-base, #0b0d12) 28%, transparent);
+}
+
+.inbox-reply-zone--no-issue .inbox-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inbox-archive-empty {
+  padding: var(--space-3) var(--space-4);
 }
 
 @media (max-width: 900px) {
@@ -7406,6 +7502,10 @@ a.timeline-status-board-link:hover {
 .run-pill--queued {
   color: var(--text-muted);
 }
+.run-pill--waiting_local_directory {
+  color: var(--color-yellow);
+  border-color: color-mix(in srgb, var(--color-yellow) 40%, transparent);
+}
 
 
 .squad-runs-timeline {
@@ -8654,7 +8754,11 @@ a.issue-card-run-fail--link:hover {
 }
 
 .inbox-issue-toolbar {
-  /* 更轻，贴近 Multica 无运维条 */
+  /* 更轻，贴近 Multica 无运维条；dense 见 .inbox-issue-toolbar--dense */
+}
+
+.run-detail-chip--tokens {
+  font-variant-numeric: tabular-nums;
 }
 
 

@@ -42,6 +42,7 @@ function runDurationMs(r: AgentRun): number | null {
 
 const STATUS_ZH: Record<string, string> = {
   queued: '排队',
+  waiting_local_directory: '等待目录锁',
   running: '执行中',
   completed: '完成',
   failed: '失败',
@@ -152,7 +153,10 @@ export function IssueRunHistory({
       <ul className="issue-run-rows" data-testid="issue-run-rows">
         {runs.map((r) => {
           const selected = r.id === selectedRunId;
-          const live = r.status === 'queued' || r.status === 'running';
+          const live =
+            r.status === 'queued' ||
+            r.status === 'waiting_local_directory' ||
+            r.status === 'running';
           const dur = runDurationMs(r);
           return (
             <li

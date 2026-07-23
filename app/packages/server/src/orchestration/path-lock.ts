@@ -154,7 +154,11 @@ export function stampProjectLocalCwdPreview(
 }
 
 export function attachPathLockFields(run: AgentRun): AgentRun {
-  if (run.status !== 'queued' && run.status !== 'running') {
+  if (
+    run.status !== 'queued' &&
+    run.status !== 'waiting_local_directory' &&
+    run.status !== 'running'
+  ) {
     return {
       ...run,
       pathWaitReason: null,
@@ -168,7 +172,7 @@ export function attachPathLockFields(run: AgentRun): AgentRun {
       ? run.cwdPath.trim()
       : null;
 
-  // queued 尚未 stamp 时：无法从 AgentRun 反查 DB project——list 层应用 row 再 enrich
+  // queued/waiting 尚未 stamp 时：无法从 AgentRun 反查 DB project——list 层应用 row 再 enrich
   if (!path) {
     return {
       ...run,
@@ -187,7 +191,7 @@ export function attachPathLockFields(run: AgentRun): AgentRun {
     };
   }
 
-  if (run.status === 'queued') {
+  if (run.status === 'queued' || run.status === 'waiting_local_directory') {
     const holder = findRunningProjectLocalHolder(path, run.id);
     if (holder) {
       return {
@@ -208,7 +212,7 @@ export function attachPathLockFields(run: AgentRun): AgentRun {
 }
 
 /**
- * 从 DB 行 enrich（queued 无 cwd 时解析 intended path）。
+ * 从 DB 行 enrich（queued/waiting 无 cwd 时解析 intended path）。
  */
 export function enrichRunRowWithPathLock(
   row: typeof agentRuns.$inferSelect,
@@ -216,7 +220,9 @@ export function enrichRunRowWithPathLock(
 ): AgentRun {
   let run = base;
   if (
-    (row.status === 'queued' || row.status === 'running') &&
+    (row.status === 'queued' ||
+      row.status === 'waiting_local_directory' ||
+      row.status === 'running') &&
     !(run.cwdMode === 'project_local' && run.cwdPath)
   ) {
     const intended = resolveIntendedProjectLocalPath(row);

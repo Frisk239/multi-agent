@@ -31,7 +31,12 @@ export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor', 'grok']);
 export type RuntimeId = z.infer<typeof RuntimeId>;
 
 export const AgentRunStatus = z.enum([
-  'queued', 'running', 'completed', 'failed', 'cancelled',
+  'queued',
+  'waiting_local_directory',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
@@ -133,7 +138,8 @@ export const RunsActiveCount = z.object({
   count: z.number().int(),
   queued: z.number().int(),
   running: z.number().int(),
-  /** 有 queued|running run 的去重 agent 数（Multica「N 个智能体工作中」） */
+  waitingLocalDirectory: z.number().int().nonnegative().optional(),
+  /** 有 queued|waiting_local_directory|running run 的去重 agent 数（Multica「N 个智能体工作中」） */
   agentsWorking: z.number().int().nonnegative().default(0),
 });
 export type RunsActiveCount = z.infer<typeof RunsActiveCount>;
@@ -1390,6 +1396,7 @@ export type PostChatMessageInput = z.infer<typeof PostChatMessageInput>;
 export const RunLifecycleEvent = z.object({
   type: z.enum([
     'run:queued',
+    'run:waiting_local_directory',
     'run:running',
     'run:completed',
     'run:failed',

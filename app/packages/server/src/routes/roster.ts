@@ -172,7 +172,14 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .select()
       .from(agentRuns)
       .where(
-        and(eq(agentRuns.agentId, id), inArray(agentRuns.status, ['queued', 'running'])),
+        and(
+          eq(agentRuns.agentId, id),
+          inArray(agentRuns.status, [
+            'queued',
+            'waiting_local_directory',
+            'running',
+          ]),
+        ),
       )
       .get();
     if (active) {

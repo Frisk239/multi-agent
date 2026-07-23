@@ -383,7 +383,7 @@ function InboxPageInner() {
             )}
           </div>
           <div className="page-desc page-desc--quiet">
-            选择通知，在右侧打开 Issue 并回复
+            双栏阅读：左列表 · 右详情（有 Issue 可评论回复；Helper 仍用全局浮层）
           </div>
         </div>
         <div className="page-actions">
@@ -653,7 +653,12 @@ function InboxPageInner() {
               </button>
               {archiveOpen ? (
                 archivedItems.length === 0 ? (
-                  <p className="inbox-archive-empty text-dim text-sm">当前筛选下无归档项</p>
+                  <p
+                    className="inbox-archive-empty text-dim text-sm"
+                    data-testid="inbox-archive-empty"
+                  >
+                    当前筛选下无归档项。清除筛选或展开全部归档后再选。
+                  </p>
                 ) : (
                   <ul className="inbox-list inbox-list--archived" data-testid="inbox-archive-list">
                     {archivedItems.map((item) => (
@@ -682,152 +687,215 @@ function InboxPageInner() {
 
         <aside className="inbox-split-detail" data-testid="inbox-split-detail">
           {!selected ? (
-            <div className="inbox-detail-empty" data-testid="inbox-detail-empty">
-              <p className="text-dim">选择一条通知查看详情</p>
-              <p className="text-dim text-sm">
-                对齐 Multica：右侧打开完整 Issue，可评论、@ 智能体、查看运行。
-              </p>
+            <div
+              className="inbox-reader inbox-detail-empty"
+              data-testid="inbox-reader"
+              data-reader-mode="empty"
+            >
+              <div data-testid="inbox-detail-empty">
+                <p className="inbox-reader-empty-title">尚未选择通知</p>
+                <p className="text-dim text-sm">
+                  点左侧一条：有 Issue 时右侧打开详情与评论；无 Issue 时只显示通知正文与聊天/运行入口。
+                </p>
+                <p className="text-dim text-sm">
+                  仍是双栏（列表 | 阅读器）。Helper 用全局「问助手」FAB，不是第三栏。
+                </p>
+              </div>
             </div>
           ) : selected.issueId ? (
             <div
-              className="inbox-issue-pane"
-              data-testid="inbox-issue-pane"
+              className="inbox-reader inbox-issue-pane"
+              data-testid="inbox-reader"
+              data-reader-mode="issue"
               data-issue-id={selected.issueId}
               data-inbox-id={selected.id}
             >
-              <div className="inbox-issue-toolbar" data-testid="inbox-issue-toolbar">
-                <div className="inbox-issue-toolbar-meta text-dim text-sm">
-                  <span className={kindClass(selected.kind)}>{kindLabel(selected.kind)}</span>
-                  <time dateTime={selected.createdAt}>{relativeTime(selected.createdAt)}</time>
-                  {selected.issueIdentifier ? (
-                    <span>{selected.issueIdentifier}</span>
-                  ) : null}
-                </div>
-                <div className="inbox-issue-toolbar-actions">
-                  {isFailItem(selected) && selected.runId ? (
-                    <InboxRetryButton item={selected} />
-                  ) : null}
-                  {selected.runId ? (
+              <div
+                className="inbox-issue-pane-inner"
+                data-testid="inbox-issue-pane"
+                data-issue-id={selected.issueId}
+                data-inbox-id={selected.id}
+              >
+                <div
+                  className="inbox-issue-toolbar inbox-issue-toolbar--dense"
+                  data-testid="inbox-issue-toolbar"
+                >
+                  <div className="inbox-issue-toolbar-meta text-dim text-sm">
+                    <span className={kindClass(selected.kind)}>
+                      {kindLabel(selected.kind)}
+                    </span>
+                    <time dateTime={selected.createdAt}>
+                      {relativeTime(selected.createdAt)}
+                    </time>
+                    {selected.issueIdentifier ? (
+                      <span className="inbox-issue-id-chip">
+                        {selected.issueIdentifier}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="inbox-issue-toolbar-actions">
+                    {isFailItem(selected) && selected.runId ? (
+                      <InboxRetryButton item={selected} />
+                    ) : null}
+                    {selected.runId ? (
+                      <Link
+                        href={`/runs?run=${encodeURIComponent(selected.runId)}&timeline=1&status=all`}
+                        className="inbox-action-btn inbox-action-link"
+                        data-testid="inbox-open-timeline"
+                        title="打开运行事件时间线"
+                      >
+                        时间线
+                      </Link>
+                    ) : null}
+                    {isFailItem(selected) &&
+                    isCwdFailBody(selected.body ?? selected.summary) ? (
+                      <Link
+                        href="/settings"
+                        className="inbox-action-btn inbox-action-link"
+                        data-testid="inbox-fail-settings"
+                      >
+                        环境
+                      </Link>
+                    ) : null}
                     <Link
-                      href={`/runs?run=${encodeURIComponent(selected.runId)}&timeline=1&status=all`}
+                      href={`/issues/${selected.issueId}`}
                       className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-open-timeline"
-                      title="打开运行事件时间线"
+                      data-testid="inbox-open-issue"
                     >
-                      时间线
+                      全页
                     </Link>
-                  ) : null}
-                  {isFailItem(selected) &&
-                  isCwdFailBody(selected.body ?? selected.summary) ? (
-                    <Link
-                      href="/settings"
-                      className="inbox-action-btn inbox-action-link"
-                      data-testid="inbox-fail-settings"
+                    {!selected.archived ? (
+                      <button
+                        type="button"
+                        className="inbox-action-btn"
+                        disabled={archive.isPending}
+                        data-testid="inbox-detail-archive"
+                        onClick={handleArchiveSelected}
+                      >
+                        归档
+                      </button>
+                    ) : (
+                      <span
+                        className="inbox-action-btn inbox-action-btn--static text-dim"
+                        data-testid="inbox-detail-archived-badge"
+                      >
+                        已归档
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="inbox-action-btn"
+                      data-testid="inbox-detail-close"
+                      onClick={() => replaceParams({ issue: null, item: null })}
                     >
-                      环境
-                    </Link>
-                  ) : null}
-                  <Link
-                    href={`/issues/${selected.issueId}`}
-                    className="inbox-action-btn inbox-action-link"
-                    data-testid="inbox-open-issue"
-                  >
-                    全页打开
-                  </Link>
-                  <button
-                    type="button"
-                    className="inbox-action-btn"
-                    disabled={archive.isPending}
-                    data-testid="inbox-detail-archive"
-                    onClick={handleArchiveSelected}
-                  >
-                    归档
-                  </button>
-                  <button
-                    type="button"
-                    className="inbox-action-btn"
-                    data-testid="inbox-detail-close"
-                    onClick={() => replaceParams({ issue: null, item: null })}
-                  >
-                    关闭
-                  </button>
+                      关闭
+                    </button>
+                  </div>
                 </div>
+                {/* 真站无「通知摘要」条：直接 Issue 详情（标题/描述/动态/回复） */}
+                <IssueDetail id={selected.issueId} replyZoneTestId="inbox-reply-zone" />
               </div>
-              {/* 真站无「通知摘要」条：直接 Issue 详情（标题/描述/动态/回复） */}
-              <IssueDetail id={selected.issueId} />
             </div>
           ) : (
             <div
-              className="inbox-detail"
-              data-testid="inbox-detail"
+              className="inbox-reader inbox-detail inbox-detail--no-issue"
+              data-testid="inbox-reader"
+              data-reader-mode="notification"
               data-inbox-id={selected.id}
             >
-              <div className="inbox-detail-head">
-                <span className={kindClass(selected.kind)}>{kindLabel(selected.kind)}</span>
-                <time className="inbox-time" dateTime={selected.createdAt}>
-                  {relativeTime(selected.createdAt)}
-                </time>
-              </div>
-              <h2 className="inbox-detail-title" data-testid="inbox-detail-title">
-                {selected.title || selected.summary}
-              </h2>
-              <div className="inbox-detail-meta text-dim text-sm">
-                <span>无关联 Issue</span>
-                {selected.runId ? <span> · run {selected.runId.slice(0, 8)}…</span> : null}
-                <span> · {selected.read ? '已读' : '未读'}</span>
-              </div>
-              <div className="inbox-detail-md" data-testid="inbox-detail-body">
-                <MarkdownBody
-                  source={selected.body?.trim() || selected.summary || '（无正文）'}
-                />
-              </div>
-              <div className="inbox-actions inbox-detail-actions" data-testid="inbox-detail-actions">
-                {isFailItem(selected) && selected.runId ? (
-                  <InboxRetryButton item={selected} />
-                ) : null}
-                {isFailItem(selected) &&
-                isCwdFailBody(selected.body ?? selected.summary) ? (
-                  <Link
-                    href="/settings"
-                    className="inbox-action-btn inbox-action-link"
-                    data-testid="inbox-fail-settings"
+              <div data-testid="inbox-detail" data-inbox-id={selected.id}>
+                <div className="inbox-detail-head">
+                  <span className={kindClass(selected.kind)}>
+                    {kindLabel(selected.kind)}
+                  </span>
+                  <time className="inbox-time" dateTime={selected.createdAt}>
+                    {relativeTime(selected.createdAt)}
+                  </time>
+                </div>
+                <h2 className="inbox-detail-title" data-testid="inbox-detail-title">
+                  {selected.title || selected.summary}
+                </h2>
+                <div className="inbox-detail-meta text-dim text-sm">
+                  <span>无关联 Issue · 不可在此评论</span>
+                  {selected.runId ? (
+                    <span> · run {selected.runId.slice(0, 8)}…</span>
+                  ) : null}
+                  <span> · {selected.read ? '已读' : '未读'}</span>
+                  {selected.archived ? <span> · 已归档</span> : null}
+                </div>
+                <div
+                  className="inbox-detail-md inbox-reader-md"
+                  data-testid="inbox-reader-md"
+                >
+                  <div data-testid="inbox-detail-body">
+                    <MarkdownBody
+                      source={
+                        selected.body?.trim() || selected.summary || '（无正文）'
+                      }
+                    />
+                  </div>
+                </div>
+                <div
+                  className="inbox-reply-zone inbox-reply-zone--no-issue"
+                  data-testid="inbox-reply-zone"
+                >
+                  <div className="issue-reply-zone-label text-dim text-sm">
+                    无 Issue · 请用下方入口继续
+                  </div>
+                  <div
+                    className="inbox-actions inbox-detail-actions"
+                    data-testid="inbox-detail-actions"
                   >
-                    环境
-                  </Link>
-                ) : null}
-                {runListHref(selected) ? (
-                  <Link
-                    href={runListHref(selected)!}
-                    className="inbox-action-btn inbox-action-link"
-                    data-testid="inbox-open-run"
-                  >
-                    打开运行
-                  </Link>
-                ) : null}
-                <Link
-                  href="/chat"
-                  className="inbox-action-btn inbox-action-link"
-                  data-testid="inbox-open-chat"
-                >
-                  打开聊天
-                </Link>
-                <button
-                  type="button"
-                  className="inbox-action-btn"
-                  disabled={archive.isPending}
-                  data-testid="inbox-detail-archive"
-                  onClick={handleArchiveSelected}
-                >
-                  归档
-                </button>
-                <button
-                  type="button"
-                  className="inbox-action-btn"
-                  data-testid="inbox-detail-close"
-                  onClick={() => replaceParams({ issue: null, item: null })}
-                >
-                  关闭
-                </button>
+                    {isFailItem(selected) && selected.runId ? (
+                      <InboxRetryButton item={selected} />
+                    ) : null}
+                    {isFailItem(selected) &&
+                    isCwdFailBody(selected.body ?? selected.summary) ? (
+                      <Link
+                        href="/settings"
+                        className="inbox-action-btn inbox-action-link"
+                        data-testid="inbox-fail-settings"
+                      >
+                        环境
+                      </Link>
+                    ) : null}
+                    {runListHref(selected) ? (
+                      <Link
+                        href={runListHref(selected)!}
+                        className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
+                        data-testid="inbox-open-run"
+                      >
+                        打开运行
+                      </Link>
+                    ) : null}
+                    <Link
+                      href="/chat"
+                      className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
+                      data-testid="inbox-open-chat"
+                    >
+                      打开聊天
+                    </Link>
+                    {!selected.archived ? (
+                      <button
+                        type="button"
+                        className="inbox-action-btn"
+                        disabled={archive.isPending}
+                        data-testid="inbox-detail-archive"
+                        onClick={handleArchiveSelected}
+                      >
+                        归档
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="inbox-action-btn"
+                      data-testid="inbox-detail-close"
+                      onClick={() => replaceParams({ issue: null, item: null })}
+                    >
+                      关闭
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

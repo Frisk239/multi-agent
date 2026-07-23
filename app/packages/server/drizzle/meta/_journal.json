@@ -232,6 +232,13 @@
       "when": 1786713600000,
       "tag": "0032_chat_thread_last_session_id",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1786800000000,
+      "tag": "0033_waiting_local_directory_status",
+      "breakpoints": true
     }
   ]
 }

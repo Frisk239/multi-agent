@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
@@ -199,12 +199,12 @@ export function failStaleQueuedRuns(now = Date.now()): number {
   return n;
 }
 
-/** queued 但 agent 已删除 → 立即 fail（避免永久挂起） */
+/** queued 或 waiting_local_directory 但 agent 已删除 → 立即 fail（避免永久挂起） */
 export function failQueuedMissingAgentRuns(now = Date.now()): number {
   const candidates = db
     .select()
     .from(agentRuns)
-    .where(eq(agentRuns.status, 'queued'))
+    .where(inArray(agentRuns.status, ['queued', 'waiting_local_directory']))
     .all();
   let n = 0;
   for (const row of candidates) {
@@ -216,7 +216,12 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
         finishedAt: now,
         error: 'orphan: agent missing for queued run',
       })
-      .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'queued')))
+      .where(
+        and(
+          eq(agentRuns.id, row.id),
+          inArray(agentRuns.status, ['queued', 'waiting_local_directory']),
+        ),
+      )
       .run();
     const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
     if (next?.status === 'failed') {
@@ -229,8 +234,33 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
   return n;
 }
 
-/** 运维/启动共用：一次扫完 orphan running + stale running/queued + missing agent */
+/** 动态续租：为 waiting_local_directory 状态的 Run 更新心跳时间，防止 30m 超时误杀 */
+export function touchWaitingLocalDirectoryLeases(now = Date.now()): number {
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'waiting_local_directory'))
+    .all();
+
+  let n = 0;
+  for (const row of candidates) {
+    db.update(agentRuns)
+      .set({ lastHeartbeatAt: now })
+      .where(
+        and(
+          eq(agentRuns.id, row.id),
+          eq(agentRuns.status, 'waiting_local_directory'),
+        ),
+      )
+      .run();
+    n++;
+  }
+  return n;
+}
+
+/** 运维/启动共用：一次扫完 orphan running + stale running/queued + missing agent + 续租目录锁 */
 export function recoverStuckRuns(now = Date.now()): RunRecoveryReport {
+  touchWaitingLocalDirectoryLeases(now);
   const orphanRunning = recoverOrphanedRunningRuns(now);
   const staleRunning = failStaleRunningRuns(now);
   const missingAgentQueued = failQueuedMissingAgentRuns(now);
@@ -250,7 +280,8 @@ export function startStaleRunSweeper(): void {
   if (sweepTimer) return;
   sweepTimer = setInterval(() => {
     try {
-      // 周期清扫：running heartbeat + missing agent + 超龄 queued
+      // 周期清扫与目录锁动态续租
+      touchWaitingLocalDirectoryLeases();
       failStaleRunningRuns();
       failQueuedMissingAgentRuns();
       failStaleQueuedRuns();

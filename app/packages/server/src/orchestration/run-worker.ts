@@ -63,14 +63,14 @@ export function wakeRunWorker(): void {
   void tick();
 }
 
-// tick —— 遍历 queued，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
+// tick —— 遍历 queued / waiting_local_directory，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
 // 可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）。
-// C1：project_local 同 path 同时仅 1 个 running；被挡保持 queued（不 fail）。
+// C1：project_local 同 path 同时仅 1 个 running；被挡显示为 waiting_local_directory。
 async function tick(): Promise<void> {
   const queuedRows = db
     .select()
     .from(agentRuns)
-    .where(eq(agentRuns.status, 'queued'))
+    .where(inArray(agentRuns.status, ['queued', 'waiting_local_directory']))
     .orderBy(asc(agentRuns.createdAt))
     .all();
 
@@ -90,11 +90,35 @@ async function tick(): Promise<void> {
       .get();
     if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
 
-    // C1 path 闸：真仓被占用则跳过 claim，预写 cwd 供 UI
+    // C1 path 闸：真仓被占用则跳过 claim，显式标记 waiting_local_directory 状态
     const pathGate = shouldDeferClaimForPath(queued, claimedPathKeys);
     if (pathGate.defer) {
       stampProjectLocalCwdPreview(queued.id, pathGate.path);
       const holderId = pathGate.holder?.id ?? 'pending-claim';
+
+      if (queued.status !== 'waiting_local_directory') {
+        const now = Date.now();
+        db.update(agentRuns)
+          .set({
+            status: 'waiting_local_directory',
+            lastHeartbeatAt: now,
+            cwdPath: pathGate.path,
+            cwdMode: 'project_local',
+          })
+          .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
+          .run();
+
+        const updatedRow = db
+          .select()
+          .from(agentRuns)
+          .where(eq(agentRuns.id, queued.id))
+          .get();
+        if (updatedRow && updatedRow.status === 'waiting_local_directory') {
+          const run = enrichRunRowWithPathLock(updatedRow, toAgentRun(updatedRow));
+          eventBus.publish({ type: 'run:waiting_local_directory', run });
+        }
+      }
+
       eventBus.publish({
         type: 'run:progress',
         runId: queued.id,
@@ -107,11 +131,16 @@ async function tick(): Promise<void> {
       stampProjectLocalCwdPreview(queued.id, pathGate.path);
     }
 
-    // claim（条件 UPDATE queued→running）；bu01：同步写 lastHeartbeatAt
+    // claim（条件 UPDATE queued/waiting_local_directory→running）；bu01：同步写 lastHeartbeatAt
     const now = Date.now();
     db.update(agentRuns)
       .set({ status: 'running', startedAt: now, lastHeartbeatAt: now })
-      .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
+      .where(
+        and(
+          eq(agentRuns.id, queued.id),
+          inArray(agentRuns.status, ['queued', 'waiting_local_directory']),
+        ),
+      )
       .run();
     const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
     if (!runRow || runRow.status !== 'running') continue; // 没抢到（被别的 tick 抢）
@@ -432,7 +461,7 @@ async function tick(): Promise<void> {
         .where(
           and(
             eq(agentRuns.id, runRow.id),
-            inArray(agentRuns.status, ['running', 'queued']),
+            inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
           ),
         )
         .run();
@@ -479,7 +508,7 @@ async function tick(): Promise<void> {
       .where(
         and(
           eq(agentRuns.id, runRow.id),
-          inArray(agentRuns.status, ['running', 'queued']),
+          inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
         ),
       )
       .run();
@@ -584,6 +613,7 @@ async function tick(): Promise<void> {
   } finally {
     if (hb) clearInterval(hb);
     clearToolInflight(runRow.id);
+    wakeRunWorker();
   }
 }
 
@@ -597,7 +627,7 @@ async function failRun(runId: string, error: string): Promise<void> {
       .where(
         and(
           eq(agentRuns.id, runId),
-          inArray(agentRuns.status, ['running', 'queued']),
+          inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
         ),
       )
       .run();
@@ -627,5 +657,6 @@ async function failRun(runId: string, error: string): Promise<void> {
     eventBus.publish({ type: 'run:failed', run: r });
     // bu01：失败终态 → inbox
     notifyRunTerminal(r);
+    wakeRunWorker();
   }
 }

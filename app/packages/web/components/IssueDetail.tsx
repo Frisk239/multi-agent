@@ -41,8 +41,16 @@ function readPropsOpen(): boolean {
  * - 主列 = 标题/描述/子 issue/动态/回复 + 执行日志
  * - 右栏 = **属性**（可展开/收拢，不是问答 Helper）G26/G27
  * - G23 事件时间线可展开抽屉
+ * - replyZoneTestId：Inbox 等嵌入场景可标 `inbox-reply-zone`
  */
-export function IssueDetail({ id }: { id: string }) {
+export function IssueDetail({
+  id,
+  replyZoneTestId,
+}: {
+  id: string;
+  /** 覆盖回复区 testid（Inbox 用 inbox-reply-zone） */
+  replyZoneTestId?: string;
+}) {
   const { data: issue, isLoading: il, error: ie } = useIssue(id);
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: runs = [] } = useRuns(id);
@@ -155,7 +163,13 @@ export function IssueDetail({ id }: { id: string }) {
               </span>
             </div>
             <Timeline items={comments ?? []} hideHeader />
-            <CommentComposer issueId={id} />
+            <div
+              className="issue-reply-zone"
+              data-testid={replyZoneTestId ?? 'issue-reply-zone'}
+            >
+              <div className="issue-reply-zone-label text-dim text-sm">读后即回</div>
+              <CommentComposer issueId={id} />
+            </div>
           </section>
 
           <section

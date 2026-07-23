@@ -43,7 +43,13 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
   const rows = db
     .select()
     .from(agentRuns)
-    .where(inArray(agentRuns.status, ['queued', 'running']))
+    .where(
+      inArray(agentRuns.status, [
+        'queued',
+        'waiting_local_directory',
+        'running',
+      ]),
+    )
     .all();
 
   let queued = 0;
