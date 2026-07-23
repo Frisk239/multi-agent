@@ -78,14 +78,34 @@ export function useWsEvents() {
   const clearProgress = useRunProgressStore((s) => s.clearProgress);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:3001/ws');
     let mounted = true;
+    let ws: WebSocket;
+    let retryCount = 0;
+    let retryTimer: ReturnType<typeof setTimeout>;
 
-    ws.onopen = () => mounted && setStatus('open');
-    ws.onclose = () => mounted && setStatus('closed');
+    function connect() {
+      if (!mounted) return;
+      ws = new WebSocket('ws://localhost:3001/ws');
 
-    ws.onmessage = (ev) => {
-      const event = JSON.parse(ev.data) as DomainEvent;
+      ws.onopen = () => {
+        if (!mounted) return;
+        setStatus('open');
+        if (retryCount > 0) {
+          qc.invalidateQueries();
+        }
+        retryCount = 0;
+      };
+
+      ws.onclose = () => {
+        if (!mounted) return;
+        setStatus('closed');
+        const delay = Math.min(30000, Math.pow(2, retryCount) * 1000);
+        retryCount++;
+        retryTimer = setTimeout(connect, delay);
+      };
+
+      ws.onmessage = (ev) => {
+        const event = JSON.parse(ev.data) as DomainEvent;
 
       if (event.type === 'issue:created' || event.type === 'issue:updated') {
         qc.setQueryData<Issue[]>(['issues'], (old) => {
@@ -271,10 +291,14 @@ export function useWsEvents() {
         qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
       }
     };
+  }
+
+  connect();
 
     return () => {
       mounted = false;
-      ws.close();
+      clearTimeout(retryTimer);
+      if (ws) ws.close();
     };
   }, [qc, setStatus, setProgress, setTool, appendPartial, clearProgress]);
 }

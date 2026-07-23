@@ -21,6 +21,9 @@ import {
 } from '@/lib/api';
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
+import { ErrorBoundary } from './ErrorBoundary';
+
+
 
 function initials(name: string): string {
   const s = name.trim();
@@ -241,7 +244,8 @@ export function ChatPage() {
     : null;
 
   return (
-    <div className="chat-page chat-page--multica" data-testid="chat-page">
+    <ErrorBoundary resetKeys={[threadId]}>
+      <div className="chat-page chat-page--multica" data-testid="chat-page">
       <div className="chat-split" data-testid="chat-split">
         {/* —— 左：会话列表（对齐 Multica） —— */}
         <aside className="chat-rail" data-testid="chat-thread-list">
@@ -689,6 +693,7 @@ export function ChatPage() {
         </section>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 

@@ -22,6 +22,9 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 import { PageBreadcrumb } from './PageBreadcrumb';
+import { ErrorBoundary } from './ErrorBoundary';
+
+
 
 // bu02 + G12 + G13：对齐 Multica 概览/工作/能力/设置
 type TabId = 'overview' | 'work' | 'capabilities' | 'settings';
@@ -104,7 +107,8 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div className="page-container">
+    <ErrorBoundary resetKeys={[agentId]}>
+      <div className="page-container">
       <PageBreadcrumb
         testId="agent-breadcrumb"
         items={[{ label: '智能体', href: '/agents' }, { label: agent.name }]}
@@ -391,6 +395,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }
 

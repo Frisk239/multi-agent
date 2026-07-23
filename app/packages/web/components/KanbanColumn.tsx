@@ -1,14 +1,16 @@
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { IssueCard } from './IssueCard';
+import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 interface Props {
   title: string;
   status: IssueStatus;
   color: string;
   issues: Issue[];
-  onDragStart: (id: string) => void;
+  onDragStart?: (id: string) => void;
   /** DS2：落到列（可带 beforeId 表示插到该卡之前；null=列末） */
-  onDrop: (status: IssueStatus, beforeId: string | null) => void;
+  onDrop?: (status: IssueStatus, beforeId: string | null) => void;
   readinessByAgentId?: Record<string, AgentReadiness | null>;
   failedIssueIds?: Set<string>;
   /** queued/running run 覆盖的 issue */
@@ -33,17 +35,17 @@ export function KanbanColumn({
   activeIssueIds,
   assigneeAgentByIssueId,
 }: Props) {
+  const { setNodeRef } = useDroppable({
+    id: status,
+    data: { type: 'Column', status },
+  });
+
   return (
     <section
+      ref={setNodeRef}
       className="kanban-column"
       data-status={status}
       data-testid="kanban-column"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        // 落到列空白区 → 末尾
-        onDrop(status, null);
-      }}
     >
       <header className="kanban-column-header">
         <div className="kanban-column-heading">
@@ -72,36 +74,28 @@ export function KanbanColumn({
             无 issue
           </div>
         ) : (
-          issues.map((iss) => {
-            const agentId = assigneeAgentByIssueId?.[iss.id];
-            const rd = agentId ? readinessByAgentId?.[agentId] : null;
-            return (
-              <div
-                key={iss.id}
-                className="kanban-card-slot"
-                data-testid="kanban-card-slot"
-                data-issue-id={iss.id}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // 落到某卡上 → 插到该卡之前
-                  onDrop(status, iss.id);
-                }}
-              >
-                <IssueCard
-                  issue={iss}
-                  onDragStart={onDragStart}
-                  readiness={rd}
-                  lastRunFailed={failedIssueIds?.has(iss.id)}
-                  runActive={activeIssueIds?.has(iss.id)}
-                />
-              </div>
-            );
-          })
+          <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
+            {issues.map((iss) => {
+              const agentId = assigneeAgentByIssueId?.[iss.id];
+              const rd = agentId ? readinessByAgentId?.[agentId] : null;
+              return (
+                <div
+                  key={iss.id}
+                  className="kanban-card-slot"
+                  data-testid="kanban-card-slot"
+                  data-issue-id={iss.id}
+                >
+                  <IssueCard
+                    issue={iss}
+                    onDragStart={onDragStart}
+                    readiness={rd}
+                    lastRunFailed={failedIssueIds?.has(iss.id)}
+                    runActive={activeIssueIds?.has(iss.id)}
+                  />
+                </div>
+              );
+            })}
+          </SortableContext>
         )}
       </div>
     </section>

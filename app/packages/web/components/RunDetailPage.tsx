@@ -27,6 +27,8 @@ import { useRunProgressStore } from '@/lib/ws';
 import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
+import { ErrorBoundary } from './ErrorBoundary';
+
 
 /**
  * 运行详情 / transcript
@@ -264,8 +266,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const chatHref = chatThreadHref(run);
 
   return (
-    <div
-      className="page-container run-detail-page run-detail-page--multica"
+    <ErrorBoundary resetKeys={[runId]}>
+      <div
+        className="page-container run-detail-page run-detail-page--multica"
       data-testid="run-detail-page"
     >
       <div className="run-detail-top">
@@ -774,5 +777,6 @@ export function RunDetailPage({ runId }: { runId: string }) {
         )}
       </section>
     </div>
+    </ErrorBoundary>
   );
 }

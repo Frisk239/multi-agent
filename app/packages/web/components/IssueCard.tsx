@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { IssueCardMenu } from './IssueCardMenu';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const STATUS_COLORS: Record<IssueStatus, string> = {
   backlog: 'var(--status-backlog)',
@@ -78,7 +80,7 @@ function descriptionPreview(md: string | null | undefined): string {
 
 interface Props {
   issue: Issue;
-  onDragStart: (id: string) => void;
+  onDragStart?: (id: string) => void;
   /** 指派 agent（或 squad leader）的 readiness */
   readiness?: AgentReadiness | null;
   /** 最近一条 run 是否失败 */
@@ -103,6 +105,11 @@ export function IssueCard({
   lastRunFailed,
   runActive,
 }: Props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: issue.id,
+    data: { type: 'Issue', issue },
+  });
+
   const tone = readinessTone(readiness);
   const showReadyDot = Boolean(
     issue.assignee?.type === 'agent' || issue.assignee?.type === 'squad',
@@ -114,11 +121,19 @@ export function IssueCard({
     ? `/issues/${issue.id}#run-trace`
     : `/issues/${issue.id}`;
 
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  };
+
   return (
     <IssueCardMenu issue={issue}>
       <article
-        draggable
-        onDragStart={() => onDragStart(issue.id)}
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
         className={[
           'issue-card',
           showFail ? 'issue-card--run-failed' : '',

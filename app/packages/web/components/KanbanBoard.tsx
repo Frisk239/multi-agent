@@ -2,6 +2,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
@@ -15,6 +16,7 @@ import {
   useWorkspaceRuns,
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
+import { IssueCard } from './IssueCard';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
@@ -249,6 +251,14 @@ function KanbanBoardInner() {
   const reorder = useReorderIssues();
   const [dragId, setDragId] = useState<string | null>(null);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
+
   const squadLeaderById = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of squads) {
@@ -338,25 +348,45 @@ function KanbanBoardInner() {
 
   if (isLoading) return <div className="kanban-loading">加载中…</div>;
 
-  /**
-   * DS2：同列/跨列拖放 → 整列 orderedIds 调 reorder API。
-   * beforeId=null：插到列末；beforeId=某卡：插到该卡前。
-   * 同卡落到自己上 / 无位移时 no-op。
-   */
-  function handleDrop(targetStatus: IssueStatus, beforeId: string | null) {
-    if (!dragId) return;
-    const dragged = (issues ?? []).find((i) => i.id === dragId);
+  function handleDragStart(event: any) {
+    setDragId(event.active.id);
+  }
+
+  function handleDragEnd(event: any) {
+    const { active, over } = event;
+    if (!over) {
+      setDragId(null);
+      return;
+    }
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    let targetStatus: IssueStatus;
+    let beforeId: string | null = null;
+
+    if (over.data.current?.type === 'Column') {
+      targetStatus = over.data.current.status;
+    } else if (over.data.current?.type === 'Issue') {
+      targetStatus = over.data.current.issue.status;
+      beforeId = overId;
+    } else {
+      setDragId(null);
+      return;
+    }
+
+    const dragged = (issues ?? []).find((i) => i.id === activeId);
     if (!dragged) {
       setDragId(null);
       return;
     }
-    if (beforeId === dragId) {
+    if (beforeId === activeId) {
       setDragId(null);
       return;
     }
 
     const columnIds = (issues ?? [])
-      .filter((i) => i.status === targetStatus && i.id !== dragId)
+      .filter((i) => i.status === targetStatus && i.id !== activeId)
       .sort((a, b) => {
         if (a.position !== b.position) return a.position - b.position;
         return a.createdAt < b.createdAt ? 1 : -1;
@@ -368,11 +398,11 @@ function KanbanBoardInner() {
       const idx = columnIds.indexOf(beforeId);
       orderedIds = [
         ...columnIds.slice(0, idx),
-        dragId,
+        activeId,
         ...columnIds.slice(idx),
       ];
     } else {
-      orderedIds = [...columnIds, dragId];
+      orderedIds = [...columnIds, activeId];
     }
 
     // 同列且顺序未变 → 跳过
@@ -933,23 +963,40 @@ function KanbanBoardInner() {
           ) : null}
         </div>
       ) : (
-      <div className="kanban-columns" data-status-focus={statusQuery ?? ''}>
-        {visibleColumns.map((col) => (
-          <KanbanColumn
-            key={col.status}
-            title={col.title}
-            status={col.status}
-            color={col.color}
-            issues={visible.filter((i) => i.status === col.status)}
-            onDragStart={setDragId}
-            onDrop={handleDrop}
-            readinessByAgentId={readinessMap}
-            failedIssueIds={failedIssueIds}
-            activeIssueIds={activeIssueIds}
-            assigneeAgentByIssueId={assigneeAgentByIssueId}
-          />
-        ))}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="kanban-columns" data-status-focus={statusQuery ?? ''}>
+          {visibleColumns.map((col) => (
+            <KanbanColumn
+              key={col.status}
+              title={col.title}
+              status={col.status}
+              color={col.color}
+              issues={visible.filter((i) => i.status === col.status)}
+              readinessByAgentId={readinessMap}
+              failedIssueIds={failedIssueIds}
+              activeIssueIds={activeIssueIds}
+              assigneeAgentByIssueId={assigneeAgentByIssueId}
+            />
+          ))}
+        </div>
+        <DragOverlay>
+          {dragId && (issues ?? []).find((i) => i.id === dragId) ? (
+            <div style={{ opacity: 0.8 }}>
+              <IssueCard
+                issue={(issues ?? []).find((i) => i.id === dragId)!}
+                readiness={assigneeAgentByIssueId[dragId] ? readinessMap[assigneeAgentByIssueId[dragId]!] : null}
+                lastRunFailed={failedIssueIds.has(dragId)}
+                runActive={activeIssueIds.has(dragId)}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
       )}
     </div>
   );

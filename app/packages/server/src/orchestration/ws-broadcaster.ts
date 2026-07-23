@@ -7,8 +7,28 @@ const OPEN = 1; // ws.readyState 的 OPEN 常量值
 
 export class WsBroadcaster {
   private conns = new Set<WebSocket>();
+  private interval: NodeJS.Timeout;
+
+  constructor() {
+    // 30s heartbeat ping
+    this.interval = setInterval(() => {
+      for (const ws of this.conns) {
+        if ((ws as any).isAlive === false) {
+          this.remove(ws);
+          ws.terminate();
+          continue;
+        }
+        (ws as any).isAlive = false;
+        ws.ping();
+      }
+    }, 30000);
+  }
 
   add(ws: WebSocket): void {
+    (ws as any).isAlive = true;
+    ws.on('pong', () => {
+      (ws as any).isAlive = true;
+    });
     this.conns.add(ws);
   }
 

@@ -12,6 +12,8 @@ import {
   RunEventTimelineDrawer,
   RunEventTimelineInline,
 } from './RunEventTimeline';
+import { ErrorBoundary } from './ErrorBoundary';
+
 
 const PROPS_OPEN_KEY = 'ma-issue-props-open';
 
@@ -125,8 +127,9 @@ export function IssueDetail({
   const showProps = hydrated ? propsOpen : true;
 
   return (
-    <div
-      className={`issue-detail issue-detail--multica issue-detail--with-props${
+    <ErrorBoundary resetKeys={[id]}>
+      <div
+        className={`issue-detail issue-detail--multica issue-detail--with-props${
         showProps ? '' : ' issue-detail--props-collapsed'
       }`}
       data-testid="issue-detail"
@@ -274,5 +277,6 @@ export function IssueDetail({
         onClose={() => setTimelineOpen(false)}
       />
     </div>
+    </ErrorBoundary>
   );
 }
