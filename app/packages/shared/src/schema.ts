@@ -40,6 +40,15 @@ export const AgentRunStatus = z.enum([
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
+export const AgentRunFailureReason = z.enum([
+  'idle_watchdog',
+  'tool_watchdog',
+  'stale_heartbeat',
+  'exec_error',
+  'timeout',
+]);
+export type AgentRunFailureReason = z.infer<typeof AgentRunFailureReason>;
+
 // bu03：run 种类——issue 工作 run vs 无 Issue 的 quick_create；agent-chat 增加 chat
 export const AgentRunKind = z.enum(['issue', 'quick_create', 'chat']);
 export type AgentRunKind = z.infer<typeof AgentRunKind>;
@@ -56,6 +65,7 @@ export const AgentRun = z.object({
   agentId: BusinessId,
   runtime: RuntimeId,
   status: AgentRunStatus,
+  failureReason: AgentRunFailureReason.nullable().optional(),
   // bu03 / agent-chat：issue | quick_create | chat
   kind: AgentRunKind.default('issue'),
   // bu03 / chat：quick_create|chat 使用；issue run 为 null

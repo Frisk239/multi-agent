@@ -226,6 +226,9 @@ export function toAgentRun(row: RunRow): AgentRun {
     quickPrompt: row.quickPrompt ?? null,
     chatThreadId: (row as { chatThreadId?: string | null }).chatThreadId ?? null,
     error: row.error,
+    failureReason:
+      ((row as { failureReason?: AgentRun['failureReason'] })
+        .failureReason as AgentRun['failureReason']) ?? null,
     startedAt: iso(row.startedAt),
     finishedAt: iso(row.finishedAt),
     lastHeartbeatAt: iso(row.lastHeartbeatAt),

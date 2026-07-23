@@ -335,18 +335,25 @@ function InboxPageInner() {
     [activeAll],
   );
 
-  function selectItem(item: InboxItem) {
-    if (item.issueId) {
-      replaceParams({ issue: item.issueId, item: null });
-    } else {
-      replaceParams({ item: item.id, issue: null });
-    }
-  }
+  const selectItem = useCallback(
+    (item: InboxItem) => {
+      if (item.issueId) {
+        replaceParams({ issue: item.issueId, item: null });
+      } else {
+        replaceParams({ item: item.id, issue: null });
+      }
+    },
+    [replaceParams],
+  );
 
-  function handleArchiveSelected() {
+  const handleArchiveSelected = useCallback(() => {
     if (!selected) return;
     const list = items;
-    const idx = list.findIndex((i) => i.id === selected.id);
+    const idx = list.findIndex(
+      (i) =>
+        i.id === selected.id ||
+        (selected.issueId && i.issueId === selected.issueId),
+    );
     const next = idx >= 0 ? list[idx + 1] ?? list[idx - 1] ?? null : null;
     archive.mutate(selected.id, {
       onSuccess: () => {
@@ -354,7 +361,82 @@ function InboxPageInner() {
         else replaceParams({ issue: null, item: null });
       },
     });
-  }
+  }, [archive, items, replaceParams, selectItem, selected]);
+
+  // 键盘快捷流 (j/k/e/r)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      const tag = target?.tagName;
+      const isEditable =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable;
+      if (isEditable) return;
+
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        if (items.length === 0) return;
+        if (!selected) {
+          selectItem(items[0]);
+        } else {
+          const idx = items.findIndex(
+            (i) =>
+              i.id === selected.id ||
+              (selected.issueId && i.issueId === selected.issueId),
+          );
+          if (idx >= 0 && idx < items.length - 1) {
+            selectItem(items[idx + 1]);
+          } else if (idx < 0 && items.length > 0) {
+            selectItem(items[0]);
+          }
+        }
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (items.length === 0) return;
+        if (!selected) {
+          selectItem(items[items.length - 1]);
+        } else {
+          const idx = items.findIndex(
+            (i) =>
+              i.id === selected.id ||
+              (selected.issueId && i.issueId === selected.issueId),
+          );
+          if (idx > 0) {
+            selectItem(items[idx - 1]);
+          }
+        }
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        if (selected && !selected.archived) {
+          handleArchiveSelected();
+        }
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (!selected) return;
+        const replyZone = document.querySelector<HTMLTextAreaElement>(
+          '[data-testid="inbox-reply-zone"] textarea, [data-testid="issue-reply-zone"] textarea, textarea[name="reply"], textarea',
+        );
+        if (replyZone) {
+          replyZone.focus();
+        } else {
+          const primaryAction = document.querySelector<HTMLElement>(
+            '[data-testid="inbox-retry-run"], [data-testid="inbox-open-run"], [data-testid="inbox-open-chat"], [data-testid="inbox-open-issue"]',
+          );
+          if (primaryAction) {
+            primaryAction.focus();
+            if ('click' in primaryAction && primaryAction.tagName === 'A') {
+              (primaryAction as HTMLElement).click();
+            }
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [items, selected, selectItem, handleArchiveSelected]);
 
   if (isLoading) return <div className="page-container">加载中…</div>;
   if (isError) {
@@ -383,7 +465,14 @@ function InboxPageInner() {
             )}
           </div>
           <div className="page-desc page-desc--quiet">
-            双栏阅读：左列表 · 右详情（有 Issue 可评论回复；Helper 仍用全局浮层）
+            双栏阅读：左列表 · 右详情（有 Issue 可评论回复）
+            <span
+              className="inbox-shortcut-hints"
+              data-testid="inbox-shortcut-hints"
+              style={{ marginLeft: '12px', fontSize: '12px', opacity: 0.85 }}
+            >
+              [j/k] 选择 · [e] 归档 · [r] 回复
+            </span>
           </div>
         </div>
         <div className="page-actions">
@@ -964,18 +1053,23 @@ function InboxRow({
           </span>
         </button>
         {!archived ? (
-          <button
-            type="button"
-            className="inbox-row-archive"
-            data-testid="inbox-row-archive"
-            title="归档"
-            onClick={(e) => {
-              e.stopPropagation();
-              onArchive();
-            }}
-          >
-            归档
-          </button>
+          <div className="inbox-row-actions" data-testid="inbox-row-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '8px' }}>
+            {isFailItem(item) && item.runId ? (
+              <InboxRetryButton item={item} />
+            ) : null}
+            <button
+              type="button"
+              className="inbox-row-archive"
+              data-testid="inbox-row-archive"
+              title="归档 (e)"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+            >
+              归档
+            </button>
+          </div>
         ) : null}
       </div>
     </li>

@@ -25,6 +25,7 @@ import {
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import type { AgentEvent } from '../runtime/types.js';
+import type { AgentRun, AgentRunFailureReason } from '@ma/shared';
 import {
   enrichRunRowWithPathLock,
   normalizePathLockKey,
@@ -617,13 +618,27 @@ async function tick(): Promise<void> {
   }
 }
 
-async function failRun(runId: string, error: string): Promise<void> {
+function inferFailureReason(error: string): AgentRunFailureReason {
+  const l = error.toLowerCase();
+  if (l.includes('tool watchdog') || l.includes('tool_watchdog')) return 'tool_watchdog';
+  if (l.includes('idle')) return 'idle_watchdog';
+  if (l.includes('heartbeat') || l.includes('orphan')) return 'stale_heartbeat';
+  if (l.includes('timeout') || l.includes('timed out')) return 'timeout';
+  return 'exec_error';
+}
+
+export async function failRun(
+  runId: string,
+  error: string,
+  failureReason?: AgentRun['failureReason'],
+): Promise<void> {
   const finishedAt = Date.now();
   const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (row) {
+    const reason = failureReason ?? inferFailureReason(error);
     // A1 修复（审计）：加 WHERE status IN active，避免覆盖已落定的终态。
     db.update(agentRuns)
-      .set({ status: 'failed', finishedAt, error })
+      .set({ status: 'failed', finishedAt, error, failureReason: reason })
       .where(
         and(
           eq(agentRuns.id, runId),

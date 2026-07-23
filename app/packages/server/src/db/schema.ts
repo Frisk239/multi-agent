@@ -243,6 +243,7 @@ export const agentRuns = sqliteTable(
     isLeader: integer('is_leader').notNull().default(0),
     squadId: text('squad_id'),
     error: text('error'),
+    failureReason: text('failure_reason'),
     startedAt: integer('started_at'),
     finishedAt: integer('finished_at'),
     // bu01：执行中 heartbeat；null 时 stale 回退 startedAt/createdAt
