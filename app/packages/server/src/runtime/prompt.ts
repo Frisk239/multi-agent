@@ -86,6 +86,45 @@ export function loadPriorChatMessages(
   return slice.map((r) => ({ role: r.role, body: r.body }));
 }
 
+/**
+ * 查找 chatThreadId 下最近一次 role === 'assistant' 消息之后发生的所有 role === 'user' 消息。
+ * 若无 assistant 消息，则取全部 user 消息。
+ */
+export function getTrailingUserMessages(
+  threadId: string,
+): (typeof chatMessages.$inferSelect)[] {
+  if (!threadId) return [];
+  const rows = db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.threadId, threadId))
+    .orderBy(asc(chatMessages.createdAt))
+    .all();
+  if (!rows.length) return [];
+
+  let lastAssistantIdx = -1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i]!.role === 'assistant') {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+
+  const trailing = lastAssistantIdx >= 0 ? rows.slice(lastAssistantIdx + 1) : rows;
+  return trailing.filter((r) => r.role === 'user');
+}
+
+/**
+ * 将 trailing user 消息按时间顺序合并为文本。
+ */
+export function formatTrailingUserText(threadId: string): string {
+  const msgs = getTrailingUserMessages(threadId);
+  return msgs
+    .map((m) => m.body.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 // buildPrompt —— 组装喂给 CLI 的 user prompt（spec §6.2）：
 // Issue 标题 + 描述 + 最近 K 条 comment 文本 + 一句工作指令。
 // 临时上下文进 user 侧内容（hermes cache 规则，borrow G-PROMPT-CACHE）。
@@ -114,11 +153,13 @@ function serverUrlFromEnv(): string {
 // DS1 opts.skipChatHistoryForResume：真 CLI resume 时不塞假历史（ADR 0004）
 export async function resolveRunPrompt(
   runRow: typeof agentRuns.$inferSelect,
-  opts?: { skipChatHistoryForResume?: boolean },
+  opts?: { skipChatHistoryForResume?: boolean; priorSessionId?: string | null },
 ): Promise<string | null> {
   const kind = (runRow.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue';
   if (kind === 'chat') {
-    const userText = runRow.quickPrompt?.trim();
+    const threadId = runRow.chatThreadId?.trim() ?? '';
+    const trailingText = threadId ? formatTrailingUserText(threadId) : '';
+    const userText = trailingText || runRow.quickPrompt?.trim();
     if (!userText) return null;
     const agent = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
     const name = agent?.name ?? runRow.agentId;
@@ -136,7 +177,6 @@ export async function resolveRunPrompt(
         ].join('\n');
     // 多轮：默认注入同 thread 历史（假 resume）。
     // DS1：真 CLI resume 时跳过历史块，避免双倍上下文（ADR 0004）。
-    const threadId = runRow.chatThreadId?.trim() ?? '';
     const skipHistory = opts?.skipChatHistoryForResume === true;
     const prior =
       !skipHistory && threadId

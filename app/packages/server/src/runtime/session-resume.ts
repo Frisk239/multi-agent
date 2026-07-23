@@ -4,7 +4,7 @@
  */
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns } from '../db/schema.js';
+import { agentRuns, chatThreads } from '../db/schema.js';
 
 export type SessionResumeStatus =
   | 'fresh'
@@ -172,6 +172,20 @@ export function resolvePriorSession(runRow: {
       reason: '最近 session 均已中毒，强制 fresh',
       sourceRunId: poisonedHit.id,
     };
+  }
+
+  // 若无 candidates，尝试从 chatThreads.lastSessionId 回退
+  if (kind === 'chat' && runRow.chatThreadId) {
+    const thread = db.select().from(chatThreads).where(eq(chatThreads.id, runRow.chatThreadId)).get();
+    const threadLastSessionId = thread?.lastSessionId?.trim();
+    if (threadLastSessionId) {
+      return {
+        resumeSessionId: threadLastSessionId,
+        status: 'resumed',
+        reason: `resume 自 chatThread.lastSessionId ${threadLastSessionId}`,
+        sourceRunId: null,
+      };
+    }
   }
 
   return {

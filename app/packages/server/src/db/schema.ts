@@ -363,6 +363,8 @@ export const chatThreads = sqliteTable(
     archivedAt: integer('archived_at'),
     // B1 UX Trust：会话绑 project → CLI cwd = project.localPath
     projectId: text('project_id'),
+    // Slice A：Session Resume 记录最近一次 Provider Session ID
+    lastSessionId: text('last_session_id'),
   },
   (t) => ({
     updatedIdx: index('idx_chat_thread_updated').on(t.updatedAt),

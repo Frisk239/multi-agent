@@ -1,7 +1,7 @@
 // agent-chat：人↔agent 会话 API（对齐 Multica /chat：置顶 / 归档）
 // B1 UX Trust：会话可绑 project → CLI cwd = project.localPath
 import type { FastifyInstance } from 'fastify';
-import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   ArchiveChatThreadInput,
   CreateChatThreadInput,
@@ -19,6 +19,7 @@ import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
 import { resolveChatExecContext } from '../runtime/resolve-run-cwd.js';
+import { formatTrailingUserText } from '../runtime/prompt.js';
 
 function iso(ms: number | null | undefined): string | null {
   if (ms == null) return null;
@@ -63,6 +64,7 @@ function toThread(
     archivedAt: iso(row.archivedAt ?? null),
     projectId,
     projectTitle,
+    lastSessionId: (row as { lastSessionId?: string | null }).lastSessionId ?? null,
   };
 }
 
@@ -273,31 +275,66 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       })
       .run();
 
-    const runId = crypto.randomUUID();
-    db.insert(agentRuns)
-      .values({
-        id: runId,
-        issueId: null,
-        agentId: agent.id,
-        runtime: agent.runtime,
-        status: 'queued',
-        kind: 'chat',
-        quickPrompt: body,
-        chatThreadId: threadId,
-        isLeader: 0,
-        squadId: null,
-        error: null,
-        startedAt: null,
-        finishedAt: null,
-        lastHeartbeatAt: null,
-        createdAt: now,
-      })
-      .run();
+    const trailingText = formatTrailingUserText(threadId);
 
-    db.update(chatMessages).set({ runId }).where(eq(chatMessages.id, userMsgId)).run();
+    // 防重：检查 thread 下是否已有 status === 'queued' 且 startedAt == null 的 Chat Run
+    const existingQueuedRun = db
+      .select()
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.chatThreadId, threadId),
+          eq(agentRuns.kind, 'chat'),
+          eq(agentRuns.status, 'queued'),
+          isNull(agentRuns.startedAt),
+        ),
+      )
+      .orderBy(asc(agentRuns.createdAt))
+      .get();
+
+    let targetRunId: string;
+
+    if (existingQueuedRun) {
+      targetRunId = existingQueuedRun.id;
+      db.update(chatMessages)
+        .set({ runId: targetRunId })
+        .where(and(eq(chatMessages.threadId, threadId), isNull(chatMessages.runId)))
+        .run();
+      db.update(agentRuns)
+        .set({ quickPrompt: trailingText })
+        .where(eq(agentRuns.id, targetRunId))
+        .run();
+    } else {
+      targetRunId = crypto.randomUUID();
+      db.insert(agentRuns)
+        .values({
+          id: targetRunId,
+          issueId: null,
+          agentId: agent.id,
+          runtime: agent.runtime,
+          status: 'queued',
+          kind: 'chat',
+          quickPrompt: trailingText || body,
+          chatThreadId: threadId,
+          isLeader: 0,
+          squadId: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+          lastHeartbeatAt: null,
+          createdAt: now,
+        })
+        .run();
+
+      db.update(chatMessages)
+        .set({ runId: targetRunId })
+        .where(and(eq(chatMessages.threadId, threadId), isNull(chatMessages.runId)))
+        .run();
+    }
+
     db.update(chatThreads).set({ updatedAt: now }).where(eq(chatThreads.id, threadId)).run();
 
-    const run = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!);
+    const run = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, targetRunId)).get()!);
     eventBus.publish({ type: 'run:queued', run });
     wakeRunWorker();
 

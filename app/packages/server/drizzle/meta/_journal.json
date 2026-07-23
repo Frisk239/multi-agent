@@ -225,6 +225,13 @@
       "when": 1786627200000,
       "tag": "0031_run_model_thinking",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1786713600000,
+      "tag": "0032_chat_thread_last_session_id",
+      "breakpoints": true
     }
   ]
 }

@@ -1335,6 +1335,7 @@ export const ChatThread = z.object({
   /** B1：绑定项目 → 执行用 project.localPath */
   projectId: BusinessId.nullable().optional(),
   projectTitle: z.string().nullable().optional(),
+  lastSessionId: z.string().nullable().optional(),
   /** 详情接口可选：本会话 CLI cwd 模式与路径 */
   execContext: ChatExecContext.optional(),
 });

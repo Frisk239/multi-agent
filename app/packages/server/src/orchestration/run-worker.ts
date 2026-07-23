@@ -229,6 +229,7 @@ async function tick(): Promise<void> {
   // DS1：真 resume 时 chat 不塞假历史
   const prompt = await resolveRunPrompt(runRow, {
     skipChatHistoryForResume: Boolean(priorSession.resumeSessionId),
+    priorSessionId: priorSession.resumeSessionId,
   });
   if (!prompt) {
     const kind = (runRow.kind as string) ?? 'issue';
@@ -501,7 +502,10 @@ async function tick(): Promise<void> {
         })
         .run();
       db.update(chatThreads)
-        .set({ updatedAt: finishedAt })
+        .set({
+          updatedAt: finishedAt,
+          ...(sessionPatch.providerSessionId ? { lastSessionId: sessionPatch.providerSessionId } : {}),
+        })
         .where(eq(chatThreads.id, freshRun.chatThreadId))
         .run();
     }
