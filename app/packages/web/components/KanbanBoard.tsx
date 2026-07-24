@@ -21,6 +21,7 @@ import { IssueCard } from './IssueCard';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
+import { OnboardingWizard } from './OnboardingWizard';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -504,6 +505,7 @@ function KanbanBoardInner() {
       data-visible-count={visibleCount}
       data-testid="kanban-board"
     >
+      <OnboardingWizard />
       <AgentsWorkingBanner />
       <div className="kanban-toolbar" data-testid="kanban-toolbar">
         <div className="kanban-toolbar-primary">

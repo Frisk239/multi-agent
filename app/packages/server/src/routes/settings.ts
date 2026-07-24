@@ -14,6 +14,8 @@ import {
 import { db } from '../db/client.js';
 import {
   agentRuns,
+  agents,
+  issues,
   automationRules,
   automationRuns,
   memoryItems,
@@ -454,8 +456,36 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           status: 'running',
           lastHeartbeatAgeMs: 2000,
           health: 'green',
-        }
-      ]
+        },
+      ],
+    };
+  });
+  // GAP-02: 首启 Onboarding 状态 API
+  app.get('/api/settings/onboarding-status', async () => {
+    const cwd = resolveWorkspaceCwd();
+    const agentCount = db.select().from(agents).all().length;
+    const issueCount = db.select().from(issues).all().length;
+
+    let installedRuntimesCount = 0;
+    for (const b of allBackends()) {
+      const d = await b.detect();
+      if (d.installed) installedRuntimesCount++;
+    }
+
+    const hasCwd = Boolean(cwd.configured && cwd.exists);
+    const hasAgents = agentCount > 0;
+    const hasIssues = issueCount > 0;
+    const hasRuntimes = installedRuntimesCount > 0;
+
+    return {
+      hasCwd,
+      hasRuntimes,
+      hasAgents,
+      hasIssues,
+      installedRuntimesCount,
+      agentCount,
+      issueCount,
+      completed: hasCwd && hasAgents && hasRuntimes,
     };
   });
 }
