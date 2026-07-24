@@ -57,4 +57,8 @@ app/.progress/multica-auth/storage-state.json
 # ── git worktrees（隔离开发目录）──
 .worktrees/
 
-# Local skill/work scratch (tickets, wayfinder maps)
+# ── Wiki 运行与测试产物（动态生成快照与日志，勿提交）──
+wiki/
+**/wiki/
+app/packages/server/AGENTS.md
+
