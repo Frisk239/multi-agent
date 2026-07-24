@@ -44,20 +44,17 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-22）
+## 当前方位（2026-07-24）
 
-- **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用**
+- **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用（~90% 覆盖）**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [主航道 gap](app/.progress/multica-gap-2026-07-17.md) · [真站 live gap](app/.progress/multica-gap-live-2026-07-19.md)
 - **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
-- **已交（近）：** UX Trust A–D · Day-0 · P2 · **DS2 手动排序** · **DS4 token/thinking** · **DS1 session resume（claude MVP）** · **DS3 Wiki per-project 根** · **G22 model 路径诚实（run 快照）**
-- **▶ 阶段计划：** [phase-ux-deep-2026-07-22.md](app/.progress/phase-ux-deep-2026-07-22.md)  
-  · 计划 [2026-07-22-ux-deep-slices.md](docs/superpowers/plans/2026-07-22-ux-deep-slices.md)  
-  · **DS2 ✅ · DS4 ✅ · DS1 ✅ · DS3 ✅ · G22 residual ✅**（ADR [0005](docs/adr/0005-wiki-per-project-root.md)；closeout `ds3-wiki-per-project-impl-1.md` / `g22-model-path-impl-1.md`）  
-  · 非目标：云账单 · daemon 多机 · 密钥入库 · 跨 runtime 迁 session · Wiki 全量自动迁移 · opencode models 缓存
-- **上一刀 closeout：** [g22-model-path-impl-1.md](app/.progress/g22-model-path-impl-1.md) · 前刀 [ds3-wiki-per-project-impl-1.md](app/.progress/ds3-wiki-per-project-impl-1.md) · ADR [0005](docs/adr/0005-wiki-per-project-root.md)
-- **Multica 鉴权：** `app/.progress/multica-auth/`（storage-state gitignore）
-- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库  
+- **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
+- **已交（近）：** UX Trust A–D · DS1–DS4 · G22 model · Phase1 4 刀(事件解析/Inbox DM/Git 探针/PriorWorkDir) · Phase2 4 刀(Token 卡/委派链/Memory 沉淀/Live 探针)
+- **▶ 下一阶段切片池：** Issue 列表视图(GAP-03) → Activity Log(GAP-01) → Agent 统计(GAP-04) → Memory 注入(GAP-09) → Onboarding(GAP-02) → RuntimeEvent 协议(GAP-10)
+- **上一刀 closeout：** [multica-phase2-slices-impl-2026-07-24.md](app/.progress/multica-phase2-slices-impl-2026-07-24.md) · [multica-4-slices-impl-2026-07-24.md](app/.progress/multica-4-slices-impl-2026-07-24.md)
+- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

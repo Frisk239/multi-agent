@@ -13,6 +13,7 @@ import {
   useProjects,
   useReorderIssues,
   useSquads,
+  useUpdateIssue,
   useWorkspaceRuns,
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
@@ -303,6 +304,23 @@ function KanbanBoardInner() {
     return ok ? (statusFromUrl as IssueStatus) : undefined;
   }, [statusFromUrl]);
 
+  const updateIssue = useUpdateIssue();
+  const [sortCol, setSortCol] = useState<'identifier' | 'title' | 'status' | 'priority' | 'assignee' | 'updatedAt' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleHeaderSort = useCallback((col: 'identifier' | 'title' | 'status' | 'priority' | 'assignee' | 'updatedAt') => {
+    if (sortCol === col) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else {
+        setSortCol(null);
+        setSortDir('asc');
+      }
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  }, [sortCol, sortDir]);
+
   // 服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤（含 cancelled 列）
   const visible = useMemo(() => {
     return (issues ?? []).filter((i) => {
@@ -311,6 +329,33 @@ function KanbanBoardInner() {
       return true;
     });
   }, [issues, failedOnly, failedIssueIds, statusQuery]);
+
+  const sortedVisible = useMemo(() => {
+    if (!sortCol) {
+      if (sortMode === 'updated') {
+        return [...visible].sort((a, b) => {
+          const tA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const tB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return tB - tA;
+        });
+      }
+      return visible;
+    }
+    return [...visible].sort((a, b) => {
+      let valA: any = a[sortCol as keyof typeof a] ?? '';
+      let valB: any = b[sortCol as keyof typeof b] ?? '';
+      if (sortCol === 'assignee') {
+        valA = a.assignee?.label ?? '';
+        valB = b.assignee?.label ?? '';
+      } else if (sortCol === 'updatedAt') {
+        valA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        valB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      }
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [visible, sortCol, sortDir, sortMode]);
 
   const selectValue = assigneeFromUrl || '';
   const failedCount = failedIssueIds.size;
@@ -887,20 +932,63 @@ function KanbanBoardInner() {
       ) : null}
       {viewMode === 'list' ? (
         <div className="issue-list-view" data-testid="issue-list-view">
-          <table className="issue-list-table">
+          <table className="issue-list-table" data-testid="issue-list-table">
             <thead>
               <tr>
-                <th>标识</th>
-                <th>标题</th>
-                <th>状态</th>
-                <th>优先级</th>
-                <th>指派</th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('identifier')}
+                  data-testid="issue-list-sort-header-identifier"
+                  title="按标识排序"
+                >
+                  标识 {sortCol === 'identifier' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('title')}
+                  data-testid="issue-list-sort-header-title"
+                  title="按标题排序"
+                >
+                  标题 {sortCol === 'title' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('status')}
+                  data-testid="issue-list-sort-header-status"
+                  title="按状态排序"
+                >
+                  状态 {sortCol === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('priority')}
+                  data-testid="issue-list-sort-header-priority"
+                  title="按优先级排序"
+                >
+                  优先级 {sortCol === 'priority' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('assignee')}
+                  data-testid="issue-list-sort-header-assignee"
+                  title="按指派排序"
+                >
+                  指派 {sortCol === 'assignee' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
                 <th>项目</th>
-                <th>更新</th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => handleHeaderSort('updatedAt')}
+                  data-testid="issue-list-sort-header-updatedAt"
+                  title="按更新时间排序"
+                >
+                  更新时间 {sortCol === 'updatedAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                </th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((iss) => {
+              {sortedVisible.map((iss) => {
                 const stLabel =
                   COLUMNS.find((c) => c.status === iss.status)?.title ?? iss.status;
                 const pri =
@@ -909,7 +997,7 @@ function KanbanBoardInner() {
                   '—';
                 const assignee =
                   iss.assignee?.label ??
-                  (iss.assignee ? `${iss.assignee.type}:${iss.assignee.id.slice(0, 6)}` : '—');
+                  (iss.assignee ? `${iss.assignee.type}:${iss.assignee.id.slice(0, 6)}` : '未指派');
                 const proj =
                   iss.projectTitle ??
                   (iss.projectId
@@ -941,25 +1029,70 @@ function KanbanBoardInner() {
                       <Link href={`/issues/${iss.id}`}>{iss.title}</Link>
                     </td>
                     <td>
-                      <span className={`run-pill run-pill--${iss.status}`}>{stLabel}</span>
+                      <select
+                        className="btn-ghost btn-xs"
+                        style={{
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: '12px',
+                          fontWeight: 500,
+                        }}
+                        value={iss.status}
+                        onChange={(e) =>
+                          updateIssue.mutate({
+                            id: iss.id,
+                            input: { status: e.target.value as IssueStatus },
+                          })
+                        }
+                        data-testid="issue-list-status-select"
+                        aria-label={`修改 ${iss.identifier} 状态`}
+                      >
+                        {COLUMNS.map((col) => (
+                          <option key={col.status} value={col.status}>
+                            {col.title}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                    <td className="text-dim text-sm">{pri || '—'}</td>
-                    <td className="text-sm">{assignee}</td>
+                    <td className="text-sm">
+                      <span
+                        className={`priority-badge priority-${iss.priority || 'none'}`}
+                        style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 4 }}
+                      >
+                        {pri}
+                      </span>
+                    </td>
+                    <td className="text-sm text-dim">{assignee}</td>
                     <td className="text-dim text-sm">{proj}</td>
-                    <td className="text-dim text-sm">
+                    <td className="text-dim text-sm" style={{ whiteSpace: 'nowrap' }}>
                       {iss.updatedAt
-                        ? new Date(iss.updatedAt).toLocaleString()
+                        ? new Date(iss.updatedAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
                         : '—'}
+                    </td>
+                    <td>
+                      <Link
+                        href={`/issues/${iss.id}`}
+                        className="btn-ghost btn-xs"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        详情
+                      </Link>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {visible.length === 0 ? (
-            <p className="text-dim text-sm" style={{ padding: 12 }}>
-              无 Issue
-            </p>
+          {sortedVisible.length === 0 ? (
+            <div style={{ padding: 24 }}>
+              <EmptyState
+                title="列表中无符合条件的 Issue"
+                description="请尝试调整筛选条件或重置视图。"
+              />
+            </div>
           ) : null}
         </div>
       ) : (
