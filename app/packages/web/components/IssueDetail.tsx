@@ -267,6 +267,20 @@ export function IssueDetail({
               </button>
             </div>
             <IssueHeader issue={issue} variant="props" />
+            {usage ? (
+              <div className="issue-props-card mt-4 p-4 border rounded shadow-sm text-sm" data-testid="issue-token-usage">
+                <h4 className="font-semibold mb-2">Token 消耗统计</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>Input: <span className="text-dim">{usage.tokensInput || 0}</span></div>
+                  <div>Output: <span className="text-dim">{usage.tokensOutput || 0}</span></div>
+                  <div>Cache Read: <span className="text-dim">{usage.tokensCacheRead || 0}</span></div>
+                  <div>Cache Write: <span className="text-dim">{usage.tokensCacheWrite || 0}</span></div>
+                  <div className="col-span-2 font-medium mt-1">Total: {
+                    (usage.tokensInput || 0) + (usage.tokensOutput || 0) + (usage.tokensCacheRead || 0) + (usage.tokensCacheWrite || 0)
+                  }</div>
+                </div>
+              </div>
+            ) : null}
           </aside>
         ) : null}
       </div>

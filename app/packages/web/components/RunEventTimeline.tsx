@@ -253,12 +253,12 @@ function RunEventItem({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={`run-event-chip run-event-chip--${tone}`}>
-          {tool && isTool ? tool : kindLabel(message.kind)}
+        <span className={`run-event-chip run-event-chip--${tone}${message.body.startsWith('[memory]') ? ' bg-purple-100 text-purple-700' : ''}`}>
+          {message.body.startsWith('[memory]') ? '🧠 记忆' : (tool && isTool ? tool : kindLabel(message.kind))}
         </span>
         <code className="run-event-seq">#{message.seq}</code>
         <span
-          className="run-event-preview"
+          className={`run-event-preview${message.body.startsWith('[memory]') ? ' font-bold text-purple-700' : ''}`}
           data-testid="run-event-preview"
           title={message.body.slice(0, 500)}
         >

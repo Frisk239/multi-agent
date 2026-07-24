@@ -627,6 +627,7 @@ export function SettingsPage() {
 
       {tab === 'health' ? (
       <>
+      <LiveProbesSection />
       {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
         <section className="settings-section" data-testid="settings-guides-section">
           <div className="settings-section-head">
@@ -1121,3 +1122,58 @@ export function SettingsPage() {
     </div>
   );
 }
+
+function LiveProbesSection() {
+  const [probes, setProbes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProbes = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/settings/live-probes');
+      if (res.ok) {
+        const data = await res.json();
+        setProbes(data.probes || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProbes();
+    const timer = setInterval(fetchProbes, 3000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <section className="settings-section" data-testid="settings-live-probes">
+      <div className="settings-section-head">
+        <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+          Live Runtime Probes（进程活体探针）
+        </h2>
+        <p className="settings-section-desc">实时监控在途 CLI 运行进程心跳与状态</p>
+      </div>
+
+      <div className="settings-card" style={{ padding: '16px' }}>
+        {loading ? (
+          <p className="text-dim text-sm">加载探针数据中…</p>
+        ) : probes.length === 0 ? (
+          <p className="text-dim text-sm">目前无在途活跃进程 (All quiet)</p>
+        ) : (
+          <ul style={{ display: 'flex', flexDirection: 'column', gap: '8px', listStyle: 'none', margin: 0, padding: 0 }}>
+            {probes.map((p, idx) => (
+              <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '13px' }}>
+                <span>Run <code>{p.id?.slice(0, 8)}…</code> ({p.runtime})</span>
+                <span className="text-dim">状态: {p.status} · 心跳: {formatAgeMs(Date.now() - (p.lastHeartbeatAt || Date.now()))} 前</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+

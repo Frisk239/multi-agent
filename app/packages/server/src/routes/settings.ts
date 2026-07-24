@@ -442,4 +442,20 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     });
     return { ok: true as const, ...result };
   });
+
+  // Slice D: Settings 活体探针
+  app.get('/api/settings/live-probes', async () => {
+    return {
+      activeCount: 1,
+      probes: [
+        {
+          runId: 'mock-run-id',
+          pid: 1234,
+          status: 'running',
+          lastHeartbeatAgeMs: 2000,
+          health: 'green',
+        }
+      ]
+    };
+  });
 }

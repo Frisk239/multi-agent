@@ -622,6 +622,18 @@ async function tick(): Promise<void> {
             },
             assistantText: finalText,
           });
+          // 发送系统消息
+          const mid = crypto.randomUUID();
+          const msSeq = nextSeq();
+          const msCreatedAt = Date.now();
+          db.insert(runMessages)
+            .values({ id: mid, runId: runRow.id, seq: msSeq, kind: 'system', body: '[memory] 自动沉淀经验到 Memory 库', createdAt: msCreatedAt })
+            .run();
+          eventBus.publish({
+            type: 'run:message',
+            message: toRunMessage({ id: mid, runId: runRow.id, seq: msSeq, kind: 'system', body: '[memory] 自动沉淀经验到 Memory 库', createdAt: msCreatedAt }),
+            issueId: runRow.issueId ?? null,
+          });
         }
       } catch (e) {
         console.error('[memory] syncRunCompleted 包装失败:', e);
