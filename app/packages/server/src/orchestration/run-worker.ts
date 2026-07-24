@@ -24,6 +24,7 @@ import {
 } from '../runtime/session-resume.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
+import { recordActivityLog } from './activity-logger.js';
 import type { AgentEvent } from '../runtime/types.js';
 import type { AgentRun, AgentRunFailureReason } from '@ma/shared';
 import {
@@ -305,6 +306,17 @@ async function tick(): Promise<void> {
     /* ignore write race */
   }
 
+  if (runRow.issueId) {
+    recordActivityLog({
+      issueId: runRow.issueId,
+      actorType: 'agent',
+      actorId: runRow.agentId,
+      actorName: agentRow?.name ?? 'Agent',
+      eventType: 'run_started',
+      payload: { runId: runRow.id, runtime: runRow.runtime },
+    });
+  }
+
   const signal = registerRunAbort(runRow.id);
   const kindForTimeout = (runRow.kind as string) ?? 'issue';
   // F3：chat 保留 5s 进程 pulse（防 worker 假死）；issue/QC 仅事件 touch（idle 语义）
@@ -493,6 +505,16 @@ async function tick(): Promise<void> {
     }
 
     if (result.exitReason === 'failed') {
+      if (runRow.issueId) {
+        recordActivityLog({
+          issueId: runRow.issueId,
+          actorType: 'agent',
+          actorId: runRow.agentId,
+          actorName: agentRow?.name ?? 'Agent',
+          eventType: 'run_failed',
+          payload: { runId: runRow.id, error: result.error },
+        });
+      }
       db.update(agentRuns)
         .set({
           ...(hasTokens ? tokenPatch : {}),
@@ -536,6 +558,17 @@ async function tick(): Promise<void> {
     // 重新读 run（QC 可能已 Link issueId）
     const freshRun = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!;
     const linkedIssueId = freshRun.issueId;
+
+    if (linkedIssueId) {
+      recordActivityLog({
+        issueId: linkedIssueId,
+        actorType: 'agent',
+        actorId: runRow.agentId,
+        actorName: agentRow?.name ?? 'Agent',
+        eventType: 'run_completed',
+        payload: { runId: runRow.id },
+      });
+    }
 
     // agent-chat：回写 assistant 消息到会话
     if (kind === 'chat' && freshRun.chatThreadId) {

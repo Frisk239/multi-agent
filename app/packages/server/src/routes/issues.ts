@@ -20,7 +20,9 @@ import {
   inboxItems,
   issueSubscribers,
   wikiIngestJobs,
+  activityLogs,
 } from '../db/schema.js';
+import { recordActivityLog } from '../orchestration/activity-logger.js';
 import {
   toIssue,
   toComment,
@@ -572,6 +574,42 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
+    if (statusChanged && input.status) {
+      recordActivityLog({
+        issueId: id,
+        actorType: 'member',
+        actorName: '用户',
+        eventType: 'status_changed',
+        payload: { from: prev.status, to: input.status },
+      });
+    }
+
+    if (input.priority !== undefined && input.priority !== prev.priority) {
+      recordActivityLog({
+        issueId: id,
+        actorType: 'member',
+        actorName: '用户',
+        eventType: 'priority_changed',
+        payload: { from: prev.priority, to: input.priority },
+      });
+    }
+
+    if (input.assignee !== undefined) {
+      const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
+      const nextType = input.assignee?.type ?? null;
+      const nextId = input.assignee?.id ?? null;
+      const nextKey = assigneeKey(nextType, nextId);
+      if (prevKey !== nextKey) {
+        recordActivityLog({
+          issueId: id,
+          actorType: 'member',
+          actorName: '用户',
+          eventType: 'assignee_changed',
+          payload: { from: prevKey, to: nextKey },
+        });
+      }
+    }
+
     // S08：Issue 完成 → 入队 wiki ingest（spec B9），不再 fire-and-forget 直调
     // S11：并列 ambient 短记忆（B4 / B6，失败不挡 HTTP）
     if (statusChanged && input.status === 'done') {
@@ -590,6 +628,33 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     const enqueue = toIssueEnqueueMeta(enqResult);
     return reply.send({ ...issue, enqueue });
+  });
+
+  // GET /api/issues/:id/activities —— 查询 Issue 活动日志
+  app.get('/api/issues/:id/activities', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const issueRow = db.select().from(issues).where(eq(issues.id, id)).get();
+    if (!issueRow) return reply.status(404).send({ error: 'issue 不存在' });
+
+    const rows = db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.issueId, id))
+      .orderBy(activityLogs.createdAt)
+      .all();
+
+    const items = rows.map((r) => ({
+      id: r.id,
+      issueId: r.issueId,
+      actorType: r.actorType,
+      actorId: r.actorId,
+      actorName: r.actorName,
+      eventType: r.eventType,
+      payload: r.payload ? JSON.parse(r.payload) : null,
+      createdAt: new Date(r.createdAt).toISOString(),
+    }));
+
+    return reply.send({ activities: items });
   });
 
   // PUT /api/issues/:id/labels —— 全量替换标签集合

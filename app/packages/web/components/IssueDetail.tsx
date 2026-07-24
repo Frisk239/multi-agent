@@ -12,6 +12,7 @@ import {
   RunEventTimelineDrawer,
   RunEventTimelineInline,
 } from './RunEventTimeline';
+import { ActivityTimeline } from './ActivityTimeline';
 import { ErrorBoundary } from './ErrorBoundary';
 
 
@@ -61,6 +62,7 @@ export function IssueDetail({
   const [execOpen, setExecOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(true);
+  const [activityTab, setActivityTab] = useState<'comments' | 'activity'>('comments');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -159,20 +161,47 @@ export function IssueDetail({
           <IssueSubtasks parent={issue} />
 
           <section className="issue-activity" data-testid="issue-activity">
-            <div className="issue-section-head">
-              <h3 className="issue-section-title">动态</h3>
-              <span className="text-dim text-sm" data-testid="issue-activity-count">
-                {commentCount > 0 ? `${commentCount} 条` : '暂无'}
-              </span>
+            <div className="issue-section-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <h3 className="issue-section-title" style={{ margin: 0 }}>动态</h3>
+                <div className="kanban-view-tabs" role="tablist" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`kanban-scope-tab${activityTab === 'comments' ? ' is-active' : ''}`}
+                    aria-selected={activityTab === 'comments'}
+                    data-testid="activity-tab-comments"
+                    onClick={() => setActivityTab('comments')}
+                  >
+                    评论 ({commentCount})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`kanban-scope-tab${activityTab === 'activity' ? ' is-active' : ''}`}
+                    aria-selected={activityTab === 'activity'}
+                    data-testid="activity-tab-log"
+                    onClick={() => setActivityTab('activity')}
+                  >
+                    活动事件流
+                  </button>
+                </div>
+              </div>
             </div>
-            <Timeline items={comments ?? []} hideHeader />
-            <div
-              className="issue-reply-zone"
-              data-testid={replyZoneTestId ?? 'issue-reply-zone'}
-            >
-              <div className="issue-reply-zone-label text-dim text-sm">读后即回</div>
-              <CommentComposer issueId={id} />
-            </div>
+            {activityTab === 'comments' ? (
+              <>
+                <Timeline items={comments ?? []} hideHeader />
+                <div
+                  className="issue-reply-zone"
+                  data-testid={replyZoneTestId ?? 'issue-reply-zone'}
+                >
+                  <div className="issue-reply-zone-label text-dim text-sm">读后即回</div>
+                  <CommentComposer issueId={id} />
+                </div>
+              </>
+            ) : (
+              <ActivityTimeline issueId={id} />
+            )}
           </section>
 
           <section

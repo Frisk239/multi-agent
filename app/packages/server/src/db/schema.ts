@@ -497,3 +497,25 @@ export const automationRuns = sqliteTable(
     ruleCreatedIdx: index('idx_automation_run_rule_created').on(t.ruleId, t.createdAt),
   }),
 );
+
+// —— activity_log（GAP-01：Issue 结构化活动时间线）——
+export const activityLogs = sqliteTable(
+  'activity_log',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    actorType: text('actor_type', { enum: ['member', 'agent', 'system'] })
+      .notNull()
+      .default('system'),
+    actorId: text('actor_id'),
+    actorName: text('actor_name').notNull().default('系统'),
+    eventType: text('event_type').notNull(),
+    payload: text('payload'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    issueIdx: index('idx_activity_log_issue').on(t.issueId),
+  }),
+);

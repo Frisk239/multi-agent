@@ -256,19 +256,21 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 
 <!-- BEGIN MA-WIKI (auto-managed; do not edit) -->
 ## Project Wiki Snapshot
-- Last updated: 2026-07-19
-- Pages: 4
+- Last updated: 2026-07-24
+- Pages: 6
 
 ### Pages
 - [FRI-04: Memory 检索面板 mock](wiki/FRI-04-Memory-检索面板-mock（Should）.md)
 - [FRI-05: 答辩 Demo Script 排练（≤10 min）](wiki/FRI-05-答辩-Demo-Script-排练（≤10-min）.md)
 - [FRI-07: Agent runtime 适配调研（Pi / Claude / opencode）](wiki/FRI-07-Agent-runtime-适配调研（Pi--Claude--opencode）.md)
 - [FRI-08: Wiki 架构占位与 llm-wiki-pattern 对齐](wiki/FRI-08-Wiki-架构占位与-llm-wiki-pattern-对齐.md)
+- [FRI-47: 巡检 2026-07-19](wiki/FRI-47-巡检-2026-07-19.md)
+- [Page Global Only](wiki/query-Page-Global-Only.md)
 
 ### Recent ingests
-- [2026-07-19] query | -
-- [2026-07-19] ingest | FRI-05
-- [2026-07-19] ingest | FRI-04
-- [2026-07-19] ingest | FRI-07
-- [2026-07-19] ingest | FRI-08
+- [2026-07-21] health | 结构检查
+- [2026-07-22] query | query
+- [2026-07-22] health | 结构检查
+- [2026-07-22] health | 结构检查
+- [2026-07-24] ingest | FRI-47
 <!-- END MA-WIKI -->

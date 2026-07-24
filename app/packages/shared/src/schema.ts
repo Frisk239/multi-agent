@@ -121,6 +121,30 @@ export const AgentRun = z.object({
 });
 export type AgentRun = z.infer<typeof AgentRun>;
 
+export const ActivityEventType = z.enum([
+  'status_changed',
+  'assignee_changed',
+  'priority_changed',
+  'run_started',
+  'run_completed',
+  'run_failed',
+  'comment_created',
+  'mention_delegated',
+]);
+export type ActivityEventType = z.infer<typeof ActivityEventType>;
+
+export const ActivityLog = z.object({
+  id: z.string(),
+  issueId: BusinessId,
+  actorType: z.enum(['member', 'agent', 'system']),
+  actorId: z.string().nullable().optional(),
+  actorName: z.string(),
+  eventType: ActivityEventType,
+  payload: z.record(z.any()).nullable().optional(),
+  createdAt: z.string().datetime(),
+});
+export type ActivityLog = z.infer<typeof ActivityLog>;
+
 // run-observability + runs-leader：GET /api/runs 查询（issueId 可选）
 // runs-active-nav：status=active 表示 queued|running（侧栏在途）
 export const ListRunsStatus = z.union([AgentRunStatus, z.literal('active')]);
