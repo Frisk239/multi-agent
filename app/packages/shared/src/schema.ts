@@ -163,6 +163,27 @@ export const AgentStats = z.object({
 });
 export type AgentStats = z.infer<typeof AgentStats>;
 
+export const RuntimeEventKind = z.enum([
+  'text',
+  'tool_use',
+  'tool_result',
+  'thinking',
+  'error',
+  'system_log',
+]);
+export type RuntimeEventKind = z.infer<typeof RuntimeEventKind>;
+
+export const RuntimeEvent = z.object({
+  id: z.string(),
+  runId: BusinessId,
+  kind: RuntimeEventKind,
+  title: z.string().optional(),
+  content: z.string(),
+  metadata: z.record(z.any()).optional(),
+  timestamp: z.string().datetime(),
+});
+export type RuntimeEvent = z.infer<typeof RuntimeEvent>;
+
 // run-observability + runs-leader：GET /api/runs 查询（issueId 可选）
 // runs-active-nav：status=active 表示 queued|running（侧栏在途）
 export const ListRunsStatus = z.union([AgentRunStatus, z.literal('active')]);
