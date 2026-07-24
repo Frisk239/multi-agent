@@ -145,6 +145,24 @@ export const ActivityLog = z.object({
 });
 export type ActivityLog = z.infer<typeof ActivityLog>;
 
+export const AgentStatsDay = z.object({
+  date: z.string(),
+  total: z.number().int().nonnegative(),
+  success: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+});
+
+export const AgentStats = z.object({
+  totalRuns: z.number().int().nonnegative(),
+  successCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  cancelledCount: z.number().int().nonnegative(),
+  successRate: z.number().min(0).max(100),
+  avgDurationMs: z.number().nonnegative(),
+  runsByDay: z.array(AgentStatsDay),
+});
+export type AgentStats = z.infer<typeof AgentStats>;
+
 // run-observability + runs-leader：GET /api/runs 查询（issueId 可选）
 // runs-active-nav：status=active 表示 queued|running（侧栏在途）
 export const ListRunsStatus = z.union([AgentRunStatus, z.literal('active')]);

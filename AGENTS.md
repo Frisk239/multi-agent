@@ -257,7 +257,7 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 <!-- BEGIN MA-WIKI (auto-managed; do not edit) -->
 ## Project Wiki Snapshot
 - Last updated: 2026-07-24
-- Pages: 6
+- Pages: 7
 
 ### Pages
 - [FRI-04: Memory 检索面板 mock](wiki/FRI-04-Memory-检索面板-mock（Should）.md)
@@ -265,12 +265,13 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 - [FRI-07: Agent runtime 适配调研（Pi / Claude / opencode）](wiki/FRI-07-Agent-runtime-适配调研（Pi--Claude--opencode）.md)
 - [FRI-08: Wiki 架构占位与 llm-wiki-pattern 对齐](wiki/FRI-08-Wiki-架构占位与-llm-wiki-pattern-对齐.md)
 - [FRI-47: 巡检 2026-07-19](wiki/FRI-47-巡检-2026-07-19.md)
+- [Issue FRI-56: B3 mention no leader](wiki/FRI-56-B3-mention-no-leader.md)
 - [Page Global Only](wiki/query-Page-Global-Only.md)
 
 ### Recent ingests
-- [2026-07-21] health | 结构检查
 - [2026-07-22] query | query
 - [2026-07-22] health | 结构检查
 - [2026-07-22] health | 结构检查
 - [2026-07-24] ingest | FRI-47
+- [2026-07-24] ingest | FRI-56
 <!-- END MA-WIKI -->

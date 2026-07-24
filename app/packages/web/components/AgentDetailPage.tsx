@@ -472,6 +472,25 @@ function OverviewTab({
         </div>
       </div>
 
+      <div className="agent-stats-distribution" data-testid="agent-stats-distribution-bar" style={{ margin: '16px 0', padding: 12, borderRadius: 8, background: 'color-mix(in srgb, var(--bg-elevated) 80%, transparent)', border: '1px solid var(--border-subtle)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: 6, color: 'var(--text-muted)' }}>
+          <span>近 30 天任务构成 ({stats.total} 次)</span>
+          <span>完成 {stats.completed} · 失败 {stats.failed} · 取消 {stats.cancelled} · 在途 {stats.active}</span>
+        </div>
+        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--border-subtle)' }}>
+          {stats.total > 0 ? (
+            <>
+              <div style={{ width: `${(stats.completed / stats.total) * 100}%`, background: '#10b981' }} title={`完成: ${stats.completed}`} />
+              <div style={{ width: `${(stats.failed / stats.total) * 100}%`, background: '#ef4444' }} title={`失败: ${stats.failed}`} />
+              <div style={{ width: `${(stats.cancelled / stats.total) * 100}%`, background: '#f59e0b' }} title={`取消: ${stats.cancelled}`} />
+              <div style={{ width: `${(stats.active / stats.total) * 100}%`, background: '#3b82f6' }} title={`在途: ${stats.active}`} />
+            </>
+          ) : (
+            <div style={{ width: '100%', background: 'var(--border-subtle)' }} />
+          )}
+        </div>
+      </div>
+
       <div className="agent-overview-section">
         <div className="agent-overview-section-head">
           <h3 className="agent-overview-title">最近工作</h3>
