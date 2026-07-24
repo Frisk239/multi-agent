@@ -51,9 +51,9 @@
 - **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
-- **已交（近）：** UX Trust A–D · DS1–DS4 · G22 model · Phase1 4 刀(事件解析/Inbox DM/Git 探针/PriorWorkDir) · Phase2 4 刀(Token 卡/委派链/Memory 沉淀/Live 探针)
-- **▶ 下一阶段切片池：** Issue 列表视图(GAP-03) → Activity Log(GAP-01) → Agent 统计(GAP-04) → Memory 注入(GAP-09) → Onboarding(GAP-02) → RuntimeEvent 协议(GAP-10)
-- **上一刀 closeout：** [multica-phase2-slices-impl-2026-07-24.md](app/.progress/multica-phase2-slices-impl-2026-07-24.md) · [multica-4-slices-impl-2026-07-24.md](app/.progress/multica-4-slices-impl-2026-07-24.md)
+- **已交（近）：** UX Trust A–D · DS1–DS4 · G22 model · Phase1 4 刀 · Phase2 4 刀 · **Slice 1 (Issue 列表视图 GAP-03)** · **Slice 2 (Activity Log GAP-01)** · **Slice 3 (Agent 30天统计 GAP-04)** · **Slice 4 (Memory 自动注入 GAP-09)** · **Slice 5 (Onboarding 向导 GAP-02)** · **Slice 6 (RuntimeEvent 协议 GAP-10)** (全部经 Playwright E2E 校验，推 main)
+- **▶ 下一阶段切片池：** 自定义字段(GAP-05) / 流式加深(GAP-06) / 快捷键(GAP-07) / 通知偏好(GAP-08)
+- **上一刀 closeout：** [slice6-runtimeevent-impl-1.md](app/.progress/slice6-runtimeevent-impl-1.md) · [slice5-onboarding-impl-1.md](app/.progress/slice5-onboarding-impl-1.md) · [slice4-memoryinject-impl-1.md](app/.progress/slice4-memoryinject-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 

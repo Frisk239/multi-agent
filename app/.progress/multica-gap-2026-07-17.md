@@ -22,18 +22,17 @@
 | Project 容器 + localPath + Git dirty 探针 + cwd 路由 | ✅ | G16 · Phase1 Slice 3 |
 | UX Trust A–D (cwd 诚实 / 旁路同闸 / 韧性 / 手感) | ✅ | Wave A–D |
 | PriorWorkDir + Session 继承 (rerun) | ✅ | Phase1 Slice 4 |
-| Token 用量卡片 + 用量中心 + 用户画像 | ✅ | Phase2 Slice A · G17–G18 |
+| Issue 列表视图 (GAP-03) + 表头排序 | ✅ | Slice 1 (`slice1-listview-impl-1.md`) |
+| Activity Log 结构化时间线 (GAP-01) | ✅ | Slice 2 (`slice2-activitylog-impl-1.md`) |
+| Agent 30 天统计仪表盘 + 构成条 (GAP-04) | ✅ | Slice 3 (`slice3-agentstats-impl-1.md`) |
+| Memory 自动检索注入 Prompt (GAP-09) | ✅ | Slice 4 (`slice4-memoryinject-impl-1.md`) |
+| Onboarding 首启向导 (GAP-02) | ✅ | Slice 5 (`slice5-onboarding-impl-1.md`) |
+| RuntimeEvent 统一事件协议 (GAP-10) | ✅ | Slice 6 (`slice6-runtimeevent-impl-1.md`) |
 
 ## 体验可演进（下一阶段切片池 · 2026-07-24 审计）
 
 | ID | 缺口 | 优先级 | 说明 |
 |---|---|---|---|
-| **GAP-03** | **Issue 列表视图** | P0 | Multica 有筛选/手动/看板三视图；本仓仅看板 |
-| **GAP-01** | **Activity Log 结构化时间线** | P0 | Issue 详情缺状态变更审计事件流 |
-| **GAP-02** | **Onboarding 首启向导** | P1 | 新用户无引导 |
-| **GAP-04** | **Agent 30 天统计仪表盘** | P1 | 缺成功率/耗时聚合图表 |
-| **GAP-09** | **Memory 向量检索自动注入 prompt** | P1 | 知识闭环关键一步（学 Hermes prefetch） |
-| **GAP-10** | **RuntimeEvent 统一事件协议** | P1/P2 | 各 backend 事件格式各异 |
 | GAP-05–08 | 自定义字段 / 流式加深 / 快捷键 / 通知偏好 | P1–P2 | 体验纵深 |
 | GAP-11–17 | 委派子代理 / Tool Registry / 长对话压缩 / … | P2 | 远期 |
 
