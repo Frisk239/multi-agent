@@ -207,9 +207,26 @@ export function ChatPage() {
     selectThread(t.id);
   }
 
+  async function checkGitDirty(projectId: string | null) {
+    if (!projectId) return true;
+    try {
+      const res = await fetch(`http://localhost:3001/api/projects/${projectId}/git-status`);
+      if (res.ok) {
+        const { status, count } = await res.json() as { status: string; count: number };
+        if (status === 'dirty' && !window.confirm(`⚠️ 本地代码仓库存在未提交修改 (${count} 个文件)，派发 Agent 可能会修改/覆写相关代码。是否继续？`)) {
+          return false;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  }
+
   async function handleSend() {
     const body = draft.trim();
     if (!body || !threadId || liveRun) return;
+    if (!(await checkGitDirty(selectedThread?.projectId ?? null))) return;
     setDraft('');
     await postMessage.mutateAsync(body);
   }
@@ -225,6 +242,7 @@ export function ChatPage() {
 
   async function handleResendLast() {
     if (!lastUserBody || !threadId || liveRun || postMessage.isPending) return;
+    if (!(await checkGitDirty(selectedThread?.projectId ?? null))) return;
     await postMessage.mutateAsync(lastUserBody);
   }
 

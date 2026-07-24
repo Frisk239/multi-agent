@@ -824,7 +824,16 @@ function InboxPageInner() {
                   </div>
                   <div className="inbox-issue-toolbar-actions">
                     {isFailItem(selected) && selected.runId ? (
-                      <InboxRetryButton item={selected} />
+                      <>
+                        <InboxRetryButton item={selected} />
+                        <Link
+                          href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${selected.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(selected.body ?? selected.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
+                          className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
+                          data-testid="inbox-dm-agent"
+                        >
+                          带日志追问 (DM)
+                        </Link>
+                      </>
                     ) : null}
                     {selected.runId ? (
                       <Link
@@ -936,7 +945,16 @@ function InboxPageInner() {
                     data-testid="inbox-detail-actions"
                   >
                     {isFailItem(selected) && selected.runId ? (
-                      <InboxRetryButton item={selected} />
+                      <>
+                        <InboxRetryButton item={selected} />
+                        <Link
+                          href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${selected.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(selected.body ?? selected.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
+                          className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
+                          data-testid="inbox-dm-agent"
+                        >
+                          带日志追问 (DM)
+                        </Link>
+                      </>
                     ) : null}
                     {isFailItem(selected) &&
                     isCwdFailBody(selected.body ?? selected.summary) ? (

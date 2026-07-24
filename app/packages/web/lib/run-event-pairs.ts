@@ -87,13 +87,14 @@ export function pairRunToolEvents(messages: RunMessage[]): RunEventViewItem[] {
     }
     if (m.kind !== 'tool_end' || startIndexes.length === 0) continue;
 
-    const endName = parseToolName(m.body);
+    const endNameRaw = parseToolName(m.body);
+    const endName = endNameRaw?.toLowerCase() === 'tool' ? null : endNameRaw;
     let startIdx = -1;
     if (endName) {
       for (let s = startIndexes.length - 1; s >= 0; s--) {
         const si = startIndexes[s]!;
         const sn = parseToolName(messages[si]!.body);
-        if (sn == null || sn === endName) {
+        if (sn == null || sn.toLowerCase() === 'tool' || sn === endName) {
           startIdx = si;
           startIndexes.splice(s, 1);
           break;
@@ -114,8 +115,11 @@ export function pairRunToolEvents(messages: RunMessage[]): RunEventViewItem[] {
     const endIdx = pairEndByStart.get(i);
     if (m.kind === 'tool_start' && endIdx != null) {
       const end = messages[endIdx]!;
-      const toolName =
-        parseToolName(m.body) ?? parseToolName(end.body) ?? null;
+      let startName = parseToolName(m.body);
+      let endNameParsed = parseToolName(end.body);
+      if (endNameParsed?.toLowerCase() === 'tool') endNameParsed = null;
+      if (startName?.toLowerCase() === 'tool') startName = null;
+      const toolName = startName ?? endNameParsed ?? null;
       out.push({ type: 'pair', start: m, end, toolName });
       continue;
     }

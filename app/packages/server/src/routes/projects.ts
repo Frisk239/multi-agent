@@ -66,7 +66,33 @@ function toProject(
   };
 }
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+
 export async function projectRoutes(app: FastifyInstance): Promise<void> {
+  // GET /api/projects/:id/git-status
+  app.get('/api/projects/:id/git-status', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
+      .get();
+    if (!row) return reply.status(404).send({ error: 'project 不存在' });
+    if (!row.localPath || !isUsableLocalDirectory(row.localPath)) {
+      return { status: 'unknown', clean: false, count: 0 };
+    }
+    try {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: row.localPath });
+      const lines = stdout.split('\n').filter(l => l.trim().length > 0);
+      return { status: lines.length === 0 ? 'clean' : 'dirty', clean: lines.length === 0, count: lines.length };
+    } catch {
+      return { status: 'unknown', clean: false, count: 0 };
+    }
+  });
+
   // GET /api/projects
   app.get('/api/projects', async () => {
     const rows = db

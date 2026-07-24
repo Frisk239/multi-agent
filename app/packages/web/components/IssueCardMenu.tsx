@@ -130,7 +130,7 @@ export function IssueCardMenu({
     close();
   };
 
-  const setAssignee = (value: string) => {
+  const setAssignee = async (value: string) => {
     if (value === currentAssigneeValue) {
       close();
       return;
@@ -141,6 +141,21 @@ export function IssueCardMenu({
       close();
       return;
     }
+
+    if (issue.projectId) {
+      try {
+        const res = await fetch(`http://localhost:3001/api/projects/${issue.projectId}/git-status`);
+        if (res.ok) {
+          const { status, count } = await res.json() as { status: string; count: number };
+          if (status === 'dirty' && !window.confirm(`⚠️ 本地代码仓库存在未提交修改 (${count} 个文件)，派发 Agent 可能会修改/覆写相关代码。是否继续？`)) {
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     if (value.startsWith('agent:')) {
       const id = value.slice('agent:'.length);
       const ag = agents.find((a) => a.id === id);

@@ -228,8 +228,21 @@ export function resolveRunCwd(opts: {
   workspaceId?: string;
   /** issue 或 chat thread 绑定的 project.localPath（已从 DB 读出） */
   projectLocalPath?: string | null;
+  priorCwdPath?: string | null;
+  priorCwdMode?: string | null;
 }): ResolvedRunCwd {
   const kind = opts.kind || 'issue';
+
+  if (opts.priorCwdPath && opts.priorCwdMode) {
+    if (opts.priorCwdMode === 'project_local' || opts.priorCwdMode === 'workspace' || ensureDir(opts.priorCwdPath)) {
+      return {
+        path: opts.priorCwdPath,
+        mode: opts.priorCwdMode as ResolvedRunCwd['mode'],
+        exists: true,
+        error: null,
+      };
+    }
+  }
 
   // 各 kind 优先项目本机目录（学 Multica LocalWorkDir）
   const pl = opts.projectLocalPath?.trim();

@@ -70,7 +70,7 @@ function parseClaudeLine(
           if (b.type === 'tool_result') {
             onEvent({
               type: 'tool_end',
-              name: 'tool',
+              name: b.tool_name ?? b.name ?? 'tool',
               result: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '').slice(0, 4000),
             });
           }

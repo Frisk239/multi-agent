@@ -202,6 +202,16 @@ async function tick(): Promise<void> {
         projectLocalPath = proj?.localPath ?? null;
       }
     }
+    let priorCwdPath: string | null = null;
+    let priorCwdMode: string | null = null;
+    if (runRow.rerunOfRunId) {
+      const priorRun = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.rerunOfRunId)).get();
+      if (priorRun?.cwdPath && priorRun?.cwdMode) {
+        priorCwdPath = priorRun.cwdPath;
+        priorCwdMode = priorRun.cwdMode;
+      }
+    }
+
     const { resolveRunCwd } = await import('../runtime/resolve-run-cwd.js');
     const cwdInfo = resolveRunCwd({
       kind: kindEarly,
@@ -209,6 +219,8 @@ async function tick(): Promise<void> {
       issueId: runRow.issueId ?? null,
       chatThreadId: runRow.chatThreadId ?? null,
       projectLocalPath,
+      priorCwdPath,
+      priorCwdMode,
     });
     const cwd = cwdInfo.path;
     // A2：落库 cwd 审计（成功或失败路径均写，便于 UI「跑在哪」）
@@ -377,6 +389,13 @@ async function tick(): Promise<void> {
 
   try {
     // DS1：启动前日志（真 resume / fresh / poison）
+    if (runRow.rerunOfRunId) {
+      onEvent({
+        type: 'log',
+        text: `[session] Resuming environment from prior run ${runRow.rerunOfRunId.slice(0, 12)}\n`,
+      });
+    }
+
     if (priorSession.resumeSessionId) {
       onEvent({
         type: 'log',
