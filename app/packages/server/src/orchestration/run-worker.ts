@@ -425,6 +425,13 @@ async function tick(): Promise<void> {
       });
     }
 
+    if (prompt.includes('# Memory Context')) {
+      onEvent({
+        type: 'log',
+        text: `[memory] Auto-injected relevant memory context into prompt\n`,
+      });
+    }
+
     // G22 residual：执行前诚实 log（与落库快照一致）
     onEvent({
       type: 'log',

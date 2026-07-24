@@ -61,13 +61,26 @@ export class MemoryManager {
     description: string | null;
   }): Promise<string | null> {
     try {
+      if (
+        process.env.MA_MEMORY_AUTO_INJECT === '0' ||
+        process.env.MA_MEMORY_AUTO_INJECT === 'false'
+      ) {
+        return null;
+      }
       if (!this.external?.isAvailable()) return null;
       const q = truncate(`${issue.title} ${issue.description ?? ''}`.trim(), 500);
       const result = await this.external.prefetch(q, {
         sessionId: issue.id,
         limit: 5,
       });
-      if (!result.items.length) return null;
+      if (!result.items || result.items.length === 0) {
+        // 托底：分词未直接匹配时，自动提取最近 3 条系统/运行记忆 (Hermes prefetch fallback)
+        const fallback = this.external.prefetchSync?.('', { limit: 3 });
+        if (fallback && fallback.items.length > 0) {
+          return formatMemoryContextBlock(fallback.items);
+        }
+        return null;
+      }
       return formatMemoryContextBlock(result.items);
     } catch (e) {
       console.error('[memory] prefetch 失败:', e);
