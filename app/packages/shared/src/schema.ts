@@ -823,6 +823,7 @@ export const AgentDetail = AgentSummary.extend({
   concurrency: z.number(),
   mcpServers: z.string().nullable(),
   instructions: z.string(),
+  allowedPaths: z.string().nullable(),
   archivedAt: z.string().datetime().nullable(),
 });
 export type AgentDetail = z.infer<typeof AgentDetail>;
@@ -842,6 +843,7 @@ export const CreateAgentInput = z.object({
   category: z.string().max(80).optional().nullable(),
   concurrency: z.number().int().min(1).max(8).optional().default(1),
   instructions: z.string().max(20000).optional().default(''),
+  allowedPaths: z.string().max(10000).optional().nullable(),
   mcpServers: z.string().nullable().optional(),
   id: OptionalClientId.optional(),
 });
@@ -856,6 +858,7 @@ export const UpdateAgentInput = z
     category: z.string().max(80).nullable().optional(),
     concurrency: z.number().int().min(1).max(8).optional(),
     instructions: z.string().max(20000).optional(),
+    allowedPaths: z.string().max(10000).nullable().optional(),
     mcpServers: z.string().nullable().optional(),
     // G25：true=归档，false=取消归档
     archived: z.boolean().optional(),

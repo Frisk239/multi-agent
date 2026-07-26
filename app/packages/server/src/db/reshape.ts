@@ -341,6 +341,7 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     concurrency: row.concurrency,
     mcpServers: row.mcpServers ?? null,
     instructions: row.instructions ?? '',
+    allowedPaths: row.allowedPaths ?? null,
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
   };

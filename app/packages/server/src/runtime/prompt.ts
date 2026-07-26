@@ -175,6 +175,12 @@ export async function resolveRunPrompt(
           '不要主动探索/搜索上级目录或其它仓库；用户未给出路径时，用对话回答即可。',
           '只有用户明确给出本机路径并要求读写时，才访问该路径。',
         ].join('\n');
+    
+    const allowedPaths = agent?.allowedPaths?.trim();
+    const boundaryFence = allowedPaths
+      ? `<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`
+      : null;
+
     // 多轮：默认注入同 thread 历史（假 resume）。
     // DS1：真 CLI resume 时跳过历史块，避免双倍上下文（ADR 0004）。
     const skipHistory = opts?.skipChatHistoryForResume === true;
@@ -189,6 +195,7 @@ export async function resolveRunPrompt(
     const parts = [
       `你是智能体「${name}」，正在与用户进行一对一聊天（非 Issue 任务）。`,
       instructions ? `你的指令：\n${instructions}` : null,
+      boundaryFence,
       cwdNote,
       '请直接、简洁地回答用户。不要擅自改仓库代码，除非用户明确要求。',
       skipHistory
@@ -329,6 +336,10 @@ export async function buildPrompt(
     const instructions = agent?.instructions?.trim();
     if (instructions) {
       parts.push(`# Agent Instructions\n${instructions}`);
+    }
+    const allowedPaths = agent?.allowedPaths?.trim();
+    if (allowedPaths) {
+      parts.push(`<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`);
     }
   }
 

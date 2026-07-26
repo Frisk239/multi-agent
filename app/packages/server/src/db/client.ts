@@ -53,6 +53,12 @@ try {
   if (!cols.has('invalid_at')) {
     sqlite.exec('ALTER TABLE memory_items ADD COLUMN invalid_at INTEGER;');
   }
+
+  const agentTableInfo = sqlite.pragma('table_info(agent)') as Array<{ name: string }>;
+  const agentCols = new Set(agentTableInfo.map((c) => c.name));
+  if (!agentCols.has('allowed_paths')) {
+    sqlite.exec('ALTER TABLE agent ADD COLUMN allowed_paths TEXT;');
+  }
 } catch {
   // ignore
 }

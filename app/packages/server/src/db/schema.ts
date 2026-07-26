@@ -51,6 +51,7 @@ export const agents = sqliteTable('agent', {
   concurrency: integer('concurrency').notNull().default(1),
   mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
   instructions: text('instructions').notNull().default(''),
+  allowedPaths: text('allowed_paths'),
   // G25：软归档；null=活跃（对齐 Multica archived_at）
   archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull(),

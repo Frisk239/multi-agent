@@ -389,7 +389,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             {tab === 'work' && <RunsTab agentId={agentId} />}
             {tab === 'capabilities' && <CapabilitiesTab agentId={agentId} />}
             {tab === 'settings' && (
-              <InstructionsTab agentId={agentId} initial={agent.instructions ?? ''} />
+              <InstructionsTab
+                agentId={agentId}
+                initial={agent.instructions ?? ''}
+                allowedPathsInitial={agent.allowedPaths ?? ''}
+              />
             )}
           </div>
         </div>
@@ -819,19 +823,26 @@ function RunsTab({ agentId }: { agentId: string }) {
 function InstructionsTab({
   agentId,
   initial,
+  allowedPathsInitial,
 }: {
   agentId: string;
   initial: string;
+  allowedPathsInitial: string;
 }) {
   const update = useUpdateAgent(agentId);
   const [draft, setDraft] = useState(initial);
+  const [draftPaths, setDraftPaths] = useState(allowedPathsInitial);
 
   useEffect(() => {
     setDraft(initial);
   }, [initial]);
 
+  useEffect(() => {
+    setDraftPaths(allowedPathsInitial);
+  }, [allowedPathsInitial]);
+
   function save() {
-    update.mutate({ instructions: draft });
+    update.mutate({ instructions: draft, allowedPaths: draftPaths });
   }
 
   return (
@@ -845,8 +856,21 @@ function InstructionsTab({
         onChange={(e) => setDraft(e.target.value)}
         placeholder="例如：Always reply short. Prefer existing project conventions."
         spellCheck={false}
-        rows={12}
+        rows={8}
       />
+      
+      <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
+        修改边界与路径围栏 (Allowed Paths)。限制 Agent 只能修改这些文件。
+        非空时注入 <code>&lt;boundary-fence&gt;</code> 白名单。支持逗号或换行分隔 Glob。
+      </div>
+      <textarea
+        value={draftPaths}
+        onChange={(e) => setDraftPaths(e.target.value)}
+        placeholder="例如：src/frontend/**, docs/*"
+        spellCheck={false}
+        rows={4}
+      />
+      
       <div className="mcp-editor-actions">
         <button
           type="button"
@@ -854,7 +878,7 @@ function InstructionsTab({
           onClick={save}
           disabled={update.isPending}
         >
-          {update.isPending ? '保存中…' : '保存指令'}
+          {update.isPending ? '保存中…' : '保存设置'}
         </button>
       </div>
     </div>
