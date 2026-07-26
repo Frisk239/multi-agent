@@ -18,8 +18,8 @@ async function runFullE2ETest() {
     });
 
     // 2. 访问主页/看板
-    await page.goto('http://localhost:3000/', { waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    await page.goto('http://localhost:3000/', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
 
     // 切换到列表视图
     const listViewBtn = page.locator('button:has-text("列表")').first();
