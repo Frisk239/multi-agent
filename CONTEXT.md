@@ -44,16 +44,15 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-24）
+## 当前方位（2026-07-26）
 
-- **阶段：** S01–S12 + 补1–5 已合；补充阶段收官；**主航道日用路径已可用（~90% 覆盖）**
-- **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [主航道 gap](app/.progress/multica-gap-2026-07-17.md) · [真站 live gap](app/.progress/multica-gap-live-2026-07-19.md)
-- **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
-- **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
-- **已交（近）：** UX Trust A–D · DS1–DS4 · **Slice 1-12 (Phase A+B 12 刀全量完结)** · **代码审查 16 项缺陷修复完成 (C1-C7 & W1-W9)** (经严密 Playwright/E2E 校验，推 main)
-- **▶ 下一阶段切片池：** Phase C (Context 压缩 / Tool Registry 可视化 / 双层消息隔离 / 报告导出 / OpenTelemetry)
-- **上一刀 closeout：** [slice12-subagentdelegation-impl-1.md](app/.progress/slice12-subagentdelegation-impl-1.md) · [code_review_slice9_12.md](C:\Users\a2691\.gemini\antigravity\brain\23c5d8f6-cdd6-4067-bb71-e05f8f2aaa6f\code_review_slice9_12.md)
+- **阶段：** S01–S13 + 补1–5 已合 main；**体验纵深阶段推进中**
+- **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [全量 gap 分析 2026-07-26](app/.progress/gap-analysis-full-2026-07-26.md)
+- **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
+- **全量缺口与切片规划（2026-07-26）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md) — 三期 12 刀切片规划
+- **已交（近）：** **Slice 13 (Agent 动态脉冲状态与 WS 事件加深)** · Slice 1-12 (Phase A+B) (经严密 Playwright/E2E 校验，推 main)
+- **▶ 下一阶段切片池：** Slice 14 (S1: 富文本评论 + Live @Mention) / Slice 15 (S3: Token 成本归因面板)
+- **上一刀 closeout：** [slice13-agentlivepulse-impl-1.md](app/.progress/slice13-agentlivepulse-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
