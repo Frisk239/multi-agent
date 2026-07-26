@@ -50,6 +50,11 @@ function MemoryPageInner() {
     detailIdFromUrl || null,
   );
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [clientNow, setClientNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    setClientNow(Date.now());
+  }, []);
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -569,7 +574,7 @@ function MemoryPageInner() {
                       )}
                     </td>
                     <td>
-                      {m.invalidAt && new Date(m.invalidAt).getTime() <= Date.now() ? (
+                      {m.invalidAt && clientNow !== null && new Date(m.invalidAt).getTime() <= clientNow ? (
                         <span className="badge" style={{ color: 'var(--color-red)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Expired</span>
                       ) : (
                         <span className="badge" style={{ color: 'var(--color-green)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Active</span>
@@ -789,7 +794,7 @@ function MemoryPageInner() {
                   <div>
                     <dt>状态</dt>
                     <dd>
-                      {detail.invalidAt && new Date(detail.invalidAt).getTime() <= Date.now() ? (
+                      {detail.invalidAt && clientNow !== null && new Date(detail.invalidAt).getTime() <= clientNow ? (
                         <span className="badge" style={{ color: 'var(--color-red)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Expired</span>
                       ) : (
                         <span className="badge" style={{ color: 'var(--color-green)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Active</span>

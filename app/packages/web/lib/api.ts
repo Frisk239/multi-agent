@@ -1024,7 +1024,7 @@ export function useRuns(issueId: string) {
   });
 }
 
-export function useChildRuns(parentRunId: string) {
+export function useChildRuns(parentRunId: string, opts?: { refetchIntervalMs?: number | false }) {
   return useQuery<AgentRun[]>({
     queryKey: ['child-runs', parentRunId],
     queryFn: async () => {
@@ -1034,6 +1034,7 @@ export function useChildRuns(parentRunId: string) {
       return json.data;
     },
     enabled: !!parentRunId,
+    refetchInterval: opts?.refetchIntervalMs ?? false,
   });
 }
 
@@ -1134,8 +1135,10 @@ export function useRetryRun() {
       if (!res.ok) throw new Error(await apiError(res, '再执行失败'));
       return res.json() as Promise<AgentRun>;
     },
-    onSuccess: (run) => {
+    onSuccess: (run, variables) => {
       qc.invalidateQueries({ queryKey: ['runs'] });
+      qc.invalidateQueries({ queryKey: ['run', variables] });
+      qc.invalidateQueries({ queryKey: ['child-runs'] });
       if (run.issueId) qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
       qc.invalidateQueries({ queryKey: ['runs-active-count'] });

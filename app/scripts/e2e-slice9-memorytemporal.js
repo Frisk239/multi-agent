@@ -15,17 +15,31 @@ async function runSlice9Verification() {
 
     // 2. 检查 status 接口
     const statusRes = await page.request.get('http://127.0.0.1:3001/api/memory/status');
+    if (statusRes.status() !== 200) {
+      throw new Error(`Memory Status API failed with status ${statusRes.status()}`);
+    }
     console.log(`✅ Memory Status API 响应: ${statusRes.status()}`);
 
     // 3. 检查 search API 端点
     const res = await page.request.get('http://127.0.0.1:3001/api/memory?limit=10');
-    console.log(`✅ Memory Search API 状态: ${res.status()}`);
-
-    if (res.status() === 200) {
-      const result = await res.json();
-      console.log(`📋 Memory items 检索成功, items 数量: ${Array.isArray(result.data) ? result.data.length : 'N/A'}`);
-      console.log('✅ Memory 时序 Schema (validAt / invalidAt) API 校验 100% PASS!');
+    if (res.status() !== 200) {
+      throw new Error(`Memory Search API failed with status ${res.status()}`);
     }
+    
+    const result = await res.json();
+    if (!Array.isArray(result.data)) {
+      throw new Error('Memory search result.data is not an array');
+    }
+    // Verify schema fields
+    if (result.data.length > 0) {
+      const firstItem = result.data[0];
+      if (!('validAt' in firstItem)) {
+        throw new Error('Memory item missing validAt field');
+      }
+    }
+    
+    console.log(`📋 Memory items 检索成功, items 数量: ${result.data.length}`);
+    console.log('✅ Memory 时序 Schema (validAt / invalidAt) API 校验 100% PASS!');
 
     console.log('🎉 [Playwright E2E] Slice 9 Memory 时序有效窗口与多信号检索 (Memory Temporal Validity) 验证 100% PASS!');
   } catch (err) {

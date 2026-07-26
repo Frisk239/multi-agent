@@ -15,12 +15,25 @@ async function runSlice11Verification() {
 
     // 2. 校验 GET /api/agents 包含 allowedPaths
     const agentsRes = await page.request.get('http://127.0.0.1:3001/api/agents');
+    if (agentsRes.status() !== 200) {
+      throw new Error(`Agents API failed with status ${agentsRes.status()}`);
+    }
     console.log(`✅ Agents API 状态: ${agentsRes.status()}`);
 
     if (agentsRes.status() === 200) {
       const agents = await agentsRes.json();
-      if (agents.length > 0) {
-        console.log(`📋 Agent [${agents[0].name}] allowedPaths 属性就绪: ${'allowedPaths' in agents[0]}`);
+      if (Array.isArray(agents) && agents.length > 0) {
+        const detailRes = await page.request.get(`http://127.0.0.1:3001/api/agents/${agents[0].id}`);
+        if (detailRes.status() !== 200) {
+          throw new Error(`Agent detail API returned status ${detailRes.status()}`);
+        }
+        const agentDetail = await detailRes.json();
+        if (!('allowedPaths' in agentDetail)) {
+          throw new Error('Agent detail is missing allowedPaths property');
+        }
+        console.log(`📋 Agent [${agentDetail.name}] allowedPaths 属性校验 PASS (当前值: ${JSON.stringify(agentDetail.allowedPaths)})`);
+      } else {
+        console.log('📋 当前环境中暂无 Agent 列表数据，API 响应状态 200 校验 PASS');
       }
     }
 

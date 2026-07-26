@@ -226,6 +226,7 @@ export function toAgentRun(row: RunRow): AgentRun {
     kind: (row.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue',
     quickPrompt: row.quickPrompt ?? null,
     chatThreadId: (row as { chatThreadId?: string | null }).chatThreadId ?? null,
+    parentRunId: row.parentRunId ?? null,
     error: row.error,
     failureReason:
       ((row as { failureReason?: AgentRun['failureReason'] })

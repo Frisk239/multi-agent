@@ -321,10 +321,15 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
 
   let n = 0;
   for (const row of candidates) {
-    if (row.failureReason === 'squad_member_escalated') continue;
+    if (row.error?.startsWith('[Squad Escalated]')) continue;
+    
+    const newError = `[Squad Escalated] original_reason: ${row.failureReason || 'unknown'}${row.error ? '; ' + row.error : ''}`;
     
     db.update(agentRuns)
-      .set({ failureReason: 'squad_member_escalated' })
+      .set({ 
+        error: newError,
+        failureReason: row.failureReason || 'squad_member_escalated' 
+      })
       .where(eq(agentRuns.id, row.id))
       .run();
 

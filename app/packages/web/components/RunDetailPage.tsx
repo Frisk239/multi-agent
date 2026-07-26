@@ -192,7 +192,9 @@ function filterViewItems(
 export function RunDetailPage({ runId }: { runId: string }) {
   const { data: run, isLoading, isError, error, refetch, isFetching } = useRun(runId);
   const { data: messages = [], isFetching: msgFetching } = useRunMessages(runId);
-  const { data: childRuns = [] } = useChildRuns(runId);
+  const { data: childRuns = [] } = useChildRuns(runId, {
+    refetchIntervalMs: run?.status === 'running' || run?.status === 'queued' ? 3000 : false,
+  });
   const { data: agent } = useAgent(run?.agentId ?? '');
   const cancel = useCancelRun();
   const retry = useRetryRun();

@@ -18,7 +18,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const { q, limit, offset, includeInvalid } = req.query as { q?: string; limit?: string; offset?: string; includeInvalid?: string };
     const lim = Math.min(Number(limit) || 20, 100);
     const off = Number(offset) || 0;
-    const includeInv = includeInvalid === '1' || includeInvalid === 'true';
+    const includeInv = String(includeInvalid) === '1' || String(includeInvalid) === 'true';
     // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
     const all = await memoryManager.search(q?.trim() ?? '', 1000, includeInv);
     const data = all.slice(off, off + lim);

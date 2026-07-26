@@ -45,13 +45,13 @@ export function resolveAuthorLabel(
 
 // 动态补列修饰以应对 DB 架构无破损演进
 try {
-  const tableInfo = sqlite.pragma('table_info(memory_items)') as Array<{ name: string }>;
+  const tableInfo = sqlite.pragma('table_info(memory_item)') as Array<{ name: string }>;
   const cols = new Set(tableInfo.map((c) => c.name));
   if (!cols.has('valid_at')) {
-    sqlite.exec('ALTER TABLE memory_items ADD COLUMN valid_at INTEGER;');
+    sqlite.exec('ALTER TABLE memory_item ADD COLUMN valid_at INTEGER;');
   }
   if (!cols.has('invalid_at')) {
-    sqlite.exec('ALTER TABLE memory_items ADD COLUMN invalid_at INTEGER;');
+    sqlite.exec('ALTER TABLE memory_item ADD COLUMN invalid_at INTEGER;');
   }
 
   const agentTableInfo = sqlite.pragma('table_info(agent)') as Array<{ name: string }>;
@@ -65,6 +65,6 @@ try {
   if (!runCols.has('parent_run_id')) {
     sqlite.exec('ALTER TABLE agent_run ADD COLUMN parent_run_id TEXT;');
   }
-} catch {
-  // ignore
+} catch (e) {
+  console.error('[db migration warning]', e);
 }

@@ -39,7 +39,11 @@ export async function parseAndDispatchSubagents(parentRunId: string, text: strin
   }
 
   for (const { targetId, prompt } of delegations) {
-    await dispatchSubagent(parentRun, targetId, prompt);
+    try {
+      await dispatchSubagent(parentRun, targetId, prompt);
+    } catch (e) {
+      logger.error({ err: e instanceof Error ? e.message : String(e) }, `Subagent delegation failed for target ${targetId}`);
+    }
   }
 }
 

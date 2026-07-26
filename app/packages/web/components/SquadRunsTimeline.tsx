@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useWorkspaceRuns, useRetryRun } from '@/lib/api';
 
@@ -25,6 +26,7 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
     useWorkspaceRuns({ squadId, limit: 30 });
     
   const retry = useRetryRun();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const escalatedRuns = runs.filter(r => r.failureReason === 'squad_member_escalated' && r.status === 'failed');
 
   return (
@@ -70,14 +72,19 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
                   type="button"
                   className="btn-secondary btn-sm"
                   style={{ marginLeft: 8 }}
-                  disabled={retry.isPending}
+                  disabled={retry.isPending && retryingId === r.id}
                   onClick={() => {
+                    setRetryingId(r.id);
                     retry.mutate(r.id, {
-                      onSuccess: () => refetch()
+                      onSuccess: () => {
+                        setRetryingId(null);
+                        refetch();
+                      },
+                      onError: () => setRetryingId(null)
                     });
                   }}
                 >
-                  {retry.isPending ? '重试中…' : '重新委派'}
+                  {retry.isPending && retryingId === r.id ? '重试中…' : '重新委派'}
                 </button>
               </li>
             ))}

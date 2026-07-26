@@ -41,7 +41,9 @@ export function RunEventTimelineInline({
 }) {
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(runId);
-  const { data: childRuns = [] } = useChildRuns(runId ?? '');
+  const { data: childRuns = [] } = useChildRuns(runId ?? '', {
+    refetchIntervalMs: run?.status === 'running' || run?.status === 'queued' ? 3000 : false,
+  });
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);

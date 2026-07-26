@@ -842,7 +842,13 @@ function InstructionsTab({
   }, [allowedPathsInitial]);
 
   function save() {
-    update.mutate({ instructions: draft, allowedPaths: draftPaths });
+    const cleanedPaths = draftPaths
+      .split(/[\n,]+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .join('\n');
+    setDraftPaths(cleanedPaths);
+    update.mutate({ instructions: draft, allowedPaths: cleanedPaths });
   }
 
   return (
