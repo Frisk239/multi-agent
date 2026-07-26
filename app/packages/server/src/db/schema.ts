@@ -145,6 +145,7 @@ export const squads = sqliteTable('squad', {
       projectId: text('project_id'),
       // issue-pr-link：本地 PR/分支引用 URL（非 GitHub 集成）
       prUrl: text('pr_url'),
+      customFields: text('custom_fields', { mode: 'json' }).$type<Record<string, string>>(),
       createdAt: integer('created_at').notNull(),
       updatedAt: integer('updated_at').notNull(),
     },

@@ -188,6 +188,7 @@ export function toIssue(
     projectTitle: projectId ? (extras?.projectTitle ?? null) : null,
     prUrl: row.prUrl ?? null,
     labels,
+    customFields: (row as any).customFields ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };

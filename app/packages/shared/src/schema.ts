@@ -140,6 +140,7 @@ export const ActivityEventType = z.enum([
   'run_failed',
   'comment_created',
   'mention_delegated',
+  'custom_fields_updated',
 ]);
 export type ActivityEventType = z.infer<typeof ActivityEventType>;
 
@@ -644,6 +645,7 @@ export const Issue = z.object({
   prUrl: z.string().nullable().optional(),
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
+  customFields: z.record(z.string()).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -670,6 +672,7 @@ export const CreateIssueInput = z
     parentIssueId: BusinessId.optional(),
     // projects-mvp：创建时归属
     projectId: BusinessId.optional(),
+    customFields: z.record(z.string()).nullable().optional(),
   })
   .superRefine((o, ctx) => {
     if (o.originType === 'quick_create') {
@@ -713,6 +716,7 @@ export const UpdateIssueInput = z.object({
   projectId: BusinessId.nullable().optional(),
   // issue-pr-link：设/清 PR URL
   prUrl: z.string().nullable().optional(),
+  customFields: z.record(z.string()).nullable().optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueInput>;
 
@@ -725,7 +729,8 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
     d.position !== undefined ||
     d.assignee !== undefined ||
     d.projectId !== undefined ||
-    d.prUrl !== undefined
+    d.prUrl !== undefined ||
+    d.customFields !== undefined
   );
 }
 

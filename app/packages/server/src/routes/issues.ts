@@ -380,6 +380,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       originRuleId: input.originRuleId ?? null,
       parentIssueId: input.parentIssueId ?? null,
       projectId: input.projectId ?? null,
+      customFields: input.customFields ?? null,
       enqueue: true,
     });
     if (!result.ok) {
@@ -495,6 +496,9 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           updates.prUrl = trimmed;
         }
       }
+    }
+    if (input.customFields !== undefined) {
+      updates.customFields = input.customFields;
     }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;
@@ -654,6 +658,16 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           payload: { from: prevKey, to: nextKey },
         });
       }
+    }
+
+    if (input.customFields !== undefined && JSON.stringify(input.customFields) !== JSON.stringify(prev.customFields)) {
+      recordActivityLog({
+        issueId: id,
+        actorType: 'member',
+        actorName: '用户',
+        eventType: 'custom_fields_updated',
+        payload: { from: prev.customFields, to: input.customFields },
+      });
     }
 
     // S08：Issue 完成 → 入队 wiki ingest（spec B9），不再 fire-and-forget 直调

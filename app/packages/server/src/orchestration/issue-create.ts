@@ -34,6 +34,8 @@ export type CreateIssueCoreInput = {
   parentIssueId?: string | null;
   /** projects-mvp：可选项目 */
   projectId?: string | null;
+  /** 自定义字段 */
+  customFields?: Record<string, string> | null;
   /** 默认 true：有 assignee 则 enqueue */
   enqueue?: boolean;
 };
@@ -188,6 +190,7 @@ export async function createIssueCore(
       originRuleId,
       parentIssueId,
       projectId,
+      customFields: input.customFields ?? null,
       createdAt: now,
       updatedAt: now,
     })

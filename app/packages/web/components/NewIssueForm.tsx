@@ -28,6 +28,7 @@ export function NewIssueForm() {
   const [priority, setPriority] = useState<Priority>('none');
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
   const create = useCreateIssue();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -139,6 +140,7 @@ export function NewIssueForm() {
     setTitle('');
     setPriority('none');
     setAssigneeValue('');
+    setCustomFields([]);
     if (!projectFromUrl) setProjectId('');
     setOpen(false);
   }
@@ -168,12 +170,22 @@ export function NewIssueForm() {
       assignee = { type: 'squad', id: assigneeValue.slice('squad:'.length) };
     }
 
+    const parsedCustomFields: Record<string, string> = {};
+    customFields.forEach(({k, v}) => {
+      const key = k.trim();
+      const val = v.trim();
+      if (key && val) {
+        parsedCustomFields[key] = val;
+      }
+    });
+
     create.mutate(
       {
         title: title.trim(),
         priority,
         assignee,
         projectId: projectId || undefined,
+        customFields: Object.keys(parsedCustomFields).length > 0 ? parsedCustomFields : undefined,
       },
       {
         onSuccess: () => reset(),
@@ -364,6 +376,51 @@ export function NewIssueForm() {
           })}
         </optgroup>
       </select>
+      <div className="new-issue-custom-fields mb-2" data-testid="new-issue-custom-fields">
+        {customFields.map((field, idx) => (
+          <div key={idx} className="flex gap-2 mb-1">
+            <input
+              className="new-issue-input flex-1"
+              placeholder="字段名 (例如: 环境)"
+              value={field.k}
+              onChange={(e) => {
+                const copy = [...customFields];
+                copy[idx].k = e.target.value;
+                setCustomFields(copy);
+              }}
+            />
+            <input
+              className="new-issue-input flex-1"
+              placeholder="字段值 (例如: Staging)"
+              value={field.v}
+              onChange={(e) => {
+                const copy = [...customFields];
+                copy[idx].v = e.target.value;
+                setCustomFields(copy);
+              }}
+            />
+            <button
+              type="button"
+              className="btn-ghost px-2 text-red-500"
+              onClick={() => {
+                const copy = [...customFields];
+                copy.splice(idx, 1);
+                setCustomFields(copy);
+              }}
+              title="删除字段"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn-ghost btn-sm text-xs"
+          onClick={() => setCustomFields([...customFields, { k: '', v: '' }])}
+        >
+          + 添加自定义字段
+        </button>
+      </div>
       {selectedAssignee && assigneeBlocked ? (
         <div
           className="new-issue-assignee-banner"

@@ -11,6 +11,7 @@ import {
 } from '@/lib/api';
 import { AssigneeSelect } from './AssigneeSelect';
 import { IssueLabelsEditor } from './IssueLabelsEditor';
+import { IssueCustomFields } from './IssueCustomFields';
 import { MarkdownBody } from './MarkdownBody';
 import { PageBreadcrumb } from './PageBreadcrumb';
 
@@ -191,6 +192,7 @@ export function IssueHeader({
       ) : null}
       <IssuePrLinkField issue={issue} />
       <IssueLabelsEditor issue={issue} />
+      <IssueCustomFields issue={issue} />
     </div>
   );
 
