@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { CliHealthInspector } from './CliHealthInspector';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
   error: 0,
@@ -671,6 +672,7 @@ export function SettingsPage() {
 
       {tab === 'health' ? (
       <>
+      <CliHealthInspector />
       <LiveProbesSection />
       {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
         <section className="settings-section" data-testid="settings-guides-section">

@@ -86,7 +86,7 @@ describe('Shared Schema Validators', () => {
 
   describe('RuntimeId', () => {
     it('accepts all registered runtimes', () => {
-      const runtimes = ['claude-code', 'opencode', 'cursor', 'grok'];
+      const runtimes = ['claude-code', 'opencode', 'cursor', 'grok', 'pi'];
       for (const r of runtimes) {
         expect(RuntimeId.parse(r)).toBe(r);
       }

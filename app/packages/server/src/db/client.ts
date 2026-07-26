@@ -46,30 +46,38 @@ export function resolveAuthorLabel(
 // 动态补列修饰以应对 DB 架构无破损演进
 try {
   const tableInfo = sqlite.pragma('table_info(memory_item)') as Array<{ name: string }>;
-  const cols = new Set(tableInfo.map((c) => c.name));
-  if (!cols.has('valid_at')) {
-    sqlite.exec('ALTER TABLE memory_item ADD COLUMN valid_at INTEGER;');
-  }
-  if (!cols.has('invalid_at')) {
-    sqlite.exec('ALTER TABLE memory_item ADD COLUMN invalid_at INTEGER;');
+  if (tableInfo.length > 0) {
+    const cols = new Set(tableInfo.map((c) => c.name));
+    if (!cols.has('valid_at')) {
+      sqlite.exec('ALTER TABLE memory_item ADD COLUMN valid_at INTEGER;');
+    }
+    if (!cols.has('invalid_at')) {
+      sqlite.exec('ALTER TABLE memory_item ADD COLUMN invalid_at INTEGER;');
+    }
   }
 
   const agentTableInfo = sqlite.pragma('table_info(agent)') as Array<{ name: string }>;
-  const agentCols = new Set(agentTableInfo.map((c) => c.name));
-  if (!agentCols.has('allowed_paths')) {
-    sqlite.exec('ALTER TABLE agent ADD COLUMN allowed_paths TEXT;');
+  if (agentTableInfo.length > 0) {
+    const agentCols = new Set(agentTableInfo.map((c) => c.name));
+    if (!agentCols.has('allowed_paths')) {
+      sqlite.exec('ALTER TABLE agent ADD COLUMN allowed_paths TEXT;');
+    }
   }
 
   const runTableInfo = sqlite.pragma('table_info(agent_run)') as Array<{ name: string }>;
-  const runCols = new Set(runTableInfo.map((c) => c.name));
-  if (!runCols.has('parent_run_id')) {
-    sqlite.exec('ALTER TABLE agent_run ADD COLUMN parent_run_id TEXT;');
+  if (runTableInfo.length > 0) {
+    const runCols = new Set(runTableInfo.map((c) => c.name));
+    if (!runCols.has('parent_run_id')) {
+      sqlite.exec('ALTER TABLE agent_run ADD COLUMN parent_run_id TEXT;');
+    }
   }
 
   const issueTableInfo = sqlite.pragma('table_info(issue)') as Array<{ name: string }>;
-  const issueCols = new Set(issueTableInfo.map((c) => c.name));
-  if (!issueCols.has('custom_fields')) {
-    sqlite.exec('ALTER TABLE issue ADD COLUMN custom_fields TEXT;');
+  if (issueTableInfo.length > 0) {
+    const issueCols = new Set(issueTableInfo.map((c) => c.name));
+    if (!issueCols.has('custom_fields')) {
+      sqlite.exec('ALTER TABLE issue ADD COLUMN custom_fields TEXT;');
+    }
   }
 } catch (e) {
   console.error('[db migration warning]', e);

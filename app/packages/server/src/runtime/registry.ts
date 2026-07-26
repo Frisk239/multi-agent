@@ -4,12 +4,14 @@ import { ClaudeCodeBackend } from './claude-code.js';
 import { OpencodeBackend } from './opencode.js';
 import { CursorBackend } from './cursor.js';
 import { GrokBackend } from './grok.js';
+import { PiBackend } from './pi.js';
 
 const list: RuntimeBackend[] = [
   new ClaudeCodeBackend(),
   new OpencodeBackend(),
   new CursorBackend(),
   new GrokBackend(),
+  new PiBackend(),
 ];
 
 export function getBackend(id: RuntimeId): RuntimeBackend {

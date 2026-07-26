@@ -12007,3 +12007,24 @@ a.issue-card-run-fail--link:hover {
   align-items: center;
   gap: 8px;
 }
+
+/* Slice 18: CLI & Process Health Inspector Live Status Pulse */
+@keyframes status-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.status-pulse-badge span {
+  animation: status-pulse 2s infinite ease-in-out;
+}
+

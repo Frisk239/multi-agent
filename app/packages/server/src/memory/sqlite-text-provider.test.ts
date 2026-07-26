@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../db/client.js';
+import { db, sqlite } from '../db/client.js';
 import { memoryItems } from '../db/schema.js';
 import { SqliteTextProvider } from './sqlite-text-provider.js';
 import { eq } from 'drizzle-orm';
@@ -10,6 +10,18 @@ describe('SqliteTextProvider - Temporal Validity', () => {
   beforeEach(() => {
     provider = new SqliteTextProvider();
     provider.initialize();
+    sqlite.exec('DROP TABLE IF EXISTS memory_item;');
+    sqlite.exec(`CREATE TABLE memory_item (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL DEFAULT 'workspace',
+      issue_id TEXT,
+      agent_id TEXT,
+      run_id TEXT,
+      text TEXT NOT NULL,
+      valid_at INTEGER,
+      invalid_at INTEGER,
+      created_at INTEGER NOT NULL
+    );`);
     // Clean up memory items table
     db.delete(memoryItems).run();
   });

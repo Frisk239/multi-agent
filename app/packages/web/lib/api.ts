@@ -41,6 +41,7 @@ import type {
   CreateWikiPageInput,
   CreateQuickRunInput,
   SettingsStatusResponse,
+  SettingsDiagnosticsResponse,
   AutomationRule,
   AutomationRun,
   CreateAutomationRuleInput,
@@ -2025,6 +2026,19 @@ export function useSettingsStatus() {
       return res.json();
     },
     staleTime: 10_000,
+  });
+}
+
+// GET /api/settings/diagnostics —— Slice 18 CLI & 环境深度诊断
+export function useSettingsDiagnostics() {
+  return useQuery<SettingsDiagnosticsResponse>({
+    queryKey: ['settings-diagnostics'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/settings/diagnostics`);
+      if (!res.ok) throw new Error('加载 CLI 进程与环境诊断失败');
+      return res.json();
+    },
+    staleTime: 5_000,
   });
 }
 

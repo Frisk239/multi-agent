@@ -34,8 +34,8 @@ export const CommentType = z.enum(['comment', 'status_change']);
 export type CommentType = z.infer<typeof CommentType>;
 
 // —— Runtime / Run / RunMessage（S03 执行层契约）——
-/** 本机 CLI 适配器 id；grok = xAI Grok Build CLI（学 Multica server/pkg/agent/grok.go） */
-export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor', 'grok']);
+/** 本机 CLI 适配器 id；grok = xAI Grok Build CLI（学 Multica server/pkg/agent/grok.go）；pi = Pi SDK */
+export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor', 'grok', 'pi']);
 export type RuntimeId = z.infer<typeof RuntimeId>;
 
 export const AgentRunStatus = z.enum([
@@ -1714,6 +1714,54 @@ export const SettingsStatusResponse = z.object({
   cwd: SettingsCwdInfo.optional(),
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
+
+// —— Slice 18: 混合进程与 CLI 环境健康诊断 schemas ——
+export const CliStatusBadge = z.enum([
+  'ready',
+  'warning',
+  'not_found',
+  'permission_issue',
+]);
+export type CliStatusBadge = z.infer<typeof CliStatusBadge>;
+
+export const CliDiagnosticItem = z.object({
+  id: z.string(),
+  name: z.string(),
+  installed: z.boolean(),
+  path: z.string().nullable(),
+  version: z.string().nullable(),
+  status: CliStatusBadge,
+  capabilities: z.array(z.string()),
+  usageRecommendation: z.string(),
+  error: z.string().nullable().optional(),
+});
+export type CliDiagnosticItem = z.infer<typeof CliDiagnosticItem>;
+
+export const SettingsDiagnosticsCwdAudit = z.object({
+  path: z.string().nullable(),
+  source: z.string(),
+  configured: z.boolean(),
+  exists: z.boolean(),
+  writable: z.boolean(),
+  persistedPath: z.string().nullable(),
+  auditMessage: z.string(),
+});
+export type SettingsDiagnosticsCwdAudit = z.infer<typeof SettingsDiagnosticsCwdAudit>;
+
+export const SettingsDiagnosticsResponse = z.object({
+  overallStatus: SettingsOverall,
+  timestamp: z.string(),
+  cliBackends: z.array(CliDiagnosticItem),
+  cwdAudit: SettingsDiagnosticsCwdAudit,
+  summary: z.object({
+    totalDetected: z.number().int().nonnegative(),
+    readyCount: z.number().int().nonnegative(),
+    warningCount: z.number().int().nonnegative(),
+    notFoundCount: z.number().int().nonnegative(),
+    permissionIssueCount: z.number().int().nonnegative(),
+  }),
+});
+export type SettingsDiagnosticsResponse = z.infer<typeof SettingsDiagnosticsResponse>;
 
 /** GET/PUT /api/profile —— 本地用户 About（注入 agent prompt） */
 export const UserProfile = z.object({

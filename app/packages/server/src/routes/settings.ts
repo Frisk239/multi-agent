@@ -1,12 +1,18 @@
 // bu04 G0：只读环境诊断（不写密钥）
 // settings-run-health / wiki-auto / ADR0003 cwd 持久化
+import { access } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { eq, inArray } from 'drizzle-orm';
 import {
   SetWorkspaceCwdInput,
+  type CliDiagnosticItem,
+  type CliStatusBadge,
   type SettingsAutomationHealth,
   type SettingsCheck,
+  type SettingsDiagnosticsResponse,
   type SettingsMemoryHealth,
+  type SettingsOverall,
   type SettingsRunHealth,
   type SettingsStatusResponse,
   type SettingsWikiHealth,
@@ -359,8 +365,177 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   };
 }
 
+export async function buildSettingsDiagnostics(): Promise<SettingsDiagnosticsResponse> {
+  const resolved = resolveWorkspaceCwd();
+  const persistedPath = readDbRootPath();
+
+  let writable = false;
+  if (resolved.configured && resolved.exists && resolved.path) {
+    try {
+      await access(resolved.path, constants.R_OK | constants.W_OK);
+      writable = true;
+    } catch {
+      writable = false;
+    }
+  }
+
+  let auditMessage = '';
+  if (!resolved.configured) {
+    auditMessage = '工作区 CWD 未配置：默认采用 ~/.multi-agent 隔离目录（派活不硬闸，推荐在「代码仓库/路径」配置绝对路径）。';
+  } else if (!resolved.exists) {
+    auditMessage = `工作区 CWD 路径不存在 (${resolved.path})：请确认路径是否有效。`;
+  } else if (!writable) {
+    auditMessage = `工作区 CWD 权限警告 (${resolved.path})：目录存在但无法进行写入测试，请检查读写权限。`;
+  } else {
+    auditMessage = `工作区 CWD 审计通过 (${resolved.path})：路径有效且可读写 (来源: ${resolved.source})。`;
+  }
+
+  const cliMeta: Record<
+    string,
+    { name: string; capabilities: string[]; recommendation: string }
+  > = {
+    'claude-code': {
+      name: 'Claude Code',
+      capabilities: [
+        'Subprocess Execution',
+        'Streaming JSON Output',
+        'Session Resume (--resume)',
+        'Model Selection',
+      ],
+      recommendation:
+        'Anthropic 官方 CLI 适配器，推荐用于复杂多文件重构、长程工程任务与高级工具调用。',
+    },
+    claude: {
+      name: 'Claude Code',
+      capabilities: [
+        'Subprocess Execution',
+        'Streaming JSON Output',
+        'Session Resume (--resume)',
+        'Model Selection',
+      ],
+      recommendation:
+        'Anthropic 官方 CLI 适配器，推荐用于复杂多文件重构、长程工程任务与高级工具调用。',
+    },
+    opencode: {
+      name: 'Opencode',
+      capabilities: [
+        'Subprocess Execution',
+        'ANSI Text Normalizer',
+        'Variant/Thinking Control',
+        'Model Selection',
+      ],
+      recommendation:
+        '开源 CLI 适配器，适用于快速代码生成、极速响应与基础工程补全任务。',
+    },
+    cursor: {
+      name: 'Cursor Agent',
+      capabilities: [
+        'Cursor CLI Process',
+        'File System Operations',
+        'Headless Subprocess Execution',
+      ],
+      recommendation:
+        'Cursor IDE 衍生 CLI，适合本地代码审查、编辑策略同步与极简修改。',
+    },
+    pi: {
+      name: 'Pi SDK',
+      capabilities: [
+        'In-Process SDK',
+        'Subprocess Fallback',
+        'Tool Call Registry',
+        'Zero-Latency Loop',
+      ],
+      recommendation:
+        '轻量级进程内 SDK 引擎，适合单文件修改、极短上下文任务与高频交互。',
+    },
+    grok: {
+      name: 'Grok Build',
+      capabilities: [
+        'ACP JSON-RPC Stdio',
+        'Print Mode (-p)',
+        'Effort Level Control',
+      ],
+      recommendation:
+        'xAI Grok CLI 适配器，适合跨领域多模态与快速模式匹配分析。',
+    },
+  };
+
+  const cliBackends: CliDiagnosticItem[] = [];
+
+  for (const b of allBackends()) {
+    const d = await b.detect();
+    const meta = cliMeta[b.id] ?? {
+      name: b.label,
+      capabilities: ['Subprocess Execution'],
+      recommendation: '通用 CLI 适配器。',
+    };
+
+    let status: CliStatusBadge = 'not_found';
+    let errorMsg: string | undefined = undefined;
+
+    if (!d.installed) {
+      status = 'not_found';
+      errorMsg = `${meta.name} 命令未在系统 PATH 或对应环境变量中找到。`;
+    } else if (!d.version) {
+      status = 'warning';
+      errorMsg = `${meta.name} 已发现路径 (${d.path})，但无法提取版本号。`;
+    } else {
+      status = 'ready';
+    }
+
+    cliBackends.push({
+      id: b.id === 'claude-code' ? 'claude' : b.id,
+      name: meta.name,
+      installed: d.installed,
+      path: d.path,
+      version: d.version,
+      status,
+      capabilities: meta.capabilities,
+      usageRecommendation: meta.recommendation,
+      error: errorMsg,
+    });
+  }
+
+  const readyCount = cliBackends.filter((c) => c.status === 'ready').length;
+  const warningCount = cliBackends.filter((c) => c.status === 'warning').length;
+  const notFoundCount = cliBackends.filter((c) => c.status === 'not_found').length;
+  const permissionIssueCount = cliBackends.filter((c) => c.status === 'permission_issue').length;
+  const totalDetected = cliBackends.filter((c) => c.installed).length;
+
+  let overallStatus: SettingsOverall = 'ok';
+  if (readyCount === 0 || (resolved.configured && !writable && resolved.exists)) {
+    overallStatus = 'blocked';
+  } else if (readyCount < cliBackends.length || !resolved.configured || !resolved.exists) {
+    overallStatus = 'degraded';
+  }
+
+  return {
+    overallStatus,
+    timestamp: new Date().toISOString(),
+    cliBackends,
+    cwdAudit: {
+      path: resolved.path,
+      source: resolved.source,
+      configured: resolved.configured,
+      exists: resolved.exists,
+      writable,
+      persistedPath,
+      auditMessage,
+    },
+    summary: {
+      totalDetected,
+      readyCount,
+      warningCount,
+      notFoundCount,
+      permissionIssueCount,
+    },
+  };
+}
+
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/settings/status', async () => buildSettingsStatus());
+  app.get('/api/settings/diagnostics', async () => buildSettingsDiagnostics());
+  app.get('/api/settings/health', async () => buildSettingsDiagnostics());
 
   // POST /api/settings/workspace-cwd —— 持久化本机路径（非密钥）并立即生效
   app.post('/api/settings/workspace-cwd', async (req, reply) => {

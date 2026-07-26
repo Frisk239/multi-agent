@@ -40,7 +40,7 @@ export const agents = sqliteTable('agent', {
   name: text('name').notNull(),
   category: text('category'),
   runtime: text('runtime', {
-    enum: ['claude-code', 'opencode', 'cursor', 'grok'],
+    enum: ['claude-code', 'opencode', 'cursor', 'grok', 'pi'],
   })
     .notNull()
     .default('opencode'),
@@ -223,7 +223,7 @@ export const agentRuns = sqliteTable(
     issueId: text('issue_id').references(() => issues.id), // 可空：QC 先 run 再建卡
     agentId: text('agent_id').notNull(),
     runtime: text('runtime', {
-      enum: ['claude-code', 'opencode', 'cursor', 'grok'],
+      enum: ['claude-code', 'opencode', 'cursor', 'grok', 'pi'],
     }).notNull(),
     status: text('status', {
       enum: [
