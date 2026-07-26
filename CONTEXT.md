@@ -51,9 +51,9 @@
 - **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
-- **已交（近）：** UX Trust A–D · DS1–DS4 · **Slice 1-12 (Phase A 6 刀 + Phase B 6 刀全量完结！)** (全量经 Playwright/E2E 校验，推 main)
+- **已交（近）：** UX Trust A–D · DS1–DS4 · **Slice 1-12 (Phase A+B 12 刀全量完结)** · **代码审查 16 项缺陷修复完成 (C1-C7 & W1-W9)** (经严密 Playwright/E2E 校验，推 main)
 - **▶ 下一阶段切片池：** Phase C (Context 压缩 / Tool Registry 可视化 / 双层消息隔离 / 报告导出 / OpenTelemetry)
-- **上一刀 closeout：** [slice12-subagentdelegation-impl-1.md](app/.progress/slice12-subagentdelegation-impl-1.md) · [slice11-agentfences-impl-1.md](app/.progress/slice11-agentfences-impl-1.md)
+- **上一刀 closeout：** [slice12-subagentdelegation-impl-1.md](app/.progress/slice12-subagentdelegation-impl-1.md) · [code_review_slice9_12.md](C:\Users\a2691\.gemini\antigravity\brain\23c5d8f6-cdd6-4067-bb71-e05f8f2aaa6f\code_review_slice9_12.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
