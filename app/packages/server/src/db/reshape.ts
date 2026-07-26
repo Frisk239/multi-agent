@@ -188,7 +188,13 @@ export function toIssue(
     projectTitle: projectId ? (extras?.projectTitle ?? null) : null,
     prUrl: row.prUrl ?? null,
     labels,
-    customFields: (row as any).customFields ?? null,
+    customFields: (() => {
+      const raw = (row as any).customFields;
+      if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return null; }
+      }
+      return raw && typeof raw === 'object' ? raw : null;
+    })(),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };

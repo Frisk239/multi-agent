@@ -377,8 +377,11 @@ export function NewIssueForm() {
         </optgroup>
       </select>
       <div className="new-issue-custom-fields mb-2" data-testid="new-issue-custom-fields">
+        {customFields.length > 0 && (
+          <div className="text-xs font-medium text-slate-600 mb-1">自定义字段</div>
+        )}
         {customFields.map((field, idx) => (
-          <div key={idx} className="flex gap-2 mb-1">
+          <div key={idx} className="flex gap-2 mb-1" data-testid={`new-issue-custom-field-row-${idx}`}>
             <input
               className="new-issue-input flex-1"
               placeholder="字段名 (例如: 环境)"
@@ -388,6 +391,7 @@ export function NewIssueForm() {
                 copy[idx].k = e.target.value;
                 setCustomFields(copy);
               }}
+              data-testid={`new-issue-custom-field-key-${idx}`}
             />
             <input
               className="new-issue-input flex-1"
@@ -398,28 +402,56 @@ export function NewIssueForm() {
                 copy[idx].v = e.target.value;
                 setCustomFields(copy);
               }}
+              data-testid={`new-issue-custom-field-val-${idx}`}
             />
             <button
               type="button"
-              className="btn-ghost px-2 text-red-500"
+              className="btn-ghost px-2 text-red-500 text-xs"
               onClick={() => {
                 const copy = [...customFields];
                 copy.splice(idx, 1);
                 setCustomFields(copy);
               }}
               title="删除字段"
+              data-testid={`new-issue-remove-custom-field-${idx}`}
             >
               ×
             </button>
           </div>
         ))}
-        <button
-          type="button"
-          className="btn-ghost btn-sm text-xs"
-          onClick={() => setCustomFields([...customFields, { k: '', v: '' }])}
-        >
-          + 添加自定义字段
-        </button>
+        <div className="flex items-center gap-2 flex-wrap mt-1">
+          <button
+            type="button"
+            className="btn-ghost btn-sm text-xs"
+            onClick={() => setCustomFields([...customFields, { k: '', v: '' }])}
+            data-testid="new-issue-add-custom-field"
+          >
+            + 添加自定义字段
+          </button>
+          <div className="flex gap-1 items-center text-xs text-dim">
+            <span>常用:</span>
+            {['环境', '影响版本', '模块', 'JiraID'].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-600 text-xs transition-colors"
+                onClick={() => {
+                  const emptyIdx = customFields.findIndex((f) => !f.k.trim());
+                  if (emptyIdx >= 0) {
+                    const copy = [...customFields];
+                    copy[emptyIdx].k = preset;
+                    setCustomFields(copy);
+                  } else {
+                    setCustomFields([...customFields, { k: preset, v: '' }]);
+                  }
+                }}
+                data-testid={`new-issue-preset-${preset}`}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       {selectedAssignee && assigneeBlocked ? (
         <div
