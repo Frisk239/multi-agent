@@ -1,9 +1,9 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, agents } from '../db/schema.js';
+import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
-import { notifyRunTerminal } from './inbox-writer.js';
+import { notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
@@ -299,8 +299,52 @@ export function startStaleRunSweeper(): void {
       failStaleRunningRuns();
       failQueuedMissingAgentRuns();
       failStaleQueuedRuns();
+      escalateFailedSquadRuns();
     } catch (e) {
       logger.error({ err: e instanceof Error ? e.message : String(e) }, '[run] stale sweep failed');
     }
   }, STALE_SWEEP_INTERVAL_MS);
+}
+
+export function escalateFailedSquadRuns(now = Date.now()): number {
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(
+      and(
+        isNotNull(agentRuns.squadId),
+        eq(agentRuns.isLeader, 0),
+        inArray(agentRuns.status, ['failed', 'timed_out'])
+      )
+    )
+    .all();
+
+  let n = 0;
+  for (const row of candidates) {
+    if (row.failureReason === 'squad_member_escalated') continue;
+    
+    db.update(agentRuns)
+      .set({ failureReason: 'squad_member_escalated' })
+      .where(eq(agentRuns.id, row.id))
+      .run();
+
+    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get()!;
+    const run = toAgentRun(next);
+    
+    if (row.issueId) {
+      db.insert(activityLogs).values({
+        id: crypto.randomUUID(),
+        issueId: row.issueId,
+        actorType: 'system',
+        actorName: '系统',
+        eventType: 'squad_escalated',
+        payload: JSON.stringify({ runId: row.id, agentId: row.agentId }),
+        createdAt: now,
+      }).run();
+    }
+    
+    notifySquadEscalated(run);
+    n++;
+  }
+  return n;
 }

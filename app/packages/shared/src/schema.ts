@@ -56,6 +56,7 @@ export const AgentRunFailureReason = z.enum([
   'stale_heartbeat',
   'exec_error',
   'timeout',
+  'squad_member_escalated',
 ]);
 export type AgentRunFailureReason = z.infer<typeof AgentRunFailureReason>;
 
@@ -141,6 +142,7 @@ export const ActivityEventType = z.enum([
   'comment_created',
   'mention_delegated',
   'custom_fields_updated',
+  'squad_escalated',
 ]);
 export type ActivityEventType = z.infer<typeof ActivityEventType>;
 

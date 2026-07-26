@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { Comment, AgentRun, Issue } from '@ma/shared';
 import { db } from '../db/client.js';
-import { inboxItems, issueSubscribers, issues } from '../db/schema.js';
+import { inboxItems, issueSubscribers, issues, agents, squads } from '../db/schema.js';
 import { toInboxItem } from '../db/reshape.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { eventBus } from './event-bus.js';
@@ -300,5 +300,45 @@ export function notifyEnqueueSkipped(
     actorType: 'agent',
     actorId: agentId,
     dedupeKey: `enqueue_skip:${issueId}:${reason}`,
+  });
+}
+
+export function notifySquadEscalated(run: AgentRun): void {
+  if (!run.issueId || !run.squadId) return;
+  const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
+  const agent = db.select().from(agents).where(eq(agents.id, run.agentId)).get();
+  const squad = db.select().from(squads).where(eq(squads.id, run.squadId)).get();
+  if (!issue || !agent || !squad) return;
+
+  const title = `[小队升级告警] 成员 Agent ${agent.name} 在 Issue ${issue.identifier} 执行遭遇异常，已自动升级`;
+
+  if (squad.leaderId) {
+    notifyInbox({
+      type: 'run_failed',
+      severity: 'action_required',
+      title,
+      body: `Run ID: ${run.id}\nError: ${run.error || 'Unknown'}`,
+      issueId: issue.id,
+      runId: run.id,
+      actorType: 'agent',
+      actorId: run.agentId,
+      dedupeKey: `escalate:${run.id}`,
+      recipientType: 'agent',
+      recipientId: squad.leaderId,
+    });
+  }
+
+  notifyInbox({
+    type: 'run_failed',
+    severity: 'action_required',
+    title,
+    body: `Run ID: ${run.id}\nError: ${run.error || 'Unknown'}`,
+    issueId: issue.id,
+    runId: run.id,
+    actorType: 'agent',
+    actorId: run.agentId,
+    dedupeKey: `escalate:member:${run.id}`,
+    recipientType: 'member',
+    recipientId: LOCAL_MEMBER.id,
   });
 }

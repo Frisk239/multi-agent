@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useWorkspaceRuns } from '@/lib/api';
+import { useWorkspaceRuns, useRetryRun } from '@/lib/api';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -23,6 +23,9 @@ function relativeTime(iso: string): string {
 export function SquadRunsTimeline({ squadId }: { squadId: string }) {
   const { data: runs = [], isLoading, isError, refetch, isFetching } =
     useWorkspaceRuns({ squadId, limit: 30 });
+    
+  const retry = useRetryRun();
+  const escalatedRuns = runs.filter(r => r.failureReason === 'squad_member_escalated' && r.status === 'failed');
 
   return (
     <section
@@ -51,6 +54,36 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
           在运行页打开
         </Link>
       </div>
+
+      {escalatedRuns.length > 0 && (
+        <div className="squad-readiness-alert" style={{ marginBottom: 16 }} data-testid="squad-escalation-alert">
+          <div style={{ fontWeight: 'bold', color: 'var(--color-danger, #ef4444)', marginBottom: 8 }}>
+            升级警告 (Escalation Alerts)
+          </div>
+          <p style={{ margin: '0 0 8px 0' }}>发现 {escalatedRuns.length} 个成员任务执行异常，已触发升级。</p>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {escalatedRuns.map(r => (
+              <li key={r.id} style={{ marginBottom: 4 }}>
+                <Link href={`/issues/${r.issueId}#run-trace`}>{shortId(r.id)}</Link>
+                <span className="text-dim"> - {r.error || '执行异常'}</span>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  style={{ marginLeft: 8 }}
+                  disabled={retry.isPending}
+                  onClick={() => {
+                    retry.mutate(r.id, {
+                      onSuccess: () => refetch()
+                    });
+                  }}
+                >
+                  {retry.isPending ? '重试中…' : '重新委派'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-dim text-sm">加载运行…</p>
