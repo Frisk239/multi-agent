@@ -60,15 +60,15 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
     const sinceMs = untilMs - windowDays * 24 * 60 * 60 * 1000;
 
     const agentNameMap = new Map(
-      db.select().from(agents).all().map((a) => [a.id, a.name] as const),
+      db.select({ id: agents.id, name: agents.name }).from(agents).all().map((a) => [a.id, a.name] as const),
     );
 
     const projectNameMap = new Map(
-      db.select().from(projects).all().map((p) => [p.id, p.title] as const),
+      db.select({ id: projects.id, title: projects.title }).from(projects).all().map((p) => [p.id, p.title] as const),
     );
 
     const issueProjectMap = new Map(
-      db.select().from(issues).all().map((i) => [i.id, i.projectId] as const),
+      db.select({ id: issues.id, projectId: issues.projectId }).from(issues).all().map((i) => [i.id, i.projectId] as const),
     );
 
     const runs = db

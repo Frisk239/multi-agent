@@ -40,11 +40,6 @@ export function TokenCostDashboard({
     return data.byAgent[0];
   }, [data?.byAgent]);
 
-  const maxItemTokens = useMemo(() => {
-    if (!data?.items || data.items.length === 0) return 1;
-    return Math.max(1, ...data.items.map((it) => it.totalTokens));
-  }, [data?.items]);
-
   if (isLoading) {
     return (
       <div className="page-container" data-testid="token-cost-loading">

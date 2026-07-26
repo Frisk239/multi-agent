@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef, useEffect } from 'react';
+import type { AgentPulseStatus } from '@ma/shared';
 import { useAgents, useSquads, useCreateComment } from '@/lib/api';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
@@ -54,7 +55,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
   // 计算当前输入内容中将要触发唤醒的 Agent / Squad（Multica 风格唤醒预览）
   const liveTriggers = useMemo(() => {
     if (!body.trim()) return [];
-    const triggered: { kind: 'agent' | 'squad'; name: string; status?: any; detail?: string }[] = [];
+    const triggered: { kind: 'agent' | 'squad'; name: string; status?: AgentPulseStatus; detail?: string }[] = [];
     const seen = new Set<string>();
 
     for (const r of roster) {

@@ -572,12 +572,12 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.put('/api/settings/inbox-prefs', async (req, reply) => {
-    const body = (req.body ?? {}) as any;
+    const body = (req.body ?? {}) as Record<string, unknown>;
     const { writeInboxPrefs } = await import('../orchestration/inbox-prefs.js');
-    const patch: any = {};
+    const patch: Record<string, unknown> = {};
     if (typeof body.notifyIssueSuccess === 'boolean') patch.notifyIssueSuccess = body.notifyIssueSuccess;
-    if (body.notifyTypes) patch.notifyTypes = body.notifyTypes;
-    if (body.notifySeverities) patch.notifySeverities = body.notifySeverities;
+    if (Array.isArray(body.notifyTypes)) patch.notifyTypes = body.notifyTypes;
+    if (Array.isArray(body.notifySeverities)) patch.notifySeverities = body.notifySeverities;
     
     const prefs = writeInboxPrefs(patch);
     return { ok: true as const, ...prefs };
@@ -619,19 +619,13 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true as const, ...result };
   });
 
-  // Slice D: Settings 活体探针
+  // Slice D: Settings 活体探针（TODO: 接真实 runtime 进程探测）
   app.get('/api/settings/live-probes', async () => {
     return {
-      activeCount: 1,
-      probes: [
-        {
-          runId: 'mock-run-id',
-          pid: 1234,
-          status: 'running',
-          lastHeartbeatAgeMs: 2000,
-          health: 'green',
-        },
-      ],
+      activeCount: 0,
+      probes: [],
+      _stub: true,
+      _note: '活体探针尚未接入真实进程探测，当前返回空数组',
     };
   });
   // GAP-02: 首启 Onboarding 状态 API
