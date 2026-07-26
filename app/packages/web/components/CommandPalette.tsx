@@ -217,6 +217,16 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
           setQuickDispatchOpen(true);
         },
       },
+      {
+        id: 'keyboard-shortcuts',
+        label: '快捷键 (?)',
+        hint: 'Shift + /',
+        group: '导航',
+        run: () => {
+          setOpen(false);
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }));
+        },
+      },
     ];
 
     const q = debouncedQ.toLowerCase();

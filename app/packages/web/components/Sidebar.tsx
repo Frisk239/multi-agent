@@ -219,6 +219,12 @@ export function Sidebar() {
     setCollapseReady(true);
   }, []);
 
+  useEffect(() => {
+    const handleOpenQuickDispatch = () => setQuickDispatchOpen(true);
+    window.addEventListener('open-quick-dispatch', handleOpenQuickDispatch);
+    return () => window.removeEventListener('open-quick-dispatch', handleOpenQuickDispatch);
+  }, []);
+
   function handleOpsToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
     const next = e.currentTarget.open;
     setOpsOpen(next);

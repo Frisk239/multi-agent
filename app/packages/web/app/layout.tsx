@@ -7,6 +7,7 @@ import { OnboardingCard } from '@/components/OnboardingCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HelperRail } from '@/components/HelperRail';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 
 
 export const metadata: Metadata = {
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Suspense fallback={null}>
                 <HelperRail />
               </Suspense>
+              <KeyboardShortcutsModal />
             </div>
           </Providers>
         </ErrorBoundary>
