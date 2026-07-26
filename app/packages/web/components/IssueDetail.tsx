@@ -182,9 +182,20 @@ export function IssueDetail({
                       const res = await fetch('/api/memory', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ issueId: issue.id }),
+                        body: JSON.stringify({ 
+                          issueId: issue.id,
+                          text: issue.title + "\n" + (issue.description || "")
+                        }),
                       });
-                      if (!res.ok) throw new Error(await res.text());
+                      if (!res.ok) {
+                        const text = await res.text();
+                        try {
+                          const json = JSON.parse(text);
+                          throw new Error(json.error || res.statusText);
+                        } catch {
+                          throw new Error(res.statusText);
+                        }
+                      }
                       toastSuccess('已记录至 Memory');
                     } catch (e: any) {
                       toastError(`Memory 记录失败: ${e.message}`);

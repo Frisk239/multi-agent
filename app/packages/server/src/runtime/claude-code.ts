@@ -45,68 +45,57 @@ function parseClaudeLine(
   const sid = pickSessionId(j);
   if (sid) ctx.providerSessionId = sid;
 
-  try {
-    switch (j.type) {
-      case 'system':
-        // init 心跳，仅作 progress 提示
-        onEvent({
-          type: 'log',
-          text: sid
-            ? `[claude] ${j.subtype ?? 'system'} session=${sid.slice(0, 12)}…`
-            : `[claude] ${j.subtype ?? 'system'}`,
-        });
-        break;
-      case 'assistant': {
-        // message.content[] —— 对齐 multica handleAssistant
-        const blocks = (j.message as any)?.content;
-        if (Array.isArray(blocks)) {
-          for (const b of blocks) {
-            if (b.type === 'text' && typeof b.text === 'string' && b.text) {
-              onEvent({ type: 'message', role: 'assistant', text: b.text });
-            } else if (b.type === 'tool_use' && typeof b.name === 'string') {
-              onEvent({ type: 'tool_start', name: b.name, args: b.input });
-            }
+  switch (j.type) {
+    case 'system':
+      // init 心跳，仅作 progress 提示
+      onEvent({
+        type: 'log',
+        text: sid
+          ? `[claude] ${j.subtype ?? 'system'} session=${sid.slice(0, 12)}…`
+          : `[claude] ${j.subtype ?? 'system'}`,
+      });
+      break;
+    case 'assistant': {
+      // message.content[] —— 对齐 multica handleAssistant
+      const blocks = (j.message as any)?.content;
+      if (Array.isArray(blocks)) {
+        for (const b of blocks) {
+          if (b.type === 'text' && typeof b.text === 'string' && b.text) {
+            onEvent({ type: 'message', role: 'assistant', text: b.text });
+          } else if (b.type === 'tool_use' && typeof b.name === 'string') {
+            onEvent({ type: 'tool_start', name: b.name, args: b.input });
           }
         }
-        break;
       }
-      case 'user': {
-        // tool_result 回执（对齐 multica handleUser）
-        const blocks = (j.message as any)?.content;
-        if (Array.isArray(blocks)) {
-          for (const b of blocks) {
-            if (b.type === 'tool_result') {
-              onEvent({
-                type: 'tool_end',
-                name: b.tool_name ?? b.name ?? 'tool',
-                result: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '').slice(0, 4000),
-              });
-            }
-          }
-        }
-        break;
-      }
-      case 'result':
-        // 终态行：.result 是人读 finalText（对齐 multica claude.go:181 output.Reset+WriteString）
-        if (typeof j.result === 'string') {
-          ctx.resultText = j.result;
-        }
-        // DS4：usage / modelUsage 尽力解析
-        {
-          const usage = parseUsageFromResultLine(j);
-          if (usage) ctx.usage = usage;
-        }
-        break;
+      break;
     }
-  } catch (err) {
-    onEvent({
-      type: 'tool_end',
-      name: 'parse_error',
-      result: JSON.stringify({
-        error: err instanceof Error ? err.message : String(err),
-        status: 'failed'
-      })
-    });
+    case 'user': {
+      // tool_result 回执（对齐 multica handleUser）
+      const blocks = (j.message as any)?.content;
+      if (Array.isArray(blocks)) {
+        for (const b of blocks) {
+          if (b.type === 'tool_result') {
+            onEvent({
+              type: 'tool_end',
+              name: b.tool_name ?? b.name ?? 'tool',
+              result: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '').slice(0, 4000),
+            });
+          }
+        }
+      }
+      break;
+    }
+    case 'result':
+      // 终态行：.result 是人读 finalText（对齐 multica claude.go:181 output.Reset+WriteString）
+      if (typeof j.result === 'string') {
+        ctx.resultText = j.result;
+      }
+      // DS4：usage / modelUsage 尽力解析
+      {
+        const usage = parseUsageFromResultLine(j);
+        if (usage) ctx.usage = usage;
+      }
+      break;
   }
 }
 

@@ -360,6 +360,12 @@ async function tick(): Promise<void> {
         issueId: runRow.issueId ?? null,
         text: e.text,
       });
+      eventBus.publish({
+        type: 'run:stream_chunk',
+        runId: runRow.id,
+        kind: e.type === 'log' ? 'thinking' : 'text',
+        content: e.text,
+      });
       return;
     }
     let kind: 'assistant' | 'user' | 'tool_start' | 'tool_end' | 'system' = 'system';

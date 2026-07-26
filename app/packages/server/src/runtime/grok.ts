@@ -29,46 +29,39 @@ function parseGrokLine(
   if (!t) return;
   // ACP / JSON-RPC 行
   if (t.startsWith('{')) {
+    let parsedJson = false;
+    let j: Record<string, unknown> = {};
     try {
-      const j = JSON.parse(t) as Record<string, unknown>;
-      try {
-        // notifications/message 或 stream
-        const method = typeof j.method === 'string' ? j.method : '';
-        const params = (j.params ?? {}) as Record<string, unknown>;
-        if (method.includes('session/update') || method.includes('message')) {
-          const content =
-            (params.content as string | undefined) ||
-            (params.text as string | undefined) ||
-            '';
-          if (content) {
-            onEvent({ type: 'message', role: 'assistant', text: content });
-          }
-          const tool = params.tool as { name?: string } | undefined;
-          if (tool?.name) {
-            onEvent({ type: 'tool_start', name: tool.name, args: params });
-          }
-          return;
-        }
-        if (j.result && typeof j.result === 'object') {
-          const r = j.result as Record<string, unknown>;
-          if (typeof r.output === 'string' && r.output) {
-            onEvent({ type: 'message', role: 'assistant', text: r.output });
-          }
-        }
-        return;
-      } catch (err) {
-        onEvent({
-          type: 'tool_end',
-          name: 'parse_error',
-          result: JSON.stringify({
-            error: err instanceof Error ? err.message : String(err),
-            status: 'failed'
-          })
-        });
-        return;
-      }
+      j = JSON.parse(t) as Record<string, unknown>;
+      parsedJson = true;
     } catch {
       /* fall through plain text */
+    }
+    if (parsedJson) {
+      // notifications/message 或 stream
+      const method = typeof j.method === 'string' ? j.method : '';
+      const params = (j.params ?? {}) as Record<string, unknown>;
+      if (method.includes('session/update') || method.includes('message')) {
+        const content =
+          (params.content as string | undefined) ||
+          (params.text as string | undefined) ||
+          '';
+        if (content) {
+          onEvent({ type: 'message', role: 'assistant', text: content });
+        }
+        const tool = params.tool as { name?: string } | undefined;
+        if (tool?.name) {
+          onEvent({ type: 'tool_start', name: tool.name, args: params });
+        }
+        return;
+      }
+      if (j.result && typeof j.result === 'object') {
+        const r = j.result as Record<string, unknown>;
+        if (typeof r.output === 'string' && r.output) {
+          onEvent({ type: 'message', role: 'assistant', text: r.output });
+        }
+      }
+      return;
     }
   }
   // 纯文本日志

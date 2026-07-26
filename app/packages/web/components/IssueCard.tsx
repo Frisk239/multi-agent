@@ -367,4 +367,10 @@ export const IssueCard = React.memo(function IssueCard({
       </article>
     </IssueCardMenu>
   );
+}, (prev, next) => {
+  return prev.issue.id === next.issue.id && 
+         prev.issue.updatedAt === next.issue.updatedAt && 
+         prev.selected === next.selected && 
+         prev.runActive === next.runActive && 
+         prev.lastRunFailed === next.lastRunFailed;
 });

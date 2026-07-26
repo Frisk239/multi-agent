@@ -31,53 +31,42 @@ function parseCursorLine(
   } catch {
     return;
   }
-  try {
-    switch (j.type) {
-      case 'system':
-        onEvent({ type: 'log', text: `[cursor] ${j.subtype ?? 'system'}` });
-        break;
-      case 'assistant': {
-        const blocks = (j.message as any)?.content;
-        if (Array.isArray(blocks)) {
-          for (const b of blocks) {
-            if ((b.type === 'text' || b.type === 'output_text') && typeof b.text === 'string' && b.text) {
-              onEvent({ type: 'message', role: 'assistant', text: b.text });
-            } else if (b.type === 'tool_use' && typeof b.name === 'string') {
-              onEvent({ type: 'tool_start', name: b.name, args: b.input });
-            }
+  switch (j.type) {
+    case 'system':
+      onEvent({ type: 'log', text: `[cursor] ${j.subtype ?? 'system'}` });
+      break;
+    case 'assistant': {
+      const blocks = (j.message as any)?.content;
+      if (Array.isArray(blocks)) {
+        for (const b of blocks) {
+          if ((b.type === 'text' || b.type === 'output_text') && typeof b.text === 'string' && b.text) {
+            onEvent({ type: 'message', role: 'assistant', text: b.text });
+          } else if (b.type === 'tool_use' && typeof b.name === 'string') {
+            onEvent({ type: 'tool_start', name: b.name, args: b.input });
           }
         }
-        break;
       }
-      case 'tool_use':
-        onEvent({ type: 'tool_start', name: String(j.tool_name ?? 'tool'), args: j.parameters });
-        break;
-      case 'tool_result':
-        onEvent({
-          type: 'tool_end',
-          name: String(j.tool_name ?? 'tool'),
-          result: typeof j.output === 'string' ? j.output : JSON.stringify(j.output ?? '').slice(0, 4000),
-        });
-        break;
-      case 'result':
-        // 终态行：.result 是 finalText（对齐 multica cursor.go:150）
-        if (typeof j.result === 'string') {
-          ctx.resultText = j.result;
-        }
-        // DS4：usage 尽力解析
-        const usage = parseUsageFromResultLine(j);
-        if (usage) ctx.usage = usage;
-        break;
+      break;
     }
-  } catch (err) {
-    onEvent({
-      type: 'tool_end',
-      name: 'parse_error',
-      result: JSON.stringify({
-        error: err instanceof Error ? err.message : String(err),
-        status: 'failed'
-      })
-    });
+    case 'tool_use':
+      onEvent({ type: 'tool_start', name: String(j.tool_name ?? 'tool'), args: j.parameters });
+      break;
+    case 'tool_result':
+      onEvent({
+        type: 'tool_end',
+        name: String(j.tool_name ?? 'tool'),
+        result: typeof j.output === 'string' ? j.output : JSON.stringify(j.output ?? '').slice(0, 4000),
+      });
+      break;
+    case 'result':
+      // 终态行：.result 是 finalText（对齐 multica cursor.go:150）
+      if (typeof j.result === 'string') {
+        ctx.resultText = j.result;
+      }
+      // DS4：usage 尽力解析
+      const usage = parseUsageFromResultLine(j);
+      if (usage) ctx.usage = usage;
+      break;
   }
 }
 

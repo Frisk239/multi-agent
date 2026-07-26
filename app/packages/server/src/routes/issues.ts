@@ -461,18 +461,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (input.priority !== undefined) updates.priority = input.priority;
     if (input.position !== undefined) updates.position = input.position;
     // DS2：跨列改 status 且未显式传 position → 插入目标列顶
-    if (
-      input.status !== undefined &&
-      input.status !== prev.status &&
-      input.position === undefined
-    ) {
-      const minRow = db
-        .select({ minPos: sql<number>`COALESCE(MIN(${issues.position}), 0) - 1` })
-        .from(issues)
-        .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, input.status)))
-        .get();
-      updates.position = minRow?.minPos ?? -1;
-    }
+    const needsMinPos = input.status !== undefined && input.status !== prev.status && input.position === undefined;
     // assignee 多态指派对（spec §3.5）：放开输入，GET 时服务端填 label
     if (input.assignee !== undefined) {
       updates.assigneeType = input.assignee?.type ?? null;
@@ -544,8 +533,23 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
+    const expectedUpdatedAt = typeof (req.body as any).expectedUpdatedAt === 'number' ? (req.body as any).expectedUpdatedAt : undefined;
+
     const run = sqlite.transaction(() => {
-      const result = db.update(issues).set(updates).where(and(eq(issues.id, id), eq(issues.status, prev.status))).run();
+      if (needsMinPos && input.status !== undefined) {
+        const minRow = db
+          .select({ minPos: sql<number>`COALESCE(MIN(${issues.position}), 0) - 1` })
+          .from(issues)
+          .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, input.status)))
+          .get();
+        updates.position = minRow?.minPos ?? -1;
+      }
+
+      const condition = expectedUpdatedAt !== undefined
+        ? and(eq(issues.id, id), eq(issues.updatedAt, expectedUpdatedAt))
+        : and(eq(issues.id, id), eq(issues.status, prev.status));
+
+      const result = db.update(issues).set(updates).where(condition).run();
       if (result.changes === 0) {
         return 'conflict';
       }

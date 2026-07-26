@@ -3,7 +3,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import type { IssueStatus, Priority } from '@ma/shared';
+import type { IssueStatus, Priority, Issue } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
   useAgents,
@@ -384,6 +384,17 @@ function KanbanBoardInner() {
       return 0;
     });
   }, [visible, sortCol, sortDir, sortMode]);
+
+  const issuesByStatus = useMemo(() => {
+    const map = new Map<IssueStatus, Issue[]>();
+    for (const c of COLUMNS) map.set(c.status, []);
+    for (const i of visible) {
+      const arr = map.get(i.status);
+      if (arr) arr.push(i);
+    }
+    return map;
+  }, [visible]);
+
 
   const selectValue = assigneeFromUrl || '';
   const failedCount = failedIssueIds.size;
@@ -1157,7 +1168,7 @@ function KanbanBoardInner() {
               title={col.title}
               status={col.status}
               color={col.color}
-              issues={visible.filter((i) => i.status === col.status)}
+              issues={issuesByStatus.get(col.status) ?? []}
               readinessByAgentId={readinessMap}
               failedIssueIds={failedIssueIds}
               activeIssueIds={activeIssueIds}
@@ -1183,7 +1194,7 @@ function KanbanBoardInner() {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white shadow-xl rounded-lg p-4 flex items-center gap-4 z-50 border border-gray-200" style={{ transform: 'translateX(-50%)', position: 'fixed', bottom: '1rem', left: '50%', backgroundColor: 'var(--bg-card, white)', padding: '1rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', border: '1px solid var(--border-color, #e5e7eb)', zIndex: 50 }}>
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 shadow-xl rounded-lg p-4 flex items-center gap-4 z-50" style={{ transform: 'translateX(-50%)', position: 'fixed', bottom: '1rem', left: '50%', backgroundColor: 'var(--bg-elevated)', padding: '1rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: 'var(--floating-shadow)', border: '1px solid var(--border-subtle)', zIndex: 50, color: 'var(--text-primary)' }}>
           <span className="font-medium">已选择 {selectedIds.size} 项</span>
           
           <select 

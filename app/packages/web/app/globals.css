@@ -119,6 +119,10 @@ html.dark {
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
 }
 
+.text-red {
+  color: var(--color-red);
+}
+
 * {
   box-sizing: border-box;
 }

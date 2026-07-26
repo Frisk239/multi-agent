@@ -7,6 +7,9 @@
 import type { FastifyInstance } from 'fastify';
 import { CreateMemoryInput, DeleteMemoryManyInput } from '@ma/shared';
 import { memoryManager } from '../memory/manager.js';
+import { db } from '../db/client.js';
+import { issues } from '../db/schema.js';
+import { eq } from 'drizzle-orm';
 
 export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/memory/status', async () => memoryManager.getStatus());
@@ -16,7 +19,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const lim = Math.min(Number(limit) || 20, 100);
     const off = Number(offset) || 0;
     // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
-    const all = await memoryManager.search(q?.trim() ?? '', lim + off);
+    const all = await memoryManager.search(q?.trim() ?? '', 1000);
     const data = all.slice(off, off + lim);
     return { data, total: all.length, limit: lim, offset: off };
   });
@@ -27,8 +30,15 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     try {
+      let text = parsed.data.text;
+      if (!text && parsed.data.issueId) {
+        const issue = db.select().from(issues).where(eq(issues.id, parsed.data.issueId)).get();
+        if (issue) {
+          text = `${issue.title}\n${issue.description || ''}`.trim();
+        }
+      }
       const created = await memoryManager.addCurated(
-        parsed.data.text,
+        text,
         parsed.data.issueId,
       );
       if (created) {

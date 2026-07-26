@@ -195,6 +195,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const cancel = useCancelRun();
   const retry = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
+  const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
+  const progress = run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
+  const streamChunk = run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const [kindFilter, setKindFilter] = useState<'' | RunMessage['kind']>('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -202,8 +205,6 @@ export function RunDetailPage({ runId }: { runId: string }) {
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
     run?.status === 'running';
-  const progress =
-    run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const failure =
     run && (run.status === 'failed' || run.error)
       ? classifyRunFailure(run.error)
@@ -580,6 +581,18 @@ export function RunDetailPage({ runId }: { runId: string }) {
           <p className="run-trace-live-progress" data-testid="run-detail-progress">
             进度：{progress}
           </p>
+        ) : null}
+
+        {isLive && streamChunk ? (
+          <div className="mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative mx-4">
+            <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
+              <span className="mr-1">⚡</span> Agent 正在实时响应中...
+            </div>
+            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
+              {streamChunk}
+              <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
+            </pre>
+          </div>
         ) : null}
 
         {failure ? (

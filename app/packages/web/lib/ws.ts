@@ -26,12 +26,15 @@ interface RunProgressState {
   setTool: (runId: string, toolName: string) => void;
   appendPartial: (runId: string, text: string) => void;
   clearProgress: (runId: string) => void;
+  streamChunks: Record<string, string>;
+  appendStreamChunk: (runId: string, text: string) => void;
 }
 
 export const useRunProgressStore = create<RunProgressState>((set) => ({
   byRunId: {},
   toolByRunId: {},
   partialByRunId: {},
+  streamChunks: {},
   setProgress: (runId, text) =>
     set((s) => ({
       byRunId: { ...s.byRunId, [runId]: text.slice(0, 400) },
@@ -56,15 +59,21 @@ export const useRunProgressStore = create<RunProgressState>((set) => ({
         partialByRunId: { ...s.partialByRunId, [runId]: next.slice(-2000) },
       };
     }),
+  appendStreamChunk: (runId, text) =>
+    set((s) => ({
+      streamChunks: { ...s.streamChunks, [runId]: (s.streamChunks[runId] || '') + text },
+    })),
   clearProgress: (runId) =>
     set((s) => {
       const byRunId = { ...s.byRunId };
       const toolByRunId = { ...s.toolByRunId };
       const partialByRunId = { ...s.partialByRunId };
+      const streamChunks = { ...s.streamChunks };
       delete byRunId[runId];
       delete toolByRunId[runId];
       delete partialByRunId[runId];
-      return { byRunId, toolByRunId, partialByRunId };
+      delete streamChunks[runId];
+      return { byRunId, toolByRunId, partialByRunId, streamChunks };
     }),
 }));
 
@@ -75,6 +84,7 @@ export function useWsEvents() {
   const setProgress = useRunProgressStore((s) => s.setProgress);
   const setTool = useRunProgressStore((s) => s.setTool);
   const appendPartial = useRunProgressStore((s) => s.appendPartial);
+  const appendStreamChunk = useRunProgressStore((s) => s.appendStreamChunk);
   const clearProgress = useRunProgressStore((s) => s.clearProgress);
 
   useEffect(() => {
@@ -278,6 +288,11 @@ export function useWsEvents() {
         }
       }
 
+      // stream chunk
+      if (event.type === 'run:stream_chunk') {
+        appendStreamChunk(event.runId, event.content);
+      }
+
       // S06 wiki:page-created：invalidate wiki 列表 cache（spec §7.2）
       // WS 事件由 server 的 ingest pipeline → eventBus → wsBroadcaster 自动广播到前端
       // 用 invalidateQueries 而非 setQueryData：新页 content 要从文件系统 GET，
@@ -296,5 +311,5 @@ export function useWsEvents() {
       clearTimeout(retryTimer);
       if (ws) ws.close();
     };
-  }, [qc, setStatus, setProgress, setTool, appendPartial, clearProgress]);
+  }, [qc, setStatus, setProgress, setTool, appendPartial, appendStreamChunk, clearProgress]);
 }

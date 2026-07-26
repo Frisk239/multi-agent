@@ -43,8 +43,11 @@ export function RunEventTimelineInline({
   const { data: messages = [] } = useRunMessages(runId);
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
+  const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
+  const streamChunk = 
+    run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const activeTool =
     run && run.status === 'running' ? toolByRunId[run.id]?.trim() : undefined;
   const isLive =
@@ -111,6 +114,17 @@ export function RunEventTimelineInline({
         >
           进度：{progress}
         </p>
+      ) : null}
+      {isLive && streamChunk ? (
+        <div className="run-trace-live-card mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative">
+          <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
+            <span className="mr-1">⚡</span> Agent 正在实时响应中...
+          </div>
+          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
+            {streamChunk}
+            <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
+          </pre>
+        </div>
       ) : null}
       {messages.length === 0 ? (
         <div className="run-trace-empty" data-testid="run-trace-empty">
@@ -303,8 +317,11 @@ export function RunEventTimelineDrawer({
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(open ? runId : undefined);
   const progressByRun = useRunProgressStore((s) => s.byRunId);
+  const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
+  const streamChunk = 
+    run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const isLive =
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
@@ -422,6 +439,17 @@ export function RunEventTimelineDrawer({
           <p className="run-trace-live-progress" data-testid="run-event-drawer-progress">
             进度：{progress}
           </p>
+        ) : null}
+        {isLive && streamChunk ? (
+          <div className="mx-4 mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative">
+            <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
+              <span className="mr-1">⚡</span> Agent 正在实时响应中...
+            </div>
+            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
+              {streamChunk}
+              <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
+            </pre>
+          </div>
         ) : null}
 
         <div className="run-event-drawer-body">

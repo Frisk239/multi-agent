@@ -128,9 +128,18 @@ export function OnboardingWizard() {
       </div>
 
       <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-        <Link href="/?new=1" className="btn-primary btn-sm">
+        <button 
+          className="btn-primary btn-sm"
+          onClick={() => {
+            if (!status.hasAgents || !status.hasRuntimes) {
+              alert('请先完成所有配置步骤');
+              return;
+            }
+            window.location.href = '/?new=1';
+          }}
+        >
           去派第一单 →
-        </Link>
+        </button>
       </div>
     </div>
   );

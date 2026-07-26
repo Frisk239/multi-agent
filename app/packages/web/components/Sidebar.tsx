@@ -182,6 +182,17 @@ function readSidebarCollapsed(): boolean {
   }
 }
 
+const SIDEBAR_OPS_OPEN_KEY = 'sidebar_ops_open';
+
+function readOpsOpen(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    return window.localStorage.getItem(SIDEBAR_OPS_OPEN_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -200,11 +211,23 @@ export function Sidebar() {
   const [quickPrefill, setQuickPrefill] = useState<string | undefined>(undefined);
   const [collapsed, setCollapsed] = useState(false);
   const [collapseReady, setCollapseReady] = useState(false);
+  const [opsOpen, setOpsOpen] = useState(true);
 
   useEffect(() => {
     setCollapsed(readSidebarCollapsed());
+    setOpsOpen(readOpsOpen());
     setCollapseReady(true);
   }, []);
+
+  function handleOpsToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
+    const next = e.currentTarget.open;
+    setOpsOpen(next);
+    try {
+      window.localStorage.setItem(SIDEBAR_OPS_OPEN_KEY, next ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }
 
   function toggleCollapsed() {
     setCollapsed((v) => {
@@ -442,7 +465,12 @@ export function Sidebar() {
           {sections.map((sec) => (
             <div className="nav-section" key={sec.key}>
               {sec.collapsible && !isCollapsed ? (
-                <details className="nav-section-details" style={{ marginTop: 8 }}>
+                <details 
+                  className="nav-section-details" 
+                  style={{ marginTop: 8 }}
+                  open={sec.key === 'ops' ? opsOpen : undefined}
+                  onToggle={sec.key === 'ops' ? handleOpsToggle : undefined}
+                >
                   <summary
                     className="nav-section-label"
                     style={{ cursor: 'pointer', userSelect: 'none', paddingLeft: 12, outline: 'none' }}

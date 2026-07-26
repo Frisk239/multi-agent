@@ -148,6 +148,7 @@ export function spawnLineProcess(
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (chunk: string) => {
       stdoutAll += chunk;
+      onEvent({ type: 'message_delta', text: chunk });
       if (!onLine) return;
       buf += chunk;
       const parts = buf.split(/\r?\n/);

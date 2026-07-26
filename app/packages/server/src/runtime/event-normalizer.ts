@@ -35,7 +35,7 @@ export function normalizeRuntimeEvent(raw: RawRuntimeEvent): RuntimeEvent {
     kind = 'tool_result';
     title = raw.toolName ? `工具输出: ${raw.toolName}` : '工具输出';
     if (raw.output !== undefined || raw.duration !== undefined) {
-      content = typeof raw.output === 'string' ? raw.output : JSON.stringify(raw.output, null, 2);
+      content = typeof raw.output === 'string' ? raw.output : (raw.output !== undefined ? JSON.stringify(raw.output) : '');
       metadata = { toolName: raw.toolName, output: raw.output, duration: raw.duration };
     }
   } else if (rawType.includes('thinking') || rawType.includes('thought')) {

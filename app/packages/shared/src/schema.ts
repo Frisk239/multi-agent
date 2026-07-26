@@ -1533,6 +1533,14 @@ export const RuntimeEventEvent = z.object({
 });
 export type RuntimeEventEvent = z.infer<typeof RuntimeEventEvent>;
 
+export const RunStreamChunkEvent = z.object({
+  type: z.literal('run:stream_chunk'),
+  runId: BusinessId,
+  kind: z.enum(['text', 'thinking', 'tool_chunk']),
+  content: z.string(),
+});
+export type RunStreamChunkEvent = z.infer<typeof RunStreamChunkEvent>;
+
 export type DomainEvent =
   | IssueCreatedEvent
   | IssueUpdatedEvent
@@ -1541,6 +1549,7 @@ export type DomainEvent =
   | RunLifecycleEvent
   | RunProgressEvent
   | RunMessageEvent
+  | RunStreamChunkEvent
   | WikiPageCreatedEvent
   | InboxItemEvent
   | RuntimeEventEvent;
