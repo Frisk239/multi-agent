@@ -352,6 +352,8 @@ export const memoryItems = sqliteTable(
     agentId: text('agent_id'),
     runId: text('run_id'),
     text: text('text').notNull(),
+    validAt: integer('valid_at'),
+    invalidAt: integer('invalid_at'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

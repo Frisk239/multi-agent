@@ -7,6 +7,8 @@ export interface MemoryItemView {
   issueId?: string | null;
   runId?: string | null;
   createdAt?: string;
+  validAt?: string | null;
+  invalidAt?: string | null;
 }
 
 export interface MemoryPrefetchResult {
@@ -28,17 +30,19 @@ export interface MemoryProvider {
   initialize(): void | Promise<void>;
   prefetch(
     query: string,
-    opts?: { sessionId?: string; limit?: number },
+    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean },
   ): Promise<MemoryPrefetchResult>;
   /** 同步变体：S09 buildPrompt 用；默认可 throw 或委托 async */
   prefetchSync?(
     query: string,
-    opts?: { sessionId?: string; limit?: number },
+    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean },
   ): MemoryPrefetchResult;
   syncTurn(input: MemorySyncInput): Promise<void>;
   /** 可选：按 id 删除（memory-item-delete） */
   deleteById?(id: string): boolean | Promise<boolean>;
   /** 可选：按 id 取全文（详情抽屉） */
   getById?(id: string): MemoryItemView | null | Promise<MemoryItemView | null>;
+  /** 设为失效（Phase B Slice 3: Temporal Validity） */
+  invalidateMemory?(id: string): boolean | Promise<boolean>;
   shutdown?(): void | Promise<void>;
 }

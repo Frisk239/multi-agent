@@ -34,8 +34,6 @@ export function resolveAuthorLabel(
   type: 'member' | 'agent',
   id: string,
 ): string {
-  // A2 修复（审计）：熔断 system comment（authorId='system'）短路返回"系统"，
-  // 否则 users 表无此行，fallback 返回原始 id 'system'。
   if (type === 'member' && id === 'system') return '系统';
   if (type === 'member') {
     const u = db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
@@ -43,4 +41,18 @@ export function resolveAuthorLabel(
   }
   const a = db.query.agents.findFirst({ where: (t, { eq }) => eq(t.id, id) }).sync();
   return a?.name ?? id;
+}
+
+// 动态补列修饰以应对 DB 架构无破损演进
+try {
+  const tableInfo = sqlite.pragma('table_info(memory_items)') as Array<{ name: string }>;
+  const cols = new Set(tableInfo.map((c) => c.name));
+  if (!cols.has('valid_at')) {
+    sqlite.exec('ALTER TABLE memory_items ADD COLUMN valid_at INTEGER;');
+  }
+  if (!cols.has('invalid_at')) {
+    sqlite.exec('ALTER TABLE memory_items ADD COLUMN invalid_at INTEGER;');
+  }
+} catch {
+  // ignore
 }

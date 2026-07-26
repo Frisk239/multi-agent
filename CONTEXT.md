@@ -51,9 +51,9 @@
 - **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
-- **已交（近）：** UX Trust A–D · DS1–DS4 · Slice 1-6 · **Slice 6 (通知偏好)** · **Slice 7 (Prompt Cache 保护)** · **Slice 8/Phase B Slice 2 (增量 Wiki Ingest 与 矛盾检测)** (全量经 Playwright/E2E 校验，推 main)
-- **▶ 下一阶段切片池：** Memory 时序有效窗口(B3/Tier 2 #6) / Squad 自升级(B4) / Agent 修改围栏(B5)
-- **上一刀 closeout：** [slice8-incrementalwiki-impl-1.md](app/.progress/slice8-incrementalwiki-impl-1.md) · [slice7-promptcache-impl-1.md](app/.progress/slice7-promptcache-impl-1.md)
+- **已交（近）：** UX Trust A–D · DS1–DS4 · Slice 1-6 · **Slice 7 (Prompt Cache 保护)** · **Slice 8 (增量 Wiki Ingest)** · **Slice 9/Phase B Slice 3 (Memory 时序有效窗口与多信号检索)** (全量经 Playwright/E2E 校验，推 main)
+- **▶ 下一阶段切片池：** Squad 失败自升级(B4/Tier 1 #3) / Agent 修改围栏(B5/Tier 1 #4) / 子代理委派协议(B6)
+- **上一刀 closeout：** [slice9-memorytemporal-impl-1.md](app/.progress/slice9-memorytemporal-impl-1.md) · [slice8-incrementalwiki-impl-1.md](app/.progress/slice8-incrementalwiki-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 

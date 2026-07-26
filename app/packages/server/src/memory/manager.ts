@@ -194,9 +194,9 @@ export class MemoryManager {
   }
 
   /** 供 API：透传 prefetch */
-  async search(query: string, limit = 1000): Promise<MemoryItemView[]> {
+  async search(query: string, limit = 1000, includeInvalid = false): Promise<MemoryItemView[]> {
     if (!this.external?.isAvailable()) return [];
-    const r = await this.external.prefetch(query, { limit });
+    const r = await this.external.prefetch(query, { limit, includeInvalid });
     return r.items;
   }
 

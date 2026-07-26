@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, isNull, gt, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { memoryItems } from '../db/schema.js';
 import type {
@@ -32,22 +32,26 @@ export class SqliteTextProvider implements MemoryProvider {
     // no-op：表靠 migration
   }
 
-  prefetchSync(query: string, opts?: { limit?: number }): MemoryPrefetchResult {
+  prefetchSync(query: string, opts?: { limit?: number; includeInvalid?: boolean }): MemoryPrefetchResult {
     const limit = opts?.limit ?? 5;
+    const includeInvalid = opts?.includeInvalid ?? false;
     const tokens = tokenize(query);
+    const now = Date.now();
+    
+    let baseQuery = db.select().from(memoryItems);
+    if (!includeInvalid) {
+      baseQuery = baseQuery.where(or(isNull(memoryItems.invalidAt), gt(memoryItems.invalidAt, now))) as any;
+    }
+    
     let rows;
     if (tokens.length === 0) {
-      rows = db
-        .select()
-        .from(memoryItems)
+      rows = baseQuery
         .orderBy(desc(memoryItems.createdAt))
         .limit(limit)
         .all();
     } else {
       // 简化：取最近 200 条再内存过滤（S09 数据量小）
-      const all = db
-        .select()
-        .from(memoryItems)
+      const all = baseQuery
         .orderBy(desc(memoryItems.createdAt))
         .limit(200)
         .all();
@@ -78,13 +82,15 @@ export class SqliteTextProvider implements MemoryProvider {
         issueId: r.issueId,
         runId: r.runId,
         createdAt: new Date(r.createdAt).toISOString(),
+        validAt: r.validAt ? new Date(r.validAt).toISOString() : null,
+        invalidAt: r.invalidAt ? new Date(r.invalidAt).toISOString() : null,
       })),
     };
   }
 
   async prefetch(
     query: string,
-    opts?: { limit?: number },
+    opts?: { limit?: number; includeInvalid?: boolean },
   ): Promise<MemoryPrefetchResult> {
     return this.prefetchSync(query, opts);
   }
@@ -151,6 +157,14 @@ export class SqliteTextProvider implements MemoryProvider {
       issueId: row.issueId ?? null,
       runId: row.runId ?? null,
       createdAt: new Date(row.createdAt).toISOString(),
+      validAt: row.validAt ? new Date(row.validAt).toISOString() : null,
+      invalidAt: row.invalidAt ? new Date(row.invalidAt).toISOString() : null,
     };
   }
+  
+  invalidateMemory(id: string): boolean {
+    const r = db.update(memoryItems).set({ invalidAt: Date.now() }).where(eq(memoryItems.id, id)).run();
+    return (r.changes ?? 0) > 0;
+  }
 }
+

@@ -58,8 +58,14 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
   run_id TEXT,
   scope TEXT NOT NULL DEFAULT 'workspace',
   source TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  valid_at TIMESTAMPTZ,
+  invalid_at TIMESTAMPTZ
 )`);
+    // Fallback if table already existed without these columns
+    await memoryPgQuery(`ALTER TABLE memory_vectors ADD COLUMN IF NOT EXISTS valid_at TIMESTAMPTZ;`);
+    await memoryPgQuery(`ALTER TABLE memory_vectors ADD COLUMN IF NOT EXISTS invalid_at TIMESTAMPTZ;`);
+
     // HNSW 可能已存在或小数据时创建失败
     try {
       await memoryPgQuery(`
@@ -79,11 +85,15 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
 
   async prefetch(
     query: string,
-    opts?: { sessionId?: string; limit?: number },
+    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean },
   ): Promise<MemoryPrefetchResult> {
     if (!this.isAvailable()) return { items: [] };
     const limit = opts?.limit ?? 5;
+    const includeInvalid = opts?.includeInvalid ?? false;
     const q = query.trim();
+    
+    const condition = includeInvalid ? '1 = 1' : '(invalid_at IS NULL OR invalid_at > now())';
+
     if (!q) {
       const r = await memoryPgQuery<{
         id: string;
@@ -91,9 +101,11 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         issue_id: string | null;
         run_id: string | null;
         created_at: Date;
+        valid_at: Date | null;
+        invalid_at: Date | null;
       }>(
-        `SELECT id, text, issue_id, run_id, created_at
-         FROM memory_vectors ORDER BY created_at DESC LIMIT $1`,
+        `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at
+         FROM memory_vectors WHERE ${condition} ORDER BY created_at DESC LIMIT $1`,
         [limit],
       );
       return {
@@ -104,6 +116,8 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
           issueId: row.issue_id,
           runId: row.run_id,
           createdAt: new Date(row.created_at).toISOString(),
+          validAt: row.valid_at ? new Date(row.valid_at).toISOString() : null,
+          invalidAt: row.invalid_at ? new Date(row.invalid_at).toISOString() : null,
         })),
       };
     }
@@ -115,11 +129,14 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       issue_id: string | null;
       run_id: string | null;
       created_at: Date;
+      valid_at: Date | null;
+      invalid_at: Date | null;
       score: number;
     }>(
-      `SELECT id, text, issue_id, run_id, created_at,
+      `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at,
               GREATEST(0, 1 - (embedding <=> $1::vector))::float8 AS score
        FROM memory_vectors
+       WHERE ${condition}
        ORDER BY embedding <=> $1::vector
        LIMIT $2`,
       [lit, limit],
@@ -133,6 +150,8 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         issueId: row.issue_id,
         runId: row.run_id,
         createdAt: new Date(row.created_at).toISOString(),
+        validAt: row.valid_at ? new Date(row.valid_at).toISOString() : null,
+        invalidAt: row.invalid_at ? new Date(row.invalid_at).toISOString() : null,
       })),
     };
   }
@@ -211,8 +230,10 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       issue_id: string | null;
       run_id: string | null;
       created_at: Date;
+      valid_at: Date | null;
+      invalid_at: Date | null;
     }>(
-      `SELECT id, text, issue_id, run_id, created_at FROM memory_vectors WHERE id = $1`,
+      `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at FROM memory_vectors WHERE id = $1`,
       [id],
     );
     const row = r.rows[0];
@@ -227,7 +248,16 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         row.created_at instanceof Date
           ? row.created_at.toISOString()
           : new Date(row.created_at).toISOString(),
+      validAt: row.valid_at ? new Date(row.valid_at).toISOString() : null,
+      invalidAt: row.invalid_at ? new Date(row.invalid_at).toISOString() : null,
     };
+  }
+  
+  async invalidateMemory(id: string): Promise<boolean> {
+    if (!this.isAvailable()) return false;
+    const res = await memoryPgQuery(`UPDATE memory_vectors SET invalid_at = now() WHERE id = $1`, [id]);
+    const n = (res as { rowCount?: number | null }).rowCount ?? 0;
+    return n > 0;
   }
 
   async shutdown(): Promise<void> {

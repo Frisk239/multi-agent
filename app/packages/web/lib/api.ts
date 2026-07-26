@@ -1980,6 +1980,8 @@ export type MemoryItem = {
   text: string;
   issueId?: string | null;
   createdAt?: string;
+  validAt?: string | null;
+  invalidAt?: string | null;
   source?: string;
 };
 
@@ -2186,8 +2188,8 @@ export function useMemoryList(q: string) {
     queryKey: ['memory', q],
     queryFn: async () => {
       const url = q.trim()
-        ? `${API}/memory?q=${encodeURIComponent(q.trim())}`
-        : `${API}/memory`;
+        ? `${API}/memory?q=${encodeURIComponent(q.trim())}&includeInvalid=1`
+        : `${API}/memory?includeInvalid=1`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('加载记忆失败');
       type MemoryItem = any; // fallback if MemoryItem is not cleanly importable, though it should be already imported if used

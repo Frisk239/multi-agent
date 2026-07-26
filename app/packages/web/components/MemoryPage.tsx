@@ -501,6 +501,7 @@ function MemoryPageInner() {
               <th>类型</th>
               <th>内容</th>
               <th>Issue</th>
+              <th>状态</th>
               <th>时间</th>
               <th>id</th>
               <th>操作</th>
@@ -565,6 +566,13 @@ function MemoryPageInner() {
                         </Link>
                       ) : (
                         '—'
+                      )}
+                    </td>
+                    <td>
+                      {m.invalidAt && new Date(m.invalidAt).getTime() <= Date.now() ? (
+                        <span className="badge" style={{ color: 'var(--color-red)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Expired</span>
+                      ) : (
+                        <span className="badge" style={{ color: 'var(--color-green)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Active</span>
                       )}
                     </td>
                     <td className="text-dim text-sm">
@@ -778,6 +786,16 @@ function MemoryPageInner() {
                       </dd>
                     </div>
                   ) : null}
+                  <div>
+                    <dt>状态</dt>
+                    <dd>
+                      {detail.invalidAt && new Date(detail.invalidAt).getTime() <= Date.now() ? (
+                        <span className="badge" style={{ color: 'var(--color-red)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Expired</span>
+                      ) : (
+                        <span className="badge" style={{ color: 'var(--color-green)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Active</span>
+                      )}
+                    </dd>
+                  </div>
                   {detail.source ? (
                     <div>
                       <dt>来源</dt>

@@ -1390,6 +1390,8 @@ export const MemoryItem = z.object({
   agentId: BusinessId.nullable(),
   runId: BusinessId.nullable(),
   text: z.string(),
+  validAt: z.string().datetime().nullable().optional(),
+  invalidAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type MemoryItem = z.infer<typeof MemoryItem>;
