@@ -24,6 +24,10 @@ import {
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
+import { SubagentTreeViewer } from './SubagentTreeViewer';
+
+
+
 import { useRunProgressStore } from '@/lib/ws';
 import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
@@ -614,23 +618,10 @@ export function RunDetailPage({ runId }: { runId: string }) {
           </details>
         ) : null}
 
-        {childRuns.length > 0 ? (
-          <div className="run-detail-child-runs mt-4 p-4 bg-white border border-gray-200 rounded-md shadow-sm">
-            <h3 className="text-sm font-semibold mb-2">派生的子代理任务 (Child Subagents)</h3>
-            <ul className="space-y-2">
-              {childRuns.map(cr => (
-                <li key={cr.id} className="flex justify-between items-center text-sm">
-                  <Link href={`/runs/${cr.id}`} className="text-blue-600 hover:underline flex items-center shrink-0">
-                    <span>{shortId(cr.id)}</span>
-                    <span className={`ml-2 run-pill run-pill--${cr.status}`}>{cr.status}</span>
-                  </Link>
-                  <span className="text-gray-500 truncate ml-4 w-full" title={cr.quickPrompt || ''}>{cr.quickPrompt || '(无提示)'}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        {/* S22 (S8): Subagent Delegation Tree & Hierarchy Visualization */}
+        <SubagentTreeViewer runId={runId} />
       </header>
+
 
       <section className="run-detail-transcript" data-testid="run-detail-transcript">
         <div className="run-detail-transcript-head">

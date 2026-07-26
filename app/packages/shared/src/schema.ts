@@ -134,6 +134,54 @@ export const AgentRun = z.object({
 });
 export type AgentRun = z.infer<typeof AgentRun>;
 
+// S22 (S8): Subagent delegation tree & hierarchy node
+export type RunTreeNode = {
+  id: string;
+  parentRunId?: string | null;
+  agentId?: string | null;
+  agentName?: string | null;
+  agentRole?: string | null;
+  status: z.infer<typeof AgentRunStatus>;
+  kind: z.infer<typeof AgentRunKind>;
+  quickPrompt?: string | null;
+  isLeader: boolean;
+  squadId?: string | null;
+  createdAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+  error?: string | null;
+  summary?: string | null;
+  tokensInput?: number | null;
+  tokensOutput?: number | null;
+  children: RunTreeNode[];
+};
+
+export const RunTreeNodeSchema: z.ZodType<RunTreeNode> = z.lazy(() =>
+  z.object({
+    id: BusinessId,
+    parentRunId: BusinessId.nullable().optional(),
+    agentId: BusinessId.nullable().optional(),
+    agentName: z.string().nullable().optional(),
+    agentRole: z.string().nullable().optional(),
+    status: AgentRunStatus,
+    kind: AgentRunKind,
+    quickPrompt: z.string().nullable().optional(),
+    isLeader: z.boolean(),
+    squadId: BusinessId.nullable().optional(),
+    createdAt: z.string().datetime(),
+    startedAt: z.string().datetime().nullable().optional(),
+    finishedAt: z.string().datetime().nullable().optional(),
+    durationMs: z.number().nullable().optional(),
+    error: z.string().nullable().optional(),
+    summary: z.string().nullable().optional(),
+    tokensInput: z.number().nullable().optional(),
+    tokensOutput: z.number().nullable().optional(),
+    children: z.array(RunTreeNodeSchema),
+  })
+);
+
+
 export const ActivityEventType = z.enum([
   'status_changed',
   'assignee_changed',

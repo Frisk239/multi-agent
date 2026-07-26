@@ -11,6 +11,7 @@ import { toAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-service.js';
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
+import { getRunTree, getDirectChildren } from '../orchestration/subagent-tree.js';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -128,6 +129,21 @@ export async function runRoutes(app: FastifyInstance) {
     return rows.map(toRunMessage);
   });
 
+  // GET /api/runs/:runId/tree —— S22 (S8): 获取 Run 的完整子代理层级树与摘要
+  app.get('/api/runs/:runId/tree', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const tree = getRunTree(runId);
+    if (!tree) return reply.status(404).send({ success: false, error: 'run 不存在' });
+    return { data: tree };
+  });
+
+  // GET /api/runs/:runId/children —— S22 (S8): 获取 Run 的直接子代理列表及摘要
+  app.get('/api/runs/:runId/children', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const children = getDirectChildren(runId);
+    return { data: children };
+  });
+
   // POST /api/runs/:runId/cancel —— 唯一取消入口（spec §6.3 R1）
   app.post('/api/runs/:runId/cancel', async (req, reply) => {
     const { runId } = req.params as { runId: string };
@@ -144,3 +160,4 @@ export async function runRoutes(app: FastifyInstance) {
     return reply.status(201).send(res.run);
   });
 }
+

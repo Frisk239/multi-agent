@@ -28,6 +28,7 @@ import type {
   InboxItem,
   InboxListResponse,
   AgentRun,
+  RunTreeNode,
   RunMessage,
   RuntimesResponse,
   RuntimeId,
@@ -1040,6 +1041,22 @@ export function useChildRuns(parentRunId: string, opts?: { refetchIntervalMs?: n
     refetchInterval: opts?.refetchIntervalMs ?? false,
   });
 }
+
+/** GET /api/runs/:runId/tree —— S22 (S8): 获取 Run 的完整子代理层级树与摘要 */
+export function useRunTree(runId: string | undefined, opts?: { refetchIntervalMs?: number | false }) {
+  return useQuery<RunTreeNode>({
+    queryKey: ['run-tree', runId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs/${encodeURIComponent(runId!)}/tree`);
+      if (!res.ok) throw new Error(await apiError(res, '加载运行树失败'));
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    enabled: Boolean(runId),
+    refetchInterval: opts?.refetchIntervalMs ?? false,
+  });
+}
+
 
 /** GET /api/runs/:runId —— 运行详情页 */
 export function useRun(runId: string | undefined) {
