@@ -18,6 +18,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { PageSkeleton } from './Skeleton';
 import { ErrorState } from './ErrorState';
 import { EmptyState } from './EmptyState';
+import { AgentBuilderWizard } from './AgentBuilderWizard';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -95,15 +96,6 @@ function AgentsPageInner() {
   const del = useDeleteAgent();
   const unarchive = useUnarchiveAgent();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [runtime, setRuntime] = useState<RuntimeId>('opencode');
-  const [model, setModel] = useState('');
-  const [thinkingLevel, setThinkingLevel] = useState('');
-  const [category, setCategory] = useState('');
-  const [concurrency, setConcurrency] = useState(1);
-  const [instructions, setInstructions] = useState('');
-  const { data: createModelCatalog, isFetching: createModelsLoading } =
-    useRuntimeModels(open ? runtime : '');
 
   const qFromUrl = searchParams.get('q') ?? '';
   const runtimeFromUrl = searchParams.get('runtime') ?? '';
@@ -178,37 +170,6 @@ function AgentsPageInner() {
       return true;
     });
   }, [data, qFromUrl, runtimeFilter, readyFromUrl, readinessMap]);
-
-  function resetForm() {
-    setName('');
-    setRuntime('opencode');
-    setModel('');
-    setThinkingLevel('');
-    setCategory('');
-    setConcurrency(1);
-    setInstructions('');
-    setOpen(false);
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    const input: CreateAgentInput = {
-      name: name.trim(),
-      runtime,
-      model: model.trim() ? model.trim() : null,
-      thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
-      category: category.trim() ? category.trim() : null,
-      concurrency,
-      instructions,
-    };
-    create.mutate(input, {
-      onSuccess: (agent) => {
-        resetForm();
-        router.push(`/agents/${agent.id}`);
-      },
-    });
-  }
 
   function handleArchive(id: string, label: string) {
     if (!window.confirm(`归档智能体「${label}」？可从「已归档」Tab 恢复。`)) return;
@@ -334,177 +295,7 @@ function AgentsPageInner() {
       </div>
 
       {open && (
-        <form className="ops-form surface-card" onSubmit={submit}>
-          <div className="ops-form-grid">
-            <label className="ops-field">
-              <span>名称</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="如：补2 测试员"
-                required
-                autoFocus
-              />
-            </label>
-            <label className="ops-field">
-              <span>运行时</span>
-              <select
-                value={runtime}
-                onChange={(e) => setRuntime(e.target.value as RuntimeId)}
-              >
-                {RUNTIMES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="ops-field">
-              <span>模型</span>
-              <select
-                value={
-                  model &&
-                  (createModelCatalog?.models ?? []).some((m) => m.id === model)
-                    ? model
-                    : model
-                      ? '__custom__'
-                      : ''
-                }
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '__custom__') return;
-                  setModel(v);
-                }}
-                data-testid="agents-create-model"
-              >
-                <option value="">
-                  {createModelsLoading ? '加载模型…' : 'CLI 默认（不指定）'}
-                </option>
-                {(createModelCatalog?.models ?? []).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                    {m.isDefault ? ' · 推荐' : ''}
-                  </option>
-                ))}
-                {model &&
-                !(createModelCatalog?.models ?? []).some((m) => m.id === model) ? (
-                  <option value="__custom__">{model}（当前）</option>
-                ) : null}
-              </select>
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="或手填 model id"
-                list="agents-create-model-suggestions"
-                data-testid="agents-create-model-freeform"
-                autoComplete="off"
-                className="agent-model-freeform"
-              />
-              <datalist id="agents-create-model-suggestions">
-                {(createModelCatalog?.models ?? []).slice(0, 80).map((m) => (
-                  <option key={m.id} value={m.id} />
-                ))}
-              </datalist>
-              {createModelCatalog?.error ? (
-                <span className="text-dim text-sm" data-testid="agents-create-model-source">
-                  {createModelCatalog.installed === false
-                    ? 'runtime 未安装'
-                    : createModelCatalog.source === 'cli'
-                      ? 'CLI'
-                      : createModelCatalog.source}
-                  ：{createModelCatalog.error}
-                </span>
-              ) : createModelCatalog && createModelCatalog.models.length > 0 ? (
-                <span className="text-dim text-sm" data-testid="agents-create-model-source">
-                  已发现 {createModelCatalog.models.length} 个（{createModelCatalog.source}）
-                </span>
-              ) : createModelCatalog && createModelCatalog.installed === false ? (
-                <span className="text-dim text-sm" data-testid="agents-create-model-source">
-                  runtime 未安装，可手填 model id
-                </span>
-              ) : null}
-            </label>
-            <label className="ops-field">
-              <span>Thinking / Effort</span>
-              <select
-                value={
-                  ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
-                    ? thinkingLevel
-                    : thinkingLevel
-                      ? '__custom__'
-                      : ''
-                }
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '__custom__') return;
-                  setThinkingLevel(v);
-                }}
-                data-testid="agents-create-thinking"
-              >
-                <option value="">CLI 默认（不指定）</option>
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-                <option value="max">max</option>
-                {thinkingLevel &&
-                !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
-                  <option value="__custom__">{thinkingLevel}（当前）</option>
-                ) : null}
-              </select>
-              <input
-                value={thinkingLevel}
-                onChange={(e) => setThinkingLevel(e.target.value)}
-                placeholder="或手填 effort/variant"
-                data-testid="agents-create-thinking-freeform"
-                autoComplete="off"
-                className="agent-model-freeform"
-              />
-              <span className="text-dim text-sm">
-                claude/grok → --effort；cursor/opencode → --variant（CLI 不支持会失败，可清空）
-              </span>
-            </label>
-            <label className="ops-field">
-              <span>分类</span>
-              <input
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="可选"
-              />
-            </label>
-            <label className="ops-field">
-              <span>并发</span>
-              <input
-                type="number"
-                min={1}
-                max={8}
-                value={concurrency}
-                onChange={(e) => setConcurrency(Number(e.target.value) || 1)}
-              />
-            </label>
-          </div>
-          <label className="ops-field">
-            <span>Instructions</span>
-            <textarea
-              className="ops-textarea"
-              rows={3}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="执行时注入 prompt 的 agent 级指令（可选）"
-            />
-          </label>
-          <div className="ops-form-actions">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={create.isPending || !name.trim()}
-            >
-              {create.isPending ? '创建中…' : '创建'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={resetForm}>
-              取消
-            </button>
-          </div>
-        </form>
+        <AgentBuilderWizard onCancel={() => setOpen(false)} />
       )}
 
       {agents.length > 0 ? (
