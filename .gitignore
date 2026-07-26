@@ -58,7 +58,7 @@ app/.progress/multica-auth/storage-state.json
 .worktrees/
 
 # ── Wiki 运行与测试产物（动态生成快照与日志，勿提交）──
-wiki/
-**/wiki/
+/wiki/
+app/packages/server/wiki/
 app/packages/server/AGENTS.md
 
