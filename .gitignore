@@ -62,3 +62,9 @@ app/.progress/multica-auth/storage-state.json
 app/packages/server/wiki/
 app/packages/server/AGENTS.md
 
+# ── 根目录临时/修错脚本 ──
+/fix_errors*.js
+/temp*.js
+/test*.js
+
+
