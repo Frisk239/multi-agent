@@ -46,13 +46,13 @@
 
 ## 当前方位（2026-07-26）
 
-- **阶段：** S01–S14 + 补1–5 已合 main；**体验纵深阶段持续高推**
+- **阶段：** S01–S19 + 补1–5 已合 main；**体验与编排纵深阶段持续高推**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [全量 gap 分析 2026-07-26](app/.progress/gap-analysis-full-2026-07-26.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **全量缺口与切片规划（2026-07-26）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md) — 三期 12 刀切片规划
-- **已交（近）：** **Slice 14 (富文本评论框与 Live @Mention 唤醒预览)** · Slice 13 (Agent 动态脉冲状态与 WS 刷新) · Slice 1-12 (Phase A+B) (经严密 Playwright/E2E 校验，推 main)
-- **▶ 下一阶段切片池：** Slice 15 (S3: Token 成本归因与可视化面板) / Slice 16 (S4: Issue 自定义字段 UI)
-- **上一刀 closeout：** [slice14-commentcomposer-impl-1.md](app/.progress/slice14-commentcomposer-impl-1.md)
+- **已交（近）：** **Slice 19 (CLI 适配器均衡化 opencode/cursor/grok)** · Slice 18 (CLI Health Inspector) · Slice 17 (PR Link Card) · Slice 16 (Custom Fields) · Slice 15 (Token Cost) · Slice 14 (Rich Comment Composer) · Slice 13 (Agent Live Pulse)
+- **▶ 下一阶段切片池：** Slice 20 (S6: Cron 表达式 + 自动化加深) / Slice 21 (S7: Agent Builder 引导式创建)
+- **上一刀 closeout：** [slice19-cliequalization-impl-1.md](app/.progress/slice19-cliequalization-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
