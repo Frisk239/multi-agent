@@ -11,6 +11,7 @@ import type {
   AutomationRule,
   AutomationRun,
 } from '@ma/shared';
+import { CronExpressionParser } from 'cron-parser';
 import { inArray } from 'drizzle-orm';
 import { db } from './client.js';
 import {
@@ -365,6 +366,15 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
 /** 与 automation-dispatch.computeNextPlannedAt 同语义（避免 reshape↔dispatch 循环依赖） */
 function nextPlannedAtMs(row: AutomationRuleRow, now: number): number | null {
   if (row.enabled !== 1) return null;
+  if (row.scheduleKind === 'cron') {
+    if (!row.cronExpression) return null;
+    try {
+      const interval = CronExpressionParser.parse(row.cronExpression, { currentDate: new Date(now) });
+      return interval.next().getTime();
+    } catch {
+      return null;
+    }
+  }
   if (row.scheduleKind === 'interval_minutes') {
     const n = row.intervalMinutes;
     if (n == null || n <= 0) return null;
@@ -399,6 +409,7 @@ export function toAutomationRule(
     scheduleKind: row.scheduleKind,
     intervalMinutes: row.intervalMinutes ?? null,
     dailyTime: row.dailyTime ?? null,
+    cronExpression: row.cronExpression ?? null,
     assigneeType: row.assigneeType,
     assigneeId: row.assigneeId,
     titleTemplate: row.titleTemplate,

@@ -28,7 +28,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
 type EnabledFilter = '' | 'on' | 'off';
-type ScheduleFilter = '' | 'interval_minutes' | 'daily_at';
+type ScheduleFilter = '' | 'interval_minutes' | 'daily_at' | 'cron';
 
 function parseEnabled(raw: string | null): EnabledFilter {
   if (raw === 'on' || raw === 'off') return raw;
@@ -36,13 +36,16 @@ function parseEnabled(raw: string | null): EnabledFilter {
 }
 
 function parseSchedule(raw: string | null): ScheduleFilter {
-  if (raw === 'interval_minutes' || raw === 'daily_at') return raw;
+  if (raw === 'interval_minutes' || raw === 'daily_at' || raw === 'cron') return raw;
   return '';
 }
 
 function scheduleLabel(rule: AutomationRule): string {
   if (rule.scheduleKind === 'interval_minutes') {
     return `每 ${rule.intervalMinutes ?? '?'} 分钟`;
+  }
+  if (rule.scheduleKind === 'cron') {
+    return `Cron: ${rule.cronExpression ?? '?'}`;
   }
   return `每天 ${rule.dailyTime ?? '??:??'}`;
 }
@@ -142,6 +145,22 @@ function AutomationPageInner() {
   const [intervalMinutes, setIntervalMinutes] =
     useState<(typeof INTERVAL_OPTIONS)[number]>(15);
   const [dailyTime, setDailyTime] = useState('09:00');
+  const [cronExpression, setCronExpression] = useState('0 9 * * 1-5');
+  const [cronPreview, setCronPreview] = useState<{ success: boolean; nextRuns?: number[]; error?: string } | null>(null);
+
+  useEffect(() => {
+    if (scheduleKind !== 'cron' || !cronExpression.trim()) {
+      setCronPreview(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`http://localhost:3001/api/automation/preview-cron?expression=${encodeURIComponent(cronExpression)}`, { signal: controller.signal })
+      .then(res => res.json())
+      .then(data => setCronPreview(data))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [scheduleKind, cronExpression]);
+
   const [assigneeValue, setAssigneeValue] = useState('');
   const [titleTemplate, setTitleTemplate] = useState('巡检 {{date}} {{time}}');
   const [bodyTemplate, setBodyTemplate] = useState('自动创建');
@@ -204,6 +223,7 @@ function AutomationPageInner() {
     setScheduleKind('interval_minutes');
     setIntervalMinutes(15);
     setDailyTime('09:00');
+    setCronExpression('0 9 * * 1-5');
     setAssigneeValue('');
     setTitleTemplate('巡检 {{date}} {{time}}');
     setBodyTemplate('自动创建');
@@ -263,6 +283,7 @@ function AutomationPageInner() {
       scheduleKind,
       intervalMinutes: scheduleKind === 'interval_minutes' ? intervalMinutes : null,
       dailyTime: scheduleKind === 'daily_at' ? dailyTime : null,
+      cronExpression: scheduleKind === 'cron' ? cronExpression : null,
       assigneeType,
       assigneeId,
       titleTemplate: titleTemplate.trim(),
@@ -488,6 +509,7 @@ function AutomationPageInner() {
               >
                 <option value="interval_minutes">固定间隔</option>
                 <option value="daily_at">每日时刻</option>
+                <option value="cron">Cron 表达式</option>
               </select>
             </label>
             {scheduleKind === 'interval_minutes' ? (
@@ -508,7 +530,7 @@ function AutomationPageInner() {
                   ))}
                 </select>
               </label>
-            ) : (
+            ) : scheduleKind === 'daily_at' ? (
               <label className="ops-field">
                 <span>每日时刻（本地 HH:mm）</span>
                 <input
@@ -517,6 +539,32 @@ function AutomationPageInner() {
                   onChange={(e) => setDailyTime(e.target.value)}
                   required
                 />
+              </label>
+            ) : (
+              <label className="ops-field">
+                <span>Cron 表达式</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <input
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    placeholder="如 0 9 * * 1-5"
+                    required
+                  />
+                  <div className="automation-cron-chips">
+                    {['*/15 * * * *', '0 * * * *', '0 9 * * 1-5'].map(chip => (
+                      <button type="button" key={chip} className="btn-ghost btn-sm" style={{ padding: '0 4px', fontSize: 12, marginRight: 4 }} onClick={() => setCronExpression(chip)}>{chip}</button>
+                    ))}
+                  </div>
+                  {cronPreview && (
+                    <div className="text-dim text-sm" style={{ marginTop: 4 }}>
+                      {cronPreview.success ? (
+                        <>未来 5 次：{cronPreview.nextRuns?.map(t => new Date(t).toLocaleString()).join('、')}</>
+                      ) : (
+                        <span className="text-error">{cronPreview.error || '无效的 cron'}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </label>
             )}
             <label className="ops-field">
@@ -686,6 +734,7 @@ function AutomationPageInner() {
                 <option value="">全部</option>
                 <option value="interval_minutes">间隔</option>
                 <option value="daily_at">每日</option>
+                <option value="cron">Cron</option>
               </select>
             </label>
             <label className="agents-filter-field agents-filter-check">
@@ -739,7 +788,7 @@ function AutomationPageInner() {
                   data-testid="automation-chip-schedule"
                   onClick={() => replaceParams({ schedule: null })}
                 >
-                  调度 · {scheduleFromUrl === 'interval_minutes' ? '间隔' : '每日'} ×
+                  调度 · {scheduleFromUrl === 'interval_minutes' ? '间隔' : scheduleFromUrl === 'cron' ? 'Cron' : '每日'} ×
                 </button>
               ) : null}
               {failedOnly ? (

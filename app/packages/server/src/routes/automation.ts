@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq } from 'drizzle-orm';
+import { CronExpressionParser } from 'cron-parser';
 import type { AutomationRun } from '@ma/shared';
 import {
   CreateAutomationRuleInput,
@@ -11,13 +12,15 @@ import { toAutomationRule, toAutomationRun } from '../db/reshape.js';
 import { dispatchAutomationRule } from '../orchestration/automation-dispatch.js';
 
 function normalizeScheduleFields(input: {
-  scheduleKind?: 'interval_minutes' | 'daily_at';
+  scheduleKind?: 'interval_minutes' | 'daily_at' | 'cron';
   intervalMinutes?: number | null;
   dailyTime?: string | null;
+  cronExpression?: string | null;
 }): {
-  scheduleKind?: 'interval_minutes' | 'daily_at';
+  scheduleKind?: 'interval_minutes' | 'daily_at' | 'cron';
   intervalMinutes?: number | null;
   dailyTime?: string | null;
+  cronExpression?: string | null;
 } {
   if (!input.scheduleKind) return input;
   if (input.scheduleKind === 'interval_minutes') {
@@ -25,12 +28,22 @@ function normalizeScheduleFields(input: {
       scheduleKind: 'interval_minutes',
       intervalMinutes: input.intervalMinutes ?? null,
       dailyTime: null,
+      cronExpression: null,
+    };
+  }
+  if (input.scheduleKind === 'daily_at') {
+    return {
+      scheduleKind: 'daily_at',
+      intervalMinutes: null,
+      dailyTime: input.dailyTime ?? null,
+      cronExpression: null,
     };
   }
   return {
-    scheduleKind: 'daily_at',
+    scheduleKind: 'cron',
     intervalMinutes: null,
-    dailyTime: input.dailyTime ?? null,
+    dailyTime: null,
+    cronExpression: input.cronExpression ?? null,
   };
 }
 
@@ -69,6 +82,22 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     return rows.map(ruleWithStats);
   });
 
+  // GET /api/automation/preview-cron
+  app.get('/api/automation/preview-cron', async (req, reply) => {
+    const { expression } = req.query as { expression?: string };
+    if (!expression) return reply.status(400).send({ success: false, error: 'expression required' });
+    try {
+      const interval = CronExpressionParser.parse(expression, { currentDate: new Date() });
+      const nextRuns = [];
+      for (let i = 0; i < 5; i++) {
+        nextRuns.push(interval.next().getTime());
+      }
+      return { success: true, nextRuns };
+    } catch (e) {
+      return reply.status(400).send({ success: false, error: 'invalid cron expression' });
+    }
+  });
+
   // POST /api/automation/rules
   app.post('/api/automation/rules', async (req, reply) => {
     const parsed = CreateAutomationRuleInput.safeParse(req.body);
@@ -88,6 +117,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
         scheduleKind: sched.scheduleKind!,
         intervalMinutes: sched.intervalMinutes ?? null,
         dailyTime: sched.dailyTime ?? null,
+        cronExpression: sched.cronExpression ?? null,
         assigneeType: input.assigneeType,
         assigneeId: input.assigneeId,
         titleTemplate: input.titleTemplate,
@@ -127,14 +157,27 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
       patch.intervalMinutes !== undefined ? patch.intervalMinutes : prev.intervalMinutes;
     const mergedDaily =
       patch.dailyTime !== undefined ? patch.dailyTime : prev.dailyTime;
+    const mergedCron =
+      patch.cronExpression !== undefined ? patch.cronExpression : prev.cronExpression;
 
     if (mergedKind === 'interval_minutes') {
       if (mergedInterval == null || ![5, 15, 30, 60].includes(mergedInterval)) {
         return reply.status(400).send({ success: false, error: 'interval_minutes 必须为 5/15/30/60',
         });
       }
-    } else if (!mergedDaily || !/^\d{2}:\d{2}$/.test(mergedDaily)) {
-      return reply.status(400).send({ success: false, error: 'dailyTime 必须为 HH:mm'  });
+    } else if (mergedKind === 'daily_at') {
+      if (!mergedDaily || !/^\d{2}:\d{2}$/.test(mergedDaily)) {
+        return reply.status(400).send({ success: false, error: 'dailyTime 必须为 HH:mm'  });
+      }
+    } else if (mergedKind === 'cron') {
+      if (!mergedCron) {
+        return reply.status(400).send({ success: false, error: 'cronExpression 不能为空' });
+      }
+      try {
+        CronExpressionParser.parse(mergedCron);
+      } catch {
+        return reply.status(400).send({ success: false, error: '无效的 cron 表达式' });
+      }
     }
 
     const updates: Partial<typeof automationRules.$inferInsert> = {
@@ -150,16 +193,19 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     if (
       patch.scheduleKind !== undefined ||
       patch.intervalMinutes !== undefined ||
-      patch.dailyTime !== undefined
+      patch.dailyTime !== undefined ||
+      patch.cronExpression !== undefined
     ) {
       const sched = normalizeScheduleFields({
         scheduleKind: mergedKind,
         intervalMinutes: mergedInterval,
         dailyTime: mergedDaily,
+        cronExpression: mergedCron,
       });
       updates.scheduleKind = sched.scheduleKind!;
       updates.intervalMinutes = sched.intervalMinutes ?? null;
       updates.dailyTime = sched.dailyTime ?? null;
+      updates.cronExpression = sched.cronExpression ?? null;
     }
 
     db.update(automationRules).set(updates).where(eq(automationRules.id, id)).run();

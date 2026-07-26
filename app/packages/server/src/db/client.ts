@@ -79,6 +79,14 @@ try {
       sqlite.exec('ALTER TABLE issue ADD COLUMN custom_fields TEXT;');
     }
   }
+
+  const autoTableInfo = sqlite.pragma('table_info(automation_rule)') as Array<{ name: string }>;
+  if (autoTableInfo.length > 0) {
+    const autoCols = new Set(autoTableInfo.map((c) => c.name));
+    if (!autoCols.has('cron_expression')) {
+      sqlite.exec('ALTER TABLE automation_rule ADD COLUMN cron_expression TEXT;');
+    }
+  }
 } catch (e) {
   console.error('[db migration warning]', e);
 }

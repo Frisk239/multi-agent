@@ -4,6 +4,7 @@ import {
   type AutomationRun,
   type AutomationRunSource,
 } from '@ma/shared';
+import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
 import { agents, automationRules, automationRuns, squads } from '../db/schema.js';
 import { toAutomationRun } from '../db/reshape.js';
@@ -22,6 +23,16 @@ export function renderTemplate(
 
 /** latest_only：interval 对齐当前 grid；daily_at 取今日 HH:mm（本地时区）。 */
 export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
+  if (rule.scheduleKind === 'cron') {
+    if (!rule.cronExpression) return null;
+    try {
+      const interval = CronExpressionParser.parse(rule.cronExpression, { currentDate: new Date(now) });
+      return interval.prev().getTime();
+    } catch {
+      return null;
+    }
+  }
+
   if (rule.scheduleKind === 'interval_minutes') {
     const n = rule.intervalMinutes;
     if (n == null || n <= 0) return null;
@@ -52,14 +63,25 @@ export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
 export function computeNextPlannedAt(
   rule: {
     enabled: number | boolean;
-    scheduleKind: 'interval_minutes' | 'daily_at';
+    scheduleKind: 'interval_minutes' | 'daily_at' | 'cron';
     intervalMinutes: number | null;
     dailyTime: string | null;
+    cronExpression?: string | null;
   },
   now: number = Date.now(),
 ): number | null {
   const on = rule.enabled === true || rule.enabled === 1;
   if (!on) return null;
+
+  if (rule.scheduleKind === 'cron') {
+    if (!rule.cronExpression) return null;
+    try {
+      const interval = CronExpressionParser.parse(rule.cronExpression, { currentDate: new Date(now) });
+      return interval.next().getTime();
+    } catch {
+      return null;
+    }
+  }
 
   if (rule.scheduleKind === 'interval_minutes') {
     const n = rule.intervalMinutes;

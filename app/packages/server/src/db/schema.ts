@@ -473,10 +473,11 @@ export const automationRules = sqliteTable('automation_rule', {
   name: text('name').notNull(),
   enabled: integer('enabled').notNull().default(1),
   scheduleKind: text('schedule_kind', {
-    enum: ['interval_minutes', 'daily_at'],
+    enum: ['interval_minutes', 'daily_at', 'cron'],
   }).notNull(),
   intervalMinutes: integer('interval_minutes'),
   dailyTime: text('daily_time'), // HH:mm
+  cronExpression: text('cron_expression'), // */5 * * * *
   assigneeType: text('assignee_type', { enum: ['agent', 'squad'] }).notNull(),
   assigneeId: text('assignee_id').notNull(),
   titleTemplate: text('title_template').notNull(),

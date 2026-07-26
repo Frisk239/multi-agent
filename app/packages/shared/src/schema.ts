@@ -1783,7 +1783,7 @@ export const UpdateUserProfileInput = z.object({
 export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileInput>;
 
 // —— bu05：最小自动化（schedule + run-now）——
-export const AutomationScheduleKind = z.enum(['interval_minutes', 'daily_at']);
+export const AutomationScheduleKind = z.enum(['interval_minutes', 'daily_at', 'cron']);
 export type AutomationScheduleKind = z.infer<typeof AutomationScheduleKind>;
 
 export const AutomationRunSource = z.enum(['schedule', 'manual']);
@@ -1799,6 +1799,7 @@ export const AutomationRule = z.object({
   scheduleKind: AutomationScheduleKind,
   intervalMinutes: z.number().int().nullable(),
   dailyTime: z.string().nullable(), // "HH:mm"
+  cronExpression: z.string().nullable(),
   assigneeType: z.enum(['agent', 'squad']),
   assigneeId: BusinessId,
   titleTemplate: z.string(),
@@ -1827,6 +1828,7 @@ const CreateAutomationRuleFields = z.object({
     .regex(/^\d{2}:\d{2}$/)
     .optional()
     .nullable(),
+  cronExpression: z.string().optional().nullable(),
   assigneeType: z.enum(['agent', 'squad']),
   assigneeId: BusinessId,
   titleTemplate: z.string().min(1).max(200),
@@ -1842,11 +1844,17 @@ export const CreateAutomationRuleInput = CreateAutomationRuleFields.superRefine(
         path: ['intervalMinutes'],
       });
     }
-  } else if (!v.dailyTime) {
+  } else if (v.scheduleKind === 'daily_at' && !v.dailyTime) {
     ctx.addIssue({
       code: 'custom',
       message: 'dailyTime required',
       path: ['dailyTime'],
+    });
+  } else if (v.scheduleKind === 'cron' && !v.cronExpression) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'cronExpression required',
+      path: ['cronExpression'],
     });
   }
 });
@@ -1869,6 +1877,13 @@ export const UpdateAutomationRuleInput = CreateAutomationRuleFields.partial()
         code: 'custom',
         message: 'dailyTime required',
         path: ['dailyTime'],
+      });
+    }
+    if (v.scheduleKind === 'cron' && v.cronExpression === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'cronExpression required',
+        path: ['cronExpression'],
       });
     }
   });
