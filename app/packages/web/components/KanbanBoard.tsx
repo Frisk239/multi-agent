@@ -26,6 +26,7 @@ import { EmptyState } from './EmptyState';
 import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 import { OnboardingWizard } from './OnboardingWizard';
+import { useDensity } from '@/lib/density';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -96,6 +97,7 @@ function KanbanBoardInner() {
   const bulkUpdateStatus = useBulkUpdateIssueStatus();
   const bulkUpdateAssignee = useBulkUpdateIssueAssignee();
   const bulkDelete = useBulkDeleteIssues();
+  const { density, setDensity } = useDensity();
 
   const handleToggleSelect = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -685,6 +687,35 @@ function KanbanBoardInner() {
 
         {showMore ? (
           <div className="kanban-toolbar-more" data-testid="kanban-toolbar-more">
+            <div className="kanban-density-tabs" role="tablist" aria-label="密度">
+              <button
+                type="button"
+                role="tab"
+                className={`kanban-scope-tab${density === 'compact' ? ' is-active' : ''}`}
+                aria-selected={density === 'compact'}
+                onClick={() => setDensity('compact')}
+              >
+                紧凑
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={`kanban-scope-tab${density === 'default' ? ' is-active' : ''}`}
+                aria-selected={density === 'default'}
+                onClick={() => setDensity('default')}
+              >
+                默认
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={`kanban-scope-tab${density === 'comfortable' ? ' is-active' : ''}`}
+                aria-selected={density === 'comfortable'}
+                onClick={() => setDensity('comfortable')}
+              >
+                舒适
+              </button>
+            </div>
             <select
               className="kanban-priority-select"
               value={priorityQuery ?? ''}

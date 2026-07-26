@@ -87,6 +87,32 @@
   --focus-ring: 0 0 0 2px var(--page-canvas), 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent);
   --shadow-modal: var(--floating-shadow);
   --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+
+  /* Density Default (ma-ui-density) */
+  --cell-py: 8px;
+  --cell-px: 10px;
+  --card-gap: 8px;
+  --card-py: 12px;
+  --card-px: 10px;
+  --icon-scale: 1;
+}
+
+.density-compact {
+  --cell-py: 4px;
+  --cell-px: 8px;
+  --card-gap: 4px;
+  --card-py: 8px;
+  --card-px: 8px;
+  --icon-scale: 0.85;
+}
+
+.density-comfortable {
+  --cell-py: 12px;
+  --cell-px: 14px;
+  --card-gap: 12px;
+  --card-py: 16px;
+  --card-px: 14px;
+  --icon-scale: 1.15;
 }
 
 html.dark {
@@ -99,8 +125,8 @@ html.dark {
   --surface-hover: #36363d;
   --surface-selected: #3c3c44;
   --surface-border: rgba(255, 255, 255, 0.1);
-  --surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 1px rgba(0, 0, 0, 0.16);
-  --floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.46), 0 4px 12px rgba(0, 0, 0, 0.28);
+  --surface-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 1px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --floating-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.12);
 
   --color-border: rgba(255, 255, 255, 0.08);
   --color-border-subtle: rgba(255, 255, 255, 0.06);
@@ -980,7 +1006,7 @@ a.kanban-column-focus:hover {
 .kanban-column-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--card-gap, 8px);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1183,7 +1209,7 @@ html.dark .issue-card-menu-item.is-open {
   background: var(--surface);
   border: 0.5px solid var(--surface-border);
   border-radius: 10px;
-  padding: 12px 10px;
+  padding: var(--card-py, 12px) var(--card-px, 10px);
   cursor: grab;
   box-shadow: var(--surface-shadow, 0 1px 2px rgba(0, 0, 0, 0.18));
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.12s ease, background 0.12s ease;
@@ -8802,6 +8828,16 @@ a.issue-card-run-fail--link:hover {
   white-space: nowrap;
 }
 
+.kanban-view-tabs,
+.kanban-sort-tabs,
+.kanban-density-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-hover);
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .issue-meta-assignee {
   display: flex;
   align-items: flex-start;
@@ -8923,7 +8959,7 @@ a.issue-card-run-fail--link:hover {
 
 .issue-list-table th {
   text-align: left;
-  padding: 8px 10px;
+  padding: var(--cell-py, 8px) var(--cell-px, 10px);
   color: var(--text-muted);
   font-weight: 600;
   border-bottom: 1px solid var(--border);
@@ -8931,7 +8967,7 @@ a.issue-card-run-fail--link:hover {
 }
 
 .issue-list-table td {
-  padding: 8px 10px;
+  padding: var(--cell-py, 8px) var(--cell-px, 10px);
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }

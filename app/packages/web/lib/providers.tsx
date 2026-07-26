@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { useWsEvents } from './ws';
 import { ToastProvider } from './toast';
 import { ThemeProvider } from './theme';
+import { DensityProvider } from './density';
 
 function WsMount() {
   useWsEvents(); // 挂载时建立 WS 连接 + 监听
@@ -22,10 +23,12 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={qc}>
       <ThemeProvider>
-        <ToastProvider>
-          <WsMount />
-          {children}
-        </ToastProvider>
+        <DensityProvider>
+          <ToastProvider>
+            <WsMount />
+            {children}
+          </ToastProvider>
+        </DensityProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
