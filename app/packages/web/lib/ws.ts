@@ -101,7 +101,10 @@ export function useWsEvents() {
         if (!mounted) return;
         setStatus('open');
         if (retryCount > 0) {
-          qc.invalidateQueries();
+          qc.invalidateQueries({ queryKey: ['issues'] });
+          qc.invalidateQueries({ queryKey: ['agents'] });
+          qc.invalidateQueries({ queryKey: ['runs'] });
+          qc.invalidateQueries({ queryKey: ['runs-active-count'] });
         }
         retryCount = 0;
       };
@@ -300,6 +303,14 @@ export function useWsEvents() {
       if (event.type === 'wiki:page-created') {
         qc.invalidateQueries({ queryKey: ['wiki-pages'] });
         qc.invalidateQueries({ queryKey: ['wiki-jobs'] });
+      }
+
+      // S13: Agent 实时脉冲状态变更
+      if (event.type === 'agent:status_changed') {
+        qc.invalidateQueries({ queryKey: ['agents'] });
+        qc.invalidateQueries({ queryKey: ['agent', event.agentId] });
+        qc.invalidateQueries({ queryKey: ['agent-readiness'] });
+        qc.invalidateQueries({ queryKey: ['runs-active-count'] });
       }
     };
   }

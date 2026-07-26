@@ -317,8 +317,11 @@ export function toRunMessage(row: MsgRow): RunMessage {
   };
 }
 
+import { computeAgentLiveStatus } from '../orchestration/agent-status-broadcaster.js';
+
 // bu02：DB agent → API AgentSummary / AgentDetail
 export function toAgentSummary(row: AgentRow): AgentSummary {
+  const live = computeAgentLiveStatus(row.id);
   return {
     id: row.id,
     name: row.name,
@@ -328,10 +331,13 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
     thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
+    liveStatus: live.status,
+    activeRunCount: live.activeRunCount,
   };
 }
 
 export function toAgentDetail(row: AgentRow): AgentDetail {
+  const live = computeAgentLiveStatus(row.id);
   return {
     id: row.id,
     name: row.name,
@@ -345,6 +351,8 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     allowedPaths: row.allowedPaths ?? null,
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
+    liveStatus: live.status,
+    activeRunCount: live.activeRunCount,
   };
 }
 

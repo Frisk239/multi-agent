@@ -21,6 +21,7 @@ import {
   useRuntimeModels,
 } from '@/lib/api';
 import { Icon } from './Icon';
+import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -121,6 +122,14 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
           </div>
           <div className="agent-profile-name">{agent.name}</div>
           <div className="agent-profile-cat">{agent.category || '—'}</div>
+
+          <div style={{ marginTop: '8px', marginBottom: '8px' }}>
+            <AgentStatusBadge
+              status={agent.liveStatus}
+              activeRunCount={agent.activeRunCount}
+              size="md"
+            />
+          </div>
 
           {readiness && (
             <div className={readinessClass(readiness.status)} title={readiness.detail ?? undefined}>

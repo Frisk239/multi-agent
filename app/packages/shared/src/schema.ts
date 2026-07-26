@@ -799,6 +799,15 @@ export type AgentModelId = z.infer<typeof AgentModelId>;
 export const AgentThinkingLevel = z.string().max(80);
 export type AgentThinkingLevel = z.infer<typeof AgentThinkingLevel>;
 
+export const AgentPulseStatus = z.enum([
+  'idle',
+  'working',
+  'blocked',
+  'failed',
+  'offline',
+]);
+export type AgentPulseStatus = z.infer<typeof AgentPulseStatus>;
+
 export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
@@ -811,6 +820,9 @@ export const AgentSummary = z.object({
   thinkingLevel: z.string().nullable().optional(),
   // G25：软归档；null=活跃
   archivedAt: z.string().datetime().nullable().optional(),
+  // S13: Agent 实时脉冲状态
+  liveStatus: AgentPulseStatus.optional().default('idle'),
+  activeRunCount: z.number().int().nonnegative().optional().default(0),
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 
@@ -829,6 +841,8 @@ export const AgentDetail = AgentSummary.extend({
   instructions: z.string(),
   allowedPaths: z.string().nullable(),
   archivedAt: z.string().datetime().nullable(),
+  liveStatus: AgentPulseStatus.optional().default('idle'),
+  activeRunCount: z.number().int().nonnegative().optional().default(0),
 });
 export type AgentDetail = z.infer<typeof AgentDetail>;
 
@@ -1558,6 +1572,15 @@ export const RunStreamChunkEvent = z.object({
 });
 export type RunStreamChunkEvent = z.infer<typeof RunStreamChunkEvent>;
 
+export const AgentStatusChangedEvent = z.object({
+  type: z.literal('agent:status_changed'),
+  agentId: BusinessId,
+  status: AgentPulseStatus,
+  activeRunCount: z.number().int().nonnegative(),
+  latestRunId: BusinessId.nullable().optional(),
+});
+export type AgentStatusChangedEvent = z.infer<typeof AgentStatusChangedEvent>;
+
 export type DomainEvent =
   | IssueCreatedEvent
   | IssueUpdatedEvent
@@ -1569,7 +1592,8 @@ export type DomainEvent =
   | RunStreamChunkEvent
   | WikiPageCreatedEvent
   | InboxItemEvent
-  | RuntimeEventEvent;
+  | RuntimeEventEvent
+  | AgentStatusChangedEvent;
 
 // —— bu04：Settings / 环境诊断（G0 只读）——
 export const SettingsCheckStatus = z.enum(['ok', 'warn', 'error']);

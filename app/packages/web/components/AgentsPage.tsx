@@ -13,6 +13,7 @@ import {
   useUnarchiveAgent,
 } from '@/lib/api';
 import { Icon } from './Icon';
+import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageHeaderMore } from './PageHeaderMore';
 import { PageSkeleton } from './Skeleton';
 import { ErrorState } from './ErrorState';
@@ -722,6 +723,11 @@ function AgentsPageInner() {
                         <span>
                           <div className="agent-cell-name">{ag.name}</div>
                         </span>
+                        <AgentStatusBadge
+                          status={ag.liveStatus}
+                          activeRunCount={ag.activeRunCount}
+                          size="sm"
+                        />
                       </Link>
                     </td>
                     <td className="text-dim">{ag.category || '—'}</td>

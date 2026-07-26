@@ -1,4 +1,5 @@
 import type { DomainEvent } from '@ma/shared';
+import { broadcastAgentStatus } from './agent-status-broadcaster.js';
 
 type Listener = (e: DomainEvent) => void;
 
@@ -16,6 +17,22 @@ export class EventBus {
   }
 
   publish(e: DomainEvent): void {
+    // 自动拦截 Run 生命周期事件，触发 agent:status_changed 广播
+    if (
+      e.type === 'run:queued' ||
+      e.type === 'run:waiting_local_directory' ||
+      e.type === 'run:running' ||
+      e.type === 'run:completed' ||
+      e.type === 'run:failed' ||
+      e.type === 'run:cancelled'
+    ) {
+      try {
+        broadcastAgentStatus(e.run.agentId, e.run.id);
+      } catch (err) {
+        console.error('[event-bus] 广播 agent:status_changed 异常:', err);
+      }
+    }
+
     for (const fn of this.listeners) {
       try {
         fn(e);

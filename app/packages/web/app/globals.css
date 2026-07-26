@@ -11608,3 +11608,159 @@ a.issue-card-run-fail--link:hover {
 .wiki-ops-fold-body > * {
   margin-top: 10px;
 }
+
+/* S13: Multica 风格 Agent 实时脉冲状态徽章 */
+.agent-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.agent-status-badge.size-sm {
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+.agent-status-badge.size-md {
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.agent-status-badge.size-lg {
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.agent-pulse-dot {
+  display: inline-block;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.size-sm .agent-pulse-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.size-md .agent-pulse-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.size-lg .agent-pulse-dot {
+  width: 10px;
+  height: 10px;
+}
+
+/* Working State: Emerald Pulse */
+.agent-chip-working {
+  background: color-mix(in srgb, var(--status-in-progress, #10b981) 12%, transparent);
+  color: color-mix(in srgb, var(--status-in-progress, #10b981) 90%, var(--text-primary));
+  border: 1px solid color-mix(in srgb, var(--status-in-progress, #10b981) 30%, transparent);
+}
+
+.agent-pulse-working {
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: agent-pulse-green 1.8s infinite;
+}
+
+@keyframes agent-pulse-green {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Blocked State: Amber Pulse */
+.agent-chip-blocked {
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #d97706;
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+}
+
+.agent-pulse-blocked {
+  background-color: #f59e0b;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  animation: agent-pulse-amber 1.8s infinite;
+}
+
+@keyframes agent-pulse-amber {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+/* Failed State: Red Pulse */
+.agent-chip-failed {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #dc2626;
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+}
+
+.agent-pulse-failed {
+  background-color: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: agent-pulse-red 2s infinite;
+}
+
+@keyframes agent-pulse-red {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Idle State: Gray Dot */
+.agent-chip-idle {
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.agent-pulse-idle {
+  background-color: var(--text-muted);
+}
+
+/* Offline State */
+.agent-chip-offline {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-subtle);
+  opacity: 0.7;
+}
+
+.agent-pulse-offline {
+  background-color: var(--text-muted);
+  opacity: 0.4;
+}
