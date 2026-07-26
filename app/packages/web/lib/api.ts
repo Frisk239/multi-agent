@@ -58,6 +58,8 @@ import type {
   IssueEnqueueMeta,
   IssueStatus,
   PaginatedResponse,
+  TokenUsageAnalyticsResponse,
+  TokenUsageGroupItem,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -2690,3 +2692,16 @@ export function useAutomationRuns(ruleId: string | null | undefined, limit = 10)
     enabled: !!ruleId,
   });
 }
+
+// —— Slice 15 (S3): Token 成本归因 hooks ——
+export function useTokenUsageAnalytics(days = 30, groupBy: 'agent' | 'project' | 'day' = 'agent') {
+  return useQuery<TokenUsageAnalyticsResponse>({
+    queryKey: ['token-usage-analytics', days, groupBy],
+    queryFn: async () => {
+      const res = await fetch(`${API}/analytics/token-usage?days=${days}&groupBy=${groupBy}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载 Token 成本数据失败'));
+      return res.json();
+    },
+  });
+}
+

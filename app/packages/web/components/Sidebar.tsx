@@ -55,6 +55,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'runtime', label: '本机 CLI', icon: 'runtime', section: 'ops', href: '/runtimes' },
   { id: 'skills', label: 'Skills', icon: 'skills', section: 'ops', href: '/skills' },
   { id: 'usage', label: '用量', icon: 'usage', section: 'ops', href: '/usage' },
+  { id: 'analytics', label: 'Token 成本', icon: 'usage', section: 'ops', href: '/analytics' },
   { id: 'automation', label: '自动化', icon: 'automation', section: 'ops', href: '/automation' },
 ];
 

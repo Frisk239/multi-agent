@@ -1837,3 +1837,44 @@ export const AutomationRun = z.object({
   createdAt: z.string().datetime(),
 });
 export type AutomationRun = z.infer<typeof AutomationRun>;
+
+// —— Slice 15 (S3): Token 成本归因与可视化面板 ——
+export const TokenUsageGroupItem = z.object({
+  id: z.string(),
+  name: z.string(),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  promptCostUsd: z.number().nonnegative(),
+  completionCostUsd: z.number().nonnegative(),
+  totalCostUsd: z.number().nonnegative(),
+  runCount: z.number().int().nonnegative(),
+});
+export type TokenUsageGroupItem = z.infer<typeof TokenUsageGroupItem>;
+
+export const TokenUsageAnalyticsResponse = z.object({
+  windowDays: z.number().int().positive(),
+  since: z.string(),
+  until: z.string(),
+  groupBy: z.enum(['agent', 'project', 'day']),
+  totals: z.object({
+    promptTokens: z.number().int().nonnegative(),
+    completionTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+    promptCostUsd: z.number().nonnegative(),
+    completionCostUsd: z.number().nonnegative(),
+    totalCostUsd: z.number().nonnegative(),
+    totalRuns: z.number().int().nonnegative(),
+    runsWithTokens: z.number().int().nonnegative(),
+  }),
+  rates: z.object({
+    promptUsdPer1M: z.number(),
+    completionUsdPer1M: z.number(),
+  }),
+  items: z.array(TokenUsageGroupItem),
+  byAgent: z.array(TokenUsageGroupItem).optional(),
+  byProject: z.array(TokenUsageGroupItem).optional(),
+  byDay: z.array(TokenUsageGroupItem).optional(),
+});
+export type TokenUsageAnalyticsResponse = z.infer<typeof TokenUsageAnalyticsResponse>;
+

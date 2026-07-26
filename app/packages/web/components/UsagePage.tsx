@@ -7,6 +7,7 @@ import { useWorkspaceUsage } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { TokenCostDashboard } from './TokenCostDashboard';
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 
@@ -164,6 +165,10 @@ function UsagePageInner() {
                 : '尚无 CLI 上报 token；费用恒不可用'}
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-gray-800">
+          <TokenCostDashboard defaultDays={days} />
         </div>
 
         <section className="usage-section" data-testid="usage-by-day">
