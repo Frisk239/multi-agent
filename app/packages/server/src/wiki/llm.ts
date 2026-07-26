@@ -29,12 +29,28 @@ export function createLlm(): BaseChatModel {
 }
 
 // ingest prompt（spec §4.4）
-export function buildIngestPrompt(issue: Issue, sourceText: string): string {
-  return `你是一个项目 Wiki 维护者。以下是一个已完成的 Issue 的完整内容。请生成一个 Wiki 页（markdown），总结这个 Issue 的关键信息：做了什么、关键决策、产出。
+export function buildIngestPrompt(issue: Issue, sourceText: string, existingContext?: string): string {
+  if (!existingContext) {
+    return `你是一个项目 Wiki 维护者。以下是一个已完成的 Issue 的完整内容。请生成一个 Wiki 页（markdown），总结这个 Issue 的关键信息：做了什么、关键决策、产出。
 
 Issue ${issue.identifier}: ${issue.title}
 
 ${sourceText}
+
+请输出一个 markdown Wiki 页（以 # 标题开头），不要输出其他内容。`;
+  }
+
+  return `你是一个项目 Wiki 维护者。以下是一个已完成的 Issue 的完整内容，以及当前相关联的 Wiki 页面内容。
+请生成一个更新后的 Wiki 页（markdown），总结这个 Issue 的关键信息：做了什么、关键决策、产出。并且如果 Issue 的结论与这些现有 Wiki 页面的断言完全相反或产生悖论时，你必须在生成的 Wiki 页面顶部追加 Alert 标识：
+> [!WARNING]
+> **知识冲突警告**: 本页提取的结论与历史记录存在潜在矛盾...
+
+Issue ${issue.identifier}: ${issue.title}
+
+${sourceText}
+
+=== 现有相关 Wiki 页面参考 ===
+${existingContext}
 
 请输出一个 markdown Wiki 页（以 # 标题开头），不要输出其他内容。`;
 }

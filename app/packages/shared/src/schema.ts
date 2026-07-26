@@ -1253,6 +1253,7 @@ export const WikiHealthResult = z.object({
   orphans: z.array(z.object({ slug: z.string(), title: z.string() })),
   brokenLinks: z.array(z.object({ from: z.string(), to: z.string() })),
   stubs: z.array(z.object({ slug: z.string(), title: z.string(), bodyChars: z.number() })),
+  contradictions: z.array(z.object({ slug: z.string(), title: z.string() })),
   total: z.number(),
 });
 export type WikiHealthResult = z.infer<typeof WikiHealthResult>;

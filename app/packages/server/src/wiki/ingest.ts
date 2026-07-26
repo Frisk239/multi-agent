@@ -7,7 +7,7 @@ import { db } from '../db/client.js';
 import { issues, comments, projects } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
-import { saveRaw, writeWikiPage, appendIndex, appendLog, type WikiRootOpts } from './store.js';
+import { saveRaw, writeWikiPage, appendIndex, appendLog, listWikiPages, readWikiPage, type WikiRootOpts } from './store.js';
 import { createLlm, buildIngestPrompt, generateWikiPage } from './llm.js';
 import { generateSlug } from './slug.js';
 import { updateAgentsMdBridge } from './agents-bridge.js';
@@ -69,9 +69,32 @@ export async function ingestIssue(issueId: string): Promise<void> {
   // 2. 存 raw 快照（进 project 或 global wiki）
   saveRaw(issueId, `# ${issue.identifier}: ${issue.title}\n\n${sourceText}`, rootOpts);
 
-  // 3. LLM 生成 wiki 页
+  // 3. 找出可能重叠的现有 Wiki 页面（增量 Ingest 模式）
+  const allPages = listWikiPages(rootOpts);
+  let existingContext = '';
+  const isIncremental = allPages.length > 0;
+  if (isIncremental) {
+    const relevantPages = allPages
+      .filter((p) => {
+        const titleLower = p.title.toLowerCase();
+        return sourceText.toLowerCase().includes(titleLower) || issue.title.toLowerCase().includes(titleLower);
+      })
+      .slice(0, 3); // 截取前 3 个相关页面
+    
+    if (relevantPages.length > 0) {
+      existingContext = relevantPages
+        .map((p) => {
+          const page = readWikiPage(p.slug, rootOpts);
+          return page ? `--- ${p.title} (${p.slug}.md) ---\n${page.content.slice(0, 1000)}` : '';
+        })
+        .filter(Boolean)
+        .join('\n\n');
+    }
+  }
+
+  // 4. LLM 生成 wiki 页
   const llm = createLlm();
-  const prompt = buildIngestPrompt(issue, sourceText);
+  const prompt = buildIngestPrompt(issue, sourceText, existingContext);
   const wikiContent = await generateWikiPage(llm, prompt);
 
   // 4. 写 wiki 页

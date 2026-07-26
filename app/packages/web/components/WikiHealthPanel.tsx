@@ -50,7 +50,8 @@ export function WikiHealthPanel({
     return (
       health.data.orphans.length +
       health.data.brokenLinks.length +
-      health.data.stubs.length
+      health.data.stubs.length +
+      health.data.contradictions.length
     );
   }, [health.data]);
 
@@ -135,7 +136,7 @@ export function WikiHealthPanel({
         <div className="wiki-health-result" data-testid="wiki-health-result">
           <div className="wiki-health-summary">
             总页数: {health.data.total} · 孤儿: {health.data.orphans.length} · 断链:{' '}
-            {health.data.brokenLinks.length} · 空短: {health.data.stubs.length}
+            {health.data.brokenLinks.length} · 空短: {health.data.stubs.length} · 矛盾: {health.data.contradictions.length}
           </div>
           <div className="data-table-wrap">
             <table className="data-table">
@@ -238,9 +239,40 @@ export function WikiHealthPanel({
                     </td>
                   </tr>
                 ))}
+                {health.data.contradictions.map((c) => (
+                  <tr key={`contradiction-${c.slug}`}>
+                    <td>
+                      <span className="health-pill health-pill-red">🔴 矛盾</span>
+                    </td>
+                    <td>{c.title}</td>
+                    <td className="text-dim">知识冲突</td>
+                    <td>
+                      {onSelectPage ? (
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm"
+                          data-testid="wiki-health-jump"
+                          data-slug={c.slug}
+                          onClick={() => onSelectPage(c.slug)}
+                        >
+                          跳转
+                        </button>
+                      ) : null}
+                      <Link
+                        href={wikiShareHref(c.slug, projectId)}
+                        className="btn-ghost btn-sm"
+                        data-testid="wiki-health-share"
+                        data-slug={c.slug}
+                      >
+                        分享
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
                 {health.data.orphans.length === 0 &&
                   health.data.brokenLinks.length === 0 &&
-                  health.data.stubs.length === 0 && (
+                  health.data.stubs.length === 0 &&
+                  health.data.contradictions.length === 0 && (
                     <tr>
                       <td colSpan={4} className="text-dim" style={{ textAlign: 'center' }}>
                         <span className="health-pill health-pill-green">✅ 全部健康</span>

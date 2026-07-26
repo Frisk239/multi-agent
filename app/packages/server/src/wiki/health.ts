@@ -7,20 +7,26 @@ export function checkHealth(opts?: WikiRootOpts): {
   orphans: { slug: string; title: string }[];
   brokenLinks: { from: string; to: string }[];
   stubs: { slug: string; title: string; bodyChars: number }[];
+  contradictions: { slug: string; title: string }[];
   total: number;
 } {
   const pages = listWikiPages(opts);
   const allSlugs = new Set(pages.map((p) => p.slug));
   const inboundCount = new Map<string, number>();
   const brokenLinks: { from: string; to: string }[] = [];
+  const contradictions: { slug: string; title: string }[] = [];
 
   // 初始化入链计数
   for (const p of pages) inboundCount.set(p.slug, 0);
 
-  // 扫每页的 markdown 链接 [text](target.md)
   for (const p of pages) {
     const page = readWikiPage(p.slug, opts);
     if (!page) continue;
+
+    if (page.content.includes('> [!WARNING]') && page.content.includes('知识冲突警告')) {
+      contradictions.push({ slug: p.slug, title: p.title });
+    }
+
     const links = page.content.matchAll(/\[([^\]]+)\]\(([^)]+\.md)\)/g);
     for (const link of links) {
       const targetSlug = link[2].replace(/\.md$/, '');
@@ -49,5 +55,5 @@ export function checkHealth(opts?: WikiRootOpts): {
     .filter((p): p is { slug: string; title: string; bodyChars: number } => p !== null)
     .filter((p) => p.bodyChars < 100);
 
-  return { orphans, brokenLinks, stubs, total: pages.length };
+  return { orphans, brokenLinks, stubs, contradictions, total: pages.length };
 }
