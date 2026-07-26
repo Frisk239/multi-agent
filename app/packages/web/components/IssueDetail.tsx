@@ -14,6 +14,7 @@ import {
 } from './RunEventTimeline';
 import { ActivityTimeline } from './ActivityTimeline';
 import { ErrorBoundary } from './ErrorBoundary';
+import { IssuePrCard } from './IssuePrCard';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '../lib/toast';
 
@@ -345,6 +346,7 @@ export function IssueDetail({
               </button>
             </div>
             <IssueHeader issue={issue} variant="props" />
+            <IssuePrCard issue={issue} />
             {usage ? (
               <div className="issue-props-card mt-4 p-4 border rounded shadow-sm text-sm" data-testid="issue-token-usage">
                 <h4 className="font-semibold mb-2">Token 消耗统计</h4>

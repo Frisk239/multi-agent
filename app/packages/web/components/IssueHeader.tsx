@@ -190,7 +190,6 @@ export function IssueHeader({
           </Link>
         </div>
       ) : null}
-      <IssuePrLinkField issue={issue} />
       <IssueLabelsEditor issue={issue} />
       <IssueCustomFields issue={issue} />
     </div>

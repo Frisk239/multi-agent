@@ -495,8 +495,6 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         const trimmed = input.prUrl.trim();
         if (!trimmed) {
           updates.prUrl = null;
-        } else if (!/^https?:\/\//i.test(trimmed)) {
-          return reply.status(400).send({ success: false, error: 'prUrl 须为 http(s) URL'  });
         } else {
           updates.prUrl = trimmed;
         }
