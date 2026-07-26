@@ -65,6 +65,12 @@ try {
   if (!runCols.has('parent_run_id')) {
     sqlite.exec('ALTER TABLE agent_run ADD COLUMN parent_run_id TEXT;');
   }
+
+  const issueTableInfo = sqlite.pragma('table_info(issue)') as Array<{ name: string }>;
+  const issueCols = new Set(issueTableInfo.map((c) => c.name));
+  if (!issueCols.has('custom_fields')) {
+    sqlite.exec('ALTER TABLE issue ADD COLUMN custom_fields TEXT;');
+  }
 } catch (e) {
   console.error('[db migration warning]', e);
 }

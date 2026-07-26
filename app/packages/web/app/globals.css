@@ -11764,3 +11764,246 @@ a.issue-card-run-fail--link:hover {
   background-color: var(--text-muted);
   opacity: 0.4;
 }
+
+/* S14: Multica 风格富文本评论框 + Mention 自动补全 + 唤醒预览 Bar */
+.composer-card {
+  position: relative;
+  z-index: 20;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface, #fff);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  margin-top: 12px;
+}
+
+.composer-card:focus-within {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3b82f6) 20%, transparent);
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-hover, #f3f4f6) 50%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.composer-tabs {
+  display: flex;
+  gap: 2px;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.composer-tab {
+  border: none;
+  background: transparent;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.composer-tab.is-active {
+  background: var(--surface, #fff);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.composer-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.composer-tool-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.composer-tool-btn:hover {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-primary);
+}
+
+.composer-tool-mention {
+  color: var(--accent, #3b82f6);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent);
+}
+
+.composer-tool-mention:hover {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 20%, transparent);
+}
+
+.composer-body-wrap {
+  position: relative;
+  min-height: 90px;
+}
+
+.composer-input-area {
+  position: relative;
+  width: 100%;
+}
+
+.composer-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+
+.composer-preview-area {
+  padding: 12px;
+  min-height: 90px;
+  background: var(--surface);
+}
+
+/* Mention @ 自动补全浮层 */
+.mention-menu-popover {
+  position: absolute;
+  top: 40px;
+  left: 12px;
+  z-index: 50;
+  width: 280px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px 0;
+  list-style: none;
+  margin: 0;
+}
+
+.mention-menu-item {
+  padding: 0;
+}
+
+.mention-item-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.1s ease;
+}
+
+.mention-menu-item.is-selected .mention-item-btn,
+.mention-item-btn:hover {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+}
+
+.mention-item-icon {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.mention-item-name {
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-item-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+}
+
+/* Multica 风格唤醒预览 Bar */
+.composer-trigger-preview {
+  margin: 4px 8px 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #8b5cf6 8%, transparent);
+  border: 1px solid color-mix(in srgb, #8b5cf6 25%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trigger-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.trigger-preview-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trigger-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  border: 1px solid color-mix(in srgb, #8b5cf6 30%, transparent);
+  font-size: 12px;
+}
+
+.trigger-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.trigger-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-hover, #f3f4f6) 30%, transparent);
+}
+
+.composer-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
