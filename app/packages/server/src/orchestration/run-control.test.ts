@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { registerRunAbort, abortRun, hasRunAbort, clearRunAbort, listActiveRunIds } from './run-control';
 
 describe('run-control', () => {
+  afterEach(() => {
+    // Clean up any registered runs to prevent state leakage
+    for (const id of listActiveRunIds()) {
+      clearRunAbort(id);
+    }
+  });
+
   it('registers and retrieves AbortSignal for a run', () => {
     const runId = 'run-ctrl-1';
     const signal = registerRunAbort(runId);

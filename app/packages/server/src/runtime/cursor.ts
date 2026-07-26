@@ -8,6 +8,16 @@ import type {
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, type LineContext } from './spawn-line.js';
 import { parseUsageFromResultLine } from './usage-parse.js';
+import { safeFormatToolError } from './event-normalizer.js';
+
+function safeStringifyResult(content: unknown): string {
+  if (typeof content === 'string') return content;
+  try {
+    return JSON.stringify(content ?? '').slice(0, 4000);
+  } catch (err) {
+    return safeFormatToolError(err);
+  }
+}
 
 // parseCursorLine —— 对齐 multica cursor.go 的 cursorStreamEvent 解析。
 // Cursor agent 的 stream-json 与 Claude 高度同构（multica deep §5 + 本机 spike）：
@@ -55,7 +65,7 @@ function parseCursorLine(
       onEvent({
         type: 'tool_end',
         name: String(j.tool_name ?? 'tool'),
-        result: typeof j.output === 'string' ? j.output : JSON.stringify(j.output ?? '').slice(0, 4000),
+        result: safeStringifyResult(j.output),
       });
       break;
     case 'result':

@@ -309,37 +309,11 @@ export async function buildPrompt(
     }
   }
 
-  // 拼接顺序：skill → wiki/AGENTS → memory → user about → agent instructions → briefing → body。
+  // 拼接顺序（保护 Prompt Cache）：
+  // 静态前缀区：skill → user about → agent instructions → briefing
+  // 动态附加区：body (Issue) → wiki (<retrieved-context>) → memory (<retrieved-context>)
   const parts: string[] = [];
   if (skillBlock) parts.push(skillBlock);
-
-  // F6：AGENTS 相对仓库根；isolated 不注入 workspace AGENTS（错仓）
-  if (ctx.injectRepoContext && ctx.path) {
-    if (ctx.mode === 'project_local') {
-      const agentsCtx = readAgentsContextFromRoot(ctx.path);
-      if (agentsCtx) {
-        parts.push(`<context-fence kind="wiki" title="Wiki Context">\n# Project AGENTS / Wiki Snapshot\n${agentsCtx}\n</context-fence>`);
-      }
-    } else {
-      // workspace 模式：保持 S08 managed 块（控制台工作区 AGENTS.md）
-      const wikiBridge = readManagedBlock();
-      if (wikiBridge) {
-        parts.push(`<context-fence kind="wiki" title="Wiki Context">\n# Project Wiki Snapshot\n${wikiBridge}\n</context-fence>`);
-      }
-    }
-  } else if (!ctx.injectRepoContext) {
-    parts.push(
-      '# Repo context\n未绑定可用的项目本机目录：已跳过仓库 AGENTS.md 与项目级 .skills 注入。可在项目详情绑定 localPath。',
-    );
-  }
-
-  // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题
-  const memoryBlock = await memoryManager.prefetchForIssue({
-    id: issue.id,
-    title: issue.title,
-    description: issue.description,
-  });
-  if (memoryBlock) parts.push(memoryBlock);
 
   // G18：本地用户 About（Settings 可编辑；空则跳过）
   const localUser = db.select().from(users).where(eq(users.id, LOCAL_MEMBER.id)).get();
@@ -349,7 +323,7 @@ export async function buildPrompt(
     parts.push(`# About the Human Operator\nName: ${who}\n${about}`);
   }
 
-  // bu02：agent instructions（在 memory 之后、briefing 之前）
+  // bu02：agent instructions（在 memory 之后、briefing 之前 -> 现在移到静态区）
   if (run?.agentId) {
     const agent = db.select().from(agents).where(eq(agents.id, run.agentId)).get();
     const instructions = agent?.instructions?.trim();
@@ -375,6 +349,40 @@ export async function buildPrompt(
       parts.push(briefing);
     }
   }
+
+  // 加入 Issue 主体（动态区开始）
   parts.push(body);
+
+  // F6：AGENTS 相对仓库根；isolated 不注入 workspace AGENTS（错仓）
+  if (ctx.injectRepoContext && ctx.path) {
+    if (ctx.mode === 'project_local') {
+      const agentsCtx = readAgentsContextFromRoot(ctx.path);
+      if (agentsCtx) {
+        parts.push(`<retrieved-context kind="wiki" title="Wiki Context">\n# Project AGENTS / Wiki Snapshot\n${agentsCtx}\n</retrieved-context>`);
+      }
+    } else {
+      // workspace 模式：保持 S08 managed 块（控制台工作区 AGENTS.md）
+      const wikiBridge = readManagedBlock();
+      if (wikiBridge) {
+        parts.push(`<retrieved-context kind="wiki" title="Wiki Context">\n# Project Wiki Snapshot\n${wikiBridge}\n</retrieved-context>`);
+      }
+    }
+  } else if (!ctx.injectRepoContext) {
+    parts.push(
+      '# Repo context\n未绑定可用的项目本机目录：已跳过仓库 AGENTS.md 与项目级 .skills 注入。可在项目详情绑定 localPath。',
+    );
+  }
+
+  // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题
+  const memoryBlock = await memoryManager.prefetchForIssue({
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+  });
+  if (memoryBlock) {
+    // 包装在 retrieved-context 中
+    parts.push(`<retrieved-context kind="memory" title="Memory Context">\n${memoryBlock}\n</retrieved-context>`);
+  }
+
   return parts.join('\n\n---\n\n');
 }

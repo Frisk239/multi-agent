@@ -11,7 +11,7 @@ import { parseUsageFromResultLine } from './usage-parse.js';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-
+import { safeFormatToolError } from './event-normalizer.js';
 type ClaudeEvent =
   | { type: 'system'; subtype?: string; session_id?: string; sessionId?: string; [k: string]: unknown }
   | { type: 'assistant'; message?: { content?: Array<{ type: string; text?: string; name?: string; input?: unknown }> }; session_id?: string; sessionId?: string; [k: string]: unknown }
@@ -27,6 +27,15 @@ function pickSessionId(j: ClaudeEvent): string | null {
   const raw = j.session_id ?? j.sessionId;
   if (typeof raw === 'string' && raw.trim()) return raw.trim();
   return null;
+}
+
+function safeStringifyResult(content: unknown): string {
+  if (typeof content === 'string') return content;
+  try {
+    return JSON.stringify(content ?? '').slice(0, 4000);
+  } catch (err) {
+    return safeFormatToolError(err);
+  }
 }
 
 function parseClaudeLine(
@@ -78,7 +87,7 @@ function parseClaudeLine(
             onEvent({
               type: 'tool_end',
               name: b.tool_name ?? b.name ?? 'tool',
-              result: typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '').slice(0, 4000),
+              result: safeStringifyResult(b.content),
             });
           }
         }

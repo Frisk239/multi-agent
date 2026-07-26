@@ -51,9 +51,9 @@
 - **工程：** 自动迭代 Slice Owner · Playwright/脚本关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **完成审计（主航道日用）：** `app/.progress/local-multica-completion-audit-2026-07-19.md`
 - **全量缺口审计（2026-07-24）：** [gap-analysis-2026-07-24.md](app/.progress/gap-analysis-2026-07-24.md) — 功能缺口 17 项(P0×3 P1×7 P2×7) + 体验缺口 7 项
-- **已交（近）：** UX Trust A–D · DS1–DS4 · G22 model · Slice 1-6 (GAP-01~10) · **Slice 1 (批量操作)** · **Slice 2 (流式反馈)** · **Slice 3 (快捷键体系)** · **Slice 4 (表格密度与视觉统一)** · **Slice 5 (自定义字段)** · **Slice 6 (通知偏好与订阅控制 Notification Prefs)** (全量经 Playwright E2E 校验，推 main)
-- **▶ 下一阶段切片池：** Prompt Cache 保护与 Tool 容错(B1) / 增量 Wiki Ingest(B2) / Memory 时序有效窗口(B3)
-- **上一刀 closeout：** [slice6-notifprefs-impl-1.md](app/.progress/slice6-notifprefs-impl-1.md) · [slice5-customfields-impl-1.md](app/.progress/slice5-customfields-impl-1.md)
+- **已交（近）：** UX Trust A–D · DS1–DS4 · Slice 1-6 · **Slice 5 (自定义字段)** · **Slice 6 (通知偏好)** · **Slice 7/Phase B Slice 1 (Prompt Cache 保护与 Tool 容错)** (全量经 Playwright/E2E 校验，推 main)
+- **▶ 下一阶段切片池：** 增量 Wiki Ingest(B2/Tier 2 #5) / Memory 时序有效窗口(B3/Tier 2 #6) / Squad 自升级(B4)
+- **上一刀 closeout：** [slice7-promptcache-impl-1.md](app/.progress/slice7-promptcache-impl-1.md) · [slice6-notifprefs-impl-1.md](app/.progress/slice6-notifprefs-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 

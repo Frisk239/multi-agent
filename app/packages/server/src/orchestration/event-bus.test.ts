@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EventBus } from './event-bus';
 import type { DomainEvent } from '@ma/shared';
 
 describe('EventBus', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('allows subscribing to and publishing domain events', () => {
     const bus = new EventBus();
     const listener = vi.fn();
@@ -64,7 +68,5 @@ describe('EventBus', () => {
     expect(faultyListener).toHaveBeenCalledTimes(1);
     expect(goodListener).toHaveBeenCalledTimes(1);
     expect(consoleSpy).toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
   });
 });

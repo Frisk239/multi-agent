@@ -95,4 +95,36 @@ describe('normalizeRuntimeEvent', () => {
     const evt = normalizeRuntimeEvent(raw);
     expect(evt.timestamp).toBe(new Date(epoch).toISOString());
   });
+
+  describe('Error Sanitizer / Tool Fault Tolerance', () => {
+    it('gracefully handles circular references in tool input', () => {
+      const obj: any = {};
+      obj.circular = obj; // Create circular reference
+      const raw = {
+        runId: 'run-safe',
+        type: 'tool_use',
+        toolName: 'test_tool',
+        input: obj,
+      };
+      const evt = normalizeRuntimeEvent(raw);
+      expect(evt.kind).toBe('tool_use');
+      expect(evt.content).toContain('"error": true');
+      expect(evt.content).toContain('Converting circular structure to JSON');
+    });
+
+    it('gracefully handles circular references in tool output', () => {
+      const obj: any = {};
+      obj.circular = obj;
+      const raw = {
+        runId: 'run-safe',
+        type: 'tool_result',
+        toolName: 'test_tool',
+        output: obj,
+      };
+      const evt = normalizeRuntimeEvent(raw);
+      expect(evt.kind).toBe('tool_result');
+      expect(evt.content).toContain('"error": true');
+      expect(evt.content).toContain('Converting circular structure to JSON');
+    });
+  });
 });

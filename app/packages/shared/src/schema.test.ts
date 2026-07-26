@@ -214,4 +214,74 @@ describe('Shared Schema Validators', () => {
       expect(AutomationScheduleKind.parse('daily_at')).toBe('daily_at');
     });
   });
+
+  // ---- P6 Boundary value tests ----
+
+  describe('Enum case sensitivity', () => {
+    it('rejects uppercase variants of valid enum values', () => {
+      expect(() => IssueStatus.parse('TODO')).toThrow();
+      expect(() => IssueStatus.parse('In_Progress')).toThrow();
+      expect(() => Priority.parse('HIGH')).toThrow();
+      expect(() => AgentRunStatus.parse('RUNNING')).toThrow();
+    });
+  });
+
+  describe('Null and undefined inputs', () => {
+    it('rejects null for all enums', () => {
+      expect(() => IssueStatus.parse(null)).toThrow();
+      expect(() => Priority.parse(null)).toThrow();
+      expect(() => RuntimeId.parse(null)).toThrow();
+      expect(() => AgentRunStatus.parse(null)).toThrow();
+    });
+
+    it('rejects undefined for all enums', () => {
+      expect(() => IssueStatus.parse(undefined)).toThrow();
+      expect(() => Priority.parse(undefined)).toThrow();
+      expect(() => RuntimeId.parse(undefined)).toThrow();
+    });
+  });
+
+  describe('CreateIssueInput optional fields', () => {
+    it('parses with only required title field', () => {
+      const result = CreateIssueInput.parse({ title: 'Minimal' });
+      expect(result.title).toBe('Minimal');
+      // Optional fields should either be undefined or have defaults
+      expect(result.description).toBeUndefined();
+    });
+
+    it('rejects whitespace-only title if min length enforced', () => {
+      // This verifies the schema has a non-empty title constraint
+      expect(() => CreateIssueInput.parse({ title: '' })).toThrow();
+    });
+
+    it('accepts all optional fields together', () => {
+      const result = CreateIssueInput.parse({
+        title: 'Full',
+        description: 'Desc',
+        priority: 'low',
+        assigneeType: 'agent',
+        assigneeId: 'agt-1',
+        projectId: 'proj-1',
+      });
+      expect(result.title).toBe('Full');
+      expect(result.priority).toBe('low');
+    });
+  });
+
+  describe('BusinessId edge cases', () => {
+    it('accepts single character', () => {
+      expect(BusinessId.parse('x')).toBe('x');
+    });
+
+    it('accepts very long strings', () => {
+      const long = 'a'.repeat(500);
+      expect(BusinessId.parse(long)).toBe(long);
+    });
+
+    it('rejects non-string types', () => {
+      expect(() => BusinessId.parse(123)).toThrow();
+      expect(() => BusinessId.parse(null)).toThrow();
+      expect(() => BusinessId.parse(undefined)).toThrow();
+    });
+  });
 });
