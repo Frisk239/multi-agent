@@ -88,6 +88,10 @@ interface Props {
   lastRunFailed?: boolean;
   /** 是否有 queued/running run */
   runActive?: boolean;
+  /** 是否被选中 */
+  selected?: boolean;
+  /** 选中状态改变 */
+  onToggleSelect?: (id: string, checked: boolean) => void;
 }
 
 /**
@@ -105,6 +109,8 @@ export const IssueCard = React.memo(function IssueCard({
   readiness,
   lastRunFailed,
   runActive,
+  selected,
+  onToggleSelect,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: issue.id,
@@ -149,7 +155,17 @@ export const IssueCard = React.memo(function IssueCard({
         data-run-active={runActive ? '1' : '0'}
         data-origin={issue.originType ?? ''}
       >
-        <div className="issue-card-top">
+        <div className="issue-card-top" style={{ display: 'flex', alignItems: 'center' }}>
+          {onToggleSelect && (
+            <input
+              type="checkbox"
+              checked={selected || false}
+              onPointerDown={(e) => e.stopPropagation()} // Prevent drag
+              onChange={(e) => onToggleSelect(issue.id, e.target.checked)}
+              className="mr-2"
+              style={{ cursor: 'pointer' }}
+            />
+          )}
           <div className="issue-card-id-row">
             {issue.priority !== 'none' ? (
               <Link

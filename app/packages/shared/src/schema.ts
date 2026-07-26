@@ -729,6 +729,24 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
   );
 }
 
+export const BulkUpdateIssueStatusInput = z.object({
+  issueIds: z.array(BusinessId).min(1),
+  status: IssueStatus,
+});
+export type BulkUpdateIssueStatusInput = z.infer<typeof BulkUpdateIssueStatusInput>;
+
+export const BulkUpdateIssueAssigneeInput = z.object({
+  issueIds: z.array(BusinessId).min(1),
+  assigneeType: AssigneeType.nullable(),
+  assigneeId: BusinessId.nullable(),
+});
+export type BulkUpdateIssueAssigneeInput = z.infer<typeof BulkUpdateIssueAssigneeInput>;
+
+export const BulkDeleteIssuesInput = z.object({
+  issueIds: z.array(BusinessId).min(1),
+});
+export type BulkDeleteIssuesInput = z.infer<typeof BulkDeleteIssuesInput>;
+
 /** GET /api/issues/:id/subscription —— 本地 member 是否关注此 issue */
 export const IssueSubscription = z.object({
   issueId: BusinessId,

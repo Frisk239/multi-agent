@@ -18,6 +18,8 @@ interface Props {
   activeIssueIds?: Set<string>;
   /** issueId → agentId（用于 squad 时已解析为 leader） */
   assigneeAgentByIssueId?: Record<string, string | undefined>;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string, checked: boolean) => void;
 }
 
 /**
@@ -35,6 +37,8 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   failedIssueIds,
   activeIssueIds,
   assigneeAgentByIssueId,
+  selectedIds,
+  onToggleSelect,
 }: Props) {
   const { setNodeRef } = useDroppable({
     id: status,
@@ -92,6 +96,8 @@ export const KanbanColumn = React.memo(function KanbanColumn({
                     readiness={rd}
                     lastRunFailed={failedIssueIds?.has(iss.id)}
                     runActive={activeIssueIds?.has(iss.id)}
+                    selected={selectedIds?.has(iss.id)}
+                    onToggleSelect={onToggleSelect}
                   />
                 </div>
               );

@@ -15,6 +15,9 @@ import {
   useSquads,
   useUpdateIssue,
   useWorkspaceRuns,
+  useBulkUpdateIssueStatus,
+  useBulkUpdateIssueAssignee,
+  useBulkDeleteIssues,
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { IssueCard } from './IssueCard';
@@ -88,6 +91,28 @@ function KanbanBoardInner() {
   const [qDraft, setQDraft] = useState(qFromUrl);
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const bulkUpdateStatus = useBulkUpdateIssueStatus();
+  const bulkUpdateAssignee = useBulkUpdateIssueAssignee();
+  const bulkDelete = useBulkDeleteIssues();
+
+  const handleToggleSelect = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids));
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -940,6 +965,16 @@ function KanbanBoardInner() {
           <table className="issue-list-table" data-testid="issue-list-table">
             <thead>
               <tr>
+                <th style={{ width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={sortedVisible.length > 0 && selectedIds.size === sortedVisible.length}
+                    onChange={(e) => {
+                      if (e.target.checked) handleSelectAll(sortedVisible.map(i => i.id));
+                      else handleClearSelection();
+                    }}
+                  />
+                </th>
                 <th
                   style={{ cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => handleHeaderSort('identifier')}
@@ -1022,6 +1057,13 @@ function KanbanBoardInner() {
                           : 'issue-list-row'
                     }
                   >
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(iss.id)}
+                        onChange={(e) => handleToggleSelect(iss.id, e.target.checked)}
+                      />
+                    </td>
                     <td>
                       <Link
                         href={`/issues/${iss.id}`}
@@ -1120,6 +1162,8 @@ function KanbanBoardInner() {
               failedIssueIds={failedIssueIds}
               activeIssueIds={activeIssueIds}
               assigneeAgentByIssueId={assigneeAgentByIssueId}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
             />
           ))}
         </div>
@@ -1136,6 +1180,79 @@ function KanbanBoardInner() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white shadow-xl rounded-lg p-4 flex items-center gap-4 z-50 border border-gray-200" style={{ transform: 'translateX(-50%)', position: 'fixed', bottom: '1rem', left: '50%', backgroundColor: 'var(--bg-card, white)', padding: '1rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', border: '1px solid var(--border-color, #e5e7eb)', zIndex: 50 }}>
+          <span className="font-medium">已选择 {selectedIds.size} 项</span>
+          
+          <select 
+            className="select select-bordered select-sm"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                bulkUpdateStatus.mutate(
+                  { issueIds: Array.from(selectedIds), status: e.target.value as IssueStatus },
+                  { onSuccess: () => handleClearSelection() }
+                );
+              }
+            }}
+          >
+            <option value="" disabled>修改状态...</option>
+            {COLUMNS.map(c => <option key={c.status} value={c.status}>{c.title}</option>)}
+          </select>
+          
+          <select
+            className="select select-bordered select-sm"
+            value=""
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) {
+                let type: string | null = null;
+                let id: string | null = null;
+                if (val === 'unassigned') {
+                  type = null;
+                  id = null;
+                } else if (val.startsWith('agent:')) {
+                  type = 'agent';
+                  id = val.slice(6);
+                } else if (val.startsWith('squad:')) {
+                  type = 'squad';
+                  id = val.slice(6);
+                }
+                bulkUpdateAssignee.mutate(
+                  { issueIds: Array.from(selectedIds), assigneeType: type, assigneeId: id },
+                  { onSuccess: () => handleClearSelection() }
+                );
+              }
+            }}
+          >
+            <option value="" disabled>更改指派...</option>
+            <option value="unassigned">未指派</option>
+            <optgroup label="Agents">
+              {agents.map(a => <option key={a.id} value={`agent:${a.id}`}>{a.name}</option>)}
+            </optgroup>
+            <optgroup label="Squads">
+              {squads.map(s => <option key={s.id} value={`squad:${s.id}`}>{s.name}</option>)}
+            </optgroup>
+          </select>
+          
+          <button 
+            className="btn-error btn-sm"
+            onClick={() => {
+              if (confirm(`确定要删除选中的 ${selectedIds.size} 项吗？`)) {
+                bulkDelete.mutate(
+                  { issueIds: Array.from(selectedIds) },
+                  { onSuccess: () => handleClearSelection() }
+                );
+              }
+            }}
+          >
+            批量删除
+          </button>
+          
+          <button className="btn-ghost btn-sm" onClick={handleClearSelection}>取消选择</button>
+        </div>
       )}
     </div>
   );

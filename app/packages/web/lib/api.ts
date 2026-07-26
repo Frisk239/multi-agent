@@ -723,6 +723,60 @@ export function useReorderIssues() {
   });
 }
 
+export function useBulkUpdateIssueStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { issueIds: string[]; status: string }) => {
+      const res = await fetch(`${API}/issues/bulk-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('批量更新状态失败');
+      return res.json() as Promise<{ success: boolean; updatedCount: number }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useBulkUpdateIssueAssignee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { issueIds: string[]; assigneeType: string | null; assigneeId: string | null }) => {
+      const res = await fetch(`${API}/issues/bulk-assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('批量指派失败');
+      return res.json() as Promise<{ success: boolean; updatedCount: number }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
+export function useBulkDeleteIssues() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { issueIds: string[] }) => {
+      const res = await fetch(`${API}/issues/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error('批量删除失败');
+      return res.json() as Promise<{ success: boolean; deletedCount: number }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+    },
+  });
+}
+
 export function useUpdateIssue() {
   const qc = useQueryClient();
   return useMutation({

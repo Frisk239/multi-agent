@@ -8,6 +8,9 @@ import {
   ListIssuesQuery,
   ReorderIssuesInput,
   validateUpdateIssue,
+  BulkUpdateIssueStatusInput,
+  BulkUpdateIssueAssigneeInput,
+  BulkDeleteIssuesInput,
   type IssueRunUsage,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
@@ -837,6 +840,94 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       tokensCacheWrite: tokensCacheWriteN > 0 ? tokensCacheWriteSum : null,
     };
     return usage;
+  });
+
+  // POST /api/issues/bulk-status
+  app.post('/api/issues/bulk-status', async (req, reply) => {
+    const parsed = BulkUpdateIssueStatusInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+    }
+    const { issueIds, status } = parsed.data;
+    const now = Date.now();
+    let updatedCount = 0;
+    sqlite.transaction(() => {
+      for (const id of issueIds) {
+        const prev = db.select().from(issues).where(eq(issues.id, id)).get();
+        if (prev && prev.status !== status) {
+          db.update(issues).set({ status, updatedAt: now }).where(eq(issues.id, id)).run();
+          updatedCount++;
+          recordActivityLog({
+            issueId: id,
+            actorType: 'member',
+            actorName: '用户',
+            eventType: 'status_changed',
+            payload: { from: prev.status, to: status },
+          });
+        }
+      }
+    })();
+    return { success: true, updatedCount };
+  });
+
+  // POST /api/issues/bulk-assign
+  app.post('/api/issues/bulk-assign', async (req, reply) => {
+    const parsed = BulkUpdateIssueAssigneeInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+    }
+    const { issueIds, assigneeType, assigneeId } = parsed.data;
+    const now = Date.now();
+    let updatedCount = 0;
+    const nextKey = assigneeKey(assigneeType, assigneeId);
+    sqlite.transaction(() => {
+      for (const id of issueIds) {
+        const prev = db.select().from(issues).where(eq(issues.id, id)).get();
+        if (prev) {
+          const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
+          if (prevKey !== nextKey) {
+            db.update(issues).set({ assigneeType, assigneeId, updatedAt: now }).where(eq(issues.id, id)).run();
+            updatedCount++;
+            recordActivityLog({
+              issueId: id,
+              actorType: 'member',
+              actorName: '用户',
+              eventType: 'assignee_changed',
+              payload: { from: prevKey, to: nextKey },
+            });
+          }
+        }
+      }
+    })();
+    return { success: true, updatedCount };
+  });
+
+  // POST /api/issues/bulk-delete
+  app.post('/api/issues/bulk-delete', async (req, reply) => {
+    const parsed = BulkDeleteIssuesInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+    }
+    const { issueIds } = parsed.data;
+    let deletedCount = 0;
+    sqlite.transaction(() => {
+      for (const id of issueIds) {
+        const prev = db.select().from(issues).where(eq(issues.id, id)).get();
+        if (prev) {
+          cancelActiveRunsForIssue(id);
+          db.update(issues).set({ parentIssueId: null, updatedAt: Date.now() }).where(eq(issues.parentIssueId, id)).run();
+          db.delete(issueToLabels).where(eq(issueToLabels.issueId, id)).run();
+          db.delete(issueSubscribers).where(eq(issueSubscribers.issueId, id)).run();
+          db.delete(comments).where(eq(comments.issueId, id)).run();
+          db.delete(inboxItems).where(eq(inboxItems.issueId, id)).run();
+          db.delete(wikiIngestJobs).where(eq(wikiIngestJobs.issueId, id)).run();
+          db.update(agentRuns).set({ issueId: null }).where(eq(agentRuns.issueId, id)).run();
+          db.delete(issues).where(eq(issues.id, id)).run();
+          deletedCount++;
+        }
+      }
+    })();
+    return { success: true, deletedCount };
   });
 }
 

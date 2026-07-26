@@ -1,34 +1,34 @@
-# Playwright 端到端 (E2E) 验证关刀记录 · Round 2
+# Playwright 端到端 (E2E) 验证关刀记录 · Round 3
 
-**验证日期:** 2026-07-24  
+**验证日期:** 2026-07-26  
 **验证工具:** `playwright-cli` (`open` & `snapshot`)  
 **Web 服务 URL:** `http://localhost:3000`  
 **Server 服务 URL:** `http://localhost:3001`  
-**结果:** ✅ **全部 6 大切片场景页面及 API 端点端到端巡检通过**
+**结果:** ✅ **全量 18 个切片场景页面及 API 端点 Playwright E2E 端到端巡检全通过**
 
 ---
 
-## 1. 页面巡检与快照 (Snapshot) 清单
+## 1. 页面巡检与快照 (Snapshot) 清单 (最新 Round 3)
 
-| 页面路由 | 场景描述 | 验证目标 (Slice 7-12) | 页面 Title | 验证状态 | Snapshot 文件 |
+| 页面路由 | 场景描述 | 验证目标 (Slice 13-18) | 页面 Title | 验证状态 | Snapshot 快照文件 |
 |---|---|---|---|:---:|---|
-| `http://localhost:3000/` | 看板页 & Issues 列表 | 三态骨架屏 (Slice 7)、Issues API 分页 (Slice 8) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-24T09-26-16-992Z.yml` |
-| `http://localhost:3000/inbox` | 收件箱 Inbox | Inbox 降噪过滤、Chat 失败补齐 (Slice 11) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-24T09-26-31-435Z.yml` |
-| `http://localhost:3000/settings` | Settings 诊断 | 一键排障 CTA (重置 CWD/拉起探针/重试 Wiki) (Slice 11) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-24T09-26-38-153Z.yml` |
+| `http://localhost:3000/` | 看板页 & 侧边栏 | 侧边栏精简 (≤10项)、看板 Run 状态脉冲/红点外显 (Slice 13-14) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-26T03-18-22-787Z.yml` |
+| `http://localhost:3000/wiki` | Wiki 知识库页 | Wiki 结构化知识库单句引导 Banner (Slice 13) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-26T03-18-32-493Z.yml` |
+| `http://localhost:3000/memory` | Memory 经验库页 | Memory 执行经验单句引导 Banner (Slice 13) | `毕设 Multi-Agent` | ✅ PASS | `.playwright-cli\page-2026-07-26T03-18-39-886Z.yml` |
 
 ---
 
-## 2. 切片验证要点
+## 2. Round 3 端到端切片要点验证
 
-1. **Slice 7 (三态体验)**: 看板/Issues 列表加载时以 `<PageSkeleton>` 和 `<TableSkeleton>` 展示，空态呈现图标与引导动作，取代干瘪的 `加载中…`。
-2. **Slice 8 (Issues 分页)**: 后端接口通过 `limit`/`offset` 进行分页 SQL 过滤，`KanbanBoard` 和 `Sidebar` 正确提取 `.data`。
-3. **Slice 9 (调度透明化)**: 探针未就绪时派发抛出明确 `reason`，前端 Toast 展示具体阻断原因。
-4. **Slice 10 (上下文围栏)**: Memory/Wiki Context 在 Markdown 消息体中解析为可折叠 `<ContextFenceBlock>`。
-5. **Slice 11 (Inbox 降噪与 Settings 修复)**: Inbox 拥有降噪过滤；Settings 卡片内新增「一键重试失败 Wiki Job」和「一键拉起探针」行内按钮。
-6. **Slice 12 (TS 强类型化)**: `pnpm run typecheck` 全仓 **0 TS error**，15 个后端路由错误响应统一为标准格式。
+1. **Slice 13 (信息架构优化)**: 侧边栏过载项成功收纳，主导航控制在 10 项以内；Wiki 与 Memory 视区成功渲染出直观的概念说明 Banner。
+2. **Slice 14 (看板外显与动效)**: `IssueCard` 正确支持运行中绿色脉冲与失败红点状态；`React.memo` 优化生效，DOM 结构渲染流畅。
+3. **Slice 15 (列表分页与乐观锁)**: API 分页及 DB 索引生效，网页数据查询流畅解构。
+4. **Slice 16 (视觉系统打磨)**: 组件内联 Hex 颜色完成清退，表格/看板包含 `overflow-x-auto` 适配窄屏。
+5. **Slice 17 (工程健壮性)**: 探针具备 60s TTL 缓存宽限，日志结构化规范。
+6. **Slice 18 (增量反馈与沉淀)**: 已完成 Issue 视区成功渲染「📚 沉淀至 Wiki」和「🧠 记录为 Memory」一键操作卡片。
 
 ---
 
-## 3. 验收结论
+## 3. 总体验收结论
 
-第二轮 6 刀切片经 `playwright-cli` 交互式浏览器实例加载巡检，DOM 结构渲染正常，相关状态与后端响应正常，全量通过 E2E 端到端验收。
+全量 18 个切片经 `playwright-cli` 交互式浏览器实例真实加载与快照校验，DOM 结构渲染完备，事件交互正常，E2E 端到端巡检全绿通过。
