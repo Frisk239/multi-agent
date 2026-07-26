@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock workspace-cwd to break the transitive db/client import chain
+vi.mock('../workspace-cwd.js', () => ({
+  resolveWorkspaceCwd: vi.fn().mockReturnValue({ path: null, source: 'none' }),
+}));
+
 import { normalizeProjectLocalPath, isUsableLocalDirectory } from './resolve-run-cwd';
 import { resolve } from 'node:path';
 

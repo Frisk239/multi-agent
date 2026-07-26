@@ -2050,6 +2050,17 @@ export type IsolatedWorkspaceEntry = {
 
 export type InboxPrefs = {
   notifyIssueSuccess: boolean;
+  notifyTypes?: {
+    comment?: boolean;
+    run_completed?: boolean;
+    run_failed?: boolean;
+    assigned?: boolean;
+  };
+  notifySeverities?: {
+    action_required?: boolean;
+    attention?: boolean;
+    info?: boolean;
+  };
   envForcesSuccess?: boolean;
   effectiveNotifyIssueSuccess?: boolean;
 };
@@ -2070,7 +2081,7 @@ export function useInboxPrefs() {
 export function useSetInboxPrefs() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { notifyIssueSuccess: boolean }) => {
+    mutationFn: async (input: Partial<InboxPrefs>) => {
       const res = await fetch(`${API}/settings/inbox-prefs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2081,11 +2092,7 @@ export function useSetInboxPrefs() {
     },
     onSuccess: (data) => {
       qc.setQueryData(['inbox-prefs'], data);
-      toastSuccess(
-        data.notifyIssueSuccess
-          ? '已开启：Issue 成功完成也推送收件箱'
-          : '已关闭：Issue 成功不再推送（默认降噪）',
-      );
+      toastSuccess('已保存通知偏好');
     },
     onError: (err) => toastError(errMessage(err, '保存通知偏好失败')),
   });

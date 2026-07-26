@@ -274,19 +274,21 @@ export function IssueHeader({
           <button
             type="button"
             className={`btn btn-ghost btn-sm issue-subscribe-btn${
-              subscribed ? ' issue-subscribe-btn--on' : ''
+              subscribed ? ' issue-subscribe-btn--on' : subscription?.reason === 'muted' ? ' issue-subscribe-btn--muted' : ''
             }`}
             data-testid="issue-subscribe-btn"
             data-subscribed={subscribed ? '1' : '0'}
             disabled={toggleSub.isPending || subscription == null}
             title={
               subscribed
-                ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击取消`
-                : '关注后接收此 Issue 相关收件箱通知'
+                ? `已关注${subscription?.reason ? `（${subscription.reason}）` : ''} · 点击免打扰`
+                : subscription?.reason === 'muted'
+                  ? '已免打扰 · 点击关注'
+                  : '未关注 · 点击关注'
             }
             onClick={() => toggleSub.mutate(subscribed)}
           >
-            {subscribed ? '已关注' : '关注'}
+            {subscribed ? '已关注' : subscription?.reason === 'muted' ? '免打扰 (Mute)' : '关注'}
           </button>
           {endActions}
           {variant === 'main' ? null : (

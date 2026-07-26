@@ -1,4 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock DB to prevent SQLite connection at import time
+vi.mock('../db/client.js', () => ({
+  db: { query: {}, select: vi.fn(), insert: vi.fn(), update: vi.fn() },
+  sqlite: {},
+}));
+
 import { readAgentsContextFromRoot } from './issue-prompt-context';
 
 describe('issue-prompt-context', () => {

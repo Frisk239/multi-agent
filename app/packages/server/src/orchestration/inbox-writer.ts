@@ -5,7 +5,7 @@ import { inboxItems, issueSubscribers, issues } from '../db/schema.js';
 import { toInboxItem } from '../db/reshape.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { eventBus } from './event-bus.js';
-import { shouldNotifyIssueSuccess } from './inbox-prefs.js';
+import { shouldNotifyIssueSuccess, readInboxPrefs } from './inbox-prefs.js';
 
 const WS = 'ws-local';
 
@@ -56,35 +56,27 @@ export function getIssueSubscription(
     )
     .get();
   if (!row) return { subscribed: false, reason: null };
-  return { subscribed: true, reason: row.reason };
+  return { subscribed: row.reason !== 'muted', reason: row.reason };
 }
 
-/** 取消本地 member 关注；返回是否曾订阅 */
+/** 取消本地 member 关注（Mute）；返回是否成功 */
 export function removeIssueSubscriber(
   issueId: string,
   userType: 'member' | 'agent',
   userId: string,
 ): boolean {
-  const existing = db
-    .select()
-    .from(issueSubscribers)
-    .where(
-      and(
-        eq(issueSubscribers.issueId, issueId),
-        eq(issueSubscribers.userType, userType),
-        eq(issueSubscribers.userId, userId),
-      ),
-    )
-    .get();
-  if (!existing) return false;
-  db.delete(issueSubscribers)
-    .where(
-      and(
-        eq(issueSubscribers.issueId, issueId),
-        eq(issueSubscribers.userType, userType),
-        eq(issueSubscribers.userId, userId),
-      ),
-    )
+  db.insert(issueSubscribers)
+    .values({
+      issueId,
+      userType,
+      userId,
+      reason: 'muted',
+      createdAt: Date.now(),
+    })
+    .onConflictDoUpdate({
+      target: [issueSubscribers.issueId, issueSubscribers.userType, issueSubscribers.userId],
+      set: { reason: 'muted' },
+    })
     .run();
   return true;
 }
@@ -104,6 +96,15 @@ export function notifyInbox(opts: {
 }): ReturnType<typeof toInboxItem> | null {
   const recipientType = opts.recipientType ?? 'member';
   const recipientId = opts.recipientId ?? LOCAL_MEMBER.id;
+
+  const prefs = readInboxPrefs();
+  if (prefs.notifyTypes && prefs.notifyTypes[opts.type] === false) return null;
+  if (prefs.notifySeverities && prefs.notifySeverities[opts.severity] === false) return null;
+
+  if (opts.issueId) {
+    const sub = getIssueSubscription(opts.issueId, recipientType, recipientId);
+    if (sub.subscribed && sub.reason === 'muted') return null;
+  }
 
   if (opts.dedupeKey) {
     const dup = db

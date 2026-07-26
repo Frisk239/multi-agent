@@ -341,7 +341,12 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     if (!row) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
-    ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'manual');
+    db.insert(issueSubscribers)
+      .values({ issueId: id, userType: 'member', userId: LOCAL_MEMBER.id, reason: 'manual', createdAt: Date.now() })
+      .onConflictDoUpdate({
+        target: [issueSubscribers.issueId, issueSubscribers.userType, issueSubscribers.userId],
+        set: { reason: 'manual' }
+      }).run();
     const sub = getIssueSubscription(id, 'member', LOCAL_MEMBER.id);
     return {
       issueId: id,

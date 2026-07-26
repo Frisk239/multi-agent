@@ -511,36 +511,69 @@ export function SettingsPage() {
           aria-label="收件箱通知"
         >
           <div className="settings-cwd-guide-title">
-            <strong>收件箱通知</strong>
+            <strong>收件箱通知偏好</strong>
           </div>
           <p className="text-dim text-sm" style={{ marginTop: 6 }}>
-            默认不推送 Issue 成功完成（降噪）。失败、指派、聊天失败仍会通知。
+            细粒度控制。关闭某类通知后，将不再进入收件箱。
             {inboxPrefs?.envForcesSuccess
-              ? ' 当前 env MA_INBOX_NOTIFY_SUCCESS 强制开启成功推送。'
+              ? ' (当前 env MA_INBOX_NOTIFY_SUCCESS 强制开启成功推送)'
               : null}
           </p>
-          <label
-            className="text-sm"
-            style={{
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center',
-              marginTop: 10,
-            }}
-          >
-            <input
-              type="checkbox"
-              data-testid="settings-notify-issue-success"
-              checked={Boolean(inboxPrefs?.notifyIssueSuccess)}
-              disabled={
-                setInboxPrefs.isPending || Boolean(inboxPrefs?.envForcesSuccess)
-              }
-              onChange={(e) =>
-                setInboxPrefs.mutate({ notifyIssueSuccess: e.target.checked })
-              }
-            />
-            Issue 运行成功时也写入收件箱
-          </label>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 13 }}>通知类型</div>
+              {(['assigned', 'comment', 'run_completed', 'run_failed'] as const).map((type) => {
+                const label = type === 'assigned' ? '任务指派' : type === 'comment' ? '新评论' : type === 'run_completed' ? 'Run 成功' : 'Run 失败';
+                return (
+                  <label key={type} className="text-sm" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(inboxPrefs?.notifyTypes?.[type] ?? true)}
+                      disabled={setInboxPrefs.isPending}
+                      onChange={(e) =>
+                        setInboxPrefs.mutate({
+                          notifyTypes: { ...(inboxPrefs?.notifyTypes || {}), [type]: e.target.checked },
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+              <label className="text-sm text-dim" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  data-testid="settings-notify-issue-success"
+                  checked={Boolean(inboxPrefs?.notifyIssueSuccess)}
+                  disabled={setInboxPrefs.isPending || Boolean(inboxPrefs?.envForcesSuccess)}
+                  onChange={(e) => setInboxPrefs.mutate({ notifyIssueSuccess: e.target.checked })}
+                />
+                Issue 成功兜底 (旧版)
+              </label>
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 13 }}>级别开关</div>
+              {(['action_required', 'attention', 'info'] as const).map((severity) => {
+                const label = severity === 'action_required' ? '需要操作 (Action Required)' : severity === 'attention' ? '关注 (Attention)' : '信息 (Info)';
+                return (
+                  <label key={severity} className="text-sm" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(inboxPrefs?.notifySeverities?.[severity] ?? true)}
+                      disabled={setInboxPrefs.isPending}
+                      onChange={(e) =>
+                        setInboxPrefs.mutate({
+                          notifySeverities: { ...(inboxPrefs?.notifySeverities || {}), [severity]: e.target.checked },
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section

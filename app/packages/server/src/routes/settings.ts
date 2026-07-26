@@ -397,14 +397,14 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.put('/api/settings/inbox-prefs', async (req, reply) => {
-    const body = (req.body ?? {}) as { notifyIssueSuccess?: boolean };
-    if (typeof body.notifyIssueSuccess !== 'boolean') {
-      return reply.status(400).send({ success: false, error: '需要 notifyIssueSuccess: boolean'  });
-    }
+    const body = (req.body ?? {}) as any;
     const { writeInboxPrefs } = await import('../orchestration/inbox-prefs.js');
-    const prefs = writeInboxPrefs({
-      notifyIssueSuccess: body.notifyIssueSuccess,
-    });
+    const patch: any = {};
+    if (typeof body.notifyIssueSuccess === 'boolean') patch.notifyIssueSuccess = body.notifyIssueSuccess;
+    if (body.notifyTypes) patch.notifyTypes = body.notifyTypes;
+    if (body.notifySeverities) patch.notifySeverities = body.notifySeverities;
+    
+    const prefs = writeInboxPrefs(patch);
     return { ok: true as const, ...prefs };
   });
 

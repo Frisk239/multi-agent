@@ -8,10 +8,32 @@ import { join } from 'node:path';
 export type InboxPrefs = {
   /** 是否推送 issue run completed（默认 false，F10 降噪） */
   notifyIssueSuccess: boolean;
+  notifyTypes: {
+    comment: boolean;
+    run_completed: boolean;
+    run_failed: boolean;
+    assigned: boolean;
+  };
+  notifySeverities: {
+    action_required: boolean;
+    attention: boolean;
+    info: boolean;
+  };
 };
 
 const DEFAULTS: InboxPrefs = {
   notifyIssueSuccess: false,
+  notifyTypes: {
+    comment: true,
+    run_completed: true,
+    run_failed: true,
+    assigned: true,
+  },
+  notifySeverities: {
+    action_required: true,
+    attention: true,
+    info: true,
+  },
 };
 
 function prefsPath(): string {
@@ -24,7 +46,15 @@ export function readInboxPrefs(): InboxPrefs {
   try {
     const raw = JSON.parse(readFileSync(p, 'utf8')) as Partial<InboxPrefs>;
     return {
-      notifyIssueSuccess: Boolean(raw.notifyIssueSuccess),
+      notifyIssueSuccess: Boolean(raw.notifyIssueSuccess ?? DEFAULTS.notifyIssueSuccess),
+      notifyTypes: {
+        ...DEFAULTS.notifyTypes,
+        ...(raw.notifyTypes || {}),
+      },
+      notifySeverities: {
+        ...DEFAULTS.notifySeverities,
+        ...(raw.notifySeverities || {}),
+      },
     };
   } catch {
     return { ...DEFAULTS };
@@ -32,7 +62,13 @@ export function readInboxPrefs(): InboxPrefs {
 }
 
 export function writeInboxPrefs(patch: Partial<InboxPrefs>): InboxPrefs {
-  const next = { ...readInboxPrefs(), ...patch };
+  const current = readInboxPrefs();
+  const next: InboxPrefs = {
+    ...current,
+    ...patch,
+    notifyTypes: { ...current.notifyTypes, ...(patch.notifyTypes || {}) },
+    notifySeverities: { ...current.notifySeverities, ...(patch.notifySeverities || {}) },
+  };
   const dir = join(homedir(), '.multi-agent');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(prefsPath(), `${JSON.stringify(next, null, 2)}\n`, 'utf8');
