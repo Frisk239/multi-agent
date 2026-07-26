@@ -14,6 +14,8 @@ import {
 } from './RunEventTimeline';
 import { ActivityTimeline } from './ActivityTimeline';
 import { ErrorBoundary } from './ErrorBoundary';
+import Link from 'next/link';
+import { toastSuccess, toastError } from '../lib/toast';
 
 
 const PROPS_OPEN_KEY = 'ma-issue-props-open';
@@ -158,6 +160,42 @@ export function IssueDetail({
               </button>
             }
           />
+          {issue.status === 'done' ? (
+            <div className="issue-knowledge-actions bg-slate-50 border border-slate-200 rounded p-4 mb-4 flex items-center justify-between shadow-sm">
+              <div>
+                <h4 className="text-sm font-semibold mb-1">已完成，建议沉淀经验</h4>
+                <p className="text-xs text-dim">将执行过程记录至团队 Wiki 或自动提取至 Agent 记忆库，加速未来解决类似问题。</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/wiki/new?title=${encodeURIComponent(issue.title)}&issueId=${issue.id}`}
+                  className="btn btn-secondary btn-sm"
+                >
+                  📚 沉淀至 Wiki
+                </Link>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    try {
+                      toastSuccess('正在提取 Memory...');
+                      const res = await fetch('/api/memory', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ issueId: issue.id }),
+                      });
+                      if (!res.ok) throw new Error(await res.text());
+                      toastSuccess('已记录至 Memory');
+                    } catch (e: any) {
+                      toastError(`Memory 记录失败: ${e.message}`);
+                    }
+                  }}
+                >
+                  🧠 记录为 Memory
+                </button>
+              </div>
+            </div>
+          ) : null}
           <IssueSubtasks parent={issue} />
 
           <section className="issue-activity" data-testid="issue-activity">

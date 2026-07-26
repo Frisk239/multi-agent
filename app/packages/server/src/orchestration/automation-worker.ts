@@ -1,36 +1,39 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { automationRules } from '../db/schema.js';
+import { logger } from '../logger.js';
 import { computeDuePlannedAt, dispatchAutomationRule } from './automation-dispatch.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
 async function tick(): Promise<void> {
-  try {
-    const now = Date.now();
-    const rules = db
-      .select()
-      .from(automationRules)
-      .where(eq(automationRules.enabled, 1))
-      .all();
-    for (const r of rules) {
-      const due = computeDuePlannedAt(r, now);
-      if (due == null) continue;
-      try {
-        await dispatchAutomationRule(r.id, due, 'schedule');
-      } catch (e) {
-        console.error('[automation] dispatch failed', r.id, e);
-      }
+  const now = Date.now();
+  const rules = db
+    .select()
+    .from(automationRules)
+    .where(eq(automationRules.enabled, 1))
+    .all();
+  for (const r of rules) {
+    const due = computeDuePlannedAt(r, now);
+    if (due == null) continue;
+    try {
+      await dispatchAutomationRule(r.id, due, 'schedule');
+    } catch (e) {
+      logger.error({ runId: r.id, err: e instanceof Error ? e.message : String(e) }, '[automation] dispatch failed');
     }
-  } catch (e) {
-    console.error('[automation] tick failed', e);
   }
+}
+
+function tickSafe() {
+  tick().catch((e) => {
+    logger.error({ err: e instanceof Error ? e.message : String(e) }, '[automation] tick failed');
+  });
 }
 
 /** 30s tick + 启动立即 tick 一次；仅 enabled 规则。disabled 仍可 run-now。 */
 export function startAutomationWorker(): void {
   if (timer) return;
-  void tick();
+  tickSafe();
   timer = setInterval(() => {
     void tick();
   }, 30_000);

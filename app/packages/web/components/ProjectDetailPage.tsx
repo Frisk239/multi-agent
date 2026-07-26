@@ -36,7 +36,8 @@ const ISSUE_STATUS_ZH: Record<string, string> = {
 export function ProjectDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const { data: project, isLoading, isError, error, refetch } = useProject(id);
-  const { data: issues = [], isLoading: issuesLoading } = useIssues({ projectId: id });
+  const { data: issuesPage, isLoading: issuesLoading } = useIssues({ projectId: id });
+  const issues = issuesPage?.data ?? [];
   const update = useUpdateProject();
   const del = useDeleteProject();
   const createIssue = useCreateIssue();

@@ -57,7 +57,8 @@ function MyIssuesPageInner() {
   const searchParams = useSearchParams();
   const scope = parseScope(searchParams.get('scope'));
 
-  const { data: issues = [], isLoading, isError } = useIssues();
+  const { data: issuesPage, isLoading, isError } = useIssues();
+  const issues = issuesPage?.data ?? [];
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
 

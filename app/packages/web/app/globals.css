@@ -1053,6 +1053,27 @@ a.kanban-column-focus:hover {
   background: var(--surface-raised, var(--surface));
   box-shadow: var(--floating-shadow, 0 12px 28px rgba(0, 0, 0, 0.28));
   display: flex;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top);
+  animation: dropdown-pop 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropdown-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+details summary {
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+details[open] summary ~ * {
+  animation: dropdown-pop 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+
   flex-direction: column;
   gap: 1px;
 }
@@ -1161,7 +1182,7 @@ html.dark .issue-card-menu-item.is-open {
   padding: 12px 10px;
   cursor: grab;
   box-shadow: var(--surface-shadow, 0 1px 2px rgba(0, 0, 0, 0.18));
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.12s ease, background 0.12s ease;
 }
 
 .issue-card:hover {
@@ -1338,18 +1359,18 @@ a.issue-status-board-link:hover {
 }
 
 .issue-card--run-active {
-  border-color: color-mix(in srgb, var(--accent, #3b82f6) 55%, var(--border));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent);
+  border-color: color-mix(in srgb, var(--color-green, #10b981) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-green, #10b981) 28%, transparent);
   animation: issue-card-pulse 1.6s ease-in-out infinite;
 }
 
 @keyframes issue-card-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-green, #10b981) 22%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-green, #10b981) 28%, transparent);
   }
 }
 
@@ -1366,9 +1387,9 @@ a.issue-status-board-link:hover {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--accent, #3b82f6);
-  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 35%, transparent);
+  color: var(--color-green, #10b981);
+  background: color-mix(in srgb, var(--color-green, #10b981) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-green, #10b981) 35%, transparent);
   border-radius: 999px;
   padding: 0 6px;
   line-height: 16px;
@@ -1379,8 +1400,8 @@ a.issue-status-board-link:hover {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent, #3b82f6);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #3b82f6) 50%, transparent);
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-green, #10b981) 50%, transparent);
   animation: issue-dot-blink 1.2s ease-in-out infinite;
 }
 
@@ -10380,6 +10401,35 @@ a.issue-card-run-fail--link:hover {
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.project-detail--multica .proj.empty-state-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.activity-timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.onboarding-wizard-card {
+  margin: 16px 0;
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .project-detail--multica .project-issues-form {

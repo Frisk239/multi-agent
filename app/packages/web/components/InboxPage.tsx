@@ -13,6 +13,8 @@ import {
 } from '@/lib/api';
 import type { InboxItem } from '@ma/shared';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
+import { PageSkeleton } from './Skeleton';
 import { Icon } from './Icon';
 import { IssueDetail } from './IssueDetail';
 import { MarkdownBody } from './MarkdownBody';
@@ -211,6 +213,7 @@ function InboxPageInner() {
   const archiveMany = useArchiveInboxMany();
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
+  const [hideSuccess, setHideSuccess] = useState(true);
 
   const readFilter = parseReadFilter(searchParams.get('read'));
   const kindFilter = parseKindFilter(searchParams.get('kind'));
@@ -260,18 +263,20 @@ function InboxPageInner() {
       if (readFilter === 'unread' && item.read) return false;
       if (readFilter === 'read' && !item.read) return false;
       if (kindFilter && item.kind !== kindFilter) return false;
+      if (hideSuccess && (item.kind === 'run_completed' || item.type === 'run_completed')) return false;
       return true;
     });
-  }, [activeAll, readFilter, kindFilter]);
+  }, [activeAll, readFilter, kindFilter, hideSuccess]);
 
   const filteredArchived = useMemo(() => {
     return archivedAll.filter((item) => {
       if (readFilter === 'unread' && item.read) return false;
       if (readFilter === 'read' && !item.read) return false;
       if (kindFilter && item.kind !== kindFilter) return false;
+      if (hideSuccess && (item.kind === 'run_completed' || item.type === 'run_completed')) return false;
       return true;
     });
-  }, [archivedAll, readFilter, kindFilter]);
+  }, [archivedAll, readFilter, kindFilter, hideSuccess]);
 
   // Multica：列表按 issue 折叠；详情稳定挂在 issue 上
   const items = useMemo(() => dedupeInboxItems(filteredActive), [filteredActive]);
@@ -438,11 +443,11 @@ function InboxPageInner() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [items, selected, selectItem, handleArchiveSelected]);
 
-  if (isLoading) return <div className="page-container">加载中…</div>;
+  if (isLoading) return <PageSkeleton />;
   if (isError) {
     return (
       <div className="page-container">
-        <EmptyState
+        <ErrorState
           title="加载收件箱失败"
           description={error instanceof Error ? error.message : '未知错误'}
         />
@@ -615,6 +620,14 @@ function InboxPageInner() {
               <option value="assigned">指派</option>
             </select>
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input
+              type="checkbox"
+              checked={hideSuccess}
+              onChange={(e) => setHideSuccess(e.target.checked)}
+            />
+            仅显示失败/关注
+          </label>
         </div>
       ) : null}
 
@@ -661,6 +674,7 @@ function InboxPageInner() {
           {items.length === 0 ? (
             <EmptyState
               title="暂无动态"
+              icon="📭"
               description={
                 activeAll.length > 0 || archivedAll.length > 0
                   ? '当前筛选无结果，试试清除筛选。'
@@ -1096,7 +1110,7 @@ function InboxRow({
 
 export function InboxPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <InboxPageInner />
     </Suspense>
   );

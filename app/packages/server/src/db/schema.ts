@@ -231,6 +231,7 @@ export const agentRuns = sqliteTable(
         'completed',
         'failed',
         'cancelled',
+        'timed_out',
       ],
     }).notNull(),
     kind: text('kind', { enum: ['issue', 'quick_create', 'chat'] })
@@ -274,6 +275,7 @@ export const agentRuns = sqliteTable(
     issueIdx: index('idx_agent_run_issue').on(t.issueId),
     statusIdx: index('idx_agent_run_status').on(t.status),
     kindStatusIdx: index('idx_agent_run_kind_status').on(t.kind, t.status),
+    createdIdx: index('idx_agent_runs_created_at').on(t.createdAt),
   }),
 );
 
@@ -438,6 +440,7 @@ export const inboxItems = sqliteTable(
       t.recipientId,
       t.dedupeKey,
     ),
+    createdIdx: index('idx_inbox_items_created_at').on(t.createdAt),
   }),
 );
 

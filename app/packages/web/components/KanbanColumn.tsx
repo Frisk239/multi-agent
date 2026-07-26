@@ -1,3 +1,4 @@
+import React from 'react';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { IssueCard } from './IssueCard';
 import { useDroppable } from '@dnd-kit/core';
@@ -23,7 +24,7 @@ interface Props {
  * Multica board-column：列 tint 背景 + 标题计数 + 空列「无 issue」
  * 参考 references/repos/multica/packages/views/issues/components/board-column.tsx
  */
-export function KanbanColumn({
+export const KanbanColumn = React.memo(function KanbanColumn({
   title,
   color,
   issues,
@@ -100,4 +101,4 @@ export function KanbanColumn({
       </div>
     </section>
   );
-}
+});

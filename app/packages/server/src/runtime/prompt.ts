@@ -318,13 +318,13 @@ export async function buildPrompt(
     if (ctx.mode === 'project_local') {
       const agentsCtx = readAgentsContextFromRoot(ctx.path);
       if (agentsCtx) {
-        parts.push(`# Project AGENTS / Wiki Snapshot\n${agentsCtx}`);
+        parts.push(`<context-fence kind="wiki" title="Wiki Context">\n# Project AGENTS / Wiki Snapshot\n${agentsCtx}\n</context-fence>`);
       }
     } else {
       // workspace 模式：保持 S08 managed 块（控制台工作区 AGENTS.md）
       const wikiBridge = readManagedBlock();
       if (wikiBridge) {
-        parts.push(`# Project Wiki Snapshot\n${wikiBridge}`);
+        parts.push(`<context-fence kind="wiki" title="Wiki Context">\n# Project Wiki Snapshot\n${wikiBridge}\n</context-fence>`);
       }
     }
   } else if (!ctx.injectRepoContext) {

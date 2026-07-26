@@ -80,7 +80,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
       .get();
-    if (!row) return reply.status(404).send({ error: 'project 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'project 不存在'  });
     if (!row.localPath || !isUsableLocalDirectory(row.localPath)) {
       return { status: 'unknown', clean: false, count: 0 };
     }
@@ -114,7 +114,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
       .get();
-    if (!row) return reply.status(404).send({ error: 'project 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'project 不存在'  });
     const stats = loadIssueStats([id]).get(id) ?? { total: 0, done: 0 };
     return toProject(row, stats);
   });
@@ -123,7 +123,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/projects', async (req, reply) => {
     const parsed = CreateProjectInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     const now = Date.now();
@@ -150,18 +150,18 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateProjectInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     if (!validateUpdateProject(input)) {
-      return reply.status(400).send({ error: '至少传一个字段' });
+      return reply.status(400).send({ success: false, error: '至少传一个字段'  });
     }
     const prev = db
       .select()
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
       .get();
-    if (!prev) return reply.status(404).send({ error: 'project 不存在' });
+    if (!prev) return reply.status(404).send({ success: false, error: 'project 不存在'  });
 
     const updates: Partial<typeof projects.$inferInsert> = { updatedAt: Date.now() };
     if (input.title !== undefined) updates.title = input.title.trim();
@@ -185,7 +185,7 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       .from(projects)
       .where(and(eq(projects.id, id), eq(projects.workspaceId, WS_ID)))
       .get();
-    if (!prev) return reply.status(404).send({ error: 'project 不存在' });
+    if (!prev) return reply.status(404).send({ success: false, error: 'project 不存在'  });
 
     db.update(issues)
       .set({ projectId: null })

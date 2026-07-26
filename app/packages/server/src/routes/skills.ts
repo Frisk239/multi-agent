@@ -66,7 +66,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
     const name = decodeURIComponent(rawName);
     const index = getSkillIndex();
     const skill = index.get(name);
-    if (!skill) return reply.status(404).send({ error: 'skill 不存在' });
+    if (!skill) return reply.status(404).send({ success: false, error: 'skill 不存在'  });
     const allAssigns = db.select().from(agentSkills).all();
     const allAgents = db.select().from(agents).all();
     const assignedAgentIds = allAssigns
@@ -100,7 +100,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/skills/scan-local', async (req, reply) => {
     const parsed = ScanLocalSkillsInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     // 确保索引最新，便于 alreadyIndexed
     scanSkills();
@@ -119,12 +119,11 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/skills/import-local', async (req, reply) => {
     const parsed = ImportLocalSkillsInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const { target, projectId, items } = parsed.data;
     if (target === 'project' && !projectId?.trim()) {
-      return reply.status(400).send({
-        error: 'target=project 时需要 projectId（或改用 user / workspace）',
+      return reply.status(400).send({ success: false, error: 'target=project 时需要 projectId（或改用 user / workspace）',
       });
     }
     const results = items.map((item) =>
@@ -149,11 +148,10 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/skills/import-url', async (req, reply) => {
     const parsed = ImportSkillFromUrlInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     if (parsed.data.target === 'project' && !parsed.data.projectId?.trim()) {
-      return reply.status(400).send({
-        error: 'target=project 时需要 projectId（或改用 user / workspace）',
+      return reply.status(400).send({ success: false, error: 'target=project 时需要 projectId（或改用 user / workspace）',
       });
     }
     const result = await importSkillFromUrl({

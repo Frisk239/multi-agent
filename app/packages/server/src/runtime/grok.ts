@@ -31,30 +31,42 @@ function parseGrokLine(
   if (t.startsWith('{')) {
     try {
       const j = JSON.parse(t) as Record<string, unknown>;
-      // notifications/message 或 stream
-      const method = typeof j.method === 'string' ? j.method : '';
-      const params = (j.params ?? {}) as Record<string, unknown>;
-      if (method.includes('session/update') || method.includes('message')) {
-        const content =
-          (params.content as string | undefined) ||
-          (params.text as string | undefined) ||
-          '';
-        if (content) {
-          onEvent({ type: 'message', role: 'assistant', text: content });
+      try {
+        // notifications/message 或 stream
+        const method = typeof j.method === 'string' ? j.method : '';
+        const params = (j.params ?? {}) as Record<string, unknown>;
+        if (method.includes('session/update') || method.includes('message')) {
+          const content =
+            (params.content as string | undefined) ||
+            (params.text as string | undefined) ||
+            '';
+          if (content) {
+            onEvent({ type: 'message', role: 'assistant', text: content });
+          }
+          const tool = params.tool as { name?: string } | undefined;
+          if (tool?.name) {
+            onEvent({ type: 'tool_start', name: tool.name, args: params });
+          }
+          return;
         }
-        const tool = params.tool as { name?: string } | undefined;
-        if (tool?.name) {
-          onEvent({ type: 'tool_start', name: tool.name, args: params });
+        if (j.result && typeof j.result === 'object') {
+          const r = j.result as Record<string, unknown>;
+          if (typeof r.output === 'string' && r.output) {
+            onEvent({ type: 'message', role: 'assistant', text: r.output });
+          }
         }
         return;
+      } catch (err) {
+        onEvent({
+          type: 'tool_end',
+          name: 'parse_error',
+          result: JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+            status: 'failed'
+          })
+        });
+        return;
       }
-      if (j.result && typeof j.result === 'object') {
-        const r = j.result as Record<string, unknown>;
-        if (typeof r.output === 'string' && r.output) {
-          onEvent({ type: 'message', role: 'assistant', text: r.output });
-        }
-      }
-      return;
     } catch {
       /* fall through plain text */
     }

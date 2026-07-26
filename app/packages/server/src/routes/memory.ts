@@ -12,16 +12,19 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/memory/status', async () => memoryManager.getStatus());
 
   app.get('/api/memory', async (req) => {
-    const { q, limit } = req.query as { q?: string; limit?: string };
+    const { q, limit, offset } = req.query as { q?: string; limit?: string; offset?: string };
     const lim = Math.min(Number(limit) || 20, 100);
+    const off = Number(offset) || 0;
     // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
-    return memoryManager.search(q?.trim() ?? '', lim);
+    const all = await memoryManager.search(q?.trim() ?? '', lim + off);
+    const data = all.slice(off, off + lim);
+    return { data, total: all.length, limit: lim, offset: off };
   });
 
   app.post('/api/memory', async (req, reply) => {
     const parsed = CreateMemoryInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     try {
       const created = await memoryManager.addCurated(
@@ -42,7 +45,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
       // 无 addRaw 时 syncTurn 路径：无 SQLite fallback（pgvector 会读错库）
       return reply.status(201).send({ ok: true });
     } catch (e) {
-      return reply.status(500).send({ error: String(e) });
+      return reply.status(500).send({ success: false, error: String(e)  });
     }
   });
 
@@ -50,7 +53,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/memory/delete-many', async (req, reply) => {
     const parsed = DeleteMemoryManyInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'invalid body', details: parsed.error.flatten() });
     }
     const result = await memoryManager.deleteMany(parsed.data.ids);
     return result;
@@ -60,7 +63,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/memory/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const res = await memoryManager.getById(id);
-    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     const item = res.item;
     return {
       id: item.id,
@@ -78,7 +81,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/api/memory/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const res = await memoryManager.deleteById(id);
-    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return { ok: true, id };
   });
 }

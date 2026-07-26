@@ -15,6 +15,8 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { EmptyState } from './EmptyState';
+import { PageSkeleton, TableSkeleton, Skeleton } from './Skeleton';
 
 function inferKind(text: string): 'curated' | 'ambient' | 'other' {
   const t = text.trim();
@@ -221,6 +223,14 @@ function MemoryPageInner() {
             可插拔会话经验层（Hermes MemoryProvider 思路）：curated 手写 + ambient 随 Issue 沉淀。
             provider {statusLabel} · 与 Wiki 互补——Wiki 是编译页，记忆是可检索片段。
           </p>
+          <div className="wiki-ops-banner" style={{ marginTop: 12, marginBottom: 12 }}>
+            <div className="wiki-ops-banner-main">
+              <strong>执行经验教训</strong>
+              <p className="text-sm">
+                记录踩坑经验与上下文碎片，让 Agent 不断学习、避免重复错误。
+              </p>
+            </div>
+          </div>
           {status ? (
             <p
               className="knowledge-root-banner"
@@ -604,63 +614,78 @@ function MemoryPageInner() {
               })}
             {!isError && visibleMemories.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={7} style={{ padding: '2rem 0' }}>
                   {isFetching ? (
-                    '加载中…'
+                    <TableSkeleton rows={3} />
                   ) : showUnavailable ? (
-                    '记忆不可用，无法列出条目'
+                    <EmptyState
+                      icon="⚠️"
+                      title="记忆不可用"
+                      description="无法列出条目，请检查环境配置"
+                    />
                   ) : hasQuery || kindFilter ? (
                     <div data-testid="memory-empty-filter">
-                      <div>没有符合筛选的记忆</div>
-                      <div className="memory-empty-actions">
-                        {hasQuery ? (
-                          <button
-                            type="button"
-                            className="btn-secondary btn-sm"
-                            data-testid="memory-clear-q"
-                            onClick={clearSearch}
-                          >
-                            清除搜索
-                          </button>
-                        ) : null}
-                        {kindFilter ? (
-                          <button
-                            type="button"
-                            className="btn-secondary btn-sm"
-                            data-testid="memory-clear-kind"
-                            onClick={() => setKindFilter('')}
-                          >
-                            清除类型
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="btn-ghost btn-sm"
-                          data-testid="memory-clear-filters"
-                          onClick={() => {
-                            setQDraft('');
-                            router.replace(pathname, { scroll: false });
-                          }}
-                        >
-                          清除全部
-                        </button>
-                      </div>
+                      <EmptyState
+                        icon="🔍"
+                        title="没有符合筛选的记忆"
+                        action={
+                          <div className="memory-empty-actions">
+                            {hasQuery ? (
+                              <button
+                                type="button"
+                                className="btn-secondary btn-sm"
+                                data-testid="memory-clear-q"
+                                onClick={clearSearch}
+                              >
+                                清除搜索
+                              </button>
+                            ) : null}
+                            {kindFilter ? (
+                              <button
+                                type="button"
+                                className="btn-secondary btn-sm"
+                                data-testid="memory-clear-kind"
+                                onClick={() => setKindFilter('')}
+                              >
+                                清除类型
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn-ghost btn-sm"
+                              data-testid="memory-clear-filters"
+                              onClick={() => {
+                                setQDraft('');
+                                router.replace(pathname, { scroll: false });
+                              }}
+                            >
+                              清除全部
+                            </button>
+                          </div>
+                        }
+                      />
                     </div>
                   ) : (
                     <div data-testid="memory-empty">
-                      <div>还没有记忆。可在上方写入一条，或完成 Issue 产生 ambient。</div>
-                      <div className="memory-empty-actions" style={{ marginTop: 8 }}>
-                        <Link href="/" className="btn-secondary btn-sm" data-testid="memory-empty-board">
-                          去看板
-                        </Link>
-                        <Link
-                          href="/inbox"
-                          className="btn-ghost btn-sm"
-                          data-testid="memory-empty-inbox"
-                        >
-                          收件箱
-                        </Link>
-                      </div>
+                      <EmptyState
+                        icon="🧠"
+                        title="还没有记忆"
+                        description="可在上方写入一条，或完成 Issue 产生 ambient。"
+                        action={
+                          <div className="memory-empty-actions">
+                            <Link href="/" className="btn-secondary btn-sm" data-testid="memory-empty-board">
+                              去看板
+                            </Link>
+                            <Link
+                              href="/inbox"
+                              className="btn-ghost btn-sm"
+                              data-testid="memory-empty-inbox"
+                            >
+                              收件箱
+                            </Link>
+                          </div>
+                        }
+                      />
                     </div>
                   )}
                 </td>
@@ -668,8 +693,8 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
-                  加载中…
+                <td colSpan={7} style={{ padding: '1rem' }}>
+                  <TableSkeleton rows={5} />
                 </td>
               </tr>
             )}
@@ -711,7 +736,7 @@ function MemoryPageInner() {
                         : '时间未知'}
                     </>
                   ) : detailFetching ? (
-                    '加载中…'
+                    <Skeleton variant="text" />
                   ) : (
                     '未找到'
                   )}
@@ -818,7 +843,7 @@ function MemoryPageInner() {
 
 export function MemoryPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <MemoryPageInner />
     </Suspense>
   );

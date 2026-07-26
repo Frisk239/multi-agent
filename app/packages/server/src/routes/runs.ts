@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc, asc, and, inArray, type SQL } from 'drizzle-orm';
+import { eq, desc, asc, and, inArray, type SQL, sql } from 'drizzle-orm';
 import {
   CancelRunsManyInput,
   ListRunsQuery,
@@ -25,7 +25,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.get('/api/runs', async (req, reply) => {
     const parsed = ListRunsQuery.safeParse(req.query ?? {});
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const q = parsed.data;
     const filters: SQL[] = [];
@@ -49,8 +49,15 @@ export async function runRoutes(app: FastifyInstance) {
     if (filters.length === 1) query = query.where(filters[0]!);
     else if (filters.length > 1) query = query.where(and(...filters));
 
-    const rows = query.orderBy(desc(agentRuns.createdAt)).limit(q.limit).all();
-    return rows.map((row) => enrichRunRowWithPathLock(row, toAgentRun(row)));
+    const whereClause = filters.length === 1 ? filters[0]! : filters.length > 1 ? and(...filters) : undefined;
+    const totalRow = db.select({ count: sql<number>`count(*)` }).from(agentRuns).where(whereClause).get();
+    const total = totalRow?.count ?? 0;
+    const limit = q.limit;
+    const offset = q.offset;
+
+    const rows = query.orderBy(desc(agentRuns.createdAt)).limit(limit).offset(offset).all();
+    const data = rows.map((row) => enrichRunRowWithPathLock(row, toAgentRun(row)));
+    return { data, total, limit, offset };
   });
 
   // GET /api/runs/active-count —— 侧栏「运行」角标（须在 :runId 前注册）
@@ -88,7 +95,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.post('/api/runs/cancel-many', async (req, reply) => {
     const parsed = CancelRunsManyInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'invalid body', details: parsed.error.flatten() });
     }
     const result = cancelRunsMany(parsed.data.ids);
     return {
@@ -102,7 +109,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.get('/api/runs/:runId', async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
-    if (!row) return reply.status(404).send({ error: 'run 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'run 不存在'  });
     return enrichRunRowWithPathLock(row, toAgentRun(row));
   });
 
@@ -110,7 +117,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.get('/api/runs/:runId/messages', async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const run = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
-    if (!run) return reply.status(404).send({ error: 'run 不存在' });
+    if (!run) return reply.status(404).send({ success: false, error: 'run 不存在'  });
     const rows = db
       .select()
       .from(runMessages)
@@ -124,7 +131,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.post('/api/runs/:runId/cancel', async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const res = cancelRunById(runId);
-    if (!res.ok) return reply.status(409).send({ error: 'run 不可取消' });
+    if (!res.ok) return reply.status(409).send({ success: false, error: 'run 不可取消'  });
     return res.run;
   });
 
@@ -132,7 +139,7 @@ export async function runRoutes(app: FastifyInstance) {
   app.post('/api/runs/:runId/retry', async (req, reply) => {
     const { runId } = req.params as { runId: string };
     const res = await retryRun(runId);
-    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return reply.status(201).send(res.run);
   });
 }

@@ -366,10 +366,10 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/settings/workspace-cwd', async (req, reply) => {
     const parsed = SetWorkspaceCwdInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'invalid body', details: parsed.error.flatten() });
     }
     const res = setWorkspaceRootPath(parsed.data.path);
-    if (!res.ok) return reply.status(400).send({ error: res.error });
+    if (!res.ok) return reply.status(400).send({ success: false, error: res.error  });
     return {
       ok: true as const,
       cwd: {
@@ -399,7 +399,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.put('/api/settings/inbox-prefs', async (req, reply) => {
     const body = (req.body ?? {}) as { notifyIssueSuccess?: boolean };
     if (typeof body.notifyIssueSuccess !== 'boolean') {
-      return reply.status(400).send({ error: '需要 notifyIssueSuccess: boolean' });
+      return reply.status(400).send({ success: false, error: '需要 notifyIssueSuccess: boolean'  });
     }
     const { writeInboxPrefs } = await import('../orchestration/inbox-prefs.js');
     const prefs = writeInboxPrefs({
@@ -431,8 +431,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       (!body.ids || body.ids.length === 0) &&
       !(body.olderThanDays != null && body.olderThanDays > 0)
     ) {
-      return reply.status(400).send({
-        error: '需要 ids[] 或 olderThanDays>0',
+      return reply.status(400).send({ success: false, error: '需要 ids[] 或 olderThanDays>0',
       });
     }
     const { cleanupIsolatedWorkspaces } = await import(

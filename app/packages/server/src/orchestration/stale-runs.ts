@@ -6,6 +6,7 @@ import { eventBus } from './event-bus.js';
 import { notifyRunTerminal } from './inbox-writer.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
+import { logger } from '../logger.js';
 
 /**
  * F3 + C2 超时分层（学 Multica config.go）：
@@ -97,7 +98,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
     const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
     let limitMs: number;
     let error: string;
-    let failureReason: 'idle_watchdog' | 'tool_watchdog' | 'stale_heartbeat' | 'exec_error' | 'timeout';
+    let failureReason: 'idle_timeout' | 'tool_watchdog' | 'stale_heartbeat' | 'exec_error' | 'timeout';
 
     if (kind === 'chat') {
       limitMs = STALE_RUNNING_MS;
@@ -119,15 +120,16 @@ export function failStaleRunningRuns(now = Date.now()): number {
         if (limitMs <= 0) continue; // idle 关闭
         if (hb > now - limitMs) continue;
         error = `stale: idle timeout (no agent events for ${formatDurationMs(limitMs)})`;
-        failureReason = 'idle_watchdog';
+        failureReason = 'idle_timeout';
       }
     }
 
-    // 仍有内存 abort 但 hb 过旧：视为假死/静默，照样 fail
+    // 仍有内存 abort 但 hb 过旧：视为假死/静默，照样 fail/timed_out
     const finishedAt = now;
+    const finalStatus = (failureReason === 'idle_timeout' || failureReason === 'tool_watchdog') ? 'timed_out' : 'failed';
     db.update(agentRuns)
       .set({
-        status: 'failed',
+        status: finalStatus,
         finishedAt,
         error,
         failureReason,
@@ -135,7 +137,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
       .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'running')))
       .run();
     const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'failed') {
+    if (next?.status === 'failed' || next?.status === 'timed_out') {
       clearToolInflight(row.id);
       abortRun(row.id); // 尽量杀仍挂着的 CLI
       const run = toAgentRun(next);
@@ -195,7 +197,7 @@ export function failStaleQueuedRuns(now = Date.now()): number {
         status: 'failed',
         finishedAt: now,
         error: 'stale: queued too long without claim',
-        failureReason: 'idle_watchdog',
+        failureReason: 'idle_timeout',
       })
       .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'queued')))
       .run();
@@ -298,7 +300,7 @@ export function startStaleRunSweeper(): void {
       failQueuedMissingAgentRuns();
       failStaleQueuedRuns();
     } catch (e) {
-      console.error('[run] stale sweep failed', e);
+      logger.error({ err: e instanceof Error ? e.message : String(e) }, '[run] stale sweep failed');
     }
   }, STALE_SWEEP_INTERVAL_MS);
 }

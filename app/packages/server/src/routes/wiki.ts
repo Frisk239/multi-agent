@@ -74,8 +74,13 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/wiki/pages — 列表（spec §6）
   app.get('/api/wiki/pages', async (req) => {
-    const opts = rootOptsFromQuery(req.query as { projectId?: string });
-    return listWikiPages(opts);
+    const { projectId, limit, offset } = req.query as { projectId?: string; limit?: string; offset?: string };
+    const opts = rootOptsFromQuery({ projectId });
+    const all = listWikiPages(opts);
+    const lim = Number(limit) || 50;
+    const off = Number(offset) || 0;
+    const data = all.slice(off, off + lim);
+    return { data, total: all.length, limit: lim, offset: off };
   });
 
   // GET /api/wiki/pages/:slug — 单页（spec §6）
@@ -83,7 +88,7 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     const { slug } = req.params as { slug: string };
     const opts = rootOptsFromQuery(req.query as { projectId?: string });
     const page = readWikiPage(slug, opts);
-    if (!page) return reply.status(404).send({ error: 'wiki 页不存在' });
+    if (!page) return reply.status(404).send({ success: false, error: 'wiki 页不存在'  });
     return page;
   });
 
@@ -91,7 +96,7 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/wiki/query', async (req, reply) => {
     const parsed = WikiQueryInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const opts = rootOptsFromQuery(req.query as { projectId?: string });
     const result = await queryWiki(parsed.data.question, opts);
@@ -119,7 +124,7 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/wiki/pages', async (req, reply) => {
     const parsed = CreateWikiPageInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const opts = rootOptsFromQuery(req.query as { projectId?: string });
     const { title, content } = parsed.data;
@@ -140,7 +145,7 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/wiki/jobs/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = getWikiIngestJob(id);
-    if (!row) return reply.status(404).send({ error: 'job 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'job 不存在'  });
     return toWikiIngestJob(row);
   });
 
@@ -155,7 +160,7 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/wiki/jobs/:id/retry', async (req, reply) => {
     const { id } = req.params as { id: string };
     const ok = retryWikiIngestJob(id);
-    if (!ok) return reply.status(400).send({ error: '仅 dead job 可 retry' });
+    if (!ok) return reply.status(400).send({ success: false, error: '仅 dead job 可 retry'  });
     wakeWikiIngestWorker();
     const row = getWikiIngestJob(id);
     return toWikiIngestJob(row!);

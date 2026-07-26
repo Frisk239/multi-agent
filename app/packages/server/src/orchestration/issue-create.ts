@@ -13,6 +13,12 @@ import {
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { ensureIssueSubscriber, notifyAssigned } from './inbox-writer.js';
+import { computeAgentReadiness } from './readiness.js';
+
+function allowNotReadyEnqueue(): boolean {
+  const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+  return v === '1' || v === 'true';
+}
 
 const WS_ID = 'ws-local';
 
@@ -34,7 +40,7 @@ export type CreateIssueCoreInput = {
 
 export type CreateIssueCoreResult =
   | { ok: true; issue: Issue; enqueue: IssueEnqueueMeta }
-  | { ok: false; status: 400 | 404 | 409; error: string; issueId?: string };
+  | { ok: false; status: 400 | 404 | 409 | 422; error: string; issueId?: string; code?: string; reason?: string };
 
 /**
  * 内部建 Issue 核心路径（bu05）：供 POST /api/issues 与 automation dispatch 共用。
@@ -110,6 +116,36 @@ export async function createIssueCore(
       return { ok: false, status: 404, error: 'project 不存在' };
     }
     projectTitle = proj.title;
+  }
+
+  // Pre-check readiness if we should enqueue
+  if (shouldEnqueue && input.assignee && input.assignee.type !== 'member' && !allowNotReadyEnqueue()) {
+    let targetAgentId: string | null = null;
+    if (input.assignee.type === 'agent') {
+      targetAgentId = input.assignee.id;
+    } else if (input.assignee.type === 'squad') {
+      const squad = loadSquadDetail(input.assignee.id);
+      targetAgentId = squad?.leaderId ?? null;
+      if (!targetAgentId) {
+        return { ok: false, status: 400, error: `小队「${squad?.name ?? input.assignee.id}」无 leader，无法开工`, code: 'readiness_failed', reason: 'no_leader' };
+      }
+    }
+    
+    if (targetAgentId) {
+      const rd = await computeAgentReadiness(targetAgentId);
+      if (!rd) {
+        return { ok: false, status: 404, error: 'agent 不存在' };
+      }
+      if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
+        return { 
+          ok: false, 
+          status: 400, 
+          error: rd.detail ?? `agent 就绪探测失败 (${rd.status})`, 
+          code: 'readiness_failed', 
+          reason: rd.status 
+        };
+      }
+    }
   }
 
   // identifier 生成：MAX(SUBSTR(identifier,5))+1

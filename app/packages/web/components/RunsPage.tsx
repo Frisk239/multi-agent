@@ -18,6 +18,8 @@ import {
   runRecoveryKind,
 } from '@/lib/run-recovery';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
+import { PageSkeleton, TableSkeleton } from './Skeleton';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { RunEventTimelineDrawer } from './RunEventTimeline';
@@ -536,14 +538,15 @@ function RunsPageInner() {
         ) : null}
 
         {isLoading ? (
-          <p className="text-dim">加载中…</p>
+          <TableSkeleton rows={8} />
         ) : isError ? (
-          <EmptyState
+          <ErrorState
             title="加载运行失败"
             description={error instanceof Error ? error.message : '未知错误'}
           />
         ) : !visibleRuns || visibleRuns.length === 0 ? (
           <EmptyState
+            icon="📭"
             title={
               status === 'active'
                 ? '当前没有在途运行'
@@ -801,7 +804,7 @@ function RunsPageInner() {
 
 export function RunsPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <RunsPageInner />
     </Suspense>
   );

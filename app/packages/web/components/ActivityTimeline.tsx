@@ -38,15 +38,15 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
       case 'status_changed':
         return { icon: '🔄', title: '状态变更', color: 'var(--accent)' };
       case 'assignee_changed':
-        return { icon: '👤', title: '指派变更', color: '#a78bfa' };
+        return { icon: '👤', title: '指派变更', color: 'var(--color-purple)' };
       case 'priority_changed':
-        return { icon: '⚡', title: '优先级变更', color: '#f59e0b' };
+        return { icon: '⚡', title: '优先级变更', color: 'var(--color-orange)' };
       case 'run_started':
-        return { icon: '🚀', title: 'Run 开始执行', color: '#3b82f6' };
+        return { icon: '🚀', title: 'Run 开始执行', color: 'var(--color-blue)' };
       case 'run_completed':
-        return { icon: '✅', title: 'Run 执行完成', color: '#10b981' };
+        return { icon: '✅', title: 'Run 执行完成', color: 'var(--color-green)' };
       case 'run_failed':
-        return { icon: '❌', title: 'Run 执行失败', color: '#ef4444' };
+        return { icon: '❌', title: 'Run 执行失败', color: 'var(--color-red)' };
       default:
         return { icon: '📌', title: event.eventType, color: 'var(--text-dim)' };
     }
@@ -61,16 +61,8 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
           return (
             <div
               key={act.id}
+              className="activity-timeline-item"
               data-testid="activity-item"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 12,
-                padding: '8px 12px',
-                borderRadius: 6,
-                background: 'color-mix(in srgb, var(--bg-elevated) 70%, transparent)',
-                border: '1px solid var(--border-subtle)',
-              }}
             >
               <span style={{ fontSize: 16, lineHeight: '20px' }}>{badge.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>

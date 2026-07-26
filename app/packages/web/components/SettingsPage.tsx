@@ -413,6 +413,17 @@ export function SettingsPage() {
           >
             {setCwd.isPending ? '保存中…' : '保存路径'}
           </button>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => {
+              if (!window.confirm('清空工作区路径？')) return;
+              setCwdDraft('');
+              setCwd.mutate('');
+            }}
+          >
+            重置工作区 Path
+          </button>
         </div>
       </section>
 
@@ -673,13 +684,18 @@ export function SettingsPage() {
               </div>
               <div className="settings-cwd-recovery-links" data-testid="settings-wiki-recovery">
                 <span className="text-dim text-sm">修好后：</span>
-                <Link
+                <button
+                  type="button"
                   className="btn-secondary btn-sm"
-                  href="/wiki?jobStatus=dead"
-                  data-testid="settings-wiki-dead-link"
+                  data-testid="settings-wiki-dead-btn"
+                  disabled={retryAllDeadWiki.isPending}
+                  onClick={() => {
+                    if (!window.confirm('重试全部 dead Wiki 编译任务？')) return;
+                    retryAllDeadWiki.mutate();
+                  }}
                 >
-                  dead 任务 · 重试
-                </Link>
+                  {retryAllDeadWiki.isPending ? '重试中…' : '一键重试 dead 任务'}
+                </button>
                 <Link className="btn-ghost btn-sm" href="/wiki" data-testid="settings-wiki-home">
                   Wiki 首页
                 </Link>
@@ -1150,11 +1166,18 @@ function LiveProbesSection() {
   return (
     <section className="settings-section" data-testid="settings-live-probes">
       <div className="settings-section-head">
-        <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
-          Live Runtime Probes（进程活体探针）
-        </h2>
-        <p className="settings-section-desc">实时监控在途 CLI 运行进程心跳与状态</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          <div>
+            <h2 className="settings-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+              Live Runtime Probes（进程活体探针）
+            </h2>
+            <p className="settings-section-desc">实时监控在途 CLI 运行进程心跳与状态</p>
+          </div>
+          <button type="button" className="btn-secondary btn-sm" onClick={fetchProbes}>
+            一键拉起探针
+          </button>
+        </div>
       </div>
 
       <div className="settings-card" style={{ padding: '16px' }}>

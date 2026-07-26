@@ -57,6 +57,7 @@ import type {
   UpdateUserProfileInput,
   IssueEnqueueMeta,
   IssueStatus,
+  PaginatedResponse,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -98,12 +99,19 @@ function toastEnqueueMeta(issueId: string, enqueue?: IssueEnqueueMeta | null) {
 }
 
 async function apiError(res: Response, fallback: string): Promise<string> {
+  let body: any;
   try {
-    const body = (await res.json()) as { error?: unknown };
-    if (typeof body?.error === 'string' && body.error) return body.error;
+    body = await res.json();
   } catch {
-    /* ignore */
+    return fallback;
   }
+  if (body?.code === 'readiness_failed' && body?.reason && typeof body?.error === 'string') {
+    const e = new Error(body.error) as any;
+    e.code = body.code;
+    e.reason = body.reason;
+    throw e;
+  }
+  if (typeof body?.error === 'string' && body.error) return body.error;
   return fallback;
 }
 
@@ -125,6 +133,8 @@ export type IssuesQuery = {
   assigned?: boolean;
   /** DS2：manual | updated */
   sort?: 'manual' | 'updated';
+  limit?: number;
+  offset?: number;
 };
 
 function issuesQueryKey(params?: IssuesQuery) {
@@ -141,6 +151,8 @@ function issuesQueryKey(params?: IssuesQuery) {
     params?.unassigned ? '1' : '',
     params?.assigned ? '1' : '',
     params?.sort || '',
+    params?.limit || 0,
+    params?.offset || 0,
   ] as const;
 }
 
@@ -159,12 +171,14 @@ function buildIssuesUrl(params?: IssuesQuery) {
   if (params?.unassigned) sp.set('unassigned', '1');
   if (params?.assigned) sp.set('assigned', '1');
   if (params?.sort) sp.set('sort', params.sort);
+  if (params?.limit) sp.set('limit', params.limit.toString());
+  if (params?.offset) sp.set('offset', params.offset.toString());
   const qs = sp.toString();
   return qs ? `${API}/issues?${qs}` : `${API}/issues`;
 }
 
 export function useIssues(params?: IssuesQuery) {
-  return useQuery<Issue[]>({
+  return useQuery<PaginatedResponse<Issue>>({
     queryKey: issuesQueryKey(params),
     queryFn: async () => {
       const res = await fetch(buildIssuesUrl(params));
@@ -424,7 +438,19 @@ export function useCreateIssue() {
         qc.invalidateQueries({ queryKey: ['runs'] });
       }
     },
-    onError: (err) => toastError(errMessage(err, '创建失败')),
+    onError: (err: any) => {
+      if (err?.code === 'readiness_failed') {
+        let href = '/';
+        let label = '打开';
+        if (err.reason === 'cwd_missing') { href = '/settings'; label = '保存工作区'; }
+        else if (err.reason === 'runtime_missing') { href = '/runtimes'; label = '运行时探测'; }
+        else if (err.reason === 'readiness_error') { href = '/settings'; label = '环境诊断'; }
+        else if (err.reason === 'no_leader') { href = '/squads'; label = '小队列表'; }
+        toastError(err.message, { action: { label, href }, durationMs: 8000 });
+      } else {
+        toastError(errMessage(err, '创建失败'));
+      }
+    },
   });
 }
 
@@ -658,12 +684,12 @@ export function useReorderIssues() {
     },
     onMutate: async ({ status, orderedIds }) => {
       await qc.cancelQueries({ queryKey: ['issues'] });
-      const prevLists = qc.getQueriesData<Issue[]>({ queryKey: ['issues'] });
-      qc.setQueriesData<Issue[]>({ queryKey: ['issues'] }, (old) => {
+      const prevLists = qc.getQueriesData<PaginatedResponse<Issue>>({ queryKey: ['issues'] });
+      qc.setQueriesData<PaginatedResponse<Issue>>({ queryKey: ['issues'] }, (old) => {
         if (!old) return old;
-        const byId = new Map(old.map((i) => [i.id, i]));
+        const byId = new Map(old.data.map((i) => [i.id, i]));
         const touched = new Set(orderedIds);
-        const rest = old.filter((i) => !touched.has(i.id));
+        const rest = old.data.filter((i) => !touched.has(i.id));
         const reordered = orderedIds
           .map((id, index) => {
             const base = byId.get(id);
@@ -671,11 +697,12 @@ export function useReorderIssues() {
             return { ...base, status, position: index };
           })
           .filter((x): x is Issue => Boolean(x));
-        return [...rest, ...reordered].sort((a, b) => {
+        const newData = [...rest, ...reordered].sort((a, b) => {
           if (a.status !== b.status) return a.status.localeCompare(b.status);
           if (a.position !== b.position) return a.position - b.position;
           return a.createdAt < b.createdAt ? 1 : -1;
         });
+        return { ...old, data: newData };
       });
       return { prevLists };
     },
@@ -714,12 +741,13 @@ export function useUpdateIssue() {
     onMutate: async ({ id, input }) => {
       await qc.cancelQueries({ queryKey: ['issues'] });
       await qc.cancelQueries({ queryKey: ['issue', id] });
-      const prevList = qc.getQueryData<Issue[]>(['issues']);
+      const prevList = qc.getQueryData<PaginatedResponse<Issue>>(['issues']);
       const prevOne = qc.getQueryData<Issue>(['issue', id]);
       const { assignee: _dropAssignee, ...patch } = input;
-      qc.setQueryData<Issue[]>(['issues'], (old) =>
-        old?.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-      );
+      qc.setQueryData<PaginatedResponse<Issue>>(['issues'], (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.map((i) => (i.id === id ? { ...i, ...patch } : i)) };
+      });
       if (prevOne) {
         qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...patch });
       }
@@ -775,9 +803,12 @@ export function useDeleteIssue() {
     },
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ['issues'] });
-      const prevList = qc.getQueryData<Issue[]>(['issues']);
-      const parentId = prevList?.find((i) => i.id === id)?.parentIssueId ?? null;
-      qc.setQueryData<Issue[]>(['issues'], (old) => old?.filter((i) => i.id !== id));
+      const prevList = qc.getQueryData<PaginatedResponse<Issue>>(['issues']);
+      const parentId = prevList?.data?.find((i) => i.id === id)?.parentIssueId ?? null;
+      qc.setQueryData<PaginatedResponse<Issue>>(['issues'], (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.filter((i) => i.id !== id) };
+      });
       qc.removeQueries({ queryKey: ['issue', id] });
       qc.removeQueries({ queryKey: ['comments', id] });
       return { prevList, parentId };
@@ -932,7 +963,8 @@ export function useRuns(issueId: string) {
     queryFn: async () => {
       const res = await fetch(`${API}/runs?issueId=${encodeURIComponent(issueId)}`);
       if (!res.ok) throw new Error('加载运行失败');
-      return res.json();
+      const json = await res.json() as PaginatedResponse<AgentRun>;
+      return json.data;
     },
     enabled: !!issueId,
   });
@@ -1717,7 +1749,8 @@ export function useWikiPages(projectId?: string | null) {
       const qs = wikiProjectQs(pid);
       const res = await fetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('加载 wiki 失败');
-      return res.json();
+      const json = await res.json() as PaginatedResponse<WikiPageSummary>;
+      return json.data;
     },
   });
 }
@@ -2096,7 +2129,9 @@ export function useMemoryList(q: string) {
         : `${API}/memory`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('加载记忆失败');
-      return res.json() as Promise<MemoryItem[]>;
+      type MemoryItem = any; // fallback if MemoryItem is not cleanly importable, though it should be already imported if used
+      const json = await res.json() as PaginatedResponse<any>;
+      return json.data;
     },
   });
 }
@@ -2221,7 +2256,19 @@ export function useCreateQuickRun() {
         qc.invalidateQueries({ queryKey: ['agent-runs', data.run.agentId] });
       }
     },
-    onError: (err) => toastError(errMessage(err, '快速派活失败')),
+    onError: (err: any) => {
+      if (err?.code === 'readiness_failed') {
+        let href = '/';
+        let label = '打开';
+        if (err.reason === 'cwd_missing') { href = '/settings'; label = '保存工作区'; }
+        else if (err.reason === 'runtime_missing') { href = '/runtimes'; label = '运行时探测'; }
+        else if (err.reason === 'readiness_error') { href = '/settings'; label = '环境诊断'; }
+        else if (err.reason === 'no_leader') { href = '/squads'; label = '小队列表'; }
+        toastError(err.message, { action: { label, href }, durationMs: 8000 });
+      } else {
+        toastError(errMessage(err, '快速派活失败'));
+      }
+    },
   });
 }
 

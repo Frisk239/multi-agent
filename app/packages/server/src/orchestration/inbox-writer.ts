@@ -177,8 +177,9 @@ export function notifyCommentCreated(comment: Comment, issue: Issue): void {
  * - 开启：MA_INBOX_NOTIFY_SUCCESS=1 或 inbox-prefs.notifyIssueSuccess
  */
 export function notifyRunTerminal(run: AgentRun): void {
-  if (run.status !== 'completed' && run.status !== 'failed') return;
-  const failed = run.status === 'failed';
+  const isTerminal = run.status === 'completed' || run.status === 'failed' || run.status === 'timed_out';
+  if (!isTerminal) return;
+  const failed = run.status === 'failed' || run.status === 'timed_out';
   const notifySuccess = shouldNotifyIssueSuccess();
 
   // —— chat：仅失败进 Inbox（漏报修复）——

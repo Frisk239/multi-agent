@@ -14,6 +14,9 @@ import {
 } from '@/lib/api';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { PageSkeleton } from './Skeleton';
+import { ErrorState } from './ErrorState';
+import { EmptyState } from './EmptyState';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -232,11 +235,14 @@ function AgentsPageInner() {
 
   const hasActiveFilters = Boolean(qFromUrl.trim() || runtimeFilter || readyFromUrl);
 
-  if (isLoading) return <div className="page-container">加载中…</div>;
+  if (isLoading) return <PageSkeleton />;
   if (isError) {
     return (
       <div className="page-container">
-        <p className="text-dim">{error instanceof Error ? error.message : '加载失败'}</p>
+        <ErrorState
+          title="加载失败"
+          description={error instanceof Error ? error.message : '未知错误'}
+        />
       </div>
     );
   }
@@ -649,7 +655,7 @@ function AgentsPageInner() {
         </div>
       ) : null}
 
-      <div className="data-table-wrap">
+      <div className="data-table-wrap overflow-x-auto">
         <table className="data-table" data-testid="agents-table">
           <thead>
             <tr>
@@ -664,25 +670,42 @@ function AgentsPageInner() {
           <tbody>
             {agents.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
-                  暂无智能体，点「新建智能体」开始
+                <td colSpan={6} style={{ padding: '2rem 0' }}>
+                  <EmptyState
+                    title="暂无智能体"
+                    description="点「新建智能体」开始"
+                    icon="🤖"
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setOpen(true)}
+                      >
+                        新建智能体
+                      </button>
+                    }
+                  />
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
+                <td colSpan={6} style={{ padding: '2rem 0' }}>
                   <div data-testid="agents-empty-filter">
-                    <div>没有匹配的智能体</div>
-                    <div style={{ marginTop: 8 }}>
-                      <button
-                        type="button"
-                        className="btn-secondary btn-sm"
-                        data-testid="agents-clear-filter"
-                        onClick={clearAllFilters}
-                      >
-                        清除筛选
-                      </button>
-                    </div>
+                    <EmptyState
+                      title="没有匹配的智能体"
+                      description="试试调整筛选条件"
+                      icon="🔍"
+                      action={
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          data-testid="agents-clear-filter"
+                          onClick={clearAllFilters}
+                        >
+                          清除筛选
+                        </button>
+                      }
+                    />
                   </div>
                 </td>
               </tr>
@@ -799,7 +822,7 @@ function AgentsPageInner() {
 
 export function AgentsPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <AgentsPageInner />
     </Suspense>
   );

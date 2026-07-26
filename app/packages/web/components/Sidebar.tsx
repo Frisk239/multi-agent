@@ -43,18 +43,19 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'issues', label: 'Issues', icon: 'issues', section: 'workspace', href: '/' },
   { id: 'projects', label: '项目', icon: 'project', section: 'workspace', href: '/projects' },
-  { id: 'automation', label: '自动化', icon: 'automation', section: 'workspace', href: '/automation' },
   { id: 'agents', label: '智能体', icon: 'agent', section: 'workspace', href: '/agents' },
   { id: 'squads', label: '小队', icon: 'squad', section: 'workspace', href: '/squads' },
-  { id: 'usage', label: '用量', icon: 'usage', section: 'workspace', href: '/usage' },
   // 知识层（编译式 Wiki + 可插拔记忆）— 先于 run 观测，贴近「读知识 / 写经验」
   { id: 'wiki', label: 'Wiki', icon: 'wiki', section: 'knowledge', href: '/wiki' },
   { id: 'memory', label: '记忆', icon: 'memory', section: 'knowledge', href: '/memory' },
   // 运行观测（Sidecar Mission Control 式）
   { id: 'runs', label: '运行', icon: 'usage', section: 'observe', href: '/runs' },
-  { id: 'runtime', label: '本机 CLI', icon: 'runtime', section: 'config', href: '/runtimes' },
-  { id: 'skills', label: 'Skills', icon: 'skills', section: 'config', href: '/skills' },
   { id: 'settings', label: '设置', icon: 'settings', section: 'config', href: '/settings' },
+  // 工作区设置 / 运维
+  { id: 'runtime', label: '本机 CLI', icon: 'runtime', section: 'ops', href: '/runtimes' },
+  { id: 'skills', label: 'Skills', icon: 'skills', section: 'ops', href: '/skills' },
+  { id: 'usage', label: '用量', icon: 'usage', section: 'ops', href: '/usage' },
+  { id: 'automation', label: '自动化', icon: 'automation', section: 'ops', href: '/automation' },
 ];
 
 function NavRow({
@@ -187,7 +188,8 @@ export function Sidebar() {
   const searchParams = useSearchParams();
   const { theme, toggleTheme } = useTheme();
   const wsStatus = useWsStore((s) => s.status);
-  const { data: issues = [] } = useIssues();
+  const { data: issuesPage } = useIssues();
+  const issues = issuesPage?.data ?? [];
   const { data: inboxUnread } = useInboxUnreadCount();
   // 轻量：列表里数未读失败，驱动侧栏角标强调（与 Inbox strip 同源数据）
   const { data: inboxData } = useInbox();
@@ -285,6 +287,12 @@ export function Sidebar() {
       key: 'observe',
       label: '观测',
       items: navItems.filter((n) => n.section === 'observe'),
+    },
+    {
+      key: 'ops',
+      label: '工作区设置 / 运维',
+      items: navItems.filter((n) => n.section === 'ops'),
+      collapsible: true,
     },
     {
       key: 'config',
@@ -433,20 +441,44 @@ export function Sidebar() {
         <nav className="sidebar-nav" aria-label="页面导航">
           {sections.map((sec) => (
             <div className="nav-section" key={sec.key}>
-              {sec.label && !isCollapsed ? (
-                <div className="nav-section-label">{sec.label}</div>
-              ) : null}
-              <ul className="nav-list">
-                {sec.items.map((item) => (
-                  <li key={item.id}>
-                    <NavRow
-                      item={item}
-                      active={navItemActive(item, pathname, searchParams)}
-                      collapsed={isCollapsed}
-                    />
-                  </li>
-                ))}
-              </ul>
+              {sec.collapsible && !isCollapsed ? (
+                <details className="nav-section-details" style={{ marginTop: 8 }}>
+                  <summary
+                    className="nav-section-label"
+                    style={{ cursor: 'pointer', userSelect: 'none', paddingLeft: 12, outline: 'none' }}
+                  >
+                    {sec.label} ▾
+                  </summary>
+                  <ul className="nav-list">
+                    {sec.items.map((item) => (
+                      <li key={item.id}>
+                        <NavRow
+                          item={item}
+                          active={navItemActive(item, pathname, searchParams)}
+                          collapsed={isCollapsed}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : (
+                <>
+                  {sec.label && !isCollapsed ? (
+                    <div className="nav-section-label">{sec.label}</div>
+                  ) : null}
+                  <ul className="nav-list">
+                    {sec.items.map((item) => (
+                      <li key={item.id}>
+                        <NavRow
+                          item={item}
+                          active={navItemActive(item, pathname, searchParams)}
+                          collapsed={isCollapsed}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           ))}
         </nav>

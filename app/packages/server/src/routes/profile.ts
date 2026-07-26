@@ -39,11 +39,11 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
   app.put('/api/profile', async (req, reply) => {
     const parsed = UpdateUserProfileInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     if (input.name === undefined && input.about === undefined) {
-      return reply.status(400).send({ error: '至少传 name 或 about' });
+      return reply.status(400).send({ success: false, error: '至少传 name 或 about'  });
     }
     const prev = ensureLocalUser();
     const updates: Partial<typeof users.$inferInsert> = {};

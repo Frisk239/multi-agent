@@ -34,10 +34,10 @@ export async function labelRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/labels', async (req, reply) => {
     const parsed = CreateIssueLabelInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const name = parsed.data.name.trim();
-    if (!name) return reply.status(400).send({ error: 'name 不能为空' });
+    if (!name) return reply.status(400).send({ success: false, error: 'name 不能为空'  });
     const color = parsed.data.color ?? DEFAULT_COLOR;
     const now = Date.now();
     const id = crypto.randomUUID();
@@ -50,9 +50,9 @@ export async function labelRoutes(app: FastifyInstance): Promise<void> {
       .get();
     if (dup) {
       if (dup.archivedAt != null) {
-        return reply.status(409).send({ error: '同名标签已归档，请换名或恢复（本刀无 unarchive UI）' });
+        return reply.status(409).send({ success: false, error: '同名标签已归档，请换名或恢复（本刀无 unarchive UI）'  });
       }
-      return reply.status(409).send({ error: '同名标签已存在' });
+      return reply.status(409).send({ success: false, error: '同名标签已存在'  });
     }
 
     db.insert(issueLabels)
@@ -75,19 +75,19 @@ export async function labelRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateIssueLabelInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const prev = db.select().from(issueLabels).where(eq(issueLabels.id, id)).get();
     if (!prev || prev.workspaceId !== WS_ID) {
-      return reply.status(404).send({ error: 'label 不存在' });
+      return reply.status(404).send({ success: false, error: 'label 不存在'  });
     }
     if (prev.archivedAt != null) {
-      return reply.status(400).send({ error: '已归档标签不可编辑' });
+      return reply.status(400).send({ success: false, error: '已归档标签不可编辑'  });
     }
 
     const name = parsed.data.name?.trim();
     if (name !== undefined && !name) {
-      return reply.status(400).send({ error: 'name 不能为空' });
+      return reply.status(400).send({ success: false, error: 'name 不能为空'  });
     }
     if (name && name !== prev.name) {
       const dup = db
@@ -95,7 +95,7 @@ export async function labelRoutes(app: FastifyInstance): Promise<void> {
         .from(issueLabels)
         .where(and(eq(issueLabels.workspaceId, WS_ID), eq(issueLabels.name, name)))
         .get();
-      if (dup) return reply.status(409).send({ error: '同名标签已存在' });
+      if (dup) return reply.status(409).send({ success: false, error: '同名标签已存在'  });
     }
 
     db.update(issueLabels)
@@ -115,7 +115,7 @@ export async function labelRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const prev = db.select().from(issueLabels).where(eq(issueLabels.id, id)).get();
     if (!prev || prev.workspaceId !== WS_ID) {
-      return reply.status(404).send({ error: 'label 不存在' });
+      return reply.status(404).send({ success: false, error: 'label 不存在'  });
     }
     if (prev.archivedAt != null) {
       return reply.status(204).send();

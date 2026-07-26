@@ -239,35 +239,31 @@ export function useWsEvents() {
           return [...old, message].sort((a, b) => a.seq - b.seq);
         });
         if (message.kind === 'tool_start') {
-          let name = 'tool';
-          try {
-            const j = JSON.parse(message.body) as { name?: string };
-            if (j?.name?.trim()) name = j.name.trim();
-          } catch {
-            if (message.body.trim()) name = message.body.trim().slice(0, 80);
-          }
-          setTool(message.runId, name);
-          setProgress(message.runId, `工具 · ${name}`);
+          // handled by runtime:event
         } else if (message.kind === 'tool_end') {
-          let name = '';
-          try {
-            const j = JSON.parse(message.body) as { name?: string };
-            if (j?.name?.trim()) name = j.name.trim();
-          } catch {
-            /* ignore */
-          }
-          setProgress(
-            message.runId,
-            name ? `工具完成 · ${name}` : '工具步骤完成',
-          );
+          // handled by runtime:event
         } else if (message.kind === 'assistant' && message.body?.trim()) {
           appendPartial(message.runId, message.body);
         }
       }
 
-      // S12 + P2-C run:progress：短时 map；像正文的片段也推进 partial
+      if (event.type === 'runtime:event') {
+        const rEvent = event.event;
+        if (rEvent.kind === 'tool_use') {
+          const toolName = (rEvent.metadata?.toolName as string) || 'tool';
+          setTool(rEvent.runId, toolName);
+          setProgress(rEvent.runId, `🛠️ 正在执行 [${toolName}]...`);
+        } else if (rEvent.kind === 'tool_result') {
+          const toolName = rEvent.metadata?.toolName as string | undefined;
+          setTool(rEvent.runId, '');
+          const duration = rEvent.metadata?.duration ? ` (${rEvent.metadata.duration}ms)` : '';
+          setProgress(rEvent.runId, toolName ? `工具完成 · ${toolName}${duration}` : '工具步骤完成');
+        }
+      }
+
+      // bu01：Run progress
       if (event.type === 'run:progress') {
-        setProgress(event.runId, event.text);
+        setProgress(event.runId, event.text.slice(0, 100));
         const t = event.text?.trim() ?? '';
         const noise =
           !t ||

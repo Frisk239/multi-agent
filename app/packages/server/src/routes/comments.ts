@@ -15,7 +15,7 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id/comments', async (req, reply) => {
     const { id } = req.params as { id: string };
     const issue = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!issue) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!issue) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
 
     const rows = db
       .select()
@@ -30,11 +30,11 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/issues/:id/comments', async (req, reply) => {
     const { id } = req.params as { id: string };
     const issue = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!issue) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!issue) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
 
     const parsed = CreateCommentInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
 
     const commentId = crypto.randomUUID();

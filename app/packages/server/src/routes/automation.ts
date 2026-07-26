@@ -73,7 +73,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/automation/rules', async (req, reply) => {
     const parsed = CreateAutomationRuleInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     const sched = normalizeScheduleFields(input);
@@ -106,7 +106,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/automation/rules/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'automation rule 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
     return ruleWithStats(row);
   });
 
@@ -115,10 +115,10 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateAutomationRuleInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const prev = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!prev) return reply.status(404).send({ error: 'automation rule 不存在' });
+    if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
 
     const patch = parsed.data;
     // 合并后校验 schedule 完整性
@@ -130,12 +130,11 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
 
     if (mergedKind === 'interval_minutes') {
       if (mergedInterval == null || ![5, 15, 30, 60].includes(mergedInterval)) {
-        return reply.status(400).send({
-          error: 'interval_minutes 必须为 5/15/30/60',
+        return reply.status(400).send({ success: false, error: 'interval_minutes 必须为 5/15/30/60',
         });
       }
     } else if (!mergedDaily || !/^\d{2}:\d{2}$/.test(mergedDaily)) {
-      return reply.status(400).send({ error: 'dailyTime 必须为 HH:mm' });
+      return reply.status(400).send({ success: false, error: 'dailyTime 必须为 HH:mm'  });
     }
 
     const updates: Partial<typeof automationRules.$inferInsert> = {
@@ -172,7 +171,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/api/automation/rules/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const prev = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!prev) return reply.status(404).send({ error: 'automation rule 不存在' });
+    if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
     db.delete(automationRules).where(eq(automationRules.id, id)).run();
     return reply.status(204).send();
   });
@@ -181,7 +180,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/automation/rules/:id/run-now', async (req, reply) => {
     const { id } = req.params as { id: string };
     const rule = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!rule) return reply.status(404).send({ error: 'automation rule 不存在' });
+    if (!rule) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
 
     const plannedAt = Date.now();
     try {
@@ -189,7 +188,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(201).send(run);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return reply.status(500).send({ error: msg });
+      return reply.status(500).send({ success: false, error: msg  });
     }
   });
 
@@ -197,7 +196,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/automation/rules/:id/runs', async (req, reply) => {
     const { id } = req.params as { id: string };
     const rule = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!rule) return reply.status(404).send({ error: 'automation rule 不存在' });
+    if (!rule) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
 
     const q = req.query as { limit?: string };
     let limit = Number(q.limit ?? 20);

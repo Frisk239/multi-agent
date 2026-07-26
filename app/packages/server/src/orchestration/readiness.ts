@@ -4,6 +4,10 @@ import { db } from '../db/client.js';
 import { agents, agentRuns } from '../db/schema.js';
 import { getBackend } from '../runtime/registry.js';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
+import type { DetectResult } from '../runtime/types.js';
+
+const probeSuccessTTL = new Map<string, { det: DetectResult; ts: number }>();
+const GRACE_PERIOD_MS = 60_000;
 
 // bu02：agent readiness = runtime detect + 并发槽
 // 默认执行 cwd 为 ~/.multi-agent 隔离目录（学 Multica execenv），不强制 Settings 工作区。
@@ -19,10 +23,28 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
   const workspaceOk = cwd.configured && cwd.exists;
 
   let det = { installed: false, path: null as string | null, version: null as string | null };
+  let detectError: Error | null = null;
   try {
     const backend = getBackend(row.runtime as RuntimeId);
     det = await backend.detect();
+    if (det.installed) {
+      probeSuccessTTL.set(agentId, { det, ts: Date.now() });
+    } else {
+      const cached = probeSuccessTTL.get(agentId);
+      if (cached && Date.now() - cached.ts <= GRACE_PERIOD_MS) {
+        det = cached.det;
+      }
+    }
   } catch (e) {
+    detectError = e instanceof Error ? e : new Error(String(e));
+    const cached = probeSuccessTTL.get(agentId);
+    if (cached && Date.now() - cached.ts <= GRACE_PERIOD_MS) {
+      det = cached.det;
+      detectError = null;
+    }
+  }
+
+  if (detectError) {
     return {
       agentId: row.id,
       runtime: row.runtime as RuntimeId,
@@ -35,7 +57,7 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
       // 与下方语义一致：未强制 workspace 时不算「缺 cwd」
       cwdConfigured: forceWorkspace ? workspaceOk : true,
       status: 'error',
-      detail: e instanceof Error ? e.message : String(e),
+      detail: detectError.message,
     };
   }
 

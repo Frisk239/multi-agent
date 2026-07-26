@@ -20,6 +20,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { IssueCard } from './IssueCard';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
+import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 import { OnboardingWizard } from './OnboardingWizard';
 
@@ -240,7 +241,7 @@ function KanbanBoardInner() {
       ? originFromUrl
       : undefined;
 
-  const { data: issues, isLoading } = useIssues({
+  const { data: issuesPage, isLoading } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
     priority: priorityQuery,
@@ -249,6 +250,7 @@ function KanbanBoardInner() {
     sort: viewMode === 'list' && sortMode === 'updated' ? 'updated' : undefined,
     ...assigneeQuery,
   });
+  const issues = issuesPage?.data ?? [];
   const { data: labels } = useLabels();
   const reorder = useReorderIssues();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -392,7 +394,7 @@ function KanbanBoardInner() {
   ].filter(Boolean).length;
   const showMore = moreFiltersOpen || moreFilterCount > 0;
 
-  if (isLoading) return <div className="kanban-loading">加载中…</div>;
+  if (isLoading) return <PageSkeleton />;
 
   function handleDragStart(event: any) {
     setDragId(event.active.id);
@@ -897,6 +899,7 @@ function KanbanBoardInner() {
         <div className="kanban-empty-filter" data-testid="kanban-empty-filter">
           <EmptyState
             title="没有符合筛选的 Issue"
+            icon="📭"
             description="试试清除筛选，或换到来源 / 指派 / 失败条件。"
             action={
               <div className="kanban-empty-actions">
@@ -933,7 +936,7 @@ function KanbanBoardInner() {
         </div>
       ) : null}
       {viewMode === 'list' ? (
-        <div className="issue-list-view" data-testid="issue-list-view">
+        <div className="issue-list-view overflow-x-auto" data-testid="issue-list-view">
           <table className="issue-list-table" data-testid="issue-list-table">
             <thead>
               <tr>
@@ -1092,6 +1095,7 @@ function KanbanBoardInner() {
             <div style={{ padding: 24 }}>
               <EmptyState
                 title="列表中无符合条件的 Issue"
+                icon="📭"
                 description="请尝试调整筛选条件或重置视图。"
               />
             </div>
@@ -1104,7 +1108,7 @@ function KanbanBoardInner() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="kanban-columns" data-status-focus={statusQuery ?? ''}>
+        <div className="kanban-columns overflow-x-auto" data-status-focus={statusQuery ?? ''}>
           {visibleColumns.map((col) => (
             <KanbanColumn
               key={col.status}
@@ -1139,7 +1143,7 @@ function KanbanBoardInner() {
 
 export function KanbanBoard() {
   return (
-    <Suspense fallback={<div className="kanban-loading">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <KanbanBoardInner />
     </Suspense>
   );

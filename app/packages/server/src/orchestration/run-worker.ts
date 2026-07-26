@@ -22,6 +22,7 @@ import {
   finalizeSessionFields,
   resolvePriorSession,
 } from '../runtime/session-resume.js';
+import { normalizeRuntimeEvent } from '../runtime/event-normalizer.js';
 import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import { recordActivityLog } from './activity-logger.js';
@@ -38,6 +39,7 @@ import {
   noteToolEnd,
   noteToolStart,
 } from './tool-watchdog-state.js';
+import { logger } from '../logger.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -329,6 +331,8 @@ async function tick(): Promise<void> {
   let seq = 0;
   const nextSeq = () => ++seq;
 
+  const toolStartTime = new Map<string, number>();
+
   // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
   //   progress/log/delta → run:progress only（不进 DB）
   //   message/tool_* → run_message + run:message 事件
@@ -338,8 +342,16 @@ async function tick(): Promise<void> {
     // C2：tool in-flight 深度 → stale sweeper 用 tool 窗口
     if (e.type === 'tool_start') {
       noteToolStart(runRow.id, e.name);
+      toolStartTime.set(e.name, Date.now());
+      const rEvent = normalizeRuntimeEvent({ runId: runRow.id, type: 'tool_start', toolName: e.name, input: e.args });
+      eventBus.publish({ type: 'runtime:event', event: rEvent });
     } else if (e.type === 'tool_end') {
       noteToolEnd(runRow.id, e.name);
+      const start = toolStartTime.get(e.name);
+      const duration = start ? Date.now() - start : undefined;
+      toolStartTime.delete(e.name);
+      const rEvent = normalizeRuntimeEvent({ runId: runRow.id, type: 'tool_end', toolName: e.name, output: e.result, duration });
+      eventBus.publish({ type: 'runtime:event', event: rEvent });
     }
     if (e.type === 'message_delta' || e.type === 'log') {
       eventBus.publish({
@@ -676,7 +688,7 @@ async function tick(): Promise<void> {
           });
         }
       } catch (e) {
-        console.error('[memory] syncRunCompleted 包装失败:', e);
+        logger.error({ err: e instanceof Error ? e.message : String(e), runId: runRow.id }, '[memory] syncRunCompleted 包装失败');
       }
     }
   } catch (err) {

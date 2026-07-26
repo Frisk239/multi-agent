@@ -1,6 +1,6 @@
 import type { RuntimeEvent, RuntimeEventKind } from '@ma/shared';
 
-export function normalizeRuntimeEvent(raw: {
+export interface RawRuntimeEvent {
   id?: string;
   runId: string;
   type?: string;
@@ -8,10 +8,13 @@ export function normalizeRuntimeEvent(raw: {
   text?: string;
   body?: string;
   toolName?: string;
-  input?: any;
-  output?: any;
+  input?: unknown;
+  output?: unknown;
+  duration?: number;
   createdAt?: number | string;
-}): RuntimeEvent {
+}
+
+export function normalizeRuntimeEvent(raw: RawRuntimeEvent): RuntimeEvent {
   const id = raw.id ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runId = raw.runId;
   const rawType = (raw.type || raw.kind || 'text').toLowerCase();
@@ -19,7 +22,7 @@ export function normalizeRuntimeEvent(raw: {
   let kind: RuntimeEventKind = 'text';
   let title: string | undefined;
   let content = raw.text || raw.body || '';
-  let metadata: Record<string, any> | undefined;
+  let metadata: Record<string, unknown> | undefined;
 
   if (rawType.includes('tool_use') || rawType.includes('tool_call')) {
     kind = 'tool_use';
@@ -28,12 +31,12 @@ export function normalizeRuntimeEvent(raw: {
       content = typeof raw.input === 'string' ? raw.input : JSON.stringify(raw.input, null, 2);
       metadata = { toolName: raw.toolName, input: raw.input };
     }
-  } else if (rawType.includes('tool_result') || rawType.includes('tool_output')) {
+  } else if (rawType.includes('tool_result') || rawType.includes('tool_output') || rawType.includes('tool_end')) {
     kind = 'tool_result';
     title = raw.toolName ? `工具输出: ${raw.toolName}` : '工具输出';
-    if (raw.output) {
+    if (raw.output !== undefined || raw.duration !== undefined) {
       content = typeof raw.output === 'string' ? raw.output : JSON.stringify(raw.output, null, 2);
-      metadata = { toolName: raw.toolName, output: raw.output };
+      metadata = { toolName: raw.toolName, output: raw.output, duration: raw.duration };
     }
   } else if (rawType.includes('thinking') || rawType.includes('thought')) {
     kind = 'thinking';

@@ -67,7 +67,7 @@ function mergeUsage(a: TokenUsage | null, b: TokenUsage | null): TokenUsage | nu
  * 从 stream-json 终态 result 行解析 usage（claude / cursor 等）。
  * 支持顶层 usage + modelUsage map 求和。
  */
-export function parseUsageFromResultLine(j: Record<string, any>): TokenUsage | null {
+export function parseUsageFromResultLine(j: Record<string, unknown>): TokenUsage | null {
   let acc = extractTokenUsage(pickUsageBlob(j) ?? j.usage);
 
   const modelUsage = j.modelUsage ?? j.model_usage;

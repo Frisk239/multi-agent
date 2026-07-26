@@ -46,14 +46,6 @@ export function OnboardingWizard() {
     <div
       className="onboarding-wizard-card"
       data-testid="onboarding-wizard"
-      style={{
-        margin: '16px 0',
-        padding: '16px 20px',
-        borderRadius: 10,
-        background: 'color-mix(in srgb, var(--accent) 8%, var(--bg-elevated))',
-        border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -93,7 +85,22 @@ export function OnboardingWizard() {
 
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 600, fontSize: '13px' }}>2. CLI 探针</span>
+            <span style={{ fontWeight: 600, fontSize: '13px' }}>2. 绑定本地项目</span>
+            <span>{status.hasIssues ? '✅' : 'ℹ️'}</span>
+          </div>
+          <p className="text-dim text-xs" style={{ marginTop: 4 }}>
+            {status.hasIssues ? '已在此工作区创建过任务' : '在 Projects 中绑定需要开发的代码目录。'}
+          </p>
+          {!status.hasIssues ? (
+            <Link href="/projects" className="btn-secondary btn-xs" style={{ marginTop: 8 }}>
+              绑定项目
+            </Link>
+          ) : null}
+        </div>
+
+        <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: 600, fontSize: '13px' }}>3. CLI 探针</span>
             <span>{status.hasRuntimes ? '✅' : '⚠️'}</span>
           </div>
           <p className="text-dim text-xs" style={{ marginTop: 4 }}>
@@ -106,7 +113,7 @@ export function OnboardingWizard() {
 
         <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 600, fontSize: '13px' }}>3. 创建智能体</span>
+            <span style={{ fontWeight: 600, fontSize: '13px' }}>4. 创建智能体</span>
             <span>{status.hasAgents ? '✅' : '⚠️'}</span>
           </div>
           <p className="text-dim text-xs" style={{ marginTop: 4 }}>
@@ -118,6 +125,12 @@ export function OnboardingWizard() {
             </Link>
           ) : null}
         </div>
+      </div>
+
+      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+        <Link href="/?new=1" className="btn-primary btn-sm">
+          去派第一单 →
+        </Link>
       </div>
     </div>
   );

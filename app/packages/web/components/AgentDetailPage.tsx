@@ -480,10 +480,10 @@ function OverviewTab({
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--border-subtle)' }}>
           {stats.total > 0 ? (
             <>
-              <div style={{ width: `${(stats.completed / stats.total) * 100}%`, background: '#10b981' }} title={`完成: ${stats.completed}`} />
-              <div style={{ width: `${(stats.failed / stats.total) * 100}%`, background: '#ef4444' }} title={`失败: ${stats.failed}`} />
-              <div style={{ width: `${(stats.cancelled / stats.total) * 100}%`, background: '#f59e0b' }} title={`取消: ${stats.cancelled}`} />
-              <div style={{ width: `${(stats.active / stats.total) * 100}%`, background: '#3b82f6' }} title={`在途: ${stats.active}`} />
+              <div style={{ width: `${(stats.completed / stats.total) * 100}%`, background: 'var(--status-done)' }} title={`完成: ${stats.completed}`} />
+              <div style={{ width: `${(stats.failed / stats.total) * 100}%`, background: 'var(--color-red)' }} title={`失败: ${stats.failed}`} />
+              <div style={{ width: `${(stats.cancelled / stats.total) * 100}%`, background: 'var(--color-orange)' }} title={`取消: ${stats.cancelled}`} />
+              <div style={{ width: `${(stats.active / stats.total) * 100}%`, background: 'var(--status-in-progress)' }} title={`在途: ${stats.active}`} />
             </>
           ) : (
             <div style={{ width: '100%', background: 'var(--border-subtle)' }} />

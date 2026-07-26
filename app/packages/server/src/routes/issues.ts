@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, like, or, isNull, sql } from 'drizzle-orm';
 import {
   CreateIssueInput,
   UpdateIssueInput,
@@ -53,6 +53,12 @@ import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
+import { computeAgentReadiness } from '../orchestration/readiness.js';
+
+function allowNotReadyEnqueue(): boolean {
+  const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+  return v === '1' || v === 'true';
+}
 
 const WS_ID = 'ws-local';
 
@@ -96,7 +102,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues', async (req, reply) => {
     const parsed = ListIssuesQuery.safeParse(req.query ?? {});
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const {
       q,
@@ -120,27 +126,30 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         ? [sql`updated_at DESC`, issues.position]
         : [issues.position, sql`created_at DESC`];
 
-    let rows = db
-      .select()
-      .from(issues)
-      .where(eq(issues.workspaceId, WS_ID))
-      .orderBy(...orderBy)
-      .all();
+    const filters = [eq(issues.workspaceId, WS_ID)];
 
-    if (status) {
-      rows = rows.filter((r) => r.status === status);
+    if (status) filters.push(eq(issues.status, status));
+    if (priority) filters.push(eq(issues.priority, priority));
+    if (originType) filters.push(eq(issues.originType, originType));
+    if (projectId) filters.push(eq(issues.projectId, projectId));
+    
+    if (qTrim) {
+      const needle = `%${qTrim.toLowerCase()}%`;
+      filters.push(
+        or(
+          like(issues.identifier, needle),
+          like(issues.title, needle),
+          like(issues.description, needle)
+        )!
+      );
     }
-
-    if (priority) {
-      rows = rows.filter((r) => r.priority === priority);
-    }
-
-    if (originType) {
-      rows = rows.filter((r) => r.originType === originType);
-    }
-
-    if (projectId) {
-      rows = rows.filter((r) => r.projectId === projectId);
+    
+    if (unassignedOn) {
+      filters.push(isNull(issues.assigneeId));
+    } else if (assigneeType && assigneeId) {
+      filters.push(and(eq(issues.assigneeType, assigneeType), eq(issues.assigneeId, assigneeId))!);
+    } else if (assignedOn) {
+      filters.push(inArray(issues.assigneeType, ['agent', 'squad']));
     }
 
     if (labelId) {
@@ -150,43 +159,32 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         .where(and(eq(issueLabels.id, labelId), eq(issueLabels.workspaceId, WS_ID)))
         .get();
       if (!lab || lab.archivedAt != null) {
-        return reply.status(400).send({ error: 'labelId 无效或已归档' });
+        return reply.status(400).send({ success: false, error: 'labelId 无效或已归档'  });
       }
-      const linked = new Set(
-        db
-          .select()
-          .from(issueToLabels)
-          .where(eq(issueToLabels.labelId, labelId))
-          .all()
-          .map((j) => j.issueId),
-      );
-      rows = rows.filter((r) => linked.has(r.id));
-    }
-
-    if (qTrim) {
-      const needle = qTrim.toLowerCase();
-      rows = rows.filter((r) => {
-        if (r.identifier.toLowerCase().includes(needle)) return true;
-        if (r.title.toLowerCase().includes(needle)) return true;
-        if ((r.description ?? '').toLowerCase().includes(needle)) return true;
-        return false;
-      });
-    }
-
-    if (unassignedOn) {
-      rows = rows.filter((r) => r.assigneeType == null || r.assigneeId == null);
-    } else if (assigneeType && assigneeId) {
-      rows = rows.filter(
-        (r) => r.assigneeType === assigneeType && r.assigneeId === assigneeId,
-      );
-    } else if (assignedOn) {
-      // 「我的 issue」/已指派：任一 agent 或 squad（忽略 member 等）
-      rows = rows.filter(
-        (r) => r.assigneeType === 'agent' || r.assigneeType === 'squad',
+      filters.push(
+        inArray(
+          issues.id,
+          db.select({ id: issueToLabels.issueId }).from(issueToLabels).where(eq(issueToLabels.labelId, labelId))
+        )
       );
     }
 
-    return issuesWithRelations(rows);
+    const whereClause = and(...filters);
+
+    const totalRow = db.select({ count: sql<number>`count(*)` }).from(issues).where(whereClause).get();
+    const total = totalRow?.count ?? 0;
+
+    const rows = db
+      .select()
+      .from(issues)
+      .where(whereClause)
+      .orderBy(...orderBy)
+      .limit(parsed.data.limit)
+      .offset(parsed.data.offset)
+      .all();
+
+    const data = issuesWithRelations(rows);
+    return { data, total, limit: parsed.data.limit, offset: parsed.data.offset };
   });
 
   // POST /api/issues/reorder —— DS2：整列重排（orderedIds → position 0..n-1）
@@ -194,11 +192,11 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/issues/reorder', async (req, reply) => {
     const parsed = ReorderIssuesInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const { status: targetStatus, orderedIds } = parsed.data;
     if (new Set(orderedIds).size !== orderedIds.length) {
-      return reply.status(400).send({ error: 'orderedIds 含重复 id' });
+      return reply.status(400).send({ success: false, error: 'orderedIds 含重复 id'  });
     }
 
     const now = Date.now();
@@ -253,7 +251,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.startsWith('missing:')) {
-        return reply.status(404).send({ error: `issue 不存在: ${msg.slice(8)}` });
+        return reply.status(404).send({ success: false, error: `issue 不存在: ${msg.slice(8)}` });
       }
       if (msg.startsWith('workspace:')) {
         return reply.status(404).send({ error: `issue 不存在: ${msg.slice(10)}` });
@@ -304,7 +302,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     return issueWithLabels(row);
   });
 
@@ -312,7 +310,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id/children', async (req, reply) => {
     const { id } = req.params as { id: string };
     const parent = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!parent) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!parent) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     const rows = db
       .select()
       .from(issues)
@@ -326,7 +324,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id/subscription', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     const sub = getIssueSubscription(id, 'member', LOCAL_MEMBER.id);
     return {
       issueId: id,
@@ -339,7 +337,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/issues/:id/subscribe', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'manual');
     const sub = getIssueSubscription(id, 'member', LOCAL_MEMBER.id);
     return {
@@ -353,7 +351,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/issues/:id/unsubscribe', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     removeIssueSubscriber(id, 'member', LOCAL_MEMBER.id);
     return {
       issueId: id,
@@ -366,7 +364,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/issues', async (req, reply) => {
     const parsed = CreateIssueInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     const result = await createIssueCore({
@@ -382,8 +380,9 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       enqueue: true,
     });
     if (!result.ok) {
-      return reply.status(result.status).send({
-        error: result.error,
+      return reply.status(result.status).send({ success: false, error: result.error,
+        ...(result.code ? { code: result.code } : {}),
+        ...(result.reason ? { reason: result.reason } : {}),
         ...(result.issueId ? { issueId: result.issueId } : {}),
       });
     }
@@ -395,7 +394,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const prev = db.select().from(issues).where(eq(issues.id, id)).get();
     if (!prev) {
-      return reply.status(404).send({ error: 'issue 不存在' });
+      return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     }
 
     // Multica: CancelTasksForIssue before delete
@@ -439,16 +438,16 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateIssueInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     if (!validateUpdateIssue(input)) {
-      return reply.status(400).send({ error: '至少传一个字段' });
+      return reply.status(400).send({ success: false, error: '至少传一个字段'  });
     }
 
     const prev = db.select().from(issues).where(eq(issues.id, id)).get();
     if (!prev) {
-      return reply.status(404).send({ error: 'issue 不存在' });
+      return reply.status(404).send({ success: false, error: 'issue 不存在'  });
     }
 
     // 动态构造 SET（只更新传入的字段）
@@ -486,7 +485,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           .where(and(eq(projects.id, input.projectId), eq(projects.workspaceId, WS_ID)))
           .get();
         if (!proj) {
-          return reply.status(400).send({ error: 'project 不存在' });
+          return reply.status(400).send({ success: false, error: 'project 不存在'  });
         }
         updates.projectId = input.projectId;
       }
@@ -499,7 +498,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         if (!trimmed) {
           updates.prUrl = null;
         } else if (!/^https?:\/\//i.test(trimmed)) {
-          return reply.status(400).send({ error: 'prUrl 须为 http(s) URL' });
+          return reply.status(400).send({ success: false, error: 'prUrl 须为 http(s) URL'  });
         } else {
           updates.prUrl = trimmed;
         }
@@ -507,9 +506,46 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;
+    
+    // Slice9: pre-check readiness before updating assignee (to avoid false 200/201 with skipped queueing)
+    if (input.assignee !== undefined) {
+      const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
+      const nextType = input.assignee?.type ?? null;
+      const nextId = input.assignee?.id ?? null;
+      const nextKey = assigneeKey(nextType, nextId);
+      
+      if (prevKey !== nextKey && nextType && nextType !== 'member' && nextId && !allowNotReadyEnqueue()) {
+        let targetAgentId: string | null = null;
+        if (nextType === 'agent') {
+          targetAgentId = nextId;
+        } else if (nextType === 'squad') {
+          const squad = loadSquadDetail(nextId);
+          targetAgentId = squad?.leaderId ?? null;
+          if (!targetAgentId) {
+            return reply.status(400).send({ success: false, error: `小队「${squad?.name ?? nextId}」无 leader，无法开工`,
+              code: 'readiness_failed',
+              reason: 'no_leader'
+            });
+          }
+        }
+        if (targetAgentId) {
+          const rd = await computeAgentReadiness(targetAgentId);
+          if (!rd) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
+          if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
+            return reply.status(400).send({ success: false, error: rd.detail ?? `agent 就绪探测失败 (${rd.status })`,
+              code: 'readiness_failed',
+              reason: rd.status
+            });
+          }
+        }
+      }
+    }
 
     const run = sqlite.transaction(() => {
-      db.update(issues).set(updates).where(eq(issues.id, id)).run();
+      const result = db.update(issues).set(updates).where(and(eq(issues.id, id), eq(issues.status, prev.status))).run();
+      if (result.changes === 0) {
+        return 'conflict';
+      }
 
       let statusCommentId: string | null = null;
       if (statusChanged && input.status) {
@@ -530,6 +566,9 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     });
 
     const statusCommentId = run();
+    if (statusCommentId === 'conflict') {
+      return reply.status(409).send({ success: false, error: '更新冲突：工单状态已被修改，请刷新后重试' });
+    }
 
     const row = db.select().from(issues).where(eq(issues.id, id)).get();
     const issue = issueWithLabels(row!);
@@ -634,7 +673,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id/activities', async (req, reply) => {
     const { id } = req.params as { id: string };
     const issueRow = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!issueRow) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!issueRow) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
 
     const rows = db
       .select()
@@ -662,10 +701,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = SetIssueLabelsInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const issueRow = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!issueRow) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!issueRow) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
 
     const uniqueIds = [...new Set(parsed.data.labelIds)];
     if (uniqueIds.length > 0) {
@@ -677,10 +716,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         )
         .all();
       if (found.length !== uniqueIds.length) {
-        return reply.status(400).send({ error: '存在无效或不属于本工作区的 labelId' });
+        return reply.status(400).send({ success: false, error: '存在无效或不属于本工作区的 labelId'  });
       }
       if (found.some((l) => l.archivedAt != null)) {
-        return reply.status(400).send({ error: '不能挂载已归档的标签' });
+        return reply.status(400).send({ success: false, error: '不能挂载已归档的标签'  });
       }
     }
 
@@ -709,10 +748,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const body = req.body === undefined || req.body === null ? {} : req.body;
     const parsed = RerunIssueInput.safeParse(body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const res = await rerunIssue(id, parsed.data.runId);
-    if (!res.ok) return reply.status(res.status).send({ error: res.error });
+    if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return reply.status(201).send(res.run);
   });
 
@@ -720,7 +759,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/issues/:id/run-usage', async (req, reply) => {
     const { id } = req.params as { id: string };
     const issue = db.select().from(issues).where(eq(issues.id, id)).get();
-    if (!issue) return reply.status(404).send({ error: 'issue 不存在' });
+    if (!issue) return reply.status(404).send({ success: false, error: 'issue 不存在'  });
 
     const rows = db.select().from(agentRuns).where(eq(agentRuns.issueId, id)).all();
     let completed = 0;

@@ -94,7 +94,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/inbox/read-many', async (req, reply) => {
     const parsed = MarkInboxReadManyInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'invalid body', details: parsed.error.flatten() });
     }
     const ids = [...new Set(parsed.data.ids)];
     const result = db
@@ -113,7 +113,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/inbox/archive-many', async (req, reply) => {
     const parsed = ArchiveInboxManyInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'invalid body', details: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'invalid body', details: parsed.error.flatten() });
     }
     const ids = [...new Set(parsed.data.ids)];
     const result = db
@@ -137,7 +137,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       .from(inboxItems)
       .where(and(eq(inboxItems.id, id), recipientFilter()))
       .get();
-    if (!existing) return reply.status(404).send({ error: 'inbox item 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'inbox item 不存在'  });
 
     db.update(inboxItems)
       .set({ read: 1 })
@@ -160,7 +160,7 @@ export async function inboxRoutes(app: FastifyInstance): Promise<void> {
       .from(inboxItems)
       .where(and(eq(inboxItems.id, id), recipientFilter()))
       .get();
-    if (!existing) return reply.status(404).send({ error: 'inbox item 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'inbox item 不存在'  });
 
     db.update(inboxItems)
       .set({ archived: 1, read: 1 })

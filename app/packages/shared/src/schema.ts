@@ -10,6 +10,14 @@ export const IssueStatus = z.enum([
 ]);
 export type IssueStatus = z.infer<typeof IssueStatus>;
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+
 export const Priority = z.enum(['urgent', 'high', 'medium', 'low', 'none']);
 export type Priority = z.infer<typeof Priority>;
 
@@ -37,11 +45,13 @@ export const AgentRunStatus = z.enum([
   'completed',
   'failed',
   'cancelled',
+  'timed_out',
 ]);
 export type AgentRunStatus = z.infer<typeof AgentRunStatus>;
 
 export const AgentRunFailureReason = z.enum([
   'idle_watchdog',
+  'idle_timeout',
   'tool_watchdog',
   'stale_heartbeat',
   'exec_error',
@@ -203,6 +213,7 @@ export const ListRunsQuery = z.object({
     .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false')])
     .optional(),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  offset: z.coerce.number().int().min(0).optional().default(0),
 });
 export type ListRunsQuery = z.infer<typeof ListRunsQuery>;
 
@@ -498,6 +509,8 @@ export const ListIssuesQuery = z
     assigned: QueryBool.optional(),
     // DS2：manual=看板 position 序；updated=最近更新
     sort: z.enum(['manual', 'updated']).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional().default(50),
+    offset: z.coerce.number().int().min(0).optional().default(0),
   })
   .superRefine((data, ctx) => {
     const hasType = data.assigneeType != null;
@@ -1496,6 +1509,12 @@ export const RunMessageEvent = z.object({
 });
 export type RunMessageEvent = z.infer<typeof RunMessageEvent>;
 
+export const RuntimeEventEvent = z.object({
+  type: z.literal('runtime:event'),
+  event: RuntimeEvent,
+});
+export type RuntimeEventEvent = z.infer<typeof RuntimeEventEvent>;
+
 export type DomainEvent =
   | IssueCreatedEvent
   | IssueUpdatedEvent
@@ -1505,7 +1524,8 @@ export type DomainEvent =
   | RunProgressEvent
   | RunMessageEvent
   | WikiPageCreatedEvent
-  | InboxItemEvent;
+  | InboxItemEvent
+  | RuntimeEventEvent;
 
 // —— bu04：Settings / 环境诊断（G0 只读）——
 export const SettingsCheckStatus = z.enum(['ok', 'warn', 'error']);

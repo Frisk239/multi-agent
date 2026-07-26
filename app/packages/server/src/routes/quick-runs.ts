@@ -21,7 +21,7 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/quick-runs', async (req, reply) => {
     const parsed = CreateQuickRunInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const { prompt, assignee } = parsed.data;
     let projectId: string | null = parsed.data.projectId?.trim() || null;
@@ -29,7 +29,7 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
     if (projectId) {
       const proj = db.select().from(projects).where(eq(projects.id, projectId)).get();
       if (!proj) {
-        return reply.status(404).send({ error: 'project 不存在' });
+        return reply.status(404).send({ success: false, error: 'project 不存在'  });
       }
     }
 
@@ -39,16 +39,16 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
 
     if (assignee.type === 'agent') {
       const agent = db.select().from(agents).where(eq(agents.id, assignee.id)).get();
-      if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+      if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
       agentId = agent.id;
     } else {
       const squad = loadSquadDetail(assignee.id);
-      if (!squad) return reply.status(404).send({ error: 'squad 不存在' });
+      if (!squad) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
       if (!squad.leaderId) {
-        return reply.status(400).send({ error: 'squad 无 leader，无法快速派活' });
+        return reply.status(400).send({ success: false, error: 'squad 无 leader，无法快速派活'  });
       }
       const leader = db.select().from(agents).where(eq(agents.id, squad.leaderId)).get();
-      if (!leader) return reply.status(404).send({ error: 'squad leader 不存在' });
+      if (!leader) return reply.status(404).send({ success: false, error: 'squad leader 不存在'  });
       agentId = leader.id;
       isLeader = true;
       squadId = squad.id;
@@ -58,25 +58,25 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
     if (!allowNotReadyEnqueue()) {
       const rd = await computeAgentReadiness(agentId);
       if (!rd) {
-        return reply.status(404).send({ error: 'agent 不存在' });
+        return reply.status(404).send({ success: false, error: 'agent 不存在'  });
       }
       if (rd.status === 'cwd_missing') {
-        return reply.status(409).send({
-          error: rd.detail ?? '工作区未就绪，无法快速派活（MA_ISSUE_USE_WORKSPACE_CWD）',
+        return reply.status(400).send({ success: false, error: rd.detail ?? '工作区未就绪，无法快速派活（MA_ISSUE_USE_WORKSPACE_CWD）',
+          code: 'readiness_failed',
           reason: 'cwd_missing',
           enqueue: { status: 'skipped', reason: 'cwd_missing', detail: rd.detail },
         });
       }
       if (rd.status === 'runtime_missing') {
-        return reply.status(409).send({
-          error: rd.detail ?? `runtime ${rd.runtime} 未安装或不在 PATH`,
+        return reply.status(400).send({ success: false, error: rd.detail ?? `runtime ${rd.runtime} 未安装或不在 PATH`,
+          code: 'readiness_failed',
           reason: 'runtime_missing',
           enqueue: { status: 'skipped', reason: 'runtime_missing', detail: rd.detail },
         });
       }
       if (rd.status === 'error') {
-        return reply.status(409).send({
-          error: rd.detail ?? 'agent 就绪探测失败',
+        return reply.status(400).send({ success: false, error: rd.detail ?? 'agent 就绪探测失败',
+          code: 'readiness_failed',
           reason: 'readiness_error',
           enqueue: { status: 'skipped', reason: 'readiness_error', detail: rd.detail },
         });

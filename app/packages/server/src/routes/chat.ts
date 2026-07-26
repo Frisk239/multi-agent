@@ -117,10 +117,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/chat/threads', async (req, reply) => {
     const parsed = CreateChatThreadInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const agent = db.select().from(agents).where(eq(agents.id, parsed.data.agentId)).get();
-    if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
     const now = Date.now();
     const id = crypto.randomUUID();
     const title = parsed.data.title?.trim() || `与 ${agent.name} 的对话`;
@@ -144,7 +144,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/chat/threads/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
     const base = toThread(row, lastPreviewFor(row.id));
     const execContext = execForThread(id, base.projectId);
     return { ...base, execContext };
@@ -154,7 +154,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/chat/threads/:id/exec-context', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
     return execForThread(id, (row as { projectId?: string | null }).projectId);
   });
 
@@ -163,15 +163,15 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateChatThreadProjectInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
 
     let projectId: string | null = parsed.data.projectId;
     if (projectId) {
       const proj = db.select().from(projects).where(eq(projects.id, projectId)).get();
-      if (!proj) return reply.status(404).send({ error: 'project 不存在' });
+      if (!proj) return reply.status(404).send({ success: false, error: 'project 不存在'  });
     } else {
       projectId = null;
     }
@@ -193,10 +193,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = PinChatThreadInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
     const now = Date.now();
     const pinnedAt = parsed.data.pinned ? row.pinnedAt ?? now : null;
     db.update(chatThreads)
@@ -212,10 +212,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = ArchiveChatThreadInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!row) return reply.status(404).send({ error: '会话不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
     const now = Date.now();
     db.update(chatThreads)
       .set({
@@ -233,7 +233,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/chat/threads/:id/messages', async (req, reply) => {
     const { id } = req.params as { id: string };
     const thread = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
-    if (!thread) return reply.status(404).send({ error: '会话不存在' });
+    if (!thread) return reply.status(404).send({ success: false, error: '会话不存在'  });
     const rows = db
       .select()
       .from(chatMessages)
@@ -248,17 +248,17 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { id: threadId } = req.params as { id: string };
     const parsed = PostChatMessageInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const thread = db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).get();
-    if (!thread) return reply.status(404).send({ error: '会话不存在' });
+    if (!thread) return reply.status(404).send({ success: false, error: '会话不存在'  });
     if (thread.archivedAt != null) {
-      return reply.status(400).send({ error: '会话已归档，无法发送' });
+      return reply.status(400).send({ success: false, error: '会话已归档，无法发送'  });
     }
     const agent = db.select().from(agents).where(eq(agents.id, thread.agentId)).get();
-    if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
     if (agent.archivedAt != null) {
-      return reply.status(409).send({ error: '智能体已归档' });
+      return reply.status(409).send({ success: false, error: '智能体已归档'  });
     }
 
     const now = Date.now();

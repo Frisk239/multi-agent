@@ -29,6 +29,7 @@ export function RunStatusBar({
   const rerunIssue = useRerunIssue(issueId);
   const retryRun = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
+  const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
 
@@ -191,17 +192,19 @@ export function RunStatusBar({
           <div
             className="run-live-panel"
             data-testid="run-live-panel"
-            data-has-progress={progress ? '1' : '0'}
+            data-has-progress={progress || toolByRunId[active.id] ? '1' : '0'}
           >
             <div className="run-live-bar" aria-hidden>
-              <span className="run-live-bar-fill" />
+              <span className={`run-live-bar-fill${toolByRunId[active.id] ? ' animate-pulse' : ''}`} />
             </div>
             <p
-              className={`run-progress-text${progress ? '' : ' run-progress-text--idle'}`}
-              title={progress}
-              data-testid={progress ? 'run-live-progress' : 'run-live-waiting'}
+              className={`run-progress-text${progress || toolByRunId[active.id] ? '' : ' run-progress-text--idle'}`}
+              title={toolByRunId[active.id] ? `正在执行 ${toolByRunId[active.id]}` : progress}
+              data-testid={toolByRunId[active.id] ? 'run-live-tool' : progress ? 'run-live-progress' : 'run-live-waiting'}
             >
-              {progress
+              {toolByRunId[active.id]
+                ? <span className="flex items-center gap-2"><span className="animate-spin inline-block">🛠️</span> 正在执行 [{toolByRunId[active.id]}]...</span>
+                : progress
                 ? progress
                 : active.status === 'queued'
                   ? '已排队，等待 worker 领取…'

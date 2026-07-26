@@ -42,9 +42,10 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     return () => window.clearTimeout(t);
   }, [query]);
 
-  const { data: remoteIssues = [], isFetching: issuesFetching } = useIssues(
+  const { data: issuesPage, isFetching: issuesFetching } = useIssues(
     debouncedQ ? { q: debouncedQ } : undefined,
   );
+  const remoteIssues = issuesPage?.data ?? [];
 
   // 有查询时：为命中名称的 agent 拉 readiness 显示在 hint
   const matchedAgentIds = useMemo(() => {

@@ -62,7 +62,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .filter(Boolean);
     const ids = [...new Set(raw)].slice(0, 100);
     if (ids.length === 0) {
-      return reply.status(400).send({ error: 'ids required (comma-separated)' });
+      return reply.status(400).send({ success: false, error: 'ids required (comma-separated)'  });
     }
     const out: Record<string, Awaited<ReturnType<typeof computeAgentReadiness>>> = {};
     await Promise.all(
@@ -78,7 +78,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/agents/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const row = db.select().from(agents).where(eq(agents.id, id)).get();
-    if (!row) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!row) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
     return toAgentDetail(row);
   });
 
@@ -86,13 +86,13 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/agents', async (req, reply) => {
     const parsed = CreateAgentInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     const id = resolveNewId(input.id);
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
     if (existing) {
-      return reply.status(409).send({ error: `agent id 已存在: ${id}` });
+      return reply.status(409).send({ success: false, error: `agent id 已存在: ${id}` });
     }
     const now = Date.now();
     const model =
@@ -126,10 +126,10 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateAgentInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
-    if (!existing) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
 
     const patch = parsed.data;
     const updates: Partial<typeof agents.$inferInsert> = {};
@@ -166,7 +166,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const q = req.query as { hard?: string };
     const hard = q.hard === '1' || q.hard === 'true';
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
-    if (!existing) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
 
     const active = db
       .select()
@@ -183,7 +183,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       )
       .get();
     if (active) {
-      return reply.status(409).send({ error: 'agent 仍有未完成 run' });
+      return reply.status(409).send({ success: false, error: 'agent 仍有未完成 run'  });
     }
 
     if (!hard) {
@@ -199,7 +199,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
 
     const lead = db.select().from(squads).where(eq(squads.leaderId, id)).get();
     if (lead) {
-      return reply.status(409).send({ error: `仍是小队 ${lead.name} 的 leader` });
+      return reply.status(409).send({ success: false, error: `仍是小队 ${lead.name} 的 leader` });
     }
 
     // cascade：agent_skill / squad_member 依赖 FK onDelete cascade
@@ -211,7 +211,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/agents/:id/readiness', async (req, reply) => {
     const { id } = req.params as { id: string };
     const r = await computeAgentReadiness(id);
-    if (!r) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!r) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
     return r;
   });
 
@@ -219,7 +219,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/agents/:id/runs', async (req, reply) => {
     const { id } = req.params as { id: string };
     const agent = db.select().from(agents).where(eq(agents.id, id)).get();
-    if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
 
     const q = req.query as { limit?: string };
     let limit = Number(q.limit ?? 20);
@@ -240,7 +240,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/agents/:id/work-stats', async (req, reply) => {
     const { id } = req.params as { id: string };
     const agent = db.select().from(agents).where(eq(agents.id, id)).get();
-    if (!agent) return reply.status(404).send({ error: 'agent 不存在' });
+    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
 
     const q = req.query as { days?: string };
     let windowDays: number | null = 30;
@@ -328,7 +328,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/squads/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const detail = loadSquadDetail(id);
-    if (!detail) return reply.status(404).send({ error: 'squad 不存在' });
+    if (!detail) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
     return detail;
   });
 
@@ -336,11 +336,11 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/squads', async (req, reply) => {
     const parsed = CreateSquadInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
     if (!assertAgentExists(input.leaderId)) {
-      return reply.status(400).send({ error: `leader 不存在: ${input.leaderId}` });
+      return reply.status(400).send({ success: false, error: `leader 不存在: ${input.leaderId}` });
     }
     for (const mid of input.memberIds) {
       if (!assertAgentExists(mid)) {
@@ -351,7 +351,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const id = resolveNewId(input.id);
     const existing = db.select().from(squads).where(eq(squads.id, id)).get();
     if (existing) {
-      return reply.status(409).send({ error: `squad id 已存在: ${id}` });
+      return reply.status(409).send({ success: false, error: `squad id 已存在: ${id}` });
     }
 
     const now = Date.now();
@@ -370,14 +370,13 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         replaceSquadMembers(id, input.memberIds);
       })();
     } catch (e) {
-      return reply.status(400).send({
-        error: e instanceof Error ? e.message : String(e),
+      return reply.status(400).send({ success: false, error: e instanceof Error ? e.message : String(e),
       });
     }
 
     const detail = loadSquadDetail(id);
     if (!detail) {
-      return reply.status(500).send({ error: 'squad 创建后加载失败' });
+      return reply.status(500).send({ success: false, error: 'squad 创建后加载失败'  });
     }
     return reply.status(201).send(detail);
   });
@@ -387,14 +386,14 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const parsed = UpdateSquadInput.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const existing = db.select().from(squads).where(eq(squads.id, id)).get();
-    if (!existing) return reply.status(404).send({ error: 'squad 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
 
     const patch = parsed.data;
     if (patch.leaderId !== undefined && !assertAgentExists(patch.leaderId)) {
-      return reply.status(400).send({ error: `leader 不存在: ${patch.leaderId}` });
+      return reply.status(400).send({ success: false, error: `leader 不存在: ${patch.leaderId}` });
     }
     if (patch.memberIds) {
       for (const mid of patch.memberIds) {
@@ -423,14 +422,13 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         }
       })();
     } catch (e) {
-      return reply.status(400).send({
-        error: e instanceof Error ? e.message : String(e),
+      return reply.status(400).send({ success: false, error: e instanceof Error ? e.message : String(e),
       });
     }
 
     const detail = loadSquadDetail(id);
     if (!detail) {
-      return reply.status(500).send({ error: 'squad 更新后加载失败' });
+      return reply.status(500).send({ success: false, error: 'squad 更新后加载失败'  });
     }
     return detail;
   });
@@ -439,7 +437,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/api/squads/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const existing = db.select().from(squads).where(eq(squads.id, id)).get();
-    if (!existing) return reply.status(404).send({ error: 'squad 不存在' });
+    if (!existing) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
 
     const busy = db
       .select()
@@ -461,7 +459,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     if (busy) {
       return reply
         .status(409)
-        .send({ error: `小队仍被指派到未完成 issue: ${busy.identifier}` });
+        .send({ success: false, error: `小队仍被指派到未完成 issue: ${busy.identifier}` });
     }
 
     sqlite.transaction(() => {

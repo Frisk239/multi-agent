@@ -42,8 +42,11 @@ export function RunEventTimelineInline({
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(runId);
   const progressByRun = useRunProgressStore((s) => s.byRunId);
+  const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
+  const activeTool =
+    run && run.status === 'running' ? toolByRunId[run.id]?.trim() : undefined;
   const isLive =
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
@@ -96,7 +99,11 @@ export function RunEventTimelineInline({
           ) : null}
         </div>
       </div>
-      {isLive && progress ? (
+      {isLive && activeTool ? (
+        <div className="run-trace-active-tool animate-pulse text-blue-600 text-sm py-2">
+          <span className="animate-spin inline-block mr-2">🛠️</span>正在执行 [{activeTool}]...
+        </div>
+      ) : isLive && progress ? (
         <p
           className="run-trace-live-progress"
           data-testid="run-trace-live-progress"

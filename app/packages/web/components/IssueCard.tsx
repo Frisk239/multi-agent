@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { IssueCardMenu } from './IssueCardMenu';
@@ -98,7 +99,7 @@ interface Props {
  * 行5 assignee · 更新于
  * 参考 references/repos/multica/packages/views/issues/components/board-card.tsx
  */
-export function IssueCard({
+export const IssueCard = React.memo(function IssueCard({
   issue,
   onDragStart,
   readiness,
@@ -350,4 +351,4 @@ export function IssueCard({
       </article>
     </IssueCardMenu>
   );
-}
+});

@@ -14,6 +14,8 @@ import { WikiQueryDialog } from './WikiQueryDialog';
 import { WikiHealthPanel } from './WikiHealthPanel';
 import { WikiJobsPanel } from './WikiJobsPanel';
 import { PageHeaderMore } from './PageHeaderMore';
+import { EmptyState } from './EmptyState';
+import { PageSkeleton, Skeleton } from './Skeleton';
 
 // S06 Wiki 浏览器 + S07 + wiki-memory-ops + DS3 per-project；?slug= / ?q= / ?projectId= 可分享
 function WikiPageInner() {
@@ -129,6 +131,14 @@ function WikiPageInner() {
           <div className="page-desc page-desc--quiet">
             编译式项目知识库（llm-wiki）：Issue 完成后 ingest 成互链 Markdown；问答可引用页并回写。
             与 Multica 看板派活互补——看板管「做」，Wiki 管「沉淀」。
+          </div>
+          <div className="wiki-ops-banner" style={{ marginTop: 12, marginBottom: 12 }}>
+            <div className="wiki-ops-banner-main">
+              <strong>结构化知识库</strong>
+              <p className="text-sm">
+                将零散的代码和 Issue 自动编译为系统化文档，辅助后续 Agent 开发。
+              </p>
+            </div>
           </div>
           {wikiMeta ? (
             <p
@@ -297,35 +307,40 @@ function WikiPageInner() {
 
       <div className="wiki-layout">
         <div className="wiki-sidebar" data-testid="wiki-sidebar">
-          {isFetching && !pages && <div className="text-dim">加载中…</div>}
+          {isFetching && !pages && <Skeleton variant="text" lines={5} />}
           {pages && pages.length === 0 && (
-            <div className="text-dim" data-testid="wiki-empty">
-              <div>
-                还没有 Wiki 页。完成一个 Issue（拖到 Done）试试。若一直为空，检查上方编译任务是否
-                dead，以及设置页 Wiki LLM 是否就绪。
-                {projectIdFromUrl
-                  ? ' 当前为项目根：无 localPath 或路径无效时会回退全局根。'
-                  : ''}
-              </div>
-              <div className="memory-empty-actions" style={{ marginTop: 8 }}>
-                <Link href="/" className="btn-secondary btn-sm" data-testid="wiki-empty-board">
-                  去看板
-                </Link>
-                <Link
-                  href="/settings"
-                  className="btn-ghost btn-sm"
-                  data-testid="wiki-empty-settings"
-                >
-                  环境诊断
-                </Link>
-                <Link
-                  href="/wiki?jobStatus=dead"
-                  className="btn-ghost btn-sm"
-                  data-testid="wiki-empty-dead"
-                >
-                  dead 任务
-                </Link>
-              </div>
+            <div data-testid="wiki-empty">
+              <EmptyState
+                icon="📄"
+                title="还没有 Wiki 页"
+                description={
+                  '完成一个 Issue（拖到 Done）试试。若一直为空，检查上方编译任务是否 dead，以及设置页 Wiki LLM 是否就绪。' +
+                  (projectIdFromUrl
+                    ? ' 当前为项目根：无 localPath 或路径无效时会回退全局根。'
+                    : '')
+                }
+                action={
+                  <div className="memory-empty-actions">
+                    <Link href="/" className="btn-secondary btn-sm" data-testid="wiki-empty-board">
+                      去看板
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="btn-ghost btn-sm"
+                      data-testid="wiki-empty-settings"
+                    >
+                      环境诊断
+                    </Link>
+                    <Link
+                      href="/wiki?jobStatus=dead"
+                      className="btn-ghost btn-sm"
+                      data-testid="wiki-empty-dead"
+                    >
+                      dead 任务
+                    </Link>
+                  </div>
+                }
+              />
             </div>
           )}
           {pages && pages.length > 0 && visiblePages.length === 0 ? (
@@ -362,7 +377,7 @@ function WikiPageInner() {
 
         <div className="wiki-content" data-testid="wiki-content">
           {!selectedSlug && <div className="text-dim">← 从左侧选择一个页面</div>}
-          {selectedSlug && !currentPage && <div className="text-dim">加载中…</div>}
+          {selectedSlug && !currentPage && <PageSkeleton />}
           {currentPage && (
             <div data-testid="wiki-page-body" data-slug={currentPage.slug ?? selectedSlug}>
               <div className="wiki-page-meta" data-testid="wiki-page-meta">
@@ -390,7 +405,7 @@ function WikiPageInner() {
 
 export function WikiPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <WikiPageInner />
     </Suspense>
   );
