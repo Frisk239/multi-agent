@@ -40,6 +40,7 @@ import {
   noteToolStart,
 } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
+import { parseAndDispatchSubagents } from './subagent-dispatch.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -580,6 +581,14 @@ async function tick(): Promise<void> {
       )
       .run();
     const finalText = result.finalText || '(无输出)';
+
+    // S12: 解析并委派子代理
+    if (finalText && finalText !== '(无输出)') {
+      await parseAndDispatchSubagents(runRow.id, finalText).catch((e) => {
+        logger.error({ err: e instanceof Error ? e.message : String(e), runId: runRow.id }, 'parseAndDispatchSubagents failed');
+      });
+    }
+
     // 重新读 run（QC 可能已 Link issueId）
     const freshRun = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!;
     const linkedIssueId = freshRun.issueId;

@@ -128,6 +128,8 @@ export const AgentRun = z.object({
   // G22 residual：run 启动快照（null/缺省 = CLI 默认）
   model: z.string().nullable().optional(),
   thinkingLevel: z.string().nullable().optional(),
+  // S12: Subagent delegation
+  parentRunId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -209,6 +211,8 @@ export const ListRunsQuery = z.object({
   squadId: BusinessId.optional(),
   // agent-chat：按会话过滤 chat run
   chatThreadId: BusinessId.optional(),
+  // S12: 按父运行过滤子运行
+  parentRunId: BusinessId.optional(),
   status: ListRunsStatus.optional(),
   kind: AgentRunKind.optional(),
   // isLeader=1|true：仅小队 leader run（对齐 Multica leader task 列表）

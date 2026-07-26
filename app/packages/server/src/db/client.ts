@@ -59,6 +59,12 @@ try {
   if (!agentCols.has('allowed_paths')) {
     sqlite.exec('ALTER TABLE agent ADD COLUMN allowed_paths TEXT;');
   }
+
+  const runTableInfo = sqlite.pragma('table_info(agent_run)') as Array<{ name: string }>;
+  const runCols = new Set(runTableInfo.map((c) => c.name));
+  if (!runCols.has('parent_run_id')) {
+    sqlite.exec('ALTER TABLE agent_run ADD COLUMN parent_run_id TEXT;');
+  }
 } catch {
   // ignore
 }

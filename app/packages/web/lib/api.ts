@@ -1024,6 +1024,19 @@ export function useRuns(issueId: string) {
   });
 }
 
+export function useChildRuns(parentRunId: string) {
+  return useQuery<AgentRun[]>({
+    queryKey: ['child-runs', parentRunId],
+    queryFn: async () => {
+      const res = await fetch(`${API}/runs?parentRunId=${encodeURIComponent(parentRunId)}`);
+      if (!res.ok) throw new Error('加载子运行失败');
+      const json = await res.json() as PaginatedResponse<AgentRun>;
+      return json.data;
+    },
+    enabled: !!parentRunId,
+  });
+}
+
 /** GET /api/runs/:runId —— 运行详情页 */
 export function useRun(runId: string | undefined) {
   return useQuery<AgentRun>({

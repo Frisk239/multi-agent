@@ -33,6 +33,7 @@ export async function runRoutes(app: FastifyInstance) {
     if (q.agentId) filters.push(eq(agentRuns.agentId, q.agentId));
     if (q.squadId) filters.push(eq(agentRuns.squadId, q.squadId));
     if (q.chatThreadId) filters.push(eq(agentRuns.chatThreadId, q.chatThreadId));
+    if (q.parentRunId) filters.push(eq(agentRuns.parentRunId, q.parentRunId));
     if (q.status === 'active') {
       filters.push(inArray(agentRuns.status, [...ACTIVE_STATUSES]));
     } else if (q.status) {

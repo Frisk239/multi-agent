@@ -155,8 +155,9 @@ export function cancelRunsMany(ids: string[]): {
 export async function enqueueAgentRun(
   issueId: string,
   agentId: string,
+  opts?: { parentRunId?: string | null; quickPrompt?: string | null },
 ): Promise<EnqueueResult> {
-  return checkAndEnqueue(issueId, agentId);
+  return checkAndEnqueue(issueId, agentId, opts);
 }
 
 // enqueueLeaderRun —— squad 指派时，解析 leader 排 leader run（spec §5.2）。
@@ -165,8 +166,9 @@ export async function enqueueLeaderRun(
   issueId: string,
   leaderId: string,
   squadId: string,
+  opts?: { parentRunId?: string | null; quickPrompt?: string | null },
 ): Promise<EnqueueResult> {
-  return checkAndEnqueue(issueId, leaderId, { isLeader: true, squadId });
+  return checkAndEnqueue(issueId, leaderId, { isLeader: true, squadId, ...opts });
 }
 
 // checkAndEnqueue —— enqueueAgentRun / enqueueLeaderRun 的共用实现（排雷补充#3 DRY）。
@@ -174,11 +176,13 @@ export async function enqueueLeaderRun(
 async function checkAndEnqueue(
   issueId: string,
   agentId: string,
-  opts?: { isLeader?: boolean; squadId?: string; rerunOfRunId?: string | null },
+  opts?: { isLeader?: boolean; squadId?: string; rerunOfRunId?: string | null; parentRunId?: string | null; quickPrompt?: string | null },
 ): Promise<EnqueueResult> {
   const isLeader = opts?.isLeader ?? false;
   const squadId = opts?.squadId ?? null;
   const rerunOfRunId = opts?.rerunOfRunId ?? null;
+  const parentRunId = opts?.parentRunId ?? null;
+  const quickPrompt = opts?.quickPrompt ?? null;
 
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) {
@@ -274,14 +278,15 @@ async function checkAndEnqueue(
       agentId,
       runtime: agent.runtime,
       status: 'queued',
-      kind: 'issue',
-      quickPrompt: null,
+      kind: quickPrompt ? 'quick_create' : 'issue',
+      quickPrompt,
       error: null,
       startedAt: null,
       finishedAt: null,
       isLeader: isLeader ? 1 : 0,
       squadId,
       rerunOfRunId,
+      parentRunId,
       createdAt,
     })
     .run();

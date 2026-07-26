@@ -9,6 +9,7 @@ import {
   useRetryRun,
   useRun,
   useRunMessages,
+  useChildRuns,
 } from '@/lib/api';
 import {
   pairCollapsedPreview,
@@ -191,6 +192,7 @@ function filterViewItems(
 export function RunDetailPage({ runId }: { runId: string }) {
   const { data: run, isLoading, isError, error, refetch, isFetching } = useRun(runId);
   const { data: messages = [], isFetching: msgFetching } = useRunMessages(runId);
+  const { data: childRuns = [] } = useChildRuns(runId);
   const { data: agent } = useAgent(run?.agentId ?? '');
   const cancel = useCancelRun();
   const retry = useRetryRun();
@@ -608,6 +610,23 @@ export function RunDetailPage({ runId }: { runId: string }) {
             <summary>输入 / prompt</summary>
             <pre className="run-detail-prompt-body">{run.quickPrompt}</pre>
           </details>
+        ) : null}
+
+        {childRuns.length > 0 ? (
+          <div className="run-detail-child-runs mt-4 p-4 bg-white border border-gray-200 rounded-md shadow-sm">
+            <h3 className="text-sm font-semibold mb-2">派生的子代理任务 (Child Subagents)</h3>
+            <ul className="space-y-2">
+              {childRuns.map(cr => (
+                <li key={cr.id} className="flex justify-between items-center text-sm">
+                  <Link href={`/runs/${cr.id}`} className="text-blue-600 hover:underline flex items-center shrink-0">
+                    <span>{shortId(cr.id)}</span>
+                    <span className={`ml-2 run-pill run-pill--${cr.status}`}>{cr.status}</span>
+                  </Link>
+                  <span className="text-gray-500 truncate ml-4 w-full" title={cr.quickPrompt || ''}>{cr.quickPrompt || '(无提示)'}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </header>
 

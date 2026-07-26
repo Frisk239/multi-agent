@@ -271,6 +271,8 @@ export const agentRuns = sqliteTable(
     // G22 residual：本 run 启动时从 agent 快照；null=未指定/CLI 默认（与 agent 后期改绑解耦）
     model: text('model'),
     thinkingLevel: text('thinking_level'),
+    // S12: Subagent delegation
+    parentRunId: text('parent_run_id'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({

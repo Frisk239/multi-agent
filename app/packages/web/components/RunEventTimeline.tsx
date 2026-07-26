@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun, RunMessage } from '@ma/shared';
-import { useRunMessages } from '@/lib/api';
+import { useRunMessages, useChildRuns } from '@/lib/api';
 import {
   filterRunEventView,
   pairCollapsedPreview,
@@ -41,6 +41,7 @@ export function RunEventTimelineInline({
 }) {
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(runId);
+  const { data: childRuns = [] } = useChildRuns(runId ?? '');
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
@@ -124,6 +125,24 @@ export function RunEventTimelineInline({
             {streamChunk}
             <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
           </pre>
+        </div>
+      ) : null}
+      {childRuns.length > 0 ? (
+        <div className="run-trace-child-runs mt-3 mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
+          <h4 className="text-xs font-semibold mb-2 text-gray-700">派生的子代理任务 (Child Subagents)</h4>
+          <ul className="space-y-1">
+            {childRuns.map((cr) => (
+              <li key={cr.id} className="flex justify-between items-center text-xs">
+                <Link href={`/runs/${cr.id}`} className="text-blue-600 hover:underline flex items-center shrink-0">
+                  <span>{cr.id.slice(0, 8)}…</span>
+                  <span className={`ml-2 run-pill run-pill--${cr.status}`}>{cr.status}</span>
+                </Link>
+                <span className="text-gray-500 truncate ml-4 w-full" title={cr.quickPrompt || ''}>
+                  {cr.quickPrompt || '(无提示)'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
       {messages.length === 0 ? (
