@@ -27,7 +27,7 @@ function safeStringifyResult(content: unknown): string {
 //   {"type":"tool_result","output":...}        → tool_end
 //   {"type":"result","result":"<finalText>"}   → 覆盖 ctx.resultText
 // Cursor CLI 可能给行加 "stdout:"/"stderr:" 前缀（对齐 multica normalizeCursorStreamLine）。
-function parseCursorLine(
+export function parseCursorLine(
   line: string,
   onEvent: (e: AgentEvent) => void,
   ctx: LineContext,
@@ -41,6 +41,12 @@ function parseCursorLine(
   } catch {
     return;
   }
+  // DS1: providerSessionId 提取
+  const sid = j.session_id ?? j.sessionId ?? j.conversation_id ?? j.session;
+  if (typeof sid === 'string' && sid.trim()) {
+    ctx.providerSessionId = sid.trim();
+  }
+
   switch (j.type) {
     case 'system':
       onEvent({ type: 'log', text: `[cursor] ${j.subtype ?? 'system'}` });
@@ -85,8 +91,6 @@ export class CursorBackend implements RuntimeBackend {
   readonly label = 'Cursor';
 
   async detect(): Promise<DetectResult> {
-    // spike 确认：本机 headless 入口是 cursor-agent（非 cursor 编辑器本体）。
-    // cursor-agent.cmd 经 where 解析，versionOf 取 --version（注意 .cmd 需 shell）。
     const path = await resolveCmd('CURSOR_PATH', ['cursor-agent', 'cursor']);
     if (!path) return { installed: false, version: null, path: null };
     return { installed: true, version: await versionOf(path), path };
@@ -99,19 +103,18 @@ export class CursorBackend implements RuntimeBackend {
   ): Promise<ExecutionResult> {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
-    // spike + multica buildCursorArgs 钉死 argv：
-    //   cursor-agent -p <prompt> --output-format stream-json --yolo --trust
-    // --yolo(--force) = 自动批准工具调用；--trust = 信任 cwd（非交互必需）。
-    // spike 实测：本机 cursor-agent 版本把 trust 和 force 分开，仅 --yolo 会
-    // 报 "Workspace Trust Required" 退出，必须额外加 --trust（multica 版本可能不同）。
-    // cursor-agent 是 stream-json backend（与 opencode 的降级不同）。
-    // G22：有 model 时追加 --model（CLI 不支持时会失败并体现在 run error，便于用户改回空）
+
     const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
     const model = input.model?.trim();
     if (model) args.push('--model', model);
-    // DS4：Multica 用 thinking_level 作 --variant；本仓 best-effort
+
     const variant = input.thinkingLevel?.trim();
     if (variant) args.push('--variant', variant);
+
+    // DS1: Session Resume support (--resume <id>)
+    const resume = input.resumeSessionId?.trim();
+    if (resume) args.push('--resume', resume);
+
     return spawnLineProcess(
       det.path,
       args,

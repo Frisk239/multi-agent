@@ -21,9 +21,10 @@ import { spawn } from 'node:child_process';
  * - 非完整 ACP 客户端（避免重写 Multica hermesClient）；有流则 onLine 尽力解析 JSON-RPC
  * - model：若 CLI 支持 `--model` 则传入（与 Multica session/set_model 语义对齐的简化）
  */
-function parseGrokLine(
+export function parseGrokLine(
   line: string,
   onEvent: (e: AgentEvent) => void,
+  ctx?: { providerSessionId?: string | null; usage?: any },
 ): void {
   const t = line.trim();
   if (!t) return;
@@ -38,6 +39,12 @@ function parseGrokLine(
       /* fall through plain text */
     }
     if (parsedJson) {
+      // DS1: Session ID extraction
+      const sid = (j.session_id ?? j.sessionId ?? j.id) as string | undefined;
+      if (typeof sid === 'string' && sid.trim() && ctx) {
+        ctx.providerSessionId = sid.trim();
+      }
+
       // notifications/message 或 stream
       const method = typeof j.method === 'string' ? j.method : '';
       const params = (j.params ?? {}) as Record<string, unknown>;
@@ -70,9 +77,9 @@ function parseGrokLine(
   }
 }
 
-/** 构建 grok agent argv 公共段（print / fallback 共用 model+effort） */
+/** 构建 grok agent argv 公共段（print / fallback 共用 model+effort+resume） */
 export function buildGrokAgentArgs(
-  input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt'>,
+  input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId'>,
   opts: { print: boolean },
 ): string[] {
   const args = ['--no-auto-update', 'agent', '--always-approve'];
@@ -82,6 +89,10 @@ export function buildGrokAgentArgs(
   // DS4 / G22 residual：print 路径也要传 --effort（与 fallback 对齐）
   const effort = input.thinkingLevel?.trim();
   if (effort) args.push('--effort', effort);
+  // DS1: Session Resume support
+  const resume = input.resumeSessionId?.trim();
+  if (resume) args.push('--resume', resume);
+
   args.push(input.prompt);
   return args;
 }
