@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CreateAgentInput, RuntimeId } from '@ma/shared';
 import { useCreateAgent, useRuntimeModels } from '@/lib/api';
@@ -61,8 +61,7 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
     setStep(1); // Skip gallery, go to step 1
   }
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function submit() {
     if (!name.trim()) return;
     const input: CreateAgentInput = {
       name: name.trim(),

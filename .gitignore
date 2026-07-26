@@ -50,6 +50,7 @@ pnpm-debug.log*
 .playwright-mcp/
 .playwright-cli/
 mcps/
+test-results/
 # Multica 真站登录态（cookie/JWT，勿提交）
 app/.progress/multica-auth/storage-state.json
 **/storage-state.json

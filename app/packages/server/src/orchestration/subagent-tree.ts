@@ -1,58 +1,114 @@
-import { eq, inArray, desc, and } from 'drizzle-orm';
-import type { RunTreeNode } from '@ma/shared';
+import { eq, and, desc } from 'drizzle-orm';
+import type { AgentRunStatus, AgentRunKind, RunTreeNode } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, agents, runMessages } from '../db/schema.js';
 
 type AgentRunRow = typeof agentRuns.$inferSelect;
+type AgentRow = typeof agents.$inferSelect;
 
+/**
+ * Build the full delegation tree rooted at `rootRunId`.
+ *
+ * Optimised path: instead of loading *all* runs in the system, we walk
+ * only the subtree reachable from the root via `parentRunId` links.
+ */
 export function getRunTree(rootRunId: string): RunTreeNode | null {
   const rootRow = db.select().from(agentRuns).where(eq(agentRuns.id, rootRunId)).get();
   if (!rootRow) return null;
 
-  // 1. Load all agents for name/category mapping
-  const allAgents = db.select().from(agents).all();
-  const agentMap = new Map(allAgents.map((a) => [a.id, a]));
-
-  // 2. Load all runs in system to construct parent -> child hierarchy
-  const allRuns = db.select().from(agentRuns).all();
+  // 1. Walk the subtree breadth-first, collecting only related runs
+  const subtreeRuns: AgentRunRow[] = [rootRow];
   const runsByParent = new Map<string, AgentRunRow[]>();
-  for (const r of allRuns) {
-    if (r.parentRunId) {
-      const list = runsByParent.get(r.parentRunId) || [];
-      list.push(r);
-      runsByParent.set(r.parentRunId, list);
+  const queue = [rootRunId];
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const children = db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.parentRunId, parentId))
+      .all();
+    if (children.length > 0) {
+      runsByParent.set(parentId, children);
+      for (const child of children) {
+        subtreeRuns.push(child);
+        queue.push(child.id);
+      }
     }
   }
 
-  // 3. Pre-fetch assistant run_messages for summaries
-  const allRunIds = allRuns.map((r) => r.id);
+  // 2. Collect unique agentIds, then batch-fetch only the needed agents
+  const agentIds = new Set<string>();
+  for (const r of subtreeRuns) {
+    if (r.agentId) agentIds.add(r.agentId);
+  }
+  const agentMap = new Map<string, AgentRow>();
+  if (agentIds.size > 0) {
+    for (const aid of agentIds) {
+      const row = db.select().from(agents).where(eq(agents.id, aid)).get();
+      if (row) agentMap.set(aid, row);
+    }
+  }
+
+  // 3. Fetch the latest assistant message per run for summaries (subtree only)
   const summaryMap = new Map<string, string>();
-  if (allRunIds.length > 0) {
-    const assistantMsgs = db
+  for (const r of subtreeRuns) {
+    const msg = db
       .select()
       .from(runMessages)
-      .where(and(eq(runMessages.kind, 'assistant'), inArray(runMessages.runId, allRunIds)))
+      .where(and(eq(runMessages.runId, r.id), eq(runMessages.kind, 'assistant')))
       .orderBy(desc(runMessages.seq))
-      .all();
-    for (const msg of assistantMsgs) {
-      if (!summaryMap.has(msg.runId)) {
-        summaryMap.set(msg.runId, msg.body);
-      }
-    }
+      .limit(1)
+      .get();
+    if (msg) summaryMap.set(r.id, msg.body);
   }
 
   return buildNode(rootRow, runsByParent, agentMap, summaryMap);
 }
 
+/**
+ * Direct children only – single DB query instead of full tree construction.
+ */
 export function getDirectChildren(parentRunId: string): RunTreeNode[] {
-  const rootTree = getRunTree(parentRunId);
-  return rootTree ? rootTree.children : [];
+  const children = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.parentRunId, parentRunId))
+    .all();
+  if (children.length === 0) return [];
+
+  // Collect agents
+  const agentIds = new Set<string>();
+  for (const r of children) {
+    if (r.agentId) agentIds.add(r.agentId);
+  }
+  const agentMap = new Map<string, AgentRow>();
+  for (const aid of agentIds) {
+    const row = db.select().from(agents).where(eq(agents.id, aid)).get();
+    if (row) agentMap.set(aid, row);
+  }
+
+  // Summaries (one message per child)
+  const summaryMap = new Map<string, string>();
+  for (const r of children) {
+    const msg = db
+      .select()
+      .from(runMessages)
+      .where(and(eq(runMessages.runId, r.id), eq(runMessages.kind, 'assistant')))
+      .orderBy(desc(runMessages.seq))
+      .limit(1)
+      .get();
+    if (msg) summaryMap.set(r.id, msg.body);
+  }
+
+  children.sort((a, b) => a.createdAt - b.createdAt);
+  // Build shallow nodes (no recursive children for direct-children endpoint)
+  return children.map((row) => buildNode(row, new Map(), agentMap, summaryMap));
 }
 
 function buildNode(
   row: AgentRunRow,
   runsByParent: Map<string, AgentRunRow[]>,
-  agentMap: Map<string, any>,
+  agentMap: Map<string, AgentRow>,
   summaryMap: Map<string, string>
 ): RunTreeNode {
   const childrenRows = runsByParent.get(row.id) || [];
@@ -77,8 +133,8 @@ function buildNode(
     agentId: row.agentId ?? null,
     agentName: ag?.name ?? row.agentId ?? (row.isLeader ? 'Squad Leader' : 'Subagent'),
     agentRole: ag?.category ?? (row.isLeader ? 'Squad Leader' : 'Subagent'),
-    status: row.status as any,
-    kind: (row.kind as any) ?? 'issue',
+    status: row.status as AgentRunStatus,
+    kind: (row.kind ?? 'issue') as AgentRunKind,
     quickPrompt: row.quickPrompt ?? null,
     isLeader: Boolean(row.isLeader),
     squadId: row.squadId ?? null,
