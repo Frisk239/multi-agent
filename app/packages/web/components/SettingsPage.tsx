@@ -849,6 +849,18 @@ export function SettingsPage() {
                   : '—'}
               </strong>
             </li>
+            <li data-testid="settings-memory-breaker">
+              断路器：{' '}
+              <strong>
+                {data.memoryHealth.breakerOpen ? '打开' : '关闭'}
+              </strong>
+              {typeof data.memoryHealth.breakerFailures === 'number'
+                ? ` · 连续失败 ${data.memoryHealth.breakerFailures}`
+                : null}
+              {data.memoryHealth.breakerOpen && data.memoryHealth.breakerOpenUntil
+                ? ` · 冷却至 ${new Date(data.memoryHealth.breakerOpenUntil).toLocaleString()}`
+                : null}
+            </li>
           </ul>
           <div className="settings-cwd-recovery-links" data-testid="settings-memory-health-actions">
             <Link className="btn-secondary btn-sm" href="/memory" data-testid="settings-memory-to-list">

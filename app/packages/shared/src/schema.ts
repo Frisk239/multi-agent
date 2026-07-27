@@ -1719,6 +1719,12 @@ export const SettingsMemoryHealth = z.object({
   ambient: z.number().int().nonnegative(),
   curated: z.number().int().nonnegative(),
   latestAt: z.string().datetime().nullable(),
+  /** Slice 24：断路器打开中（冷却期） */
+  breakerOpen: z.boolean().optional(),
+  /** 当前连续写失败次数 */
+  breakerFailures: z.number().int().nonnegative().optional(),
+  /** 冷却结束时间 ISO；未打开为 null */
+  breakerOpenUntil: z.string().datetime().nullable().optional(),
 });
 export type SettingsMemoryHealth = z.infer<typeof SettingsMemoryHealth>;
 

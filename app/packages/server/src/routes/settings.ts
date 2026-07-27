@@ -179,6 +179,9 @@ function buildMemoryHealth(): SettingsMemoryHealth {
     ambient,
     curated: Math.max(0, total - ambient),
     latestAt: latestAtMs != null ? new Date(latestAtMs).toISOString() : null,
+    breakerOpen: st.breakerOpen,
+    breakerFailures: st.breakerFailures,
+    breakerOpenUntil: st.breakerOpenUntil,
   };
 }
 
@@ -311,13 +314,25 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
 
   // --- memory ---
   const mem = memoryManager.getStatus();
+  const memStatus = !mem.available
+    ? 'error'
+    : mem.breakerOpen
+      ? 'warn'
+      : 'ok';
+  const memDetail = !mem.available
+    ? `不可用（provider=${mem.provider ?? 'null'}）`
+    : mem.breakerOpen
+      ? `provider=${mem.provider ?? 'unknown'} · 断路器打开（连续失败 ${mem.breakerFailures}${
+          mem.breakerOpenUntil
+            ? `，冷却至 ${new Date(mem.breakerOpenUntil).toLocaleString()}`
+            : ''
+        }）`
+      : `provider=${mem.provider ?? 'unknown'}`;
   checks.push({
     id: 'memory',
     label: '记忆层',
-    status: mem.available ? 'ok' : 'error',
-    detail: mem.available
-      ? `provider=${mem.provider ?? 'unknown'}`
-      : `不可用（provider=${mem.provider ?? 'null'}）`,
+    status: memStatus,
+    detail: memDetail,
     href: '/memory',
     actionLabel: '打开记忆',
   });
