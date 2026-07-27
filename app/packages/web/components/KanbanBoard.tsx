@@ -37,6 +37,7 @@ import {
   collectActiveIssueIds,
   issueIdsFromRuns,
 } from '@/lib/issue-card-live';
+import { confirmDialog } from '@/lib/confirm-store';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -1183,15 +1184,24 @@ function KanbanBoardInner() {
             </optgroup>
           </select>
           
-          <button 
+          <button
             className="btn-error btn-sm"
+            data-testid="kanban-bulk-delete"
             onClick={() => {
-              if (confirm(`确定要删除选中的 ${selectedIds.size} 项吗？`)) {
+              void (async () => {
+                const n = selectedIds.size;
+                const ok = await confirmDialog({
+                  title: '批量删除？',
+                  description: `确定要删除选中的 ${n} 项吗？不可恢复。`,
+                  confirmLabel: '删除',
+                  variant: 'danger',
+                });
+                if (!ok) return;
                 bulkDelete.mutate(
                   { issueIds: Array.from(selectedIds) },
-                  { onSuccess: () => handleClearSelection() }
+                  { onSuccess: () => handleClearSelection() },
                 );
-              }
+              })();
             }}
           >
             批量删除

@@ -9,6 +9,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { HelperRail } from '@/components/HelperRail';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 
 export const metadata: Metadata = {
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <HelperRail />
               </Suspense>
               <KeyboardShortcutsModal />
+              <ConfirmDialog />
             </div>
           </Providers>
         </ErrorBoundary>

@@ -16,6 +16,7 @@ import {
   useSquads,
   useUpdateIssue,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { toastError, toastSuccess } from '@/lib/toast';
 
 const ALL_STATUS = IssueStatusEnum.options;
@@ -136,7 +137,13 @@ export function IssueCardMenu({
       return;
     }
     if (value === '') {
-      if (!window.confirm('清除指派并停止当前运行？')) return;
+      const ok = await confirmDialog({
+        title: '清除指派？',
+        description: '清除指派并停止当前运行。',
+        confirmLabel: '清除指派',
+        variant: 'danger',
+      });
+      if (!ok) return;
       update.mutate({ id: issue.id, input: { assignee: null } });
       close();
       return;
@@ -147,8 +154,14 @@ export function IssueCardMenu({
         const res = await fetch(`http://localhost:3001/api/projects/${issue.projectId}/git-status`);
         if (res.ok) {
           const { status, count } = await res.json() as { status: string; count: number };
-          if (status === 'dirty' && !window.confirm(`⚠️ 本地代码仓库存在未提交修改 (${count} 个文件)，派发 Agent 可能会修改/覆写相关代码。是否继续？`)) {
-            return;
+          if (status === 'dirty') {
+            const ok = await confirmDialog({
+              title: '工作区有未提交修改',
+              description: `本地代码仓库存在未提交修改（${count} 个文件），派发 Agent 可能会修改/覆写相关代码。是否继续？`,
+              confirmLabel: '仍要派发',
+              variant: 'danger',
+            });
+            if (!ok) return;
           }
         }
       } catch {
@@ -160,13 +173,8 @@ export function IssueCardMenu({
       const id = value.slice('agent:'.length);
       const ag = agents.find((a) => a.id === id);
       if (!ag) return;
-      if (
-        !window.confirm(
-          `将用 ${ag.runtime} 启动 ${ag.name}，可随时停止。继续？`,
-        )
-      ) {
-        return;
-      }
+      // ready 减噪：不再 browser confirm
+      toastSuccess(`已指派 ${ag.name}（${ag.runtime}）`);
       update.mutate({
         id: issue.id,
         input: { assignee: { type: 'agent', id } },
@@ -178,13 +186,7 @@ export function IssueCardMenu({
       const id = value.slice('squad:'.length);
       const sq = squads.find((s) => s.id === id);
       if (!sq) return;
-      if (
-        !window.confirm(
-          `将启动小队「${sq.name}」：队长被执行并 briefing 委派成员。可随时停止。继续？`,
-        )
-      ) {
-        return;
-      }
+      toastSuccess(`已指派小队「${sq.name}」`);
       update.mutate({
         id: issue.id,
         input: { assignee: { type: 'squad', id } },
@@ -209,15 +211,16 @@ export function IssueCardMenu({
     window.location.href = `/issues/${issue.id}`;
   };
 
-  const deleteIssue = () => {
+  const deleteIssue = async () => {
     const label = issue.identifier || issue.title;
-    if (
-      !window.confirm(
+    const ok = await confirmDialog({
+      title: '删除 issue？',
+      description:
         `确定删除 ${label}「${issue.title}」？\n关联评论将删除；运行记录保留（解除 issue 关联）。不可恢复。`,
-      )
-    ) {
-      return;
-    }
+      confirmLabel: '删除',
+      variant: 'danger',
+    });
+    if (!ok) return;
     del.mutate(issue.id);
     close();
   };
@@ -437,7 +440,9 @@ export function IssueCardMenu({
             role="menuitem"
             data-testid="issue-card-menu-delete"
             disabled={del.isPending}
-            onClick={deleteIssue}
+            onClick={() => {
+              void deleteIssue();
+            }}
           >
             {del.isPending ? '删除中…' : '删除 issue'}
           </button>

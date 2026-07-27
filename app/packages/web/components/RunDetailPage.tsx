@@ -24,6 +24,7 @@ import {
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
+import { confirmDialog } from '@/lib/confirm-store';
 import { SubagentTreeViewer } from './SubagentTreeViewer';
 
 
@@ -310,8 +311,16 @@ export function RunDetailPage({ runId }: { runId: string }) {
               data-testid="run-detail-cancel"
               disabled={cancel.isPending}
               onClick={() => {
-                if (!window.confirm('停止该运行？')) return;
-                cancel.mutate(run.id);
+                void (async () => {
+                  const ok = await confirmDialog({
+                    title: '停止运行？',
+                    description: '停止后可稍后重试或再执行。',
+                    confirmLabel: '停止',
+                    variant: 'danger',
+                  });
+                  if (!ok) return;
+                  cancel.mutate(run.id);
+                })();
               }}
             >
               {cancel.isPending ? '停止中…' : '停止'}

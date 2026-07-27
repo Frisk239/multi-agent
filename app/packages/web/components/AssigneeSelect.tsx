@@ -10,6 +10,8 @@ import {
   useUpdateIssue,
 } from '@/lib/api';
 import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
+import { confirmDialog } from '@/lib/confirm-store';
+import { toastSuccess } from '@/lib/toast';
 import { Select } from './Select';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -165,9 +167,16 @@ export function AssigneeSelect({
         )
       : null;
 
-  function onChange(value: string) {
+  async function onChange(value: string) {
     if (value === '') {
-      if (!confirm('清除指派并停止当前运行？')) return;
+      // 清除指派：停止运行 — 不可逆，组件化确认
+      const ok = await confirmDialog({
+        title: '清除指派？',
+        description: '清除指派并停止当前运行。',
+        confirmLabel: '清除指派',
+        variant: 'danger',
+      });
+      if (!ok) return;
       update.mutate({ id: issueId, input: { assignee: null } });
       return;
     }
@@ -176,14 +185,27 @@ export function AssigneeSelect({
       if (!ag) return;
       const rd = readinessMap[ag.id];
       const block = readinessBlockMessage(ag.name, rd);
+      // 硬闸：不可指派（信息 modal，不真正执行）
       if (block && isHardBlocked(rd)) {
-        window.alert(block);
+        await confirmDialog({
+          title: '无法指派',
+          description: block,
+          confirmLabel: '知道了',
+          hideCancel: true,
+        });
         return;
       }
+      // soft-block：仍可排队，但需确认
       if (block) {
-        if (!confirm(block)) return;
-      } else if (!confirm(`将用 ${ag.runtime} 启动 ${ag.name}，可随时停止。继续？`)) {
-        return;
+        const ok = await confirmDialog({
+          title: '指派有阻塞',
+          description: block,
+          confirmLabel: '仍要指派',
+        });
+        if (!ok) return;
+      } else {
+        // ready / busy：Slice 48 减噪 — 不再 browser confirm，直接执行 + toast
+        toastSuccess(`已指派 ${ag.name}（${ag.runtime}）`);
       }
       update.mutate({
         id: issueId,
@@ -208,27 +230,45 @@ export function AssigneeSelect({
 
       // F8：队长硬闸 → 不允许指派（与 enqueue 一致）
       if (leaderBlock && isHardBlocked(leaderRd)) {
-        window.alert(leaderBlock);
+        await confirmDialog({
+          title: '无法指派小队',
+          description: leaderBlock,
+          confirmLabel: '知道了',
+          hideCancel: true,
+        });
         return;
       }
 
-      let msg: string;
+      // soft leader block 或成员阻塞 → 组件化确认
       if (leaderBlock) {
-        msg = leaderBlock;
+        let msg = leaderBlock;
         if (summary.blocked > 1 || (summary.blocked === 1 && !isBlocked(leaderRd))) {
-          msg += `\n另有成员阻塞 ${summary.blocked}/${summary.total || '—'}` +
+          msg +=
+            `\n另有成员阻塞 ${summary.blocked}/${summary.total || '—'}` +
             (summary.labels.length ? `：${summary.labels.slice(0, 4).join('、')}` : '') +
             '。';
         }
+        const ok = await confirmDialog({
+          title: '指派小队有阻塞',
+          description: msg,
+          confirmLabel: '仍要指派',
+        });
+        if (!ok) return;
       } else if (summary.blocked > 0) {
-        msg =
+        const msg =
           `小队「${sq.name}」队长可执行，但有 ${summary.blocked}/${summary.total} 名成员阻塞` +
           (summary.labels.length ? `：${summary.labels.slice(0, 4).join('、')}` : '') +
           '。队长仍会启动并 briefing；仍要指派吗？';
+        const ok = await confirmDialog({
+          title: '小队成员有阻塞',
+          description: msg,
+          confirmLabel: '仍要指派',
+        });
+        if (!ok) return;
       } else {
-        msg = `将启动小队「${sq.name}」：队长被执行并 briefing 委派成员。可随时停止。继续？`;
+        // ready：减噪，直接派发 + toast
+        toastSuccess(`已指派小队「${sq.name}」`);
       }
-      if (!confirm(msg)) return;
       update.mutate({
         id: issueId,
         input: { assignee: { type: 'squad', id: sq.id } },
@@ -247,7 +287,9 @@ export function AssigneeSelect({
     <div className="assignee-select-wrap" data-testid="assignee-select-wrap">
       <Select
         value={currentValue}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          void onChange(e.target.value);
+        }}
         aria-label="指派 agent 或小队"
         className="assignee-select"
         data-testid="assignee-select"
