@@ -18,6 +18,11 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from '@/lib/api';
+import {
+  inferServerLocalTokenFromCheckDetail,
+  isPublicLocalTokenConfigured,
+  publicLocalTokenStatusLabel,
+} from '@/lib/local-token';
 import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
@@ -84,6 +89,10 @@ function buildEnvSnippet(
   lines.push('# export MEMORY_PROVIDER=sqlite-text');
   lines.push('# export MA_ISSUE_IDLE_MS=1800000  # issue idle 默认 30min');
   lines.push('# export MA_DEFERRED_UNCLAIMED_MS=1800000  # Slice42 deferred 升级；默认 0=关闭');
+  // Slice 59：局域网 Web 闭环（public env，不入 DB；密钥勿提交 git）
+  lines.push('# —— 局域网 token（server + web，密钥不落库）——');
+  lines.push('# export MA_LOCAL_TOKEN=change-me          # server packages/server/.env');
+  lines.push('# export NEXT_PUBLIC_MA_LOCAL_TOKEN=change-me  # web 启动前；与 MA_LOCAL_TOKEN 一致');
   return `${lines.join('\n')}\n`;
 }
 
@@ -164,6 +173,19 @@ export function SettingsPage() {
         : '',
     [data],
   );
+
+  /** Slice 59：局域网 token 只读检测（永不回显密钥 / 无表单入库） */
+  const localTokenPanel = useMemo(() => {
+    const serverCheck = data?.checks.find((c) => c.id === 'server');
+    const server = inferServerLocalTokenFromCheckDetail(serverCheck?.detail);
+    const webConfigured = isPublicLocalTokenConfigured();
+    return {
+      server,
+      webConfigured,
+      webLabel: publicLocalTokenStatusLabel(),
+      serverDetail: serverCheck?.detail ?? null,
+    };
+  }, [data]);
 
   useEffect(() => {
     if (cwdDraftReady || !data) return;
@@ -1225,6 +1247,43 @@ export function SettingsPage() {
             自动化失败规则
           </Link>
         </div>
+      </section>
+
+      <section
+        className="settings-card settings-local-token"
+        data-testid="settings-local-token"
+        aria-label="局域网 Token 状态"
+      >
+        <div className="settings-cwd-guide-title">
+          <strong>局域网 Token</strong>
+          <span className="text-dim text-sm">只读检测 · 密钥不落库 / 无表单</span>
+        </div>
+        <ul
+          className="settings-cwd-steps"
+          style={{ listStyle: 'disc' }}
+          data-testid="settings-local-token-stats"
+        >
+          <li data-testid="settings-local-token-server">
+            <strong>服务端</strong> · {localTokenPanel.server.summary}
+            {localTokenPanel.serverDetail ? (
+              <div className="text-dim text-sm" style={{ marginTop: 4 }}>
+                {localTokenPanel.serverDetail}
+              </div>
+            ) : null}
+          </li>
+          <li
+            data-testid="settings-local-token-web"
+            data-web-token-configured={localTokenPanel.webConfigured ? '1' : '0'}
+          >
+            <strong>前端</strong> · {localTokenPanel.webLabel}
+          </li>
+        </ul>
+        <p className="text-dim text-sm" style={{ marginTop: 8 }} data-testid="settings-local-token-hint">
+          对齐方式：server 设 <code>MA_LOCAL_TOKEN</code>；Web 设同值{' '}
+          <code>NEXT_PUBLIC_MA_LOCAL_TOKEN</code>（构建/启动时注入）。HTTP 自动带{' '}
+          <code>X-MA-Token</code>，WS 自动带 <code>?token=</code>。loopback 日用可不设；勿在 Settings
+          表单存密钥到 DB。
+        </p>
       </section>
 
       <section

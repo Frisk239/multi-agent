@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useArchiveChatThread,
   useCancelRun,
@@ -278,7 +280,7 @@ export function ChatPage() {
   async function checkGitDirty(projectId: string | null) {
     if (!projectId) return true;
     try {
-      const res = await fetch(`http://localhost:3001/api/projects/${projectId}/git-status`);
+      const res = await apiFetch(`${API}/projects/${projectId}/git-status`);
       if (res.ok) {
         const { status, count } = await res.json() as { status: string; count: number };
         if (status === 'dirty') {

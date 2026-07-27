@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useQueries } from '@tanstack/react-query';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAgentsReadinessMap,
   useSquads,
@@ -13,8 +15,6 @@ import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
 import { confirmDialog } from '@/lib/confirm-store';
 import { toastSuccess } from '@/lib/toast';
 import { Select } from './Select';
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
 function readinessHint(rd: AgentReadiness | null | undefined): string {
   if (!rd) return '';
@@ -114,7 +114,7 @@ export function AssigneeSelect({
     queries: squads.map((s) => ({
       queryKey: ['squad', s.id],
       queryFn: async (): Promise<SquadDetail> => {
-        const res = await fetch(`${API}/squads/${encodeURIComponent(s.id)}`);
+        const res = await apiFetch(`${API}/squads/${encodeURIComponent(s.id)}`);
         if (!res.ok) throw new Error('squad 不存在');
         return res.json();
       },

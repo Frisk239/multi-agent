@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAgentReadiness,
   useChatMessages,
@@ -13,8 +15,6 @@ import {
 } from '@/lib/api';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
-
-const API = 'http://localhost:3001/api';
 
 const STORAGE_OPEN = 'ma-helper-open';
 const STORAGE_AGENT = 'ma-helper-agent-id';
@@ -165,7 +165,7 @@ export function HelperRail() {
     try {
       const tid = await ensureThread();
       if (!tid) throw new Error('无会话');
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/chat/threads/${encodeURIComponent(tid)}/messages`,
         {
           method: 'POST',

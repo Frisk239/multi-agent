@@ -67,8 +67,20 @@ import type {
   AgentTemplate,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
+import { withLocalTokenHeaders } from './local-token';
 
-const API = 'http://localhost:3001/api';
+export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+
+/** Slice 59：统一带 local token 的 fetch（X-MA-Token from NEXT_PUBLIC_MA_LOCAL_TOKEN） */
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    headers: withLocalTokenHeaders(init?.headers),
+  });
+}
 
 /** Issue 写接口可能附带 enqueue 元数据（指派成功但可能未开工） */
 export type IssueWithEnqueue = Issue & { enqueue?: IssueEnqueueMeta };
@@ -188,7 +200,7 @@ export function useIssues(params?: IssuesQuery) {
   return useQuery<PaginatedResponse<Issue>>({
     queryKey: issuesQueryKey(params),
     queryFn: async () => {
-      const res = await fetch(buildIssuesUrl(params));
+      const res = await apiFetch(buildIssuesUrl(params));
       if (!res.ok) throw new Error('加载失败');
       return res.json();
     },
@@ -199,7 +211,7 @@ export function useIssue(id: string) {
   return useQuery<Issue>({
     queryKey: ['issue', id],
     queryFn: async () => {
-      const res = await fetch(`${API}/issues/${id}`);
+      const res = await apiFetch(`${API}/issues/${id}`);
       if (!res.ok) throw new Error('issue 不存在');
       return res.json();
     },
@@ -211,7 +223,7 @@ export function useComments(issueId: string) {
   return useQuery<Comment[]>({
     queryKey: ['comments', issueId],
     queryFn: async () => {
-      const res = await fetch(`${API}/issues/${issueId}/comments`);
+      const res = await apiFetch(`${API}/issues/${issueId}/comments`);
       if (!res.ok) throw new Error('加载评论失败');
       return res.json();
     },
@@ -226,7 +238,7 @@ export function useAgents(opts?: { archived?: '0' | '1' | 'all' }) {
     queryKey: ['agents', archived],
     queryFn: async () => {
       const qs = archived === '0' ? '' : `?archived=${archived}`;
-      const res = await fetch(`${API}/agents${qs}`);
+      const res = await apiFetch(`${API}/agents${qs}`);
       if (!res.ok) throw new Error('加载 agents 失败');
       return res.json();
     },
@@ -237,7 +249,7 @@ export function useSquads() {
   return useQuery<SquadSummary[]>({
     queryKey: ['squads'],
     queryFn: async () => {
-      const res = await fetch(`${API}/squads`);
+      const res = await apiFetch(`${API}/squads`);
       if (!res.ok) throw new Error('加载 squads 失败');
       return res.json();
     },
@@ -249,7 +261,7 @@ export function useSquad(id: string) {
   return useQuery<SquadDetail>({
     queryKey: ['squad', id],
     queryFn: async () => {
-      const res = await fetch(`${API}/squads/${id}`);
+      const res = await apiFetch(`${API}/squads/${id}`);
       if (!res.ok) throw new Error('squad 不存在');
       return res.json();
     },
@@ -267,7 +279,7 @@ export function useInbox(opts?: { includeArchived?: boolean }) {
       if (includeArchived) sp.set('includeArchived', '1');
       // 归档区需要足够窗口；200 为 API 上限
       sp.set('limit', '200');
-      const res = await fetch(`${API}/inbox?${sp.toString()}`);
+      const res = await apiFetch(`${API}/inbox?${sp.toString()}`);
       if (!res.ok) throw new Error('加载 Inbox 失败');
       return res.json();
     },
@@ -279,7 +291,7 @@ export function useInboxUnreadCount() {
   return useQuery<{ count: number }>({
     queryKey: ['inbox-unread'],
     queryFn: async () => {
-      const res = await fetch(`${API}/inbox/unread-count`);
+      const res = await apiFetch(`${API}/inbox/unread-count`);
       if (!res.ok) throw new Error('加载未读失败');
       return res.json();
     },
@@ -297,7 +309,7 @@ export function useRunsActiveCount() {
   }>({
     queryKey: ['runs-active-count'],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs/active-count`);
+      const res = await apiFetch(`${API}/runs/active-count`);
       if (!res.ok) throw new Error(await apiError(res, '加载活跃运行数失败'));
       const data = (await res.json()) as {
         count: number;
@@ -320,7 +332,7 @@ export function useMarkInboxRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/inbox/${id}/read`, { method: 'POST' });
+      const res = await apiFetch(`${API}/inbox/${id}/read`, { method: 'POST' });
       if (!res.ok) throw new Error('标记已读失败');
       return res.json() as Promise<InboxItem>;
     },
@@ -341,7 +353,7 @@ export function useMarkInboxReadMany() {
       if (unique.length === 0) {
         return { requested: 0, updated: 0, unreadCount: 0 };
       }
-      const res = await fetch(`${API}/inbox/read-many`, {
+      const res = await apiFetch(`${API}/inbox/read-many`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unique }),
@@ -372,7 +384,7 @@ export function useArchiveInboxMany() {
       if (unique.length === 0) {
         return { requested: 0, updated: 0, unreadCount: 0 };
       }
-      const res = await fetch(`${API}/inbox/archive-many`, {
+      const res = await apiFetch(`${API}/inbox/archive-many`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unique }),
@@ -398,7 +410,7 @@ export function useArchiveInbox() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/inbox/${id}/archive`, { method: 'POST' });
+      const res = await apiFetch(`${API}/inbox/${id}/archive`, { method: 'POST' });
       if (!res.ok) throw new Error('归档失败');
       return res.json() as Promise<InboxItem>;
     },
@@ -415,7 +427,7 @@ export function useCreateIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateIssueInput) => {
-      const res = await fetch(`${API}/issues`, {
+      const res = await apiFetch(`${API}/issues`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -466,7 +478,7 @@ export function useIssueChildren(issueId: string) {
   return useQuery<Issue[]>({
     queryKey: ['issue-children', issueId],
     queryFn: async () => {
-      const res = await fetch(`${API}/issues/${issueId}/children`);
+      const res = await apiFetch(`${API}/issues/${issueId}/children`);
       if (!res.ok) throw new Error(await apiError(res, '加载子 issue 失败'));
       return res.json();
     },
@@ -478,7 +490,7 @@ export function useIssueSubscription(issueId: string) {
   return useQuery<IssueSubscription>({
     queryKey: ['issue-subscription', issueId],
     queryFn: async () => {
-      const res = await fetch(`${API}/issues/${issueId}/subscription`);
+      const res = await apiFetch(`${API}/issues/${issueId}/subscription`);
       if (!res.ok) throw new Error(await apiError(res, '加载订阅状态失败'));
       return res.json();
     },
@@ -491,7 +503,7 @@ export function useToggleIssueSubscription(issueId: string) {
   return useMutation({
     mutationFn: async (subscribed: boolean) => {
       const path = subscribed ? 'unsubscribe' : 'subscribe';
-      const res = await fetch(`${API}/issues/${issueId}/${path}`, { method: 'POST' });
+      const res = await apiFetch(`${API}/issues/${issueId}/${path}`, { method: 'POST' });
       if (!res.ok) {
         throw new Error(
           await apiError(res, subscribed ? '取消关注失败' : '关注失败'),
@@ -511,7 +523,7 @@ export function useProjects() {
   return useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: async () => {
-      const res = await fetch(`${API}/projects`);
+      const res = await apiFetch(`${API}/projects`);
       if (!res.ok) throw new Error(await apiError(res, '加载项目失败'));
       return res.json();
     },
@@ -522,7 +534,7 @@ export function useProject(id: string) {
   return useQuery<Project>({
     queryKey: ['project', id],
     queryFn: async () => {
-      const res = await fetch(`${API}/projects/${id}`);
+      const res = await apiFetch(`${API}/projects/${id}`);
       if (!res.ok) throw new Error(await apiError(res, 'project 不存在'));
       return res.json();
     },
@@ -534,7 +546,7 @@ export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateProjectInput) => {
-      const res = await fetch(`${API}/projects`, {
+      const res = await apiFetch(`${API}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -557,7 +569,7 @@ export function useUpdateProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: UpdateProjectInput }) => {
-      const res = await fetch(`${API}/projects/${id}`, {
+      const res = await apiFetch(`${API}/projects/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -580,7 +592,7 @@ export function useDeleteProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/projects/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API}/projects/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await apiError(res, '删除项目失败'));
       return id;
     },
@@ -598,7 +610,7 @@ export function useCreateComment(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateCommentInput) => {
-      const res = await fetch(`${API}/issues/${issueId}/comments`, {
+      const res = await apiFetch(`${API}/issues/${issueId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -681,7 +693,7 @@ export function useReorderIssues() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { status: IssueStatus; orderedIds: string[] }) => {
-      const res = await fetch(`${API}/issues/reorder`, {
+      const res = await apiFetch(`${API}/issues/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -734,7 +746,7 @@ export function useBulkUpdateIssueStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { issueIds: string[]; status: string }) => {
-      const res = await fetch(`${API}/issues/bulk-status`, {
+      const res = await apiFetch(`${API}/issues/bulk-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -758,7 +770,7 @@ export function useBulkUpdateIssueAssignee() {
       assigneeType: string | null;
       assigneeId: string | null;
     }) => {
-      const res = await fetch(`${API}/issues/bulk-assign`, {
+      const res = await apiFetch(`${API}/issues/bulk-assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -778,7 +790,7 @@ export function useBulkDeleteIssues() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { issueIds: string[] }) => {
-      const res = await fetch(`${API}/issues/bulk-delete`, {
+      const res = await apiFetch(`${API}/issues/bulk-delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -798,7 +810,7 @@ export function useUpdateIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: UpdateIssueInput }) => {
-      const res = await fetch(`${API}/issues/${id}`, {
+      const res = await apiFetch(`${API}/issues/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -864,7 +876,7 @@ export function useDeleteIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/issues/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/issues/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (!res.ok && res.status !== 204) {
@@ -907,7 +919,7 @@ export function useLabels() {
   return useQuery<IssueLabel[]>({
     queryKey: ['labels'],
     queryFn: async () => {
-      const res = await fetch(`${API}/labels`);
+      const res = await apiFetch(`${API}/labels`);
       if (!res.ok) throw new Error('加载标签失败');
       return res.json();
     },
@@ -918,7 +930,7 @@ export function useCreateLabel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateIssueLabelInput) => {
-      const res = await fetch(`${API}/labels`, {
+      const res = await apiFetch(`${API}/labels`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -944,7 +956,7 @@ export function useUpdateLabel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: UpdateIssueLabelInput }) => {
-      const res = await fetch(`${API}/labels/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/labels/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -964,7 +976,7 @@ export function useDeleteLabel() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/labels/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/labels/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (!res.ok && res.status !== 204) {
@@ -984,7 +996,7 @@ export function useSetIssueLabels(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (labelIds: string[]) => {
-      const res = await fetch(`${API}/issues/${encodeURIComponent(issueId)}/labels`, {
+      const res = await apiFetch(`${API}/issues/${encodeURIComponent(issueId)}/labels`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labelIds }),
@@ -1007,7 +1019,7 @@ export function useRuntimes() {
   return useQuery<RuntimesResponse>({
     queryKey: ['runtimes'],
     queryFn: async () => {
-      const res = await fetch(`${API}/runtimes`);
+      const res = await apiFetch(`${API}/runtimes`);
       if (!res.ok) throw new Error('加载运行时失败');
       return res.json();
     },
@@ -1019,7 +1031,7 @@ export function useRuntimeModels(runtime: RuntimeId | '' | undefined) {
   return useQuery<RuntimeModelsResponse>({
     queryKey: ['runtime-models', runtime ?? ''],
     queryFn: async () => {
-      const res = await fetch(`${API}/runtimes/${encodeURIComponent(runtime!)}/models`);
+      const res = await apiFetch(`${API}/runtimes/${encodeURIComponent(runtime!)}/models`);
       if (!res.ok) throw new Error('加载模型列表失败');
       return res.json();
     },
@@ -1032,7 +1044,7 @@ export function useRuns(issueId: string) {
   return useQuery<AgentRun[]>({
     queryKey: ['runs', issueId],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs?issueId=${encodeURIComponent(issueId)}`);
+      const res = await apiFetch(`${API}/runs?issueId=${encodeURIComponent(issueId)}`);
       if (!res.ok) throw new Error('加载运行失败');
       const json = await res.json() as PaginatedResponse<AgentRun>;
       return json.data;
@@ -1045,7 +1057,7 @@ export function useChildRuns(parentRunId: string, opts?: { refetchIntervalMs?: n
   return useQuery<AgentRun[]>({
     queryKey: ['child-runs', parentRunId],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs?parentRunId=${encodeURIComponent(parentRunId)}`);
+      const res = await apiFetch(`${API}/runs?parentRunId=${encodeURIComponent(parentRunId)}`);
       if (!res.ok) throw new Error('加载子运行失败');
       const json = await res.json() as PaginatedResponse<AgentRun>;
       return json.data;
@@ -1060,7 +1072,7 @@ export function useRunTree(runId: string | undefined, opts?: { refetchIntervalMs
   return useQuery<RunTreeNode>({
     queryKey: ['run-tree', runId],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs/${encodeURIComponent(runId!)}/tree`);
+      const res = await apiFetch(`${API}/runs/${encodeURIComponent(runId!)}/tree`);
       if (!res.ok) throw new Error(await apiError(res, '加载运行树失败'));
       const json = await res.json();
       return json.data ?? json;
@@ -1076,7 +1088,7 @@ export function useRun(runId: string | undefined) {
   return useQuery<AgentRun>({
     queryKey: ['run', runId],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs/${encodeURIComponent(runId!)}`);
+      const res = await apiFetch(`${API}/runs/${encodeURIComponent(runId!)}`);
       if (!res.ok) throw new Error(await apiError(res, '加载运行失败'));
       return res.json();
     },
@@ -1093,7 +1105,7 @@ export function useIssueRunUsage(issueId: string) {
   return useQuery<IssueRunUsage>({
     queryKey: ['issue-run-usage', issueId],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/issues/${encodeURIComponent(issueId)}/run-usage`,
       );
       if (!res.ok) throw new Error(await apiError(res, '加载用量失败'));
@@ -1149,7 +1161,7 @@ export function useWorkspaceRuns(params?: {
       if (isLeader === true) sp.set('isLeader', '1');
       if (isLeader === false) sp.set('isLeader', '0');
       sp.set('limit', String(limit));
-      const res = await fetch(`${API}/runs?${sp.toString()}`);
+      const res = await apiFetch(`${API}/runs?${sp.toString()}`);
       if (!res.ok) throw new Error(await apiError(res, '加载运行列表失败'));
       // 服务端分页信封 { data, total, limit, offset }；兼容历史纯数组
       const body: unknown = await res.json();
@@ -1172,7 +1184,7 @@ export function useRetryRun() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (runId: string) => {
-      const res = await fetch(`${API}/runs/${encodeURIComponent(runId)}/retry`, {
+      const res = await apiFetch(`${API}/runs/${encodeURIComponent(runId)}/retry`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error(await apiError(res, '再执行失败'));
@@ -1201,7 +1213,7 @@ export function useRerunIssue(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body?: { runId?: string }) => {
-      const res = await fetch(`${API}/issues/${encodeURIComponent(issueId)}/rerun`, {
+      const res = await apiFetch(`${API}/issues/${encodeURIComponent(issueId)}/rerun`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body ?? {}),
@@ -1233,7 +1245,7 @@ export function useRunMessages(
   return useQuery<RunMessage[]>({
     queryKey: ['run-messages', runId],
     queryFn: async () => {
-      const res = await fetch(`${API}/runs/${runId}/messages`);
+      const res = await apiFetch(`${API}/runs/${runId}/messages`);
       if (!res.ok) throw new Error('加载轨迹失败');
       return res.json();
     },
@@ -1249,7 +1261,7 @@ export function useCancelRun() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (runId: string) => {
-      const res = await fetch(`${API}/runs/${runId}/cancel`, { method: 'POST' });
+      const res = await apiFetch(`${API}/runs/${runId}/cancel`, { method: 'POST' });
       if (!res.ok) throw new Error('取消失败');
       return res.json() as Promise<AgentRun>;
     },
@@ -1289,7 +1301,7 @@ export function useSkills() {
   return useQuery<SkillInfo[]>({
     queryKey: ['skills'],
     queryFn: async () => {
-      const res = await fetch(`${API}/skills`);
+      const res = await apiFetch(`${API}/skills`);
       if (!res.ok) throw new Error('加载 skills 失败');
       return res.json();
     },
@@ -1301,7 +1313,7 @@ export function useSkill(name: string | undefined) {
   return useQuery({
     queryKey: ['skill', name],
     queryFn: async () => {
-      const res = await fetch(`${API}/skills/${encodeURIComponent(name!)}`);
+      const res = await apiFetch(`${API}/skills/${encodeURIComponent(name!)}`);
       if (!res.ok) throw new Error(await apiError(res, '加载 skill 失败'));
       return res.json() as Promise<{
         name: string;
@@ -1321,7 +1333,7 @@ export function useRefreshSkills() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API}/skills/refresh`, { method: 'POST' });
+      const res = await apiFetch(`${API}/skills/refresh`, { method: 'POST' });
       if (!res.ok) throw new Error('重新扫描失败');
       return res.json();
     },
@@ -1337,7 +1349,7 @@ export function useRefreshSkills() {
 export function useScanLocalSkills() {
   return useMutation({
     mutationFn: async (path: string) => {
-      const res = await fetch(`${API}/skills/scan-local`, {
+      const res = await apiFetch(`${API}/skills/scan-local`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
@@ -1353,7 +1365,7 @@ export function useImportLocalSkills() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: ImportLocalSkillsInput) => {
-      const res = await fetch(`${API}/skills/import-local`, {
+      const res = await apiFetch(`${API}/skills/import-local`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1389,7 +1401,7 @@ export function useImportSkillFromUrl() {
       overwrite?: boolean;
       name?: string;
     }) => {
-      const res = await fetch(`${API}/skills/import-url`, {
+      const res = await apiFetch(`${API}/skills/import-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1438,7 +1450,7 @@ export function useAgent(id: string) {
   return useQuery<AgentDetail | null>({
     queryKey: ['agent', id],
     queryFn: async () => {
-      const res = await fetch(`${API}/agents/${id}`);
+      const res = await apiFetch(`${API}/agents/${id}`);
       if (!res.ok) throw new Error(await apiError(res, '加载 agent 失败'));
       return res.json();
     },
@@ -1453,7 +1465,7 @@ export function useAgentTemplates() {
   return useQuery<AgentTemplate[]>({
     queryKey: ['agent-templates'],
     queryFn: async () => {
-      const res = await fetch(`${API}/agent-templates`);
+      const res = await apiFetch(`${API}/agent-templates`);
       if (!res.ok) throw new Error(await apiError(res, '加载 Agent 模板失败'));
       return res.json();
     },
@@ -1482,7 +1494,7 @@ export function useCreateAgentFromTemplate() {
         >
       >;
     }) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/agent-templates/${encodeURIComponent(input.templateId)}/create`,
         {
           method: 'POST',
@@ -1509,7 +1521,7 @@ export function useCreateAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateAgentInput) => {
-      const res = await fetch(`${API}/agents`, {
+      const res = await apiFetch(`${API}/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1533,7 +1545,7 @@ export function useUpdateAgent(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdateAgentInput) => {
-      const res = await fetch(`${API}/agents/${agentId}`, {
+      const res = await apiFetch(`${API}/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1559,7 +1571,7 @@ export function useDeleteAgent() {
       const id = typeof agentId === 'string' ? agentId : agentId.id;
       const hard = typeof agentId === 'string' ? false : Boolean(agentId.hard);
       const qs = hard ? '?hard=1' : '';
-      const res = await fetch(`${API}/agents/${id}${qs}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API}/agents/${id}${qs}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await apiError(res, hard ? '删除智能体失败' : '归档智能体失败'));
       return { id, hard };
     },
@@ -1583,7 +1595,7 @@ export function useUnarchiveAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agentId: string) => {
-      const res = await fetch(`${API}/agents/${agentId}`, {
+      const res = await apiFetch(`${API}/agents/${agentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ archived: false }),
@@ -1604,7 +1616,7 @@ export function useAgentReadiness(agentId: string) {
   return useQuery<AgentReadiness>({
     queryKey: ['agent-readiness', agentId],
     queryFn: async () => {
-      const res = await fetch(`${API}/agents/${agentId}/readiness`);
+      const res = await apiFetch(`${API}/agents/${agentId}/readiness`);
       if (!res.ok) throw new Error(await apiError(res, '加载 readiness 失败'));
       return res.json();
     },
@@ -1622,7 +1634,7 @@ export function useCancelRunsMany() {
       if (unique.length === 0) {
         return { requested: 0, cancelled: 0, skipped: 0 };
       }
-      const res = await fetch(`${API}/runs/cancel-many`, {
+      const res = await apiFetch(`${API}/runs/cancel-many`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unique }),
@@ -1652,7 +1664,7 @@ export function useRecoverStuckRuns() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API}/runs/recover-stuck`, { method: 'POST' });
+      const res = await apiFetch(`${API}/runs/recover-stuck`, { method: 'POST' });
       if (!res.ok) throw new Error(await apiError(res, '收尸失败'));
       return res.json() as Promise<{
         orphanRunning: number;
@@ -1696,7 +1708,7 @@ export function useAgentsReadinessMap(agentIds: string[]) {
     queryFn: async () => {
       if (unique.length === 0) return {} as Record<string, AgentReadiness | null>;
       const qs = unique.map((id) => encodeURIComponent(id)).join(',');
-      const res = await fetch(`${API}/agents/readiness?ids=${qs}`);
+      const res = await apiFetch(`${API}/agents/readiness?ids=${qs}`);
       if (!res.ok) throw new Error(await apiError(res, '加载批量 readiness 失败'));
       const body = (await res.json()) as Record<string, AgentReadiness | null>;
       // 保证请求的 id 都有键（缺失填 null）
@@ -1714,7 +1726,7 @@ export function useAgentRuns(agentId: string, limit = 20) {
   return useQuery<AgentRun[]>({
     queryKey: ['agent-runs', agentId, limit],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/agents/${agentId}/runs?limit=${encodeURIComponent(String(limit))}`,
       );
       if (!res.ok) throw new Error(await apiError(res, '加载 runs 失败'));
@@ -1729,7 +1741,7 @@ export function useAgentWorkStats(agentId: string, days: number | 'all' = 30) {
   return useQuery<AgentWorkStats>({
     queryKey: ['agent-work-stats', agentId, daysKey],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/agents/${encodeURIComponent(agentId)}/work-stats?days=${encodeURIComponent(daysKey)}`,
       );
       if (!res.ok) throw new Error(await apiError(res, '加载工作统计失败'));
@@ -1745,7 +1757,7 @@ export function useWorkspaceUsage(days = 30) {
   return useQuery<WorkspaceUsage>({
     queryKey: ['workspace-usage', days],
     queryFn: async () => {
-      const res = await fetch(`${API}/usage?days=${encodeURIComponent(String(days))}`);
+      const res = await apiFetch(`${API}/usage?days=${encodeURIComponent(String(days))}`);
       if (!res.ok) throw new Error(await apiError(res, '加载用量失败'));
       return res.json();
     },
@@ -1757,7 +1769,7 @@ export function useCreateSquad() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateSquadInput) => {
-      const res = await fetch(`${API}/squads`, {
+      const res = await apiFetch(`${API}/squads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1781,7 +1793,7 @@ export function useUpdateSquad(squadId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdateSquadInput) => {
-      const res = await fetch(`${API}/squads/${squadId}`, {
+      const res = await apiFetch(`${API}/squads/${squadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -1802,7 +1814,7 @@ export function useDeleteSquad() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (squadId: string) => {
-      const res = await fetch(`${API}/squads/${squadId}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API}/squads/${squadId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await apiError(res, '删除小队失败'));
       return squadId;
     },
@@ -1820,7 +1832,7 @@ export function useAgentSkills(agentId: string) {
   return useQuery<string[]>({
     queryKey: ['agent-skills', agentId],
     queryFn: async () => {
-      const res = await fetch(`${API}/agents/${agentId}/skills`);
+      const res = await apiFetch(`${API}/agents/${agentId}/skills`);
       if (!res.ok) throw new Error('加载分配失败');
       return res.json();
     },
@@ -1833,7 +1845,7 @@ export function useUpdateAgentSkills(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (skillIds: string[]) => {
-      const res = await fetch(`${API}/agents/${agentId}/skills`, {
+      const res = await apiFetch(`${API}/agents/${agentId}/skills`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skillIds }),
@@ -1853,7 +1865,7 @@ export function useAgentMcp(agentId: string) {
   return useQuery<{ mcpServers: string | null }>({
     queryKey: ['agent-mcp', agentId],
     queryFn: async () => {
-      const res = await fetch(`${API}/agents/${agentId}/mcp`);
+      const res = await apiFetch(`${API}/agents/${agentId}/mcp`);
       if (!res.ok) throw new Error('加载 MCP 失败');
       return res.json();
     },
@@ -1866,7 +1878,7 @@ export function useUpdateAgentMcp(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (mcpServers: string | null) => {
-      const res = await fetch(`${API}/agents/${agentId}/mcp`, {
+      const res = await apiFetch(`${API}/agents/${agentId}/mcp`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mcpServers }),
@@ -1907,7 +1919,7 @@ export function useWikiMeta(projectId?: string | null) {
     queryKey: ['wiki-meta', pid],
     queryFn: async () => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/meta${qs ? `?${qs}` : ''}`);
+      const res = await apiFetch(`${API}/wiki/meta${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('加载 wiki meta 失败');
       return res.json();
     },
@@ -1922,7 +1934,7 @@ export function useWikiPages(projectId?: string | null) {
     queryKey: ['wiki-pages', pid],
     queryFn: async () => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`);
+      const res = await apiFetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('加载 wiki 失败');
       const json = await res.json() as PaginatedResponse<WikiPageSummary>;
       return json.data;
@@ -1937,7 +1949,7 @@ export function useWikiPage(slug: string | null, projectId?: string | null) {
     queryKey: ['wiki-page', slug, pid],
     queryFn: async () => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/wiki/pages/${encodeURIComponent(slug!)}${qs ? `?${qs}` : ''}`,
       );
       if (!res.ok) throw new Error('加载 wiki 页失败');
@@ -1955,7 +1967,7 @@ export function useWikiQuery(projectId?: string | null) {
   return useMutation({
     mutationFn: async (question: string) => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/query${qs ? `?${qs}` : ''}`, {
+      const res = await apiFetch(`${API}/wiki/query${qs ? `?${qs}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
@@ -1973,7 +1985,7 @@ export function useWikiHealth(projectId?: string | null) {
     queryKey: ['wiki-health', pid],
     queryFn: async () => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/health${qs ? `?${qs}` : ''}`);
+      const res = await apiFetch(`${API}/wiki/health${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('检查失败');
       return res.json();
     },
@@ -1987,7 +1999,7 @@ export function useWikiLint(projectId?: string | null) {
   return useMutation({
     mutationFn: async () => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/lint${qs ? `?${qs}` : ''}`, {
+      const res = await apiFetch(`${API}/wiki/lint${qs ? `?${qs}` : ''}`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error('语义检查失败');
@@ -2004,7 +2016,7 @@ export function useWikiJobs(status?: string) {
       const sp = new URLSearchParams();
       if (status) sp.set('status', status);
       const qs = sp.toString();
-      const res = await fetch(`${API}/wiki/jobs${qs ? `?${qs}` : ''}`);
+      const res = await apiFetch(`${API}/wiki/jobs${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error(await apiError(res, '加载 wiki jobs 失败'));
       return res.json();
     },
@@ -2017,7 +2029,7 @@ export function useRetryWikiJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (jobId: string) => {
-      const res = await fetch(`${API}/wiki/jobs/${encodeURIComponent(jobId)}/retry`, {
+      const res = await apiFetch(`${API}/wiki/jobs/${encodeURIComponent(jobId)}/retry`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error(await apiError(res, '重试 job 失败'));
@@ -2043,7 +2055,7 @@ export function useRetryAllDeadWikiJobs() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API}/wiki/jobs/retry-dead`, { method: 'POST' });
+      const res = await apiFetch(`${API}/wiki/jobs/retry-dead`, { method: 'POST' });
       if (!res.ok) throw new Error(await apiError(res, '批量重试失败'));
       return res.json() as Promise<{ requested: number; retried: number; skipped: number }>;
     },
@@ -2070,7 +2082,7 @@ export function useCreateWikiPage(projectId?: string | null) {
   return useMutation({
     mutationFn: async (input: CreateWikiPageInput) => {
       const qs = wikiProjectQs(pid);
-      const res = await fetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`, {
+      const res = await apiFetch(`${API}/wiki/pages${qs ? `?${qs}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2111,7 +2123,7 @@ export function useMemoryStatus() {
   return useQuery({
     queryKey: ['memory-status'],
     queryFn: async () => {
-      const res = await fetch(`${API}/memory/status`);
+      const res = await apiFetch(`${API}/memory/status`);
       if (!res.ok) throw new Error('status 失败');
       return res.json() as Promise<MemoryStatus>;
     },
@@ -2123,7 +2135,7 @@ export function useSettingsStatus() {
   return useQuery<SettingsStatusResponse>({
     queryKey: ['settings-status'],
     queryFn: async () => {
-      const res = await fetch(`${API}/settings/status`);
+      const res = await apiFetch(`${API}/settings/status`);
       if (!res.ok) throw new Error('加载环境诊断失败');
       return res.json();
     },
@@ -2136,7 +2148,7 @@ export function useOpsSnapshot(opts?: { refetchInterval?: number | false }) {
   return useQuery<OpsSnapshot>({
     queryKey: ['ops-snapshot'],
     queryFn: async () => {
-      const res = await fetch(`${API}/ops/snapshot`);
+      const res = await apiFetch(`${API}/ops/snapshot`);
       if (!res.ok) throw new Error('加载运维快照失败');
       return res.json();
     },
@@ -2150,7 +2162,7 @@ export function useSettingsLiveProbes(opts?: { refetchInterval?: number | false 
   return useQuery<SettingsLiveProbesResponse>({
     queryKey: ['settings-live-probes'],
     queryFn: async () => {
-      const res = await fetch(`${API}/settings/live-probes`);
+      const res = await apiFetch(`${API}/settings/live-probes`);
       if (!res.ok) throw new Error('加载活体探针失败');
       return res.json();
     },
@@ -2164,7 +2176,7 @@ export function useSettingsDiagnostics() {
   return useQuery<SettingsDiagnosticsResponse>({
     queryKey: ['settings-diagnostics'],
     queryFn: async () => {
-      const res = await fetch(`${API}/settings/diagnostics`);
+      const res = await apiFetch(`${API}/settings/diagnostics`);
       if (!res.ok) throw new Error('加载 CLI 进程与环境诊断失败');
       return res.json();
     },
@@ -2177,7 +2189,7 @@ export function useUserProfile() {
   return useQuery<UserProfile>({
     queryKey: ['profile'],
     queryFn: async () => {
-      const res = await fetch(`${API}/profile`);
+      const res = await apiFetch(`${API}/profile`);
       if (!res.ok) throw new Error(await apiError(res, '加载用户资料失败'));
       return res.json();
     },
@@ -2188,7 +2200,7 @@ export function useUpdateUserProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: UpdateUserProfileInput) => {
-      const res = await fetch(`${API}/profile`, {
+      const res = await apiFetch(`${API}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2234,7 +2246,7 @@ export function useInboxPrefs() {
   return useQuery({
     queryKey: ['inbox-prefs'],
     queryFn: async () => {
-      const res = await fetch(`${API}/settings/inbox-prefs`);
+      const res = await apiFetch(`${API}/settings/inbox-prefs`);
       if (!res.ok) throw new Error(await apiError(res, '加载通知偏好失败'));
       return res.json() as Promise<InboxPrefs>;
     },
@@ -2246,7 +2258,7 @@ export function useSetInboxPrefs() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: Partial<InboxPrefs>) => {
-      const res = await fetch(`${API}/settings/inbox-prefs`, {
+      const res = await apiFetch(`${API}/settings/inbox-prefs`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2267,7 +2279,7 @@ export function useIsolatedWorkspaces() {
   return useQuery({
     queryKey: ['isolated-workspaces'],
     queryFn: async () => {
-      const res = await fetch(`${API}/settings/isolated-workspaces`);
+      const res = await apiFetch(`${API}/settings/isolated-workspaces`);
       if (!res.ok) throw new Error(await apiError(res, '加载隔离目录失败'));
       return res.json() as Promise<{
         rootHint: string;
@@ -2284,7 +2296,7 @@ export function useCleanupIsolatedWorkspaces() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { ids?: string[]; olderThanDays?: number }) => {
-      const res = await fetch(`${API}/settings/isolated-workspaces/cleanup`, {
+      const res = await apiFetch(`${API}/settings/isolated-workspaces/cleanup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2313,7 +2325,7 @@ export function useSetWorkspaceCwd() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (path: string) => {
-      const res = await fetch(`${API}/settings/workspace-cwd`, {
+      const res = await apiFetch(`${API}/settings/workspace-cwd`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path }),
@@ -2352,7 +2364,7 @@ export function useMemoryList(q: string) {
       const url = q.trim()
         ? `${API}/memory?q=${encodeURIComponent(q.trim())}&includeInvalid=1`
         : `${API}/memory?includeInvalid=1`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (!res.ok) throw new Error('加载记忆失败');
       type MemoryItem = any; // fallback if MemoryItem is not cleanly importable, though it should be already imported if used
       const json = await res.json() as PaginatedResponse<any>;
@@ -2366,7 +2378,7 @@ export function useMemoryItem(id: string | undefined) {
   return useQuery({
     queryKey: ['memory-item', id],
     queryFn: async () => {
-      const res = await fetch(`${API}/memory/${encodeURIComponent(id!)}`);
+      const res = await apiFetch(`${API}/memory/${encodeURIComponent(id!)}`);
       if (!res.ok) throw new Error(await apiError(res, '加载记忆详情失败'));
       return res.json() as Promise<MemoryItem>;
     },
@@ -2379,7 +2391,7 @@ export function useCreateMemory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { text: string; issueId?: string }) => {
-      const res = await fetch(`${API}/memory`, {
+      const res = await apiFetch(`${API}/memory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2400,7 +2412,7 @@ export function useDeleteMemory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/memory/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/memory/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error(await apiError(res, '删除记忆失败'));
@@ -2427,7 +2439,7 @@ export function useDeleteMemoryMany() {
       if (unique.length === 0) {
         return { requested: 0, deleted: 0, skipped: 0 };
       }
-      const res = await fetch(`${API}/memory/delete-many`, {
+      const res = await apiFetch(`${API}/memory/delete-many`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unique }),
@@ -2458,7 +2470,7 @@ export function useCreateQuickRun() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateQuickRunInput) => {
-      const res = await fetch(`${API}/quick-runs`, {
+      const res = await apiFetch(`${API}/quick-runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2504,7 +2516,7 @@ export function useChatThreads(opts?: { archived?: boolean }) {
     queryKey: ['chat-threads', archived ? 'archived' : 'active'],
     queryFn: async () => {
       const sp = archived ? '?archived=1' : '';
-      const res = await fetch(`${API}/chat/threads${sp}`);
+      const res = await apiFetch(`${API}/chat/threads${sp}`);
       if (!res.ok) throw new Error(await apiError(res, '加载会话失败'));
       return res.json();
     },
@@ -2516,7 +2528,7 @@ export function usePinChatThread() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
-      const res = await fetch(`${API}/chat/threads/${encodeURIComponent(id)}/pin`, {
+      const res = await apiFetch(`${API}/chat/threads/${encodeURIComponent(id)}/pin`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pinned }),
@@ -2535,7 +2547,7 @@ export function useArchiveChatThread() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/chat/threads/${encodeURIComponent(id)}/archive`,
         {
           method: 'PATCH',
@@ -2558,7 +2570,7 @@ export function useChatMessages(threadId: string | undefined) {
   return useQuery<ChatMessage[]>({
     queryKey: ['chat-messages', threadId],
     queryFn: async () => {
-      const res = await fetch(`${API}/chat/threads/${encodeURIComponent(threadId!)}/messages`);
+      const res = await apiFetch(`${API}/chat/threads/${encodeURIComponent(threadId!)}/messages`);
       if (!res.ok) throw new Error(await apiError(res, '加载消息失败'));
       return res.json();
     },
@@ -2572,7 +2584,7 @@ export function useChatExecContext(threadId: string | undefined) {
   return useQuery<ChatExecContext>({
     queryKey: ['chat-exec-context', threadId],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/chat/threads/${encodeURIComponent(threadId!)}/exec-context`,
       );
       if (!res.ok) throw new Error(await apiError(res, '加载会话执行目录失败'));
@@ -2594,7 +2606,7 @@ export function useUpdateChatThreadProject() {
       id: string;
       projectId: string | null;
     }) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/chat/threads/${encodeURIComponent(id)}/project`,
         {
           method: 'PATCH',
@@ -2625,7 +2637,7 @@ export function useCreateChatThread() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateChatThreadInput) => {
-      const res = await fetch(`${API}/chat/threads`, {
+      const res = await apiFetch(`${API}/chat/threads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2645,7 +2657,7 @@ export function usePostChatMessage(threadId: string | undefined) {
   return useMutation({
     mutationFn: async (body: string) => {
       if (!threadId) throw new Error('无会话');
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/chat/threads/${encodeURIComponent(threadId)}/messages`,
         {
           method: 'POST',
@@ -2681,7 +2693,7 @@ export function useAutomationRules() {
   return useQuery<AutomationRule[]>({
     queryKey: ['automation-rules'],
     queryFn: async () => {
-      const res = await fetch(`${API}/automation/rules`);
+      const res = await apiFetch(`${API}/automation/rules`);
       if (!res.ok) throw new Error(await apiError(res, '加载自动化规则失败'));
       return res.json();
     },
@@ -2693,7 +2705,7 @@ export function useCreateAutomationRule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateAutomationRuleInput) => {
-      const res = await fetch(`${API}/automation/rules`, {
+      const res = await apiFetch(`${API}/automation/rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2720,7 +2732,7 @@ export function useUpdateAutomationRule() {
       id: string;
       input: UpdateAutomationRuleInput;
     }) => {
-      const res = await fetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -2741,7 +2753,7 @@ export function useDeleteAutomationRule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`${API}/automation/rules/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (!res.ok && res.status !== 204) {
@@ -2764,7 +2776,7 @@ export function useRunAutomationNow() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/automation/rules/${encodeURIComponent(id)}/run-now`,
         { method: 'POST' },
       );
@@ -2827,7 +2839,7 @@ export function useAutomationRuns(ruleId: string | null | undefined, limit = 10)
   return useQuery<AutomationRun[]>({
     queryKey: ['automation-runs', ruleId, limit],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API}/automation/rules/${encodeURIComponent(ruleId!)}/runs?limit=${limit}`,
       );
       if (!res.ok) throw new Error(await apiError(res, '加载执行记录失败'));
@@ -2845,7 +2857,7 @@ export function useTokenUsageAnalytics(
   return useQuery<TokenUsageAnalyticsResponse>({
     queryKey: ['token-usage-analytics', days, groupBy],
     queryFn: async () => {
-      const res = await fetch(`${API}/analytics/token-usage?days=${days}&groupBy=${groupBy}`);
+      const res = await apiFetch(`${API}/analytics/token-usage?days=${days}&groupBy=${groupBy}`);
       if (!res.ok) throw new Error(await apiError(res, '加载 Token 成本数据失败'));
       return res.json();
     },

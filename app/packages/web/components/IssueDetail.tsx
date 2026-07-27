@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
-import { useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
+import { API, apiFetch, useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
@@ -273,7 +273,7 @@ export function IssueDetail({
                     onClick={async () => {
                       try {
                         toastSuccess('正在提取 Memory...');
-                        const res = await fetch('/api/memory', {
+                        const res = await apiFetch(`${API}/memory`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({

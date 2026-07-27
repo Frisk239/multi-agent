@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ActivityLog } from '@ma/shared';
+import { API, apiFetch } from '@/lib/api';
 
 export function ActivityTimeline({ issueId }: { issueId: string }) {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -9,7 +10,7 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/issues/${issueId}/activities`)
+    apiFetch(`${API}/issues/${issueId}/activities`)
       .then((res) => res.ok ? res.json() : { activities: [] })
       .then((data) => {
         if (active) {

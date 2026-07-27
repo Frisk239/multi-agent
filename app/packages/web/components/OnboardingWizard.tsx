@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { API, apiFetch } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 
 export function OnboardingWizard() {
@@ -24,7 +25,7 @@ export function OnboardingWizard() {
       /* ignore */
     }
 
-    fetch('/api/settings/onboarding-status')
+    apiFetch(`${API}/settings/onboarding-status`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data) setStatus(data);

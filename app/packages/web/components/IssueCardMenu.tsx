@@ -11,6 +11,8 @@ import {
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useDeleteIssue,
   useSquads,
@@ -151,7 +153,7 @@ export function IssueCardMenu({
 
     if (issue.projectId) {
       try {
-        const res = await fetch(`http://localhost:3001/api/projects/${issue.projectId}/git-status`);
+        const res = await apiFetch(`${API}/projects/${issue.projectId}/git-status`);
         if (res.ok) {
           const { status, count } = await res.json() as { status: string; count: number };
           if (status === 'dirty') {

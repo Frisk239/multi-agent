@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+  API,
+  apiFetch,
   useArchiveInbox,
   useArchiveInboxMany,
   useInbox,
@@ -136,8 +138,8 @@ function InboxRetryButton({
     setPending(true);
     try {
       // F5/F10：按 run.kind 诚实分流；标题兜底（run 已删时仍可回会话）
-      const res = await fetch(
-        `http://localhost:3001/api/runs/${encodeURIComponent(item.runId)}`,
+      const res = await apiFetch(
+        `${API}/runs/${encodeURIComponent(item.runId)}`,
       );
       if (res.ok) {
         const run = (await res.json()) as {

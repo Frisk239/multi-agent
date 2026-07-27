@@ -12,6 +12,8 @@ import {
   type CreateAutomationRuleInput,
 } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAutomationRules,
   useAutomationRuns,
@@ -155,7 +157,7 @@ function AutomationPageInner() {
       return;
     }
     const controller = new AbortController();
-    fetch(`http://localhost:3001/api/automation/preview-cron?expression=${encodeURIComponent(cronExpression)}`, { signal: controller.signal })
+    apiFetch(`${API}/automation/preview-cron?expression=${encodeURIComponent(cronExpression)}`, { signal: controller.signal })
       .then(res => res.json())
       .then(data => setCronPreview(data))
       .catch(() => {});

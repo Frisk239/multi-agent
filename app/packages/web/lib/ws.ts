@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import type { Issue, Comment, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
 import { classifyRunFailure } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
+import { withLocalTokenWsUrl } from './local-token';
 
 // spec §7.4：Zustand 管 WS 连接状态
 interface WsState {
@@ -240,7 +241,10 @@ export function useWsEvents() {
 
     function connect() {
       if (!mounted) return;
-      ws = new WebSocket('ws://localhost:3001/ws');
+      // Slice 59：有 NEXT_PUBLIC_MA_LOCAL_TOKEN 时追加 ?token=（浏览器 WS 无法自定义 header）
+      const wsBase =
+        process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001/ws';
+      ws = new WebSocket(withLocalTokenWsUrl(wsBase));
       wsRef.current = ws;
 
       ws.onopen = () => {

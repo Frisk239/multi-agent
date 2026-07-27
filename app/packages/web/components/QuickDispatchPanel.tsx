@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAgentsReadinessMap,
   useCreateQuickRun,
@@ -14,8 +16,6 @@ import {
 import { confirmDialog } from '@/lib/confirm-store';
 import { toastSuccess } from '@/lib/toast';
 import { useFocusTrap } from '@/lib/use-focus-trap';
-
-const API = 'http://localhost:3001/api';
 
 type QuickDispatchPanelProps = {
   open: boolean;
@@ -37,7 +37,7 @@ async function pollRunUntilIssueId(
   const intervalMs = opts.intervalMs ?? 1500;
   for (let i = 0; i < attempts; i++) {
     try {
-      const res = await fetch(`${API}/runs/${encodeURIComponent(runId)}`);
+      const res = await apiFetch(`${API}/runs/${encodeURIComponent(runId)}`);
       if (res.ok) {
         const run = (await res.json()) as AgentRun;
         if (run.issueId) return run;
@@ -187,7 +187,7 @@ export function QuickDispatchPanel({
 
     if (projectId) {
       try {
-        const res = await fetch(`http://localhost:3001/api/projects/${projectId}/git-status`);
+        const res = await apiFetch(`${API}/projects/${projectId}/git-status`);
         if (res.ok) {
           const { status, count } = await res.json() as { status: string; count: number };
           if (status === 'dirty') {
