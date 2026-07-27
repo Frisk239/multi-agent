@@ -43,6 +43,8 @@ import type {
   CreateQuickRunInput,
   SettingsStatusResponse,
   SettingsDiagnosticsResponse,
+  SettingsLiveProbesResponse,
+  OpsSnapshot,
   AutomationRule,
   AutomationRun,
   CreateAutomationRuleInput,
@@ -2116,6 +2118,34 @@ export function useSettingsStatus() {
       return res.json();
     },
     staleTime: 10_000,
+  });
+}
+
+// GET /api/ops/snapshot —— Slice 51 运维快照
+export function useOpsSnapshot(opts?: { refetchInterval?: number | false }) {
+  return useQuery<OpsSnapshot>({
+    queryKey: ['ops-snapshot'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/ops/snapshot`);
+      if (!res.ok) throw new Error('加载运维快照失败');
+      return res.json();
+    },
+    staleTime: 5_000,
+    refetchInterval: opts?.refetchInterval ?? 10_000,
+  });
+}
+
+// GET /api/settings/live-probes —— Slice 51 真实 runtime/在途探针
+export function useSettingsLiveProbes(opts?: { refetchInterval?: number | false }) {
+  return useQuery<SettingsLiveProbesResponse>({
+    queryKey: ['settings-live-probes'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/settings/live-probes`);
+      if (!res.ok) throw new Error('加载活体探针失败');
+      return res.json();
+    },
+    staleTime: 3_000,
+    refetchInterval: opts?.refetchInterval ?? 5_000,
   });
 }
 

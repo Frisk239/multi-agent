@@ -22,6 +22,7 @@ import { projectRoutes } from './routes/projects.js';
 import { profileRoutes } from './routes/profile.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { healthzRoutes } from './routes/healthz.js';
+import { opsRoutes } from './routes/ops.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
@@ -45,6 +46,7 @@ export async function buildApp() {
   eventBus.on((e) => wsBroadcaster.broadcast(e));
 
   await app.register(healthzRoutes);
+  await app.register(opsRoutes);
   await app.register(issueRoutes);
   await app.register(labelRoutes);
   await app.register(commentRoutes);

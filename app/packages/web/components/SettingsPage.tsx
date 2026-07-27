@@ -8,10 +8,12 @@ import {
   useCleanupIsolatedWorkspaces,
   useInboxPrefs,
   useIsolatedWorkspaces,
+  useOpsSnapshot,
   useRecoverStuckRuns,
   useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
   useSetWorkspaceCwd,
+  useSettingsLiveProbes,
   useSettingsStatus,
   useUpdateUserProfile,
   useUserProfile,
@@ -889,8 +891,10 @@ export function SettingsPage() {
       <section className="settings-section" data-testid="settings-health-section">
         <div className="settings-section-head">
           <h2 className="settings-section-title">健康摘要</h2>
-          <p className="settings-section-desc">记忆 · Wiki · 自动化 · 运行</p>
+          <p className="settings-section-desc">运维快照 · 记忆 · Wiki · 自动化 · 运行</p>
         </div>
+
+      <OpsSnapshotCard />
 
       {/* 记忆层健康（settings-memory-health） */}
       {data.memoryHealth ? (
@@ -1269,29 +1273,112 @@ export function SettingsPage() {
   );
 }
 
+function OpsSnapshotCard() {
+  const { data, isLoading, isError, refetch, isFetching } = useOpsSnapshot({
+    refetchInterval: 10_000,
+  });
+
+  return (
+    <section
+      className="settings-card settings-ops-recovery"
+      data-testid="settings-ops-snapshot"
+      aria-label="运维快照"
+    >
+      <div className="settings-cwd-guide-title">
+        <strong>运维快照</strong>
+        <span className="text-dim text-sm">
+          {isLoading
+            ? '加载中…'
+            : data
+              ? `${data.status === 'ok' ? '正常' : '降级'} · 在途 ${data.runs.active.total}`
+              : isError
+                ? '加载失败'
+                : '—'}
+        </span>
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          data-testid="settings-ops-snapshot-refresh"
+          disabled={isFetching}
+          onClick={() => void refetch()}
+        >
+          {isFetching ? '刷新中…' : '刷新'}
+        </button>
+      </div>
+      {data ? (
+        <ul
+          className="settings-cwd-steps"
+          style={{ listStyle: 'disc' }}
+          data-testid="settings-ops-snapshot-stats"
+        >
+          <li>
+            在途：queued <strong>{data.runs.active.queued}</strong> · running{' '}
+            <strong>{data.runs.active.running}</strong>
+            {data.runs.active.waitingLocalDirectory > 0
+              ? ` · waiting ${data.runs.active.waitingLocalDirectory}`
+              : null}
+            {' · '}
+            队列 p50/p95{' '}
+            <strong>
+              {formatAgeMs(data.runs.queueAge.p50Ms)} / {formatAgeMs(data.runs.queueAge.p95Ms)}
+            </strong>
+          </li>
+          <li>
+            Wiki：dead <strong>{data.wiki.dead}</strong> · pending{' '}
+            <strong>{data.wiki.pending}</strong> · running <strong>{data.wiki.running}</strong>
+          </li>
+          <li data-testid="settings-ops-memory-breaker">
+            Memory 断路器：{' '}
+            <strong>{data.memory.breakerOpen ? '打开' : '关闭'}</strong>
+            {` · 连续失败 ${data.memory.breakerFailures}`}
+            {data.memory.breakerOpen && data.memory.breakerOpenUntil
+              ? ` · 冷却至 ${new Date(data.memory.breakerOpenUntil).toLocaleString()}`
+              : null}
+          </li>
+          <li data-testid="settings-ops-workers">
+            Workers 上次 tick：
+            {Object.entries(data.workers)
+              .map(([k, w]) => {
+                const age =
+                  w.ageMs == null ? '—' : formatAgeMs(w.ageMs);
+                return ` ${k}${w.running ? '' : '(停)'} ${age}`;
+              })
+              .join(' ·')}
+          </li>
+          <li data-testid="settings-ops-automation-error">
+            自动化最近错误：{' '}
+            {data.automation.lastError ? (
+              <strong title={data.automation.lastError.error}>
+                {data.automation.lastError.error.slice(0, 120)}
+                {data.automation.lastError.error.length > 120 ? '…' : ''}
+              </strong>
+            ) : (
+              <span className="text-dim">无</span>
+            )}
+          </li>
+        </ul>
+      ) : isError ? (
+        <p className="text-dim text-sm">无法加载 /api/ops/snapshot</p>
+      ) : null}
+      <div className="settings-cwd-recovery-links">
+        <Link className="btn-ghost btn-sm" href="/runs?status=active">
+          在途运行
+        </Link>
+        <Link className="btn-ghost btn-sm" href="/wiki?jobStatus=dead">
+          Wiki dead
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function LiveProbesSection() {
-  const [probes, setProbes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProbes = async () => {
-    try {
-      const res = await fetch('http://localhost:3001/api/settings/live-probes');
-      if (res.ok) {
-        const data = await res.json();
-        setProbes(data.probes || []);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProbes();
-    const timer = setInterval(fetchProbes, 3000);
-    return () => clearInterval(timer);
-  }, []);
+  const { data, isLoading, isError, refetch, isFetching } = useSettingsLiveProbes({
+    refetchInterval: 5_000,
+  });
+  const probes = data?.probes ?? [];
+  const runtimes = data?.runtimes ?? [];
+  const readyCount = runtimes.filter((r) => r.ready).length;
 
   return (
     <section className="settings-section" data-testid="settings-live-probes">
@@ -1302,28 +1389,109 @@ function LiveProbesSection() {
               <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
               Live Runtime Probes（进程活体探针）
             </h2>
-            <p className="settings-section-desc">实时监控在途 CLI 运行进程心跳与状态</p>
+            <p className="settings-section-desc">
+              真实 runtime detect/readiness + 在途 run 心跳
+              {data ? ` · pid ${data.pid}` : ''}
+            </p>
           </div>
-          <button type="button" className="btn-secondary btn-sm" onClick={fetchProbes}>
-            一键拉起探针
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            data-testid="settings-live-probes-refresh"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {isFetching ? '刷新中…' : '刷新探针'}
           </button>
         </div>
       </div>
 
-      <div className="settings-card" style={{ padding: '16px' }}>
-        {loading ? (
+      <div className="settings-card" style={{ padding: '16px' }} data-testid="settings-live-probes-body">
+        {isLoading ? (
           <p className="text-dim text-sm">加载探针数据中…</p>
-        ) : probes.length === 0 ? (
-          <p className="text-dim text-sm">目前无在途活跃进程 (All quiet)</p>
+        ) : isError ? (
+          <p className="text-dim text-sm">活体探针加载失败</p>
         ) : (
-          <ul style={{ display: 'flex', flexDirection: 'column', gap: '8px', listStyle: 'none', margin: 0, padding: 0 }}>
-            {probes.map((p, idx) => (
-              <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '13px' }}>
-                <span>Run <code>{p.id?.slice(0, 8)}…</code> ({p.runtime})</span>
-                <span className="text-dim">状态: {p.status} · 心跳: {formatAgeMs(Date.now() - (p.lastHeartbeatAt || Date.now()))} 前</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="text-dim text-sm" data-testid="settings-live-probes-summary" style={{ marginTop: 0 }}>
+              在途 {data?.activeCount ?? 0}
+              {typeof data?.activeRuns === 'number' ? ` · running ${data.activeRuns}` : ''}
+              {typeof data?.inProcessCount === 'number'
+                ? ` · 本进程 ${data.inProcessCount}`
+                : ''}
+              {' · '}
+              runtime ready {readyCount}/{runtimes.length}
+            </p>
+            {runtimes.length > 0 ? (
+              <ul
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '6px',
+                  listStyle: 'none',
+                  margin: '0 0 12px',
+                  padding: 0,
+                }}
+                data-testid="settings-live-probes-runtimes"
+              >
+                {runtimes.map((r) => (
+                  <li
+                    key={r.id}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      background: 'rgba(255,255,255,0.04)',
+                      fontSize: 12,
+                    }}
+                  >
+                    <code>{r.id}</code>{' '}
+                    {r.ready ? 'ready' : r.installed ? 'not-ready' : 'missing'}
+                    {r.version ? ` · ${r.version}` : ''}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {probes.length === 0 ? (
+              <p className="text-dim text-sm">目前无在途活跃进程 (All quiet)</p>
+            ) : (
+              <ul
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
+                }}
+                data-testid="settings-live-probes-list"
+              >
+                {probes.map((p) => (
+                  <li
+                    key={p.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      gap: 8,
+                    }}
+                  >
+                    <span>
+                      Run <code>{p.id.slice(0, 8)}…</code> ({p.runtime}
+                      {p.kind ? `/${p.kind}` : ''})
+                      {p.inProcess ? ' · 本进程' : ''}
+                    </span>
+                    <span className="text-dim">
+                      状态: {p.status} · 心跳龄:{' '}
+                      {formatAgeMs(p.heartbeatAgeMs)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </section>

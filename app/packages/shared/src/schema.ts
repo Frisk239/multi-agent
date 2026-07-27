@@ -1805,6 +1805,114 @@ export const SettingsStatusResponse = z.object({
 });
 export type SettingsStatusResponse = z.infer<typeof SettingsStatusResponse>;
 
+// —— Slice 51: 运维快照（GET /api/ops/snapshot）——
+export const OpsQueueAgeSummary = z.object({
+  count: z.number().int().nonnegative(),
+  maxMs: z.number().int().nonnegative().nullable(),
+  avgMs: z.number().int().nonnegative().nullable(),
+  p50Ms: z.number().int().nonnegative().nullable(),
+  p95Ms: z.number().int().nonnegative().nullable(),
+});
+export type OpsQueueAgeSummary = z.infer<typeof OpsQueueAgeSummary>;
+
+export const OpsWorkerHealthSnapshot = z.object({
+  lastTickAt: z.number().int().nullable(),
+  ageMs: z.number().int().nonnegative().nullable(),
+  running: z.boolean(),
+});
+export type OpsWorkerHealthSnapshot = z.infer<typeof OpsWorkerHealthSnapshot>;
+
+export const OpsSnapshot = z.object({
+  ts: z.number().int(),
+  status: z.enum(['ok', 'degraded']),
+  runs: z.object({
+    active: z.object({
+      total: z.number().int().nonnegative(),
+      queued: z.number().int().nonnegative(),
+      running: z.number().int().nonnegative(),
+      waitingLocalDirectory: z.number().int().nonnegative(),
+    }),
+    queueAge: OpsQueueAgeSummary,
+    runningHeartbeatAge: OpsQueueAgeSummary,
+  }),
+  wiki: z.object({
+    dead: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    running: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    completed: z.number().int().nonnegative(),
+  }),
+  memory: z.object({
+    provider: z.string().nullable(),
+    available: z.boolean(),
+    backend: z.enum(['sqlite', 'pgvector', 'none']),
+    breakerOpen: z.boolean(),
+    breakerFailures: z.number().int().nonnegative(),
+    breakerOpenUntil: z.string().datetime().nullable(),
+  }),
+  workers: z.record(OpsWorkerHealthSnapshot),
+  process: z.object({
+    status: z.enum(['ok', 'degraded']),
+    uptimeMs: z.number().int().nonnegative(),
+    db: z.object({
+      ok: z.boolean(),
+      latencyMs: z.number().nullable(),
+      error: z.string().optional(),
+    }),
+  }),
+  automation: z.object({
+    lastError: z
+      .object({
+        ruleId: z.string(),
+        runId: z.string(),
+        error: z.string(),
+        at: z.string(),
+        source: z.enum(['schedule', 'manual']),
+      })
+      .nullable(),
+    failedRules: z.number().int().nonnegative(),
+    lastFailedAt: z.string().nullable(),
+  }),
+});
+export type OpsSnapshot = z.infer<typeof OpsSnapshot>;
+
+/** Slice 51：Settings live-probes（无 _stub） */
+export const SettingsLiveProbesResponse = z.object({
+  ts: z.number().int(),
+  pid: z.number().int(),
+  activeCount: z.number().int().nonnegative(),
+  activeRuns: z.number().int().nonnegative(),
+  inProcessCount: z.number().int().nonnegative(),
+  probes: z.array(
+    z.object({
+      id: z.string(),
+      runtime: z.string(),
+      status: z.string(),
+      kind: z.string().nullable(),
+      agentId: z.string(),
+      issueId: z.string().nullable(),
+      lastHeartbeatAt: z.number().int().nullable(),
+      startedAt: z.number().int().nullable(),
+      createdAt: z.number().int(),
+      inProcess: z.boolean(),
+      heartbeatAgeMs: z.number().int().nonnegative().nullable(),
+    }),
+  ),
+  runtimes: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      installed: z.boolean(),
+      version: z.string().nullable(),
+      path: z.string().nullable(),
+      ready: z.boolean(),
+      executionImplemented: z.boolean(),
+      supportsSessionResume: z.boolean(),
+    }),
+  ),
+});
+export type SettingsLiveProbesResponse = z.infer<typeof SettingsLiveProbesResponse>;
+
 // —— Slice 18: 混合进程与 CLI 环境健康诊断 schemas ——
 export const CliStatusBadge = z.enum([
   'ready',

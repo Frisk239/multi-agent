@@ -664,14 +664,10 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true as const, ...result };
   });
 
-  // Slice D: Settings 活体探针（TODO: 接真实 runtime 进程探测）
+  // Slice 51：Settings 活体探针 — 真实 runtime detect/readiness + 在途 run
   app.get('/api/settings/live-probes', async () => {
-    return {
-      activeCount: 0,
-      probes: [],
-      _stub: true,
-      _note: '活体探针尚未接入真实进程探测，当前返回空数组',
-    };
+    const { buildLiveProbes } = await import('../settings-live-probes.js');
+    return buildLiveProbes();
   });
   // GAP-02: 首启 Onboarding 状态 API
   app.get('/api/settings/onboarding-status', async () => {

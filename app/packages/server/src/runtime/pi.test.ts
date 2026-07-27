@@ -33,6 +33,7 @@ describe('PiBackend (Slice 44 honest fail)', () => {
   it('marks execution as not implemented', () => {
     const backend = new PiBackend();
     expect(backend.executionImplemented).toBe(false);
+    expect(backend.supportsSessionResume).toBe(false);
     expect(backend.id).toBe('pi');
   });
 
