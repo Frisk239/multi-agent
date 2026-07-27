@@ -52,6 +52,12 @@ export interface DetectResult {
 export interface RuntimeBackend {
   readonly id: RuntimeId;
   readonly label: string;
+  /**
+   * Whether this backend can really execute agent work.
+   * Missing / undefined → treated as true (real adapters).
+   * Explicit false → stub: readiness must not be ready; execute must fail honestly.
+   */
+  readonly executionImplemented?: boolean;
   detect(): Promise<DetectResult>;
   execute(
     input: ExecutionInput,

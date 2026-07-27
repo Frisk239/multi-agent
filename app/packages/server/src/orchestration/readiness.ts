@@ -24,8 +24,11 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
 
   let det = { installed: false, path: null as string | null, version: null as string | null };
   let detectError: Error | null = null;
+  /** undefined until backend resolved; missing flag means implemented */
+  let backendExecImplemented = true;
   try {
     const backend = getBackend(row.runtime as RuntimeId);
+    backendExecImplemented = backend.executionImplemented !== false;
     det = await backend.detect();
     if (det.installed) {
       probeSuccessTTL.set(agentId, { det, ts: Date.now() });
@@ -81,6 +84,9 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
   } else if (!det.installed) {
     status = 'runtime_missing';
     detail = `runtime ${row.runtime} 未安装或不在 PATH`;
+  } else if (!backendExecImplemented) {
+    status = 'error';
+    detail = `runtime ${row.runtime} 已安装，但适配器尚未实现真实执行，禁止假完成，不可派活`;
   } else if (runningCount >= row.concurrency) {
     status = 'busy';
     detail = `运行中 ${runningCount}/${row.concurrency}`;

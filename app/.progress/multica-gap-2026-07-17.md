@@ -29,20 +29,22 @@
 | Onboarding 首启向导 (GAP-02) | ✅ | Slice 5 (`slice5-onboarding-impl-1.md`) |
 | RuntimeEvent 统一事件协议 (GAP-10) | ✅ | Slice 6 (`slice6-runtimeevent-impl-1.md`) |
 
-## 体验可演进（下一阶段切片池 · 2026-07-27 Phase B）
+## 体验可演进（下一阶段切片池 · 2026-07-27 Phase C）
 
-> **排期真源：** [slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md)（Slice **33–43**）  
-> Phase A 已收官：[slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（23–32）· [slice32-issue-sheet-impl-1.md](./slice32-issue-sheet-impl-1.md)  
-> 7/24–7/26 历史清单见 [gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md)
+> **排期真源：** [slice-plan-2026-07-27-phase-c.md](./slice-plan-2026-07-27-phase-c.md)（Slice **44–54**）  
+> Phase B 已收官：[slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md)（33–43）· [queue-23-43-phase-b-closeout-2026-07-27.md](./queue-23-43-phase-b-closeout-2026-07-27.md)  
+> Phase A：[slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（23–32）  
+> 历史清单：[gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md)（多数 ID 已过时）
 
 | 波次 | 切片 | 主题 | 优先级 |
 |---|---|---|---|
-| **V 验收** | 33 | 全栈 live Playwright 补验 | P0 |
-| **U 手感债** | 34 / 36–37 / 40 | 三态+断线条+Trap · Sheet 轻量 · 列 virtual · 运维叙事/Select | P0–P1 |
-| **R 补洞** | 35 / 38–39 / 41 | timeout+waiting 恢复 · bind/healthz · transition+Wiki 退避 · 迁移单轨 | P0–P1 |
-| **D 纵深** | 42–43 | Deferred 升级 · Prompt 静态化 | P2 |
+| **H 诚实** | 44 / 47 | 假成功 Backend 归零 · Wiki running lease | P0 |
+| **U 手感** | 45–46 / 48 / 52–54 | 草稿 · 看板 live · Confirm · Select/批量 · 键/窄屏 · mention chips | P0–P2 |
+| **S 安全/Resume** | 49–50 | 本地 token（放开 bind）· Resume 能力矩阵 | P1 |
+| **O 运维** | 51 | Ops snapshot + live-probes 去 stub | P1 |
 
-**默认顺序：** V1→U4→R4→U5→U6→R5→R6→U7→R7→D5→D6（选项 A · 见 phase-b 计划）
+**默认顺序：** H1→U8→U9→H2→U10→S1→S2→O1→U11→U12→U13  
+即 **44 → 45 → 46 → 47 → 48 → 49 → 50 → 51 → 52 → 53 → 54**（选项 A · 见 phase-c 计划）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -53,6 +55,7 @@
 | Multica daemon 协议 1:1 | Backend adapter 学接口不学进程模型 |
 | 密钥入库 / UI 写密钥 | ADR 0003 |
 | 大规模生产运营 BI | 非本产品阶段 |
+| TipTap 全量 / Wiki 图谱优先 | Phase C 薄版 chips；图谱低频 |
 
 ## 达标判断
 
@@ -62,4 +65,4 @@
 | **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略（2026-07-27 Phase B）：** 按 [slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md) 先 live 验收 → 手感债/恢复补洞 → 安全与状态机 → 纵深；默认从 **Slice 33** 开刀。刻意不做仍有效。
+**继续策略（2026-07-27 Phase C）：** 按 [slice-plan-2026-07-27-phase-c.md](./slice-plan-2026-07-27-phase-c.md) 先 **假成功归零** → 草稿/盯板手感 → Wiki lease → Confirm → token/Resume → Ops → 手感收口；默认从 **Slice 44** 开刀。刻意不做仍有效。

@@ -46,16 +46,17 @@
 
 ## 当前方位（2026-07-27）
 
-- **阶段：** Phase A（Slice **23–32**）已收官；**Phase B = 验收锁回归 → 恢复/安全补洞 → 手感债 → 编排纵深**
+- **阶段：** Phase A（23–32）与 **Phase B（33–43）已收官**；**Phase C = 诚实失败 → 高频手感 → 安全/Resume → 运维面**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **滚动计划（真源）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md) — Slice **33–43**  
+- **滚动计划（真源）：** [slice-plan-2026-07-27-phase-c.md](app/.progress/slice-plan-2026-07-27-phase-c.md) — Slice **44–54**  
+- **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)（33–43 已合）  
 - **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** **Slice 23–43 Phase B 整队**（39 状态转移/Wiki 退避 · 40 Select/运维叙事 · 41 迁移单轨 · 42 Deferred · 43 Prompt 静态化）
-- **▶ 下一刀默认：** 新 gap 审计 / 体验加深；Phase B 计划 33–43 已收官
-- **上一刀 closeout：** [queue-23-43-phase-b-closeout-2026-07-27.md](app/.progress/queue-23-43-phase-b-closeout-2026-07-27.md)
-- **验收证据：** Slice33 live Playwright 基线 + 本会话复跑（见 closeout）
+- **已交（近）：** Phase B **23–43**；Phase C **Slice 44** 假成功 Backend 归零（Pi honest-fail）
+- **▶ 下一刀默认：** [Slice 45 · 草稿持久化](app/.progress/slice-plan-2026-07-27-phase-c.md)
+- **上一刀 closeout：** [slice44-pi-honest-fail-closeout.md](app/.progress/slice44-pi-honest-fail-closeout.md)
+- **验收证据：** Slice44 vitest 12 + e2e PASS=4；Phase B closeout 仍有效
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

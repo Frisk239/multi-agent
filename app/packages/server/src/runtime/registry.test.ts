@@ -22,6 +22,16 @@ describe('runtime registry', () => {
     expect(getBackend('pi').id).toBe('pi');
   });
 
+  it('Pi backend is registered as execution not implemented (Slice 44)', () => {
+    const pi = getBackend('pi');
+    expect(pi.executionImplemented).toBe(false);
+    // other backends default to implemented (undefined or true)
+    for (const id of ['claude-code', 'opencode', 'cursor', 'grok'] as RuntimeId[]) {
+      const b = getBackend(id);
+      expect(b.executionImplemented).not.toBe(false);
+    }
+  });
+
   it('throws error for unregistered runtime ID', () => {
     expect(() => getBackend('unknown' as RuntimeId)).toThrow('unknown runtime');
   });
