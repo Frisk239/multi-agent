@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
+import { deriveIssueCardLive } from '@/lib/issue-card-live';
 import { IssueCardMenu } from './IssueCardMenu';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -130,14 +131,21 @@ export const IssueCard = React.memo(function IssueCard({
   const showReadyDot = Boolean(
     issue.assignee?.type === 'agent' || issue.assignee?.type === 'squad',
   );
-  const showFail = Boolean(lastRunFailed) && !runActive;
+  const liveState = deriveIssueCardLive({
+    activeRuns: runActive,
+    recentFailed: lastRunFailed,
+  });
+  const showLive = liveState.live;
+  const showFail = liveState.showFailed;
   const desc = descriptionPreview(issue.description);
   const updated = updatedAgo(issue.updatedAt);
-  const fullPageHref = runActive
+  const fullPageHref = showLive
     ? `/issues/${issue.id}#run-trace`
     : `/issues/${issue.id}`;
   // 默认全页深链；看板传入 detailHref/onOpenDetail 走侧滑
   const detailHref = detailHrefProp ?? fullPageHref;
+  // 失败区优先走看板侧滑（?issue=）；无 onOpenDetail 时退回全页
+  const failHref = detailHrefProp ?? `/issues/${issue.id}`;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -155,7 +163,7 @@ export const IssueCard = React.memo(function IssueCard({
         className={[
           'issue-card',
           showFail ? 'issue-card--run-failed' : '',
-          runActive ? 'issue-card--run-active' : '',
+          showLive ? 'issue-card--run-active' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -163,7 +171,8 @@ export const IssueCard = React.memo(function IssueCard({
         data-issue-id={issue.id}
         data-readiness={showReadyDot ? tone : 'none'}
         data-run-failed={showFail ? '1' : '0'}
-        data-run-active={runActive ? '1' : '0'}
+        data-run-active={showLive ? '1' : '0'}
+        data-live={showLive ? '1' : '0'}
         data-origin={issue.originType ?? ''}
       >
         <div className="issue-card-top" style={{ display: 'flex', alignItems: 'center' }}>
@@ -219,18 +228,32 @@ export const IssueCard = React.memo(function IssueCard({
                 {issue.childProgress.done}/{issue.childProgress.total}
               </span>
             ) : null}
-            {runActive ? (
-              <span className="issue-card-run-active" title="运行中 / 排队中">
+            {showLive ? (
+              <span
+                className="issue-card-run-active"
+                title="运行中 / 排队中"
+                data-testid="issue-card-live"
+                data-live="1"
+              >
                 运行中
               </span>
             ) : null}
             {showFail ? (
               <Link
-                href={`/issues/${issue.id}#run-trace`}
+                href={failHref}
                 className="issue-card-run-fail issue-card-run-fail--link"
-                title="最近一次运行失败 · 打开详情再执行"
+                title="最近一次运行失败 · 打开详情"
                 data-testid="issue-card-fail-badge"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenDetail) {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                      return;
+                    }
+                    e.preventDefault();
+                    onOpenDetail(issue.id, e);
+                  }
+                }}
                 draggable={false}
               >
                 失败
@@ -356,11 +379,20 @@ export const IssueCard = React.memo(function IssueCard({
             ) : (
               <span className="issue-card-assignee-empty">未指派</span>
             )}
-            {runActive ? (
+            {showLive ? (
               <Link
-                href={`/issues/${issue.id}#run-trace`}
+                href={detailHref}
                 className="issue-card-live-link"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenDetail) {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                      return;
+                    }
+                    e.preventDefault();
+                    onOpenDetail(issue.id, e);
+                  }
+                }}
                 draggable={false}
                 data-testid="issue-card-live-link"
                 title="打开详情并定位到运行轨迹"
@@ -370,9 +402,19 @@ export const IssueCard = React.memo(function IssueCard({
             ) : null}
             {showFail ? (
               <Link
-                href={`/issues/${issue.id}`}
+                href={failHref}
                 className="issue-card-fail-link"
-                onClick={(e) => e.stopPropagation()}
+                data-testid="issue-card-fail-link"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenDetail) {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                      return;
+                    }
+                    e.preventDefault();
+                    onOpenDetail(issue.id, e);
+                  }
+                }}
                 draggable={false}
                 title="打开详情查看失败诊断与再执行"
               >

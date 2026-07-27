@@ -33,6 +33,10 @@ import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 import { OnboardingWizard } from './OnboardingWizard';
 import { useDensity } from '@/lib/density';
+import {
+  collectActiveIssueIds,
+  issueIdsFromRuns,
+} from '@/lib/issue-card-live';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -335,24 +339,15 @@ function KanbanBoardInner() {
     return out;
   }, [issues, squadLeaderById]);
 
-  const failedIssueIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of failedRuns) {
-      if (r.issueId) s.add(r.issueId);
-    }
-    return s;
-  }, [failedRuns]);
+  const failedIssueIds = useMemo(
+    () => issueIdsFromRuns(failedRuns),
+    [failedRuns],
+  );
 
-  const activeIssueIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const r of runningRuns) {
-      if (r.issueId) s.add(r.issueId);
-    }
-    for (const r of queuedRuns) {
-      if (r.issueId) s.add(r.issueId);
-    }
-    return s;
-  }, [runningRuns, queuedRuns]);
+  const activeIssueIds = useMemo(
+    () => collectActiveIssueIds(runningRuns, queuedRuns),
+    [runningRuns, queuedRuns],
+  );
 
   const getIssueSheetHref = useCallback(
     (issue: Issue) => {
