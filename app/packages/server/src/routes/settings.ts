@@ -341,14 +341,26 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   // --- server ---
   const port = Number(process.env.PORT ?? 3001);
   const host = resolveListenHost();
-  const lanHint =
-    host === '127.0.0.1' || host === 'localhost'
-      ? ' · 仅本机；局域网暴露：MA_BIND=0.0.0.0（并设 MA_CORS_ORIGIN）'
-      : ` · bind=${host}`;
+  const hasLocalToken = Boolean((process.env.MA_LOCAL_TOKEN ?? '').trim());
+  const isLoop =
+    host === '127.0.0.1' ||
+    host === 'localhost' ||
+    host === '::1' ||
+    host.startsWith('127.');
+  // Slice 49：局域网请设 MA_LOCAL_TOKEN（env，不入 DB / UI 不存密钥）
+  let lanHint: string;
+  if (isLoop) {
+    lanHint =
+      ' · 仅本机；局域网暴露：MA_BIND=0.0.0.0（并设 MA_CORS_ORIGIN；请设 MA_LOCAL_TOKEN）';
+  } else if (hasLocalToken) {
+    lanHint = ` · bind=${host} · MA_LOCAL_TOKEN 已配置（/api·/ws 需 Bearer 或 X-MA-Token；WS 可用 ?token=）`;
+  } else {
+    lanHint = ` · bind=${host} · 未配置 MA_LOCAL_TOKEN（局域网裸奔风险；见 .env.example）`;
+  }
   checks.push({
     id: 'server',
     label: '服务',
-    status: 'ok',
+    status: isLoop || hasLocalToken ? 'ok' : 'warn',
     detail: `监听 ${host}:${port}${lanHint}`,
     href: '/runs?status=active',
     actionLabel: '在途运行',

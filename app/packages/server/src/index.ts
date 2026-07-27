@@ -22,6 +22,7 @@ import { SqliteTextProvider } from './memory/sqlite-text-provider.js';
 import { PgvectorProvider } from './memory/pgvector-provider.js';
 
 import { resolveListenHost } from './bind.js';
+import { evaluateLocalTokenStartup } from './local-token.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = resolveListenHost();
@@ -73,6 +74,14 @@ async function main() {
   startAutomationWorker();
   // S08：Wiki ingest 队列 worker（spec §4.4）
   startWikiIngestWorker();
+  // Slice 49：非 loopback 无 token → warn；MA_LOCAL_TOKEN_REQUIRED=1 则拒绝启动
+  const tokenGate = evaluateLocalTokenStartup(process.env, HOST);
+  for (const w of tokenGate.warnings) console.warn(w);
+  if (!tokenGate.ok) {
+    console.error(tokenGate.error);
+    process.exit(1);
+  }
+
   try {
     // Slice 38：默认 127.0.0.1；局域网暴露设 MA_BIND=0.0.0.0（或 HOST）
     await app.listen({ port: PORT, host: HOST });

@@ -25,6 +25,8 @@ import { healthzRoutes } from './routes/healthz.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
+import { resolveListenHost } from './bind.js';
+import { registerLocalTokenGuard } from './local-token.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -35,6 +37,9 @@ export async function buildApp() {
     origin: makeCorsOriginChecker(corsAllowed),
   });
   await app.register(websocket);
+
+  // Slice 49：非 loopback + MA_LOCAL_TOKEN 时保护 /api/* 与 /ws（/healthz 放行）
+  registerLocalTokenGuard(app, { listenHost: resolveListenHost() });
 
   // 接线（spec §6.5）：eventBus → wsBroadcaster
   eventBus.on((e) => wsBroadcaster.broadcast(e));
