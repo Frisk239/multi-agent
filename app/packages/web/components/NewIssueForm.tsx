@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
+import { Select } from './Select';
 
 type ExecPreview =
   | { kind: 'isolated'; reason: 'no_project' | 'no_path'; projectTitle?: string; projectId?: string }
@@ -322,19 +323,20 @@ export function NewIssueForm() {
         autoFocus
         data-testid="new-issue-title"
       />
-      <select
+      <Select
         className="new-issue-select"
         value={priority}
         onChange={(e) => setPriority(e.target.value as Priority)}
         aria-label="优先级"
+        data-testid="new-issue-priority"
       >
         <option value="none">无</option>
         <option value="low">低</option>
         <option value="medium">中</option>
         <option value="high">高</option>
         <option value="urgent">紧急</option>
-      </select>
-      <select
+      </Select>
+      <Select
         className="new-issue-select new-issue-project"
         value={projectId}
         onChange={(e) => setProjectId(e.target.value)}
@@ -355,8 +357,8 @@ export function NewIssueForm() {
             </option>
           );
         })}
-      </select>
-      <select
+      </Select>
+      <Select
         className="new-issue-select new-issue-assignee"
         value={assigneeValue}
         onChange={(e) => setAssigneeValue(e.target.value)}
@@ -389,7 +391,7 @@ export function NewIssueForm() {
             );
           })}
         </optgroup>
-      </select>
+      </Select>
       <div className="new-issue-custom-fields mb-2" data-testid="new-issue-custom-fields">
         {customFields.length > 0 && (
           <div className="text-xs font-medium text-slate-600 mb-1">自定义字段</div>

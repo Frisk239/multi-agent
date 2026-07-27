@@ -338,6 +338,8 @@ export const wikiIngestJobs = sqliteTable(
     updatedAt: integer('updated_at').notNull(),
     startedAt: integer('started_at'),
     finishedAt: integer('finished_at'),
+    // Slice 39 / R6：失败重试指数退避；null=可立即 claim
+    nextAttemptAt: integer('next_attempt_at'),
   },
   (t) => ({
     statusCreatedIdx: index('idx_wiki_ingest_job_status_created').on(t.status, t.createdAt),

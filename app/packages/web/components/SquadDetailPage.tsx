@@ -14,6 +14,7 @@ import {
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageBreadcrumb } from './PageBreadcrumb';
+import { Select } from './Select';
 import { PageSkeleton } from './Skeleton';
 import { SquadRunsTimeline } from './SquadRunsTimeline';
 
@@ -346,10 +347,12 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
 
             <label className="ops-field">
               <span>Leader</span>
-              <select
+              <Select
                 value={leaderId}
                 onChange={(e) => setLeaderId(e.target.value)}
                 required
+                data-testid="squad-leader-select"
+                aria-label="小队 Leader"
               >
                 {agents.map((a) => {
                   const hint = readinessLabel(readinessMap[a.id]);
@@ -360,7 +363,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
                     </option>
                   );
                 })}
-              </select>
+              </Select>
             </label>
 
             <label className="ops-field">

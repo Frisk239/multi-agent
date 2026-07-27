@@ -1382,6 +1382,8 @@ export const WikiIngestJob = z.object({
   updatedAt: z.string().datetime(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
+  /** Slice 39：下次可 claim 时间；null/缺省=立即可 claim */
+  nextAttemptAt: z.string().datetime().nullable().optional(),
 });
 export type WikiIngestJob = z.infer<typeof WikiIngestJob>;
 

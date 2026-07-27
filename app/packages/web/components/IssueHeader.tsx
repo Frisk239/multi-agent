@@ -14,6 +14,7 @@ import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { IssueCustomFields } from './IssueCustomFields';
 import { MarkdownBody } from './MarkdownBody';
 import { PageBreadcrumb } from './PageBreadcrumb';
+import { Select } from './Select';
 
 const ALL_STATUS = IssueStatusEnum.options;
 const ALL_PRIORITY = PriorityEnum.options;
@@ -120,7 +121,7 @@ export function IssueHeader({
     >
       <label className="issue-priority-field">
         <span className="issue-meta-k">状态</span>
-        <select
+        <Select
           className="status-select"
           value={issue.status}
           onChange={(e) =>
@@ -134,11 +135,11 @@ export function IssueHeader({
               {STATUS_ZH[s]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="issue-priority-field">
         <span className="issue-meta-k">优先级</span>
-        <select
+        <Select
           className="priority-select"
           value={issue.priority}
           onChange={(e) =>
@@ -148,13 +149,14 @@ export function IssueHeader({
             })
           }
           aria-label="优先级"
+          data-testid="issue-props-priority"
         >
           {ALL_PRIORITY.map((p) => (
             <option key={p} value={p}>
               {PRIORITY_ZH[p]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="issue-meta-assignee" data-testid="issue-meta-assignee">
         <span className="issue-meta-k">负责人</span>

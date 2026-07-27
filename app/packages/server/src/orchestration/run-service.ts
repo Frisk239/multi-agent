@@ -8,9 +8,10 @@ import { abortRun } from './run-control.js';
 import { wakeRunWorker } from './run-worker.js';
 import { computeAgentReadiness } from './readiness.js';
 import { notifyEnqueueSkipped } from './inbox-writer.js';
+import { ACTIVE_RUN_STATUSES, transitionRun } from './run-transitions.js';
 import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
-const ACTIVE = ['queued', 'waiting_local_directory', 'running'] as const;
+const ACTIVE = ACTIVE_RUN_STATUSES;
 const RETRYABLE = ['failed', 'cancelled', 'timed_out'] as const;
 
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
@@ -105,22 +106,17 @@ export function cancelActiveRunsForIssue(issueId: string): void {
 }
 
 // cancelRunById —— 唯一取消入口的底层实现（spec §6.3 R1：POST /api/runs/:runId/cancel）。
-// 条件 UPDATE（status IN active）→ abort 信号 → run:cancelled 事件。
+// Slice 39：transitionRun 查 changes；0-change 不 abort、不发 run:cancelled。
 export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
-  const prev = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
-  if (!prev || !ACTIVE.includes(prev.status as (typeof ACTIVE)[number])) {
-    return { ok: false };
-  }
   const finishedAt = Date.now();
-  db.update(agentRuns)
-    .set({ status: 'cancelled', finishedAt })
-    .where(
-      and(eq(agentRuns.id, runId), inArray(agentRuns.status, [...ACTIVE])),
-    )
-    .run();
+  const tr = transitionRun({
+    id: runId,
+    fromStatuses: ACTIVE,
+    patch: { status: 'cancelled', finishedAt },
+  });
+  if (!tr.applied || !tr.row) return { ok: false };
   abortRun(runId); // 触发 AbortController → spawn-line kill 子进程
-  const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!;
-  const run = toAgentRun(row);
+  const run = toAgentRun(tr.row);
   eventBus.publish({ type: 'run:cancelled', run });
   return { ok: true, run };
 }

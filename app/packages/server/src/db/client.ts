@@ -87,6 +87,15 @@ try {
       sqlite.exec('ALTER TABLE automation_rule ADD COLUMN cron_expression TEXT;');
     }
   }
+
+  // Slice 39：wiki_ingest_job.next_attempt_at（与 0035 migration 对齐的启动兼容）
+  const wikiJobInfo = sqlite.pragma('table_info(wiki_ingest_job)') as Array<{ name: string }>;
+  if (wikiJobInfo.length > 0) {
+    const wikiCols = new Set(wikiJobInfo.map((c) => c.name));
+    if (!wikiCols.has('next_attempt_at')) {
+      sqlite.exec('ALTER TABLE wiki_ingest_job ADD COLUMN next_attempt_at INTEGER;');
+    }
+  }
 } catch (e) {
   console.error('[db migration warning]', e);
 }

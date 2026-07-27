@@ -15,6 +15,7 @@ import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { Select } from './Select';
 import { PageSkeleton } from './Skeleton';
 
 type ReadyFilter =
@@ -266,17 +267,19 @@ function SquadsPageInner() {
             </label>
             <label className="ops-field">
               <span>Leader</span>
-              <select
+              <Select
                 value={leaderId || defaultLeader}
                 onChange={(e) => setLeaderId(e.target.value)}
                 required
+                data-testid="squad-create-leader-select"
+                aria-label="小队 Leader"
               >
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 

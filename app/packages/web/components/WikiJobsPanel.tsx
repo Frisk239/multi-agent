@@ -10,6 +10,8 @@ import {
   useSettingsStatus,
   useWikiJobs,
 } from '@/lib/api';
+import { ErrorState } from './ErrorState';
+import { TableSkeleton } from './Skeleton';
 
 type StatusFilter = '' | 'dead' | 'pending' | 'running' | 'completed' | 'failed';
 
@@ -199,6 +201,25 @@ export function WikiJobsPanel() {
         </div>
       ) : null}
 
+      {isLoading ? (
+        <div data-testid="wiki-jobs-loading" className="wiki-jobs-loading">
+          <TableSkeleton rows={6} />
+        </div>
+      ) : null}
+
+      {isError ? (
+        <div data-testid="wiki-jobs-error">
+          <ErrorState
+            title="无法加载编译任务"
+            description={
+              error instanceof Error ? error.message : '请确认 API 服务已启动'
+            }
+            onRetry={() => void refetch()}
+          />
+        </div>
+      ) : null}
+
+      {!isLoading && !isError ? (
       <div className="data-table-wrap">
         <table className="data-table" data-testid="wiki-jobs-table">
           <thead>
@@ -212,23 +233,7 @@ export function WikiJobsPanel() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
-                  加载中…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
-                  {error instanceof Error ? error.message : '加载 jobs 失败'}
-                </td>
-              </tr>
-            )}
-            {!isLoading &&
-              !isError &&
-              sorted.map((job) => {
+            {sorted.map((job) => {
                 const failure =
                   job.status === 'dead' || job.lastError
                     ? classifyWikiIngestFailure(job.lastError)
@@ -291,7 +296,7 @@ export function WikiJobsPanel() {
                   </tr>
                 );
               })}
-            {!isLoading && !isError && sorted.length === 0 && (
+            {sorted.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>
                   <div data-testid="wiki-jobs-empty">
@@ -319,6 +324,7 @@ export function WikiJobsPanel() {
           </tbody>
         </table>
       </div>
+      ) : null}
     </div>
   );
 }

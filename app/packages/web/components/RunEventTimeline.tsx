@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { AgentRun, RunMessage } from '@ma/shared';
-import { useRunMessages, useChildRuns } from '@/lib/api';
+import { classifyRunFailure, type AgentRun, type RunMessage } from '@ma/shared';
+import { useRetryRun, useRunMessages, useChildRuns } from '@/lib/api';
 import {
   filterRunEventView,
   pairCollapsedPreview,
@@ -14,6 +14,16 @@ import {
   type RunEventDrawerFilter,
   type RunEventViewItem,
 } from '@/lib/run-event-pairs';
+import {
+  isNearBottom,
+  NEAR_BOTTOM_PX,
+  shouldAutoStick,
+} from '@/lib/chat-scroll';
+import {
+  chatThreadHref,
+  qcRetryHref,
+  runRecoveryKind,
+} from '@/lib/run-recovery';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { useRunProgressStore } from '@/lib/ws';
 
@@ -338,24 +348,35 @@ export function RunEventTimelineDrawer({
 }) {
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(open ? runId : undefined);
+  const retry = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
-  const streamChunk = 
+  const streamChunk =
     run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const isLive =
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
     run?.status === 'running';
   const [filter, setFilter] = useState<RunEventDrawerFilter>('all');
+  const [stickToBottom, setStickToBottom] = useState(true);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollLenRef = useRef(0);
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
   const filteredItems = useMemo(
     () => filterRunEventView(viewItems, filter),
     [viewItems, filter],
   );
+
+  const failure =
+    run && (run.status === 'failed' || run.status === 'timed_out' || run.error)
+      ? classifyRunFailure(run.error)
+      : null;
+  const recovery = run ? runRecoveryKind(run) : 'none';
+  const chatHref = run ? chatThreadHref(run) : null;
 
   useFocusTrap(open && Boolean(run), panelRef, {
     onEscape: onClose,
@@ -364,13 +385,50 @@ export function RunEventTimelineDrawer({
   });
 
   useEffect(() => {
-    if (!open) setFilter('all');
+    if (!open) {
+      setFilter('all');
+      setStickToBottom(true);
+      lastScrollLenRef.current = 0;
+    }
   }, [open, runId]);
+
+  const handleBodyScroll = useCallback(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    setStickToBottom(isNearBottom(el, NEAR_BOTTOM_PX));
+  }, []);
+
+  // 近底才吸底：用户上滑后不再强制滚到底
+  useEffect(() => {
+    if (!open) return;
+    const el = bodyRef.current;
+    if (!el) return;
+    const prevHeight = lastScrollLenRef.current;
+    lastScrollLenRef.current = el.scrollHeight;
+    const near = isNearBottom(el, NEAR_BOTTOM_PX);
+    if (shouldAutoStick(stickToBottom, near) || prevHeight === 0) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [
+    open,
+    messages.length,
+    filteredItems.length,
+    streamChunk,
+    progress,
+    stickToBottom,
+    filter,
+  ]);
 
   if (!open || !run) return null;
 
   const toolStarts = messages.filter((m) => m.kind === 'tool_start').length;
   const assistants = messages.filter((m) => m.kind === 'assistant').length;
+  const showFailure =
+    failure &&
+    (run.status === 'failed' ||
+      run.status === 'timed_out' ||
+      run.status === 'cancelled' ||
+      Boolean(run.error));
 
   return (
     <div
@@ -430,6 +488,68 @@ export function RunEventTimelineDrawer({
           </div>
         </header>
 
+        {showFailure ? (
+          <div
+            className="run-event-drawer-failure"
+            data-testid="run-event-drawer-failure"
+            role="status"
+          >
+            <div className="run-event-drawer-failure-main">
+              <strong data-testid="run-event-drawer-failure-title">
+                {failure.title}
+              </strong>
+              <p className="text-sm text-dim" data-testid="run-event-drawer-failure-hint">
+                {failure.hint}
+              </p>
+              {run.error ? (
+                <pre className="run-event-drawer-failure-error" title={run.error}>
+                  {run.error.length > 280 ? `${run.error.slice(0, 280)}…` : run.error}
+                </pre>
+              ) : null}
+            </div>
+            <div className="run-event-drawer-failure-actions">
+              {recovery === 'issue_retry' ? (
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  data-testid="run-event-drawer-recovery-cta"
+                  disabled={retry.isPending}
+                  onClick={() => retry.mutate(run.id)}
+                >
+                  {retry.isPending ? '排队中…' : '再执行'}
+                </button>
+              ) : null}
+              {recovery === 'open_chat' && chatHref ? (
+                <Link
+                  href={chatHref}
+                  className="btn-primary btn-sm"
+                  data-testid="run-event-drawer-recovery-cta"
+                >
+                  打开会话
+                </Link>
+              ) : null}
+              {recovery === 'qc_redispatch' ? (
+                <Link
+                  href={qcRetryHref(run)}
+                  className="btn-primary btn-sm"
+                  data-testid="run-event-drawer-recovery-cta"
+                >
+                  重派
+                </Link>
+              ) : null}
+              {failure.settingsHref ? (
+                <Link
+                  href={failure.settingsHref}
+                  className="btn-ghost btn-sm"
+                  data-testid="run-event-drawer-failure-settings"
+                >
+                  {failure.code === 'cli_missing' ? '运行时' : '环境诊断'}
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="run-event-drawer-stats" data-testid="run-event-drawer-stats">
           <span className="run-event-stat">事件 {messages.length}</span>
           <span className="run-event-stat">工具 {toolStarts}</span>
@@ -473,7 +593,12 @@ export function RunEventTimelineDrawer({
           </div>
         ) : null}
 
-        <div className="run-event-drawer-body">
+        <div
+          ref={bodyRef}
+          className="run-event-drawer-body"
+          data-testid="run-event-drawer-body"
+          onScroll={handleBodyScroll}
+        >
           {messages.length === 0 ? (
             <div className="run-trace-empty" data-testid="run-event-drawer-empty">
               {isLive

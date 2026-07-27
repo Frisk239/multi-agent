@@ -42,6 +42,11 @@ import {
 import { logger } from '../logger.js';
 import { parseAndDispatchSubagents } from './subagent-dispatch.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
+import {
+  ACTIVE_RUN_STATUSES,
+  CLAIMABLE_RUN_STATUSES,
+  transitionRun,
+} from './run-transitions.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -120,23 +125,18 @@ async function tick(): Promise<void> {
 
       if (queued.status !== 'waiting_local_directory') {
         const now = Date.now();
-        db.update(agentRuns)
-          .set({
+        const waitTr = transitionRun({
+          id: queued.id,
+          fromStatuses: ['queued'],
+          patch: {
             status: 'waiting_local_directory',
             lastHeartbeatAt: now,
             cwdPath: pathGate.path,
             cwdMode: 'project_local',
-          })
-          .where(and(eq(agentRuns.id, queued.id), eq(agentRuns.status, 'queued')))
-          .run();
-
-        const updatedRow = db
-          .select()
-          .from(agentRuns)
-          .where(eq(agentRuns.id, queued.id))
-          .get();
-        if (updatedRow && updatedRow.status === 'waiting_local_directory') {
-          const run = enrichRunRowWithPathLock(updatedRow, toAgentRun(updatedRow));
+          },
+        });
+        if (waitTr.applied && waitTr.row) {
+          const run = enrichRunRowWithPathLock(waitTr.row, toAgentRun(waitTr.row));
           eventBus.publish({ type: 'run:waiting_local_directory', run });
         }
       }
@@ -153,19 +153,17 @@ async function tick(): Promise<void> {
       stampProjectLocalCwdPreview(queued.id, pathGate.path);
     }
 
-    // claim（条件 UPDATE queued/waiting_local_directory→running）；bu01：同步写 lastHeartbeatAt
+    // claim（条件 UPDATE queued/waiting_local_directory→running）；Slice 39：changes 判定
     const now = Date.now();
-    db.update(agentRuns)
-      .set({ status: 'running', startedAt: now, lastHeartbeatAt: now })
-      .where(
-        and(
-          eq(agentRuns.id, queued.id),
-          inArray(agentRuns.status, ['queued', 'waiting_local_directory']),
-        ),
-      )
-      .run();
-    const runRow = db.select().from(agentRuns).where(eq(agentRuns.id, queued.id)).get();
-    if (!runRow || runRow.status !== 'running') continue; // 没抢到（被别的 tick 抢）
+    const claimTr = transitionRun({
+      id: queued.id,
+      fromStatuses: CLAIMABLE_RUN_STATUSES,
+      patch: { status: 'running', startedAt: now, lastHeartbeatAt: now },
+    });
+    if (!claimTr.applied || !claimTr.row || claimTr.row.status !== 'running') {
+      continue; // 没抢到（被别的 tick 抢）
+    }
+    const runRow = claimTr.row;
 
     if (pathGate.path) {
       claimedPathKeys.add(normalizePathLockKey(pathGate.path));
@@ -522,28 +520,21 @@ async function tick(): Promise<void> {
     });
 
     if (result.exitReason === 'cancelled' || signal.aborted) {
-      // A1 修复（审计）：终态 UPDATE 加 WHERE status IN active，
-      // 避免 signal 在 execute 返回后才 abort 把已落定的 completed 覆写成 cancelled。
-      // 与 cancelRunById 的条件 UPDATE 对齐。
-      db.update(agentRuns)
-        .set({
+      // Slice 39：仅 applied 时发 run:cancelled；0-change 不伪成功
+      const cancelTr = transitionRun({
+        id: runRow.id,
+        fromStatuses: ACTIVE_RUN_STATUSES,
+        patch: {
           status: 'cancelled',
           finishedAt,
           error: result.error ?? null,
           ...(hasTokens ? tokenPatch : {}),
           ...sessionPatch,
-        })
-        .where(
-          and(
-            eq(agentRuns.id, runRow.id),
-            inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
-          ),
-        )
-        .run();
-      const r = toAgentRun(
-        db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
-      );
-      eventBus.publish({ type: 'run:cancelled', run: r });
+        },
+      });
+      if (cancelTr.applied && cancelTr.row) {
+        eventBus.publish({ type: 'run:cancelled', run: toAgentRun(cancelTr.row) });
+      }
       return;
     }
 
@@ -580,23 +571,22 @@ async function tick(): Promise<void> {
       }
     }
 
-    // completed —— 写终态；有 issueId 才写时间线 comment
-    // A1 修复（审计）：加 WHERE status IN active，防 cancelled 后被覆写成 completed。
-    db.update(agentRuns)
-      .set({
+    // completed —— Slice 39：仅 applied 后才写 comment / memory / 事件
+    const completeTr = transitionRun({
+      id: runRow.id,
+      fromStatuses: ACTIVE_RUN_STATUSES,
+      patch: {
         status: 'completed',
         finishedAt,
         error: null,
         ...(hasTokens ? tokenPatch : {}),
         ...sessionPatch,
-      })
-      .where(
-        and(
-          eq(agentRuns.id, runRow.id),
-          inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
-        ),
-      )
-      .run();
+      },
+    });
+    if (!completeTr.applied || !completeTr.row) {
+      return; // 已被 cancel/fail 抢先，禁止伪成功副作用
+    }
+
     const finalText = result.finalText || '(无输出)';
 
     // S12: 解析并委派子代理
@@ -675,13 +665,13 @@ async function tick(): Promise<void> {
       }
     }
 
-    // 再读一次确保 status 已落库
-    const rFinal = toAgentRun(
+    // 再读一次确保 status 已落库（QC link 等字段可能变更）
+    const rFresh = toAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
     );
-    eventBus.publish({ type: 'run:completed', run: rFinal });
+    eventBus.publish({ type: 'run:completed', run: rFresh });
     // bu01：run 终态 → inbox（completed | failed；cancelled 不写）
-    notifyRunTerminal(rFinal);
+    notifyRunTerminal(rFresh);
 
     // S09：成功 run 且有 issue 才写记忆（失败/取消路径禁止调用）
     // Slice 25：子 run（parentRunId）跳过 syncRunCompleted，避免 fan-out 污染 memory
@@ -749,45 +739,41 @@ export async function failRun(
   failureReason?: AgentRun['failureReason'],
 ): Promise<void> {
   const finishedAt = Date.now();
-  const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
-  if (row) {
-    const reason = failureReason ?? inferFailureReason(error);
-    // A1 修复（审计）：加 WHERE status IN active，避免覆盖已落定的终态。
-    db.update(agentRuns)
-      .set({ status: 'failed', finishedAt, error, failureReason: reason })
-      .where(
-        and(
-          eq(agentRuns.id, runId),
-          inArray(agentRuns.status, ['running', 'queued', 'waiting_local_directory']),
-        ),
-      )
+  const prev = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+  if (!prev) return;
+
+  const reason = failureReason ?? inferFailureReason(error);
+  // Slice 39：0-change 不发 run:failed / inbox
+  const tr = transitionRun({
+    id: runId,
+    fromStatuses: ACTIVE_RUN_STATUSES,
+    patch: { status: 'failed', finishedAt, error, failureReason: reason },
+  });
+  if (!tr.applied || !tr.row) return;
+
+  const r = toAgentRun(tr.row);
+  // chat：失败也写一条 assistant 消息，避免 UI 只剩用户气泡 + 外部 fail card
+  const kind = (prev.kind as string) ?? 'issue';
+  if (kind === 'chat' && prev.chatThreadId) {
+    const mid = crypto.randomUUID();
+    const body = `【运行失败】${error || '未知错误'}\n\n可在运行详情查看完整信息，或重新发送消息。`;
+    db.insert(chatMessages)
+      .values({
+        id: mid,
+        threadId: prev.chatThreadId,
+        role: 'assistant',
+        body,
+        runId,
+        createdAt: finishedAt,
+      })
       .run();
-    const r = toAgentRun(
-      db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get()!,
-    );
-    // chat：失败也写一条 assistant 消息，避免 UI 只剩用户气泡 + 外部 fail card
-    const kind = (row.kind as string) ?? 'issue';
-    if (kind === 'chat' && row.chatThreadId) {
-      const mid = crypto.randomUUID();
-      const body = `【运行失败】${error || '未知错误'}\n\n可在运行详情查看完整信息，或重新发送消息。`;
-      db.insert(chatMessages)
-        .values({
-          id: mid,
-          threadId: row.chatThreadId,
-          role: 'assistant',
-          body,
-          runId,
-          createdAt: finishedAt,
-        })
-        .run();
-      db.update(chatThreads)
-        .set({ updatedAt: finishedAt })
-        .where(eq(chatThreads.id, row.chatThreadId))
-        .run();
-    }
-    eventBus.publish({ type: 'run:failed', run: r });
-    // bu01：失败终态 → inbox
-    notifyRunTerminal(r);
-    wakeRunWorker();
+    db.update(chatThreads)
+      .set({ updatedAt: finishedAt })
+      .where(eq(chatThreads.id, prev.chatThreadId))
+      .run();
   }
+  eventBus.publish({ type: 'run:failed', run: r });
+  // bu01：失败终态 → inbox
+  notifyRunTerminal(r);
+  wakeRunWorker();
 }

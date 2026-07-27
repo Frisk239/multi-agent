@@ -8,6 +8,7 @@ import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
+import { transitionRun } from './run-transitions.js';
 
 /**
  * F3 + C2 超时分层（学 Multica config.go）：
@@ -139,21 +140,24 @@ export function failStaleRunningRuns(now = Date.now()): number {
 
     // 仍有内存 abort 但 hb 过旧：视为假死/静默，照样 fail/timed_out
     const finishedAt = now;
-    const finalStatus = (failureReason === 'idle_timeout' || failureReason === 'tool_watchdog') ? 'timed_out' : 'failed';
-    db.update(agentRuns)
-      .set({
+    const finalStatus =
+      failureReason === 'idle_timeout' || failureReason === 'tool_watchdog'
+        ? 'timed_out'
+        : 'failed';
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['running'],
+      patch: {
         status: finalStatus,
         finishedAt,
         error,
         failureReason,
-      })
-      .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'running')))
-      .run();
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'failed' || next?.status === 'timed_out') {
+      },
+    });
+    if (tr.applied && tr.row) {
       clearToolInflight(row.id);
       abortRun(row.id); // 尽量杀仍挂着的 CLI
-      const run = toAgentRun(next);
+      const run = toAgentRun(tr.row);
       eventBus.publish({ type: 'run:failed', run });
       notifyRunTerminal(run);
       n++;
@@ -172,18 +176,18 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
   let n = 0;
   for (const row of rows) {
     if (hasRunAbort(row.id)) continue;
-    db.update(agentRuns)
-      .set({
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['running'],
+      patch: {
         status: 'failed',
         finishedAt: now,
         error: 'orphan: no live executor after restart',
         failureReason: 'stale_heartbeat',
-      })
-      .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'running')))
-      .run();
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'failed') {
-      const run = toAgentRun(next);
+      },
+    });
+    if (tr.applied && tr.row) {
+      const run = toAgentRun(tr.row);
       eventBus.publish({ type: 'run:failed', run });
       notifyRunTerminal(run);
       n++;
@@ -205,18 +209,18 @@ export function failStaleQueuedRuns(now = Date.now()): number {
   let n = 0;
   for (const row of candidates) {
     if (row.createdAt > cutoff) continue;
-    db.update(agentRuns)
-      .set({
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['queued'],
+      patch: {
         status: 'failed',
         finishedAt: now,
         error: 'stale: queued too long without claim',
         failureReason: 'idle_timeout',
-      })
-      .where(and(eq(agentRuns.id, row.id), eq(agentRuns.status, 'queued')))
-      .run();
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'failed') {
-      const run = toAgentRun(next);
+      },
+    });
+    if (tr.applied && tr.row) {
+      const run = toAgentRun(tr.row);
       eventBus.publish({ type: 'run:failed', run });
       notifyRunTerminal(run);
       n++;
@@ -236,23 +240,18 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
   for (const row of candidates) {
     const agent = db.select().from(agents).where(eq(agents.id, row.agentId)).get();
     if (agent) continue;
-    db.update(agentRuns)
-      .set({
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['queued', 'waiting_local_directory'],
+      patch: {
         status: 'failed',
         finishedAt: now,
         error: 'orphan: agent missing for queued run',
         failureReason: 'exec_error',
-      })
-      .where(
-        and(
-          eq(agentRuns.id, row.id),
-          inArray(agentRuns.status, ['queued', 'waiting_local_directory']),
-        ),
-      )
-      .run();
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'failed') {
-      const run = toAgentRun(next);
+      },
+    });
+    if (tr.applied && tr.row) {
+      const run = toAgentRun(tr.row);
       eventBus.publish({ type: 'run:failed', run });
       notifyRunTerminal(run);
       n++;
@@ -304,23 +303,18 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
   for (const row of candidates) {
     if (row.createdAt > cutoff) continue;
     const error = `stale: waiting_local_directory exceeded wall clock (${formatDurationMs(maxMs)})`;
-    db.update(agentRuns)
-      .set({
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['waiting_local_directory'],
+      patch: {
         status: 'timed_out',
         finishedAt: now,
         error,
         failureReason: 'waiting_local_directory_timeout',
-      })
-      .where(
-        and(
-          eq(agentRuns.id, row.id),
-          eq(agentRuns.status, 'waiting_local_directory'),
-        ),
-      )
-      .run();
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
-    if (next?.status === 'timed_out') {
-      const run = toAgentRun(next);
+      },
+    });
+    if (tr.applied && tr.row) {
+      const run = toAgentRun(tr.row);
       eventBus.publish({ type: 'run:failed', run });
       notifyRunTerminal(run);
       n++;

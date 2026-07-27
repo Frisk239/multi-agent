@@ -19,6 +19,11 @@ import {
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { CliHealthInspector } from './CliHealthInspector';
+import {
+  pickSettingsFirstSteps,
+  settingsCheckAnchorId,
+  settingsCheckTab,
+} from '@/lib/settings-first-steps';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
   error: 0,
@@ -128,6 +133,25 @@ export function SettingsPage() {
     () => (data ? sortChecks(data.checks) : []),
     [data],
   );
+
+  const firstSteps = useMemo(
+    () => (data ? pickSettingsFirstSteps(data.checks, 3) : []),
+    [data],
+  );
+
+  function goToCheck(checkId: string) {
+    const nextTab = settingsCheckTab(checkId);
+    setTab(nextTab);
+    // 等 tab 内容挂载后再滚到锚点（双 rAF + 短延迟覆盖 React commit）
+    const scroll = () => {
+      const el = document.getElementById(settingsCheckAnchorId(checkId));
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scroll);
+    });
+    window.setTimeout(scroll, 80);
+  }
 
   const envSnippet = useMemo(
     () =>
@@ -271,6 +295,62 @@ export function SettingsPage() {
         </div>
       </div>
 
+      <section
+        className={`settings-first-steps${firstSteps.length === 0 ? ' settings-first-steps--ok' : ''}`}
+        data-testid="settings-first-steps"
+        aria-label="先做这 3 步"
+      >
+        {firstSteps.length === 0 ? (
+          <p className="settings-first-steps-ok" data-testid="settings-first-steps-ok">
+            环境诊断正常，可以继续派活。
+          </p>
+        ) : (
+          <>
+            <div className="settings-first-steps-head">
+              <strong>先做这 {firstSteps.length} 步</strong>
+              <span className="text-dim text-sm">优先修错误，再处理警告</span>
+            </div>
+            <ol className="settings-first-steps-list">
+              {firstSteps.map((step, i) => (
+                <li
+                  key={step.id}
+                  className={`settings-first-step settings-first-step--${step.status}`}
+                  data-testid="settings-first-step"
+                  data-check-id={step.id}
+                  data-check-status={step.status}
+                >
+                  <span className="settings-first-step-n">{i + 1}</span>
+                  <div className="settings-first-step-body">
+                    <button
+                      type="button"
+                      className="settings-first-step-link"
+                      data-testid="settings-first-step-link"
+                      onClick={() => goToCheck(step.id)}
+                    >
+                      {step.label}
+                    </button>
+                    {step.detail ? (
+                      <div className="settings-first-step-detail text-dim text-sm">
+                        {step.detail}
+                      </div>
+                    ) : null}
+                  </div>
+                  {step.href ? (
+                    <Link
+                      href={step.href}
+                      className="btn-ghost btn-sm"
+                      data-testid="settings-first-step-action"
+                    >
+                      {step.actionLabel?.trim() || '前往'}
+                    </Link>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+      </section>
+
       <div className="settings-layout" data-testid="settings-layout">
         <nav className="settings-nav" data-testid="settings-nav" aria-label="设置分区">
           <div className="settings-nav-group">我的账号</div>
@@ -376,6 +456,7 @@ export function SettingsPage() {
           </p>
         </div>
       <section
+        id={settingsCheckAnchorId('cwd')}
         className="settings-card settings-cwd-guide"
         data-testid="settings-cwd-persist"
         aria-label="工作区路径持久化"
@@ -1141,6 +1222,7 @@ export function SettingsPage() {
         {sortedChecks.map((check) => (
           <li
             key={check.id}
+            id={settingsCheckAnchorId(check.id)}
             className={`settings-check settings-check--${check.status}`}
             data-testid="settings-check-row"
             data-check-id={check.id}

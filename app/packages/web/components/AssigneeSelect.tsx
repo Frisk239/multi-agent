@@ -10,6 +10,7 @@ import {
   useUpdateIssue,
 } from '@/lib/api';
 import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
+import { Select } from './Select';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -244,7 +245,7 @@ export function AssigneeSelect({
 
   return (
     <div className="assignee-select-wrap" data-testid="assignee-select-wrap">
-      <select
+      <Select
         value={currentValue}
         onChange={(e) => onChange(e.target.value)}
         aria-label="指派 agent 或小队"
@@ -290,7 +291,7 @@ export function AssigneeSelect({
             );
           })}
         </optgroup>
-      </select>
+      </Select>
       {showAgentHint ? (
         <div className="assignee-readiness-hint" data-testid="assignee-readiness-hint">
           <span>
