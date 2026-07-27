@@ -42,7 +42,8 @@
 | **S 安全/Resume** | 49–50 | 本地 token · Resume 矩阵 | ✅ |
 | **O 运维** | 51 | Ops snapshot + live-probes | ✅ |
 
-**▶ 下一阶段：** [Phase D 计划](./slice-plan-2026-07-27-phase-d.md) · Slice **55–62**（一致性收口 + 运维安心；E/F 可选延伸）
+**▶ Phase D 已收官：** [queue-55-62-phase-d-closeout-2026-07-27.md](./queue-55-62-phase-d-closeout-2026-07-27.md)（Slice **55–62 ✅**）  
+**▶ 下一阶段：** 可选 Phase E（失败可解释）/ Phase F（时间线·流式）；计划见 [slice-plan-2026-07-27-phase-d.md](./slice-plan-2026-07-27-phase-d.md) §3
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 

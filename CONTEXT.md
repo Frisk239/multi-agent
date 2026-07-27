@@ -46,18 +46,17 @@
 
 ## 当前方位（2026-07-27）
 
-- **阶段：** Phase A（23–32）· B（33–43）· **C（44–54）均已收官** · **▶ Phase D 计划已立（55–62）**
+- **阶段：** Phase A（23–32）· B（33–43）· C（44–54）· **D（55–62）均已收官**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **Phase D 计划：** [slice-plan-2026-07-27-phase-d.md](app/.progress/slice-plan-2026-07-27-phase-d.md)（一致性收口 + 运维安心）  
-- **Phase C 计划（只读）：** [slice-plan-2026-07-27-phase-c.md](app/.progress/slice-plan-2026-07-27-phase-c.md)（44–54 已合）  
+- **Phase D 计划（只读）：** [slice-plan-2026-07-27-phase-d.md](app/.progress/slice-plan-2026-07-27-phase-d.md)（55–62 已合）  
+- **Phase D 整队 closeout：** [queue-55-62-phase-d-closeout-2026-07-27.md](app/.progress/queue-55-62-phase-d-closeout-2026-07-27.md)  
 - **Phase C 整队 closeout：** [queue-44-54-phase-c-closeout-2026-07-27.md](app/.progress/queue-44-54-phase-c-closeout-2026-07-27.md)  
-- **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)
-- **已交（近）：** Phase C **44–54 整队**（诚实失败 · 草稿/live · lease · Confirm · token · Resume · Ops · Select · 快捷键/窄屏 · mention chips）
-- **▶ 下一刀默认：** **Slice 55** — 看板 ErrorState + bulk toast/pending（见 Phase D 计划）
-- **上一刀 closeout：** [slice54-mention-chips-closeout.md](app/.progress/slice54-mention-chips-closeout.md) · 整队 [queue-44-54-phase-c-closeout-2026-07-27.md](app/.progress/queue-44-54-phase-c-closeout-2026-07-27.md)
-- **验收证据：** 各刀 unit + `e2e-slice44`…`e2e-slice54`；Slice54 mention chips 6 PASS
+- **已交（近）：** Phase D **55–62**（看板诚实 · Confirm 扫荡 · SQLite · backup · Web token · Runtime 捕获 · Select · Chat/Issue 态）
+- **▶ 下一刀默认：** 可选 **Phase E**（失败可解释）或 **Phase F**（时间线/流式）；见 Phase D 计划 §3
+- **上一刀 closeout：** [slice62-chat-issue-states-closeout.md](app/.progress/slice62-chat-issue-states-closeout.md) · 整队 [queue-55-62-phase-d-closeout-2026-07-27.md](app/.progress/queue-55-62-phase-d-closeout-2026-07-27.md)
+- **验收证据：** 各刀 unit + `e2e-slice55`…`e2e-slice62`
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
