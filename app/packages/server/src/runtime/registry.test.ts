@@ -32,6 +32,13 @@ describe('runtime registry', () => {
     }
   });
 
+  it('Slice 50: only claude-code supportsSessionResume=true', () => {
+    expect(getBackend('claude-code').supportsSessionResume).toBe(true);
+    for (const id of ['opencode', 'cursor', 'grok', 'pi'] as RuntimeId[]) {
+      expect(getBackend(id).supportsSessionResume).toBe(false);
+    }
+  });
+
   it('throws error for unregistered runtime ID', () => {
     expect(() => getBackend('unknown' as RuntimeId)).toThrow('unknown runtime');
   });

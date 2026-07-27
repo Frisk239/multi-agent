@@ -502,6 +502,18 @@ export async function buildSettingsDiagnostics(): Promise<SettingsDiagnosticsRes
       capabilities: ['Subprocess Execution'],
       recommendation: '通用 CLI 适配器。',
     };
+    // Slice 50：能力表与 supportsSessionResume 对齐（不装会）
+    const capabilities = [...meta.capabilities];
+    if (b.supportsSessionResume === true) {
+      if (!capabilities.some((c) => /session resume/i.test(c))) {
+        capabilities.push('Session Resume (--resume)');
+      }
+    } else {
+      // 去掉静态 meta 里可能残留的假 resume 文案
+      for (let i = capabilities.length - 1; i >= 0; i--) {
+        if (/session resume/i.test(capabilities[i]!)) capabilities.splice(i, 1);
+      }
+    }
 
     let status: CliStatusBadge = 'not_found';
     let errorMsg: string | undefined = undefined;
@@ -523,7 +535,7 @@ export async function buildSettingsDiagnostics(): Promise<SettingsDiagnosticsRes
       path: d.path,
       version: d.version,
       status,
-      capabilities: meta.capabilities,
+      capabilities,
       usageRecommendation: meta.recommendation,
       error: errorMsg,
     });

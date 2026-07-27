@@ -111,6 +111,8 @@ function parseClaudeLine(
 export class ClaudeCodeBackend implements RuntimeBackend {
   readonly id = 'claude-code' as const;
   readonly label = 'Claude Code';
+  /** Slice 50 / DS1：真 --resume + session_id 解析可观测 */
+  readonly supportsSessionResume = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CLAUDE_PATH', ['claude']);

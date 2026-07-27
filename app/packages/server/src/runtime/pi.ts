@@ -19,6 +19,8 @@ export class PiBackend implements RuntimeBackend {
   readonly label = 'Pi SDK';
   /** H1：未实现真实执行；readiness 不得 ready，execute 不得 silent completed */
   readonly executionImplemented = false;
+  /** Slice 50：执行未实现，session resume 亦不支持 */
+  readonly supportsSessionResume = false;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('PI_PATH', ['pi']);

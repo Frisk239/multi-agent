@@ -53,10 +53,10 @@
 - **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)（33–43 已合）  
 - **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** Phase B **23–43**；Phase C **44–49**（… · Confirm · 本地 token）
-- **▶ 下一刀默认：** [Slice 50 · Resume 能力矩阵](app/.progress/slice-plan-2026-07-27-phase-c.md)
-- **上一刀 closeout：** [slice49-local-token-closeout.md](app/.progress/slice49-local-token-closeout.md)
-- **验收证据：** Slice49 local-token unit 29 + e2e pass=6
+- **已交（近）：** Phase B **23–43**；Phase C **44–50**（… · token · Resume 矩阵）
+- **▶ 下一刀默认：** [Slice 51 · Ops snapshot](app/.progress/slice-plan-2026-07-27-phase-c.md)
+- **上一刀 closeout：** [slice50-session-resume-closeout.md](app/.progress/slice50-session-resume-closeout.md)
+- **验收证据：** Slice50 resume unit 21 + e2e pass=14
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

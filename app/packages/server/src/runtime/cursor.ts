@@ -89,6 +89,11 @@ export function parseCursorLine(
 export class CursorBackend implements RuntimeBackend {
   readonly id = 'cursor' as const;
   readonly label = 'Cursor';
+  /**
+   * Slice 50：未验证真 resume + resume_miss 可观测闭环；
+   * 声明 false，execute 忽略 resumeSessionId。
+   */
+  readonly supportsSessionResume = false;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CURSOR_PATH', ['cursor-agent', 'cursor']);
@@ -111,9 +116,7 @@ export class CursorBackend implements RuntimeBackend {
     const variant = input.thinkingLevel?.trim();
     if (variant) args.push('--variant', variant);
 
-    // DS1: Session Resume support (--resume <id>)
-    const resume = input.resumeSessionId?.trim();
-    if (resume) args.push('--resume', resume);
+    // Slice 50：supportsSessionResume=false → 忽略 input.resumeSessionId
 
     return spawnLineProcess(
       det.path,

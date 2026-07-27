@@ -30,7 +30,10 @@ export interface ExecutionInput {
   thinkingLevel?: string | null;
   /** chat 等短任务：CLI 硬超时（ms），防挂起变 orphan */
   timeoutMs?: number | null;
-  /** DS1：claude-code `--resume <id>`；其它 backend 忽略 */
+  /**
+   * DS1 / Slice 50：仅 supportsSessionResume=true 的 backend 会消费
+   * （策略层 resolvePriorSession 只在能力 true 时注入）。
+   */
   resumeSessionId?: string | null;
 }
 
@@ -58,6 +61,12 @@ export interface RuntimeBackend {
    * Explicit false → stub: readiness must not be ready; execute must fail honestly.
    */
   readonly executionImplemented?: boolean;
+  /**
+   * Slice 50：是否支持真 provider CLI session resume。
+   * 仅显式 true 时策略层 resolvePriorSession 才注入 resumeSessionId。
+   * Missing / undefined / false → unsupported（不走假 --resume 路径）。
+   */
+  readonly supportsSessionResume?: boolean;
   detect(): Promise<DetectResult>;
   execute(
     input: ExecutionInput,

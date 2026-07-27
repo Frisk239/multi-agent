@@ -73,6 +73,11 @@ export function parseOpencodeLine(
 export class OpencodeBackend implements RuntimeBackend {
   readonly id = 'opencode' as const;
   readonly label = 'Opencode';
+  /**
+   * Slice 50：CLI 虽可能有 --session，策略层未验证可靠 resume/miss；
+   * 声明 false，execute 忽略 resumeSessionId，不装会。
+   */
+  readonly supportsSessionResume = false;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('OPENCODE_PATH', ['opencode']);
@@ -95,9 +100,7 @@ export class OpencodeBackend implements RuntimeBackend {
     const variant = input.thinkingLevel?.trim();
     if (variant) args.push('--variant', variant);
 
-    // DS1: Session Resume support (--session <id> / --resume <id>)
-    const resume = input.resumeSessionId?.trim();
-    if (resume) args.push('--session', resume);
+    // Slice 50：supportsSessionResume=false → 忽略 input.resumeSessionId（不传假 --session）
 
     args.push(input.prompt);
     return spawnLineProcess(

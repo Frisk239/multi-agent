@@ -1,10 +1,13 @@
 /**
- * DS1：CLI provider session resume 决策（ADR 0004）。
- * 仅 claude-code 走真 --resume；其它 runtime 诚实 unsupported。
+ * DS1 / Slice 50：CLI provider session resume 决策（ADR 0004）。
+ * 仅 `getBackend(id).supportsSessionResume === true` 走真 resume；
+ * 其它 runtime 诚实 unsupported（不注入假 --resume）。
  */
 import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
+import type { RuntimeId } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, chatThreads } from '../db/schema.js';
+import { getBackend } from './registry.js';
 
 export type SessionResumeStatus =
   | 'fresh'
@@ -23,7 +26,29 @@ export type PriorSessionDecision = {
   sourceRunId: string | null;
 };
 
-const RESUMABLE_RUNTIME = 'claude-code' as const;
+/**
+ * Slice 50 能力矩阵：backend 是否声明真 session resume。
+ * unknown runtime → false（getBackend 抛错时由调用方处理；此 helper 吞并返回 false）。
+ */
+export function runtimeSupportsSessionResume(runtime: string): boolean {
+  try {
+    return getBackend(runtime as RuntimeId).supportsSessionResume === true;
+  } catch {
+    return false;
+  }
+}
+
+/** 全 runtime 能力表（单测 / diagnostics / e2e 用） */
+export function sessionResumeCapabilityMatrix(): Array<{
+  runtime: RuntimeId;
+  supportsSessionResume: boolean;
+}> {
+  const ids: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok', 'pi'];
+  return ids.map((runtime) => ({
+    runtime,
+    supportsSessionResume: runtimeSupportsSessionResume(runtime),
+  }));
+}
 
 /** 最小 poison 启发式（ADR 0004） */
 const POISON_PATTERNS: RegExp[] = [
@@ -65,7 +90,7 @@ export function resolvePriorSession(runRow: {
   kind?: string | null;
   rerunOfRunId?: string | null;
 }): PriorSessionDecision {
-  if (runRow.runtime !== RESUMABLE_RUNTIME) {
+  if (!runtimeSupportsSessionResume(runRow.runtime)) {
     return {
       resumeSessionId: null,
       status: 'unsupported',
@@ -73,6 +98,9 @@ export function resolvePriorSession(runRow: {
       sourceRunId: null,
     };
   }
+
+  // 通过能力门后收窄为 RuntimeId（drizzle eq 需要枚举字面量）
+  const runtimeId = runRow.runtime as RuntimeId;
 
   const trySource = (srcId: string | null | undefined): PriorSessionDecision | null => {
     if (!srcId?.trim()) return null;
@@ -125,7 +153,7 @@ export function resolvePriorSession(runRow: {
         and(
           eq(agentRuns.chatThreadId, runRow.chatThreadId),
           eq(agentRuns.agentId, runRow.agentId),
-          eq(agentRuns.runtime, runRow.runtime),
+          eq(agentRuns.runtime, runtimeId),
           ne(agentRuns.id, runRow.id),
           isNotNull(agentRuns.providerSessionId),
         ),
@@ -141,7 +169,7 @@ export function resolvePriorSession(runRow: {
         and(
           eq(agentRuns.issueId, runRow.issueId),
           eq(agentRuns.agentId, runRow.agentId),
-          eq(agentRuns.runtime, runRow.runtime),
+          eq(agentRuns.runtime, runtimeId),
           ne(agentRuns.id, runRow.id),
           isNotNull(agentRuns.providerSessionId),
         ),
