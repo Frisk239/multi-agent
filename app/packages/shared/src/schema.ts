@@ -1334,6 +1334,14 @@ export const CommentCreatedEvent = z.object({
 });
 export type CommentCreatedEvent = z.infer<typeof CommentCreatedEvent>;
 
+/** Slice 71：activity 写入后广播；前端 invalidate / append ['activities', issueId] */
+export const ActivityCreatedEvent = z.object({
+  type: z.literal('activity:created'),
+  issueId: BusinessId,
+  activity: ActivityLog,
+});
+export type ActivityCreatedEvent = z.infer<typeof ActivityCreatedEvent>;
+
 // —— S06：Wiki 契约 ——
 // Wiki 页（文件系统 markdown，spec §5）：slug 不含 .md，content 是完整 markdown
 export const WikiPage = z.object({
@@ -1692,6 +1700,7 @@ export type DomainEvent =
   | IssueUpdatedEvent
   | IssueDeletedEvent
   | CommentCreatedEvent
+  | ActivityCreatedEvent
   | RunLifecycleEvent
   | RunProgressEvent
   | RunMessageEvent

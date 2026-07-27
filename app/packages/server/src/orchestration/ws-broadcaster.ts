@@ -90,6 +90,8 @@ export function eventMatchesTopics(
       return hasKind(topics, 'issue', e.issueId);
     case 'comment:created':
       return hasKind(topics, 'issue', e.comment.issueId);
+    case 'activity:created':
+      return hasKind(topics, 'issue', e.issueId);
     case 'agent:status_changed':
       return hasKind(topics, 'agent', e.agentId);
     case 'inbox:item':

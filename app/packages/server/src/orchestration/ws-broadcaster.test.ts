@@ -37,6 +37,20 @@ const commentCreated: DomainEvent = {
   comment: { id: 'c-1', issueId: 'iss-9' },
 } as DomainEvent;
 
+const activityCreated: DomainEvent = {
+  type: 'activity:created',
+  issueId: 'iss-act',
+  activity: {
+    id: 'act-1',
+    issueId: 'iss-act',
+    actorType: 'system',
+    actorName: '系统',
+    eventType: 'status_changed',
+    payload: { from: 'todo', to: 'done' },
+    createdAt: new Date().toISOString(),
+  },
+};
+
 const runQueued: DomainEvent = {
   type: 'run:queued',
   run: baseRun({ id: 'run-q', issueId: 'iss-1', agentId: 'agent-a' }),
@@ -133,6 +147,13 @@ describe('eventMatchesTopics', () => {
     expect(eventMatchesTopics(commentCreated, ['issue:iss-9'])).toBe(true);
     expect(eventMatchesTopics(commentCreated, ['issue:'])).toBe(true);
     expect(eventMatchesTopics(commentCreated, ['issue:other'])).toBe(false);
+  });
+
+  it('activity:created matches parent issue topic (Slice 71)', () => {
+    expect(eventMatchesTopics(activityCreated, ['issue:iss-act'])).toBe(true);
+    expect(eventMatchesTopics(activityCreated, ['issue:'])).toBe(true);
+    expect(eventMatchesTopics(activityCreated, ['issue:other'])).toBe(false);
+    expect(eventMatchesTopics(activityCreated, ['run:'])).toBe(false);
   });
 
   it('agent / inbox / wiki prefixes', () => {

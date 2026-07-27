@@ -1,37 +1,46 @@
 'use client';
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ActivityLog } from '@ma/shared';
-import { API, apiFetch } from '@/lib/api';
+import { useActivities } from '@/lib/api';
+import { ErrorState } from './ErrorState';
+import { Skeleton } from './Skeleton';
 
 export function ActivityTimeline({ issueId }: { issueId: string }) {
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: activities = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useActivities(issueId);
 
-  useEffect(() => {
-    let active = true;
-    apiFetch(`${API}/issues/${issueId}/activities`)
-      .then((res) => res.ok ? res.json() : { activities: [] })
-      .then((data) => {
-        if (active) {
-          setActivities(data.activities || []);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [issueId]);
+  if (isLoading) {
+    return (
+      <div className="activity-timeline" data-testid="activity-timeline" style={{ padding: 16 }}>
+        <Skeleton variant="text" lines={3} />
+      </div>
+    );
+  }
 
-  if (loading) {
-    return <div className="text-dim text-sm" data-testid="activity-timeline" style={{ padding: 16 }}>加载活动记录…</div>;
+  if (isError) {
+    return (
+      <div className="activity-timeline" data-testid="activity-timeline" style={{ padding: 16 }}>
+        <ErrorState
+          title="活动加载失败"
+          description="无法拉取活动记录，请重试"
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      </div>
+    );
   }
 
   if (activities.length === 0) {
-    return <div className="text-dim text-sm" data-testid="activity-timeline" style={{ padding: 16 }}>暂无活动记录</div>;
+    return (
+      <div className="text-dim text-sm" data-testid="activity-timeline" style={{ padding: 16 }}>
+        暂无活动记录
+      </div>
+    );
   }
 
   const getEventBadge = (event: ActivityLog) => {

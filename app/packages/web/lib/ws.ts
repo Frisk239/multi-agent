@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import type { Issue, Comment, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
+import type { Issue, Comment, ActivityLog, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
 import { classifyRunFailure } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 import { withLocalTokenWsUrl } from './local-token';
@@ -141,7 +141,13 @@ export function invalidateForPath(pathname: string | null | undefined): string[]
   ];
 
   if (head === 'issues' && id) {
-    keys.push(['issue', id], ['comments', id], ['runs', id], ['issues']);
+    keys.push(
+      ['issue', id],
+      ['comments', id],
+      ['activities', id],
+      ['runs', id],
+      ['issues'],
+    );
     return keys;
   }
   if (head === 'runs') {
@@ -293,6 +299,7 @@ export function useWsEvents() {
         );
         qc.removeQueries({ queryKey: ['issue', issueId] });
         qc.removeQueries({ queryKey: ['comments', issueId] });
+        qc.removeQueries({ queryKey: ['activities', issueId] });
         if (parentIssueId) {
           qc.invalidateQueries({ queryKey: ['issue-children', parentIssueId] });
           qc.invalidateQueries({ queryKey: ['issue', parentIssueId] });
@@ -307,6 +314,18 @@ export function useWsEvents() {
           if (old.some((c) => c.id === comment.id)) return old;
           return [...old, comment];
         });
+      }
+
+      // Slice 71：activity 活数据 — append / invalidate ['activities', issueId]
+      if (event.type === 'activity:created') {
+        const { issueId, activity } = event;
+        qc.setQueryData<ActivityLog[]>(['activities', issueId], (old) => {
+          if (!old) return [activity];
+          if (old.some((a) => a.id === activity.id)) return old;
+          return [...old, activity];
+        });
+        // 无 cache 时也 invalidate，确保挂载后能拉到新数据
+        qc.invalidateQueries({ queryKey: ['activities', issueId] });
       }
 
       // S03 run 生命周期：更新 ['runs', issueId] cache

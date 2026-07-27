@@ -4,6 +4,7 @@ import type {
   Issue,
   IssueLabel,
   Comment,
+  ActivityLog,
   CreateIssueInput,
   UpdateIssueInput,
   CreateIssueLabelInput,
@@ -226,6 +227,20 @@ export function useComments(issueId: string) {
       const res = await apiFetch(`${API}/issues/${issueId}/comments`);
       if (!res.ok) throw new Error('加载评论失败');
       return res.json();
+    },
+    enabled: !!issueId,
+  });
+}
+
+/** Slice 71：Issue 活动日志 RQ；WS activity:created 会 append / invalidate */
+export function useActivities(issueId: string) {
+  return useQuery<ActivityLog[]>({
+    queryKey: ['activities', issueId],
+    queryFn: async () => {
+      const res = await apiFetch(`${API}/issues/${issueId}/activities`);
+      if (!res.ok) throw new Error('加载活动失败');
+      const data = (await res.json()) as { activities?: ActivityLog[] };
+      return data.activities ?? [];
     },
     enabled: !!issueId,
   });

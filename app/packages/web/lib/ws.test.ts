@@ -152,10 +152,11 @@ describe('invalidateForPath (Slice 26)', () => {
     expect(hasKey(keys, ['runs'])).toBe(false);
   });
 
-  it('issue detail invalidates issue + comments + runs for id', () => {
+  it('issue detail invalidates issue + comments + activities + runs for id', () => {
     const keys = invalidateForPath('/issues/iss-7');
     expect(hasKey(keys, ['issue', 'iss-7'])).toBe(true);
     expect(hasKey(keys, ['comments', 'iss-7'])).toBe(true);
+    expect(hasKey(keys, ['activities', 'iss-7'])).toBe(true);
     expect(hasKey(keys, ['runs', 'iss-7'])).toBe(true);
   });
 
