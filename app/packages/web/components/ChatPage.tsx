@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
@@ -19,6 +19,7 @@ import {
   useUpdateChatThreadProject,
   useWorkspaceRuns,
 } from '@/lib/api';
+import { isNearBottom, NEAR_BOTTOM_PX } from '@/lib/chat-scroll';
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -105,6 +106,12 @@ export function ChatPage() {
   const [draft, setDraft] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  /** 近底才吸底；上滑超阈值停止自动滚 */
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const [showNewMessagesBtn, setShowNewMessagesBtn] = useState(false);
+  /** 流式更新用 auto，避免 smooth 排队卡顿 */
+  const lastScrollLenRef = useRef(0);
 
   useEffect(() => {
     if (agentFromUrl && agents.some((a) => a.id === agentFromUrl)) {
@@ -113,6 +120,13 @@ export function ChatPage() {
     }
     if (!agentId && agents[0]?.id) setAgentId(agents[0].id);
   }, [agents, agentId, agentFromUrl]);
+
+  // 切换 thread 重置 stick
+  useEffect(() => {
+    setStickToBottom(true);
+    setShowNewMessagesBtn(false);
+    lastScrollLenRef.current = 0;
+  }, [threadId]);
 
   const selectedThread = useMemo(
     () => threads.find((t) => t.id === threadId) ?? null,
@@ -179,8 +193,48 @@ export function ChatPage() {
       ? partialByRun[liveRun.id]?.trim() || derivedFromTrace.partial
       : undefined;
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = messagesRef.current;
+    if (!el) {
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+      return;
+    }
+    if (behavior === 'smooth') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    const near = isNearBottom(el, NEAR_BOTTOM_PX);
+    setStickToBottom(near);
+    if (near) setShowNewMessagesBtn(false);
+  }, []);
+
+  // 近底才吸底；上滑超阈值停止自动滚，显示「↓ 新消息」
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const el = messagesRef.current;
+    if (!el) return;
+
+    const prevHeight = lastScrollLenRef.current;
+    const grew = el.scrollHeight > prevHeight + 2;
+    lastScrollLenRef.current = el.scrollHeight;
+
+    if (stickToBottom) {
+      // 流式/频繁更新用 auto，避免 smooth 抖动
+      const streaming = Boolean(liveProgress || liveTool || livePartial);
+      scrollToBottom(streaming || prevHeight === 0 ? 'auto' : 'smooth');
+      setShowNewMessagesBtn(false);
+      return;
+    }
+
+    // 不 stick 且内容增高 → 提示有新消息
+    if (grew && (messages.length > 0 || liveRun)) {
+      setShowNewMessagesBtn(true);
+    }
   }, [
     messages.length,
     threadId,
@@ -189,6 +243,9 @@ export function ChatPage() {
     liveTool,
     livePartial,
     lastFailedRun?.id,
+    stickToBottom,
+    scrollToBottom,
+    liveRun,
   ]);
 
   function selectThread(id: string) {
@@ -531,121 +588,142 @@ export function ChatPage() {
                 </div>
               </header>
 
-              <div className="chat-messages" data-testid="chat-messages">
-                {messagesLoading ? (
-                  <p className="chat-rail-hint">加载消息…</p>
-                ) : messages.length === 0 && !liveRun ? (
-                  <p className="chat-rail-hint chat-messages-empty">
-                    还没有消息，打个招呼吧。
-                  </p>
-                ) : (
-                  messages.map((m) => {
-                    const isUser = m.role === 'user';
-                    return (
-                      <div
-                        key={m.id}
-                        className={`chat-row chat-row--${isUser ? 'user' : 'assistant'}`}
-                        data-testid="chat-bubble"
-                        data-role={m.role}
-                      >
-                        {!isUser ? (
-                          <span className="chat-avatar chat-avatar--sm" aria-hidden>
-                            {initials(agentName(selectedThread.agentId))}
-                          </span>
-                        ) : null}
+              <div className="chat-messages-wrap">
+                <div
+                  className="chat-messages"
+                  data-testid="chat-messages"
+                  ref={messagesRef}
+                  onScroll={handleMessagesScroll}
+                >
+                  {messagesLoading ? (
+                    <p className="chat-rail-hint">加载消息…</p>
+                  ) : messages.length === 0 && !liveRun ? (
+                    <p className="chat-rail-hint chat-messages-empty">
+                      还没有消息，打个招呼吧。
+                    </p>
+                  ) : (
+                    messages.map((m) => {
+                      const isUser = m.role === 'user';
+                      return (
                         <div
-                          className={`chat-bubble chat-bubble--${isUser ? 'user' : 'assistant'}`}
+                          key={m.id}
+                          className={`chat-row chat-row--${isUser ? 'user' : 'assistant'}`}
+                          data-testid="chat-bubble"
+                          data-role={m.role}
                         >
-                          {isUser ? (
-                            <div className="chat-bubble-plain">{m.body}</div>
-                          ) : (
-                            <div className="chat-bubble-md">
-                              <MarkdownBody source={m.body} />
+                          {!isUser ? (
+                            <span className="chat-avatar chat-avatar--sm" aria-hidden>
+                              {initials(agentName(selectedThread.agentId))}
+                            </span>
+                          ) : null}
+                          <div
+                            className={`chat-bubble chat-bubble--${isUser ? 'user' : 'assistant'}`}
+                          >
+                            {isUser ? (
+                              <div className="chat-bubble-plain">{m.body}</div>
+                            ) : (
+                              <div className="chat-bubble-md">
+                                <MarkdownBody source={m.body} />
+                              </div>
+                            )}
+                            <div className="chat-bubble-time">
+                              {relativeTime(m.createdAt)}
+                              {m.runId ? (
+                                <>
+                                  {' · '}
+                                  <Link
+                                    href={`/runs/${encodeURIComponent(m.runId)}`}
+                                    className="chat-run-link"
+                                    data-testid="chat-msg-run-link"
+                                  >
+                                    运行 {shortId(m.runId)}
+                                  </Link>
+                                </>
+                              ) : null}
                             </div>
-                          )}
-                          <div className="chat-bubble-time">
-                            {relativeTime(m.createdAt)}
-                            {m.runId ? (
-                              <>
-                                {' · '}
-                                <Link
-                                  href={`/runs/${encodeURIComponent(m.runId)}`}
-                                  className="chat-run-link"
-                                  data-testid="chat-msg-run-link"
-                                >
-                                  运行 {shortId(m.runId)}
-                                </Link>
-                              </>
-                            ) : null}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
 
-                {liveRun ? (
-                  <ThinkingRow
-                    run={liveRun}
-                    agentLabel={agentName(selectedThread.agentId)}
-                    progress={liveProgress}
-                    toolName={liveTool}
-                    partialText={livePartial}
-                  />
-                ) : null}
+                  {liveRun ? (
+                    <ThinkingRow
+                      run={liveRun}
+                      agentLabel={agentName(selectedThread.agentId)}
+                      progress={liveProgress}
+                      toolName={liveTool}
+                      partialText={livePartial}
+                    />
+                  ) : null}
 
-                {!liveRun && lastFailedRun && failure ? (
-                  <div
-                    className="chat-row chat-row--assistant"
-                    data-testid="chat-fail-row"
-                  >
-                    <span className="chat-avatar chat-avatar--sm" aria-hidden>
-                      {initials(agentName(selectedThread.agentId))}
-                    </span>
-                    <div className="chat-fail-card">
-                      <strong>{failure.title}</strong>
-                      <p className="chat-fail-hint">{failure.hint}</p>
-                      {lastFailedRun.error ? (
-                        <pre className="chat-fail-error">{lastFailedRun.error}</pre>
-                      ) : null}
-                      <div className="chat-fail-actions">
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          data-testid="chat-fail-resend"
-                          disabled={
-                            !lastUserBody ||
-                            postMessage.isPending ||
-                            Boolean(liveRun)
-                          }
-                          onClick={() => void handleResendLast()}
-                          title={
-                            lastUserBody
-                              ? '用上一条用户消息再开一轮'
-                              : '没有可重发的用户消息'
-                          }
-                        >
-                          {postMessage.isPending ? '重发中…' : '重发上一条'}
-                        </button>
-                        <Link
-                          href={`/runs/${encodeURIComponent(lastFailedRun.id)}`}
-                          className="btn btn-secondary btn-sm"
-                          data-testid="chat-fail-open-run"
-                        >
-                          查看运行详情
-                        </Link>
-                        <Link
-                          href={`/runs?run=${encodeURIComponent(lastFailedRun.id)}&status=failed`}
-                          className="btn btn-ghost btn-sm"
-                        >
-                          运行列表
-                        </Link>
+                  {!liveRun && lastFailedRun && failure ? (
+                    <div
+                      className="chat-row chat-row--assistant"
+                      data-testid="chat-fail-row"
+                    >
+                      <span className="chat-avatar chat-avatar--sm" aria-hidden>
+                        {initials(agentName(selectedThread.agentId))}
+                      </span>
+                      <div className="chat-fail-card">
+                        <strong>{failure.title}</strong>
+                        <p className="chat-fail-hint">{failure.hint}</p>
+                        {lastFailedRun.error ? (
+                          <pre className="chat-fail-error">{lastFailedRun.error}</pre>
+                        ) : null}
+                        <div className="chat-fail-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            data-testid="chat-fail-resend"
+                            disabled={
+                              !lastUserBody ||
+                              postMessage.isPending ||
+                              Boolean(liveRun)
+                            }
+                            onClick={() => void handleResendLast()}
+                            title={
+                              lastUserBody
+                                ? '用上一条用户消息再开一轮'
+                                : '没有可重发的用户消息'
+                            }
+                          >
+                            {postMessage.isPending ? '重发中…' : '重发上一条'}
+                          </button>
+                          <Link
+                            href={`/runs/${encodeURIComponent(lastFailedRun.id)}`}
+                            className="btn btn-secondary btn-sm"
+                            data-testid="chat-fail-open-run"
+                          >
+                            查看运行详情
+                          </Link>
+                          <Link
+                            href={`/runs?run=${encodeURIComponent(lastFailedRun.id)}&status=failed`}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            运行列表
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                <div ref={bottomRef} />
+                  <div ref={bottomRef} />
+                </div>
+                {showNewMessagesBtn ? (
+                  <button
+                    type="button"
+                    className="chat-new-messages-btn"
+                    data-testid="chat-new-messages-btn"
+                    onClick={() => {
+                      setStickToBottom(true);
+                      setShowNewMessagesBtn(false);
+                      scrollToBottom('smooth');
+                    }}
+                  >
+                    ↓ 新消息
+                  </button>
+                ) : null}
               </div>
 
               <div className="chat-composer" data-testid="chat-composer">

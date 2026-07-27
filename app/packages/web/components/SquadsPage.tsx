@@ -12,8 +12,10 @@ import {
   useSquads,
 } from '@/lib/api';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { PageSkeleton } from './Skeleton';
 
 type ReadyFilter =
   | ''
@@ -200,11 +202,11 @@ function SquadsPageInner() {
     router.replace(pathname, { scroll: false });
   }
 
-  if (isLoading) return <div className="page-container">加载中…</div>;
+  if (isLoading) return <PageSkeleton />;
   if (isError) {
     return (
       <div className="page-container">
-        <EmptyState
+        <ErrorState
           title="加载小队失败"
           description={error instanceof Error ? error.message : '未知错误'}
         />
@@ -565,7 +567,7 @@ function SquadsPageInner() {
 
 export function SquadsPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <SquadsPageInner />
     </Suspense>
   );

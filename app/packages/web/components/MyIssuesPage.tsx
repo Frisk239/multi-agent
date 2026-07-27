@@ -6,7 +6,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Issue } from '@ma/shared';
 import { useAgents, useIssues, useSquads } from '@/lib/api';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
+import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 
 /** 本地单用户 id（与 server LOCAL_MEMBER 对齐） */
@@ -96,12 +98,12 @@ function MyIssuesPageInner() {
   }, [issues, scope, agentIds, squadIds]);
 
   if (isLoading) {
-    return <div className="page-container">加载中…</div>;
+    return <PageSkeleton />;
   }
   if (isError) {
     return (
       <div className="page-container">
-        <p className="text-dim">加载失败</p>
+        <ErrorState title="加载失败" description="无法加载我的 issue" />
       </div>
     );
   }
@@ -204,7 +206,7 @@ function MyIssuesPageInner() {
 
 export function MyIssuesPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <MyIssuesPageInner />
     </Suspense>
   );

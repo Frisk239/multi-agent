@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useAgents,
@@ -10,6 +10,7 @@ import {
   useSquads,
   useWikiPages,
 } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -32,10 +33,18 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const [debouncedQ, setDebouncedQ] = useState('');
   const [active, setActive] = useState(0);
   const [quickDispatchOpen, setQuickDispatchOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const { data: wikiPages = [] } = useWikiPages();
   const { data: activeRuns } = useRunsActiveCount();
+
+  useFocusTrap(open, dialogRef, {
+    onEscape: () => setOpen(false),
+    restoreFocus: true,
+    // input 自带 autoFocus；trap 只负责 Tab 循环 + Esc 归还
+    autoFocus: true,
+  });
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(query.trim()), 200);
@@ -80,10 +89,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         setQuickDispatchOpen(true);
         return;
       }
-      if (e.key === 'Escape' && open) {
-        e.preventDefault();
-        setOpen(false);
-      }
+      // Esc 关闭由 useFocusTrap 处理（含焦点归还）
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -916,10 +922,12 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
           onClick={() => setOpen(false)}
         >
           <div
+            ref={dialogRef}
             className="cmdk-dialog"
             role="dialog"
             aria-modal="true"
             aria-label="命令面板"
+            data-testid="cmdk-dialog"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -928,6 +936,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="搜索命令、Issue、Wiki、记忆或智能体…"
               autoFocus
+              data-autofocus
               data-testid="cmdk-input"
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {

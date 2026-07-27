@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef } from 'react';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { useShortcuts } from '@/lib/use-shortcuts';
 
 const SHORTCUTS = [
@@ -31,15 +33,36 @@ const SHORTCUTS = [
 
 export function KeyboardShortcutsModal() {
   const { isHelpOpen, closeHelp } = useShortcuts();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useFocusTrap(isHelpOpen, dialogRef, {
+    onEscape: closeHelp,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   if (!isHelpOpen) return null;
 
   return (
-    <div className="shortcuts-modal-overlay" onClick={closeHelp}>
-      <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="shortcuts-modal-overlay" onClick={closeHelp} role="presentation">
+      <div
+        ref={dialogRef}
+        className="shortcuts-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="键盘快捷键"
+        data-testid="shortcuts-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="shortcuts-header">
           <h2>键盘快捷键</h2>
-          <button className="shortcuts-close" onClick={closeHelp} aria-label="关闭">
+          <button
+            type="button"
+            className="shortcuts-close"
+            onClick={closeHelp}
+            aria-label="关闭"
+            data-autofocus
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>

@@ -6051,6 +6051,14 @@ button.memory-kind-chip.is-active {
   font-weight: 500;
 }
 
+.chat-messages-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .chat-messages {
   flex: 1;
   overflow: auto;
@@ -6058,6 +6066,28 @@ button.memory-kind-chip.is-active {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.chat-new-messages-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 2;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, var(--bg-secondary));
+  color: var(--text-primary);
+  box-shadow: var(--floating-shadow, 0 4px 16px rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chat-new-messages-btn:hover {
+  background: var(--bg-hover, var(--bg-secondary));
 }
 
 .chat-messages-empty {

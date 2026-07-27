@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
 import {
@@ -12,6 +12,7 @@ import {
   useSquads,
 } from '@/lib/api';
 import { toastSuccess } from '@/lib/toast';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 
 const API = 'http://localhost:3001/api';
 
@@ -59,6 +60,7 @@ export function QuickDispatchPanel({
   const [prompt, setPrompt] = useState('');
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const { data: projects = [] } = useProjects();
@@ -66,6 +68,12 @@ export function QuickDispatchPanel({
   const createQuickRun = useCreateQuickRun();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+
+  useFocusTrap(open, dialogRef, {
+    onEscape: onClose,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   const cwdBlocked = useMemo(() => {
     const cwd = settings?.checks?.find((c) => c.id === 'cwd');
@@ -148,18 +156,6 @@ export function QuickDispatchPanel({
       selectedAssignee.status === 'error');
 
   useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
-  useEffect(() => {
     if (!open) {
       setPrompt('');
       setAssigneeValue('');
@@ -233,10 +229,12 @@ export function QuickDispatchPanel({
   return (
     <div className="cmdk-overlay" role="presentation" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="cmdk-dialog quick-dispatch-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="快速派活"
+        data-testid="quick-dispatch-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="quick-dispatch-header">快速派活</div>

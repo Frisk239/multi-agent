@@ -5,8 +5,10 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRefreshSkills, useSkills } from '@/lib/api';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { PageSkeleton } from './Skeleton';
 import { CreateSkillDialog } from './CreateSkillDialog';
 
 type SourceFilter = '' | 'project' | 'user' | 'workspace';
@@ -23,7 +25,7 @@ function SkillsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data, isFetching, refetch } = useSkills();
+  const { data, isLoading, isError, error, isFetching, refetch } = useSkills();
   const refresh = useRefreshSkills();
 
   const qFromUrl = searchParams.get('q') ?? '';
@@ -75,7 +77,20 @@ function SkillsPageInner() {
     router.replace(pathname, { scroll: false });
   }
 
-  if (!data) return <div className="page-container">加载中…</div>;
+  if (isLoading) return <PageSkeleton />;
+  if (isError) {
+    return (
+      <div className="page-container">
+        <ErrorState
+          title="加载 Skills 失败"
+          description={error instanceof Error ? error.message : '未知错误'}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+  }
+
+  const skills = data ?? [];
 
   return (
     <div className="page-container collection-page skills-page" data-testid="skills-page">
@@ -85,7 +100,7 @@ function SkillsPageInner() {
           <h1 className="page-title">
             Skills{' '}
             <span className="count" data-testid="skills-visible-count">
-              {hasActiveFilters ? `${filtered.length}/${data.length}` : data.length}
+              {hasActiveFilters ? `${filtered.length}/${skills.length}` : skills.length}
             </span>
           </h1>
           <p className="page-desc page-desc--quiet">
@@ -206,7 +221,7 @@ function SkillsPageInner() {
           </div>
         ) : null}
 
-        {data.length === 0 ? (
+        {skills.length === 0 ? (
           <EmptyState
             title="还没有 skill"
             description="点「新建 skill」从 URL 或本机导入。默认写入用户级 skills，也可选工作区或项目本机目录。"
@@ -338,7 +353,7 @@ function SkillsPageInner() {
 
 export function SkillsPage() {
   return (
-    <Suspense fallback={<div className="page-container">加载中…</div>}>
+    <Suspense fallback={<PageSkeleton />}>
       <SkillsPageInner />
     </Suspense>
   );

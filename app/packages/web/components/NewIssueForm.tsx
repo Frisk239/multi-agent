@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { CreateIssueInput, Priority } from '@ma/shared';
@@ -12,6 +12,7 @@ import {
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 
 type ExecPreview =
@@ -29,6 +30,7 @@ export function NewIssueForm() {
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
   const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const create = useCreateIssue();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -39,6 +41,13 @@ export function NewIssueForm() {
   const pathname = usePathname();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+
+  // 策略 A：open 时对 form 轻量 trap（非 modal，仍限制 Tab 循环 + Esc 关闭）
+  useFocusTrap(open, formRef, {
+    onEscape: () => setOpen(false),
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   const projectFromUrl = searchParams.get('project') ?? '';
 
@@ -203,7 +212,12 @@ export function NewIssueForm() {
   }
 
   return (
-    <form className="new-issue-form" onSubmit={submit} data-testid="new-issue-form">
+    <form
+      ref={formRef}
+      className="new-issue-form"
+      onSubmit={submit}
+      data-testid="new-issue-form"
+    >
       {showCwdWarn ? (
         <div
           className="new-issue-cwd-banner"
