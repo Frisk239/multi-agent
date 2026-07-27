@@ -5,6 +5,7 @@ import {
   getIssueWallTimeoutMs,
   getWaitingLocalMaxMs,
   getDeferredUnclaimedMs,
+  isDeferredAutoEscalateOptIn,
   getPrepareLeaseMs,
   formatDurationMs,
   failStaleWaitingLocalDirectoryRuns,
@@ -16,6 +17,7 @@ import {
   DEFAULT_ISSUE_TOOL_IDLE_MS,
   DEFAULT_WAITING_LOCAL_MAX_MS,
   DEFAULT_PREPARE_LEASE_MS,
+  SUGGESTED_DEFERRED_UNCLAIMED_MS,
 } from './stale-runs';
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +33,12 @@ const mocks = vi.hoisted(() => ({
   notifySquadEscalated: vi.fn(),
   toAgentRun: vi.fn((row: any) => row),
   lastFromTable: null as any,
+  readInboxPrefs: vi.fn((): any => ({
+    notifyIssueSuccess: false,
+    notifyTypes: {},
+    notifySeverities: {},
+    deferredAutoEscalate: false,
+  })),
 }));
 
 vi.mock('../db/client.js', () => {
@@ -113,6 +121,12 @@ vi.mock('./inbox-writer.js', () => ({
   notifyDeferredUnclaimed: (...args: any[]) => mocks.notifyDeferredUnclaimed(...args),
 }));
 
+vi.mock('./inbox-prefs.js', () => ({
+  readInboxPrefs: () => mocks.readInboxPrefs(),
+  writeInboxPrefs: vi.fn(),
+  shouldNotifyIssueSuccess: vi.fn(() => false),
+}));
+
 vi.mock('./run-control.js', () => ({
   abortRun: vi.fn(),
   hasRunAbort: vi.fn(),
@@ -182,13 +196,34 @@ describe('stale-runs configuration and helpers', () => {
   });
 
   it('getDeferredUnclaimedMs defaults to 0 (disabled) and is configurable', () => {
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: false });
     expect(getDeferredUnclaimedMs()).toBe(0);
+    expect(isDeferredAutoEscalateOptIn()).toBe(false);
 
     vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', '1800000');
     expect(getDeferredUnclaimedMs()).toBe(1_800_000);
 
     vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', '0');
     expect(getDeferredUnclaimedMs()).toBe(0);
+  });
+
+  it('Slice 70: MA_DEFERRED_AUTO_ESCALATE opt-in uses suggested 30min when MS unset', () => {
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: false });
+    vi.stubEnv('MA_DEFERRED_AUTO_ESCALATE', '1');
+    expect(isDeferredAutoEscalateOptIn()).toBe(true);
+    expect(getDeferredUnclaimedMs()).toBe(SUGGESTED_DEFERRED_UNCLAIMED_MS);
+  });
+
+  it('Slice 70: prefs deferredAutoEscalate opt-in without env', () => {
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: true });
+    expect(isDeferredAutoEscalateOptIn()).toBe(true);
+    expect(getDeferredUnclaimedMs()).toBe(SUGGESTED_DEFERRED_UNCLAIMED_MS);
+  });
+
+  it('Slice 70: explicit MA_DEFERRED_UNCLAIMED_MS wins over suggested', () => {
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: true });
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', '60000');
+    expect(getDeferredUnclaimedMs()).toBe(60_000);
   });
 
   it('getPrepareLeaseMs defaults to 120s and is configurable (Slice 68)', () => {
@@ -358,18 +393,19 @@ describe('failStaleWaitingLocalDirectoryRuns', () => {
   });
 });
 
-describe('escalateDeferredUnclaimedRuns (Slice 42 D5)', () => {
+describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     mocks.notifyDeferredUnclaimed.mockReturnValue({ id: 'inbox-1' });
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: false });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('no-ops when MA_DEFERRED_UNCLAIMED_MS=0 (default)', () => {
+  it('no-ops when deferred escalate disabled (default)', () => {
     expect(getDeferredUnclaimedMs()).toBe(0);
     mocks.selectAll.mockReturnValue([
       {
@@ -388,7 +424,7 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5)', () => {
     expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 
-  it('escalates only aged queued runs (inject now); writes activity + deferred inbox', () => {
+  it('escalates only aged queued runs (inject now); writes activity + deferred inbox + reassign draft', () => {
     const threshold = 30 * 60_000;
     vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
     const now = 10_000_000;
@@ -421,7 +457,14 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5)', () => {
     expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledTimes(1);
     expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'run-queued-old', status: 'queued' }),
-      { thresholdMs: threshold },
+      {
+        thresholdMs: threshold,
+        reassignDraft: {
+          note: '建议改派',
+          agentId: 'agt-1',
+          applied: false,
+        },
+      },
     );
     expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
     expect(mocks.updateSet).not.toHaveBeenCalled();
@@ -433,6 +476,37 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5)', () => {
         payload: expect.stringContaining('run-queued-old'),
       }),
     );
+    const payload = mocks.insertValues.mock.calls[0]?.[0]?.payload as string;
+    expect(payload).toContain('建议改派');
+    expect(payload).toContain('"applied":false');
+  });
+
+  it('Slice 70: prefs autoEscalate opt-in path writes inbox without env MS', () => {
+    mocks.readInboxPrefs.mockReturnValue({ deferredAutoEscalate: true });
+    const threshold = SUGGESTED_DEFERRED_UNCLAIMED_MS;
+    const now = 20_000_000;
+    const oldQueued = {
+      id: 'run-prefs-optin',
+      status: 'queued',
+      createdAt: now - threshold - 5,
+      startedAt: null,
+      issueId: 'iss-prefs',
+      agentId: 'agt-prefs',
+      kind: 'issue',
+    };
+    mocks.selectAll.mockReturnValueOnce([oldQueued]).mockReturnValueOnce([]);
+
+    const n = escalateDeferredUnclaimedRuns(now);
+    expect(n).toBe(1);
+    expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'run-prefs-optin' }),
+      expect.objectContaining({
+        thresholdMs: threshold,
+        reassignDraft: expect.objectContaining({ applied: false, note: '建议改派' }),
+      }),
+    );
+    // 不真改派
+    expect(mocks.updateSet).not.toHaveBeenCalled();
   });
 
   it('skips runs that already have run_deferred activity (dedupe)', () => {

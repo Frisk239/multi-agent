@@ -344,14 +344,18 @@ export function notifySquadEscalated(run: AgentRun): void {
 }
 
 /**
- * Slice 42 / D5：queued 过久未 claim 的 deferred 升级通知。
+ * Slice 42 / D5 + Slice 70：queued 过久未 claim 的 deferred 升级通知。
  * - 与 notifySquadEscalated / [Squad Escalated] **分流**（无 Squad 文案、无 escalate: key）
- * - dedupeKey 固定 `deferred:<runId>`，可关阈值（MA_DEFERRED_UNCLAIMED_MS=0）
- * - 不改 run 状态；硬 fail 仍由 failStaleQueuedRuns 负责
+ * - dedupeKey 固定 `deferred:<runId>`，可关阈值（默认不自动升级）
+ * - 不改 run 状态 / 不真改派；硬 fail 仍由 failStaleQueuedRuns 负责
+ * - Slice 70：body 可附「建议改派」草稿 note（applied=false）
  */
 export function notifyDeferredUnclaimed(
   run: AgentRun,
-  opts?: { thresholdMs?: number },
+  opts?: {
+    thresholdMs?: number;
+    reassignDraft?: { note: string; agentId?: string | null; applied: false };
+  },
 ): ReturnType<typeof toInboxItem> | null {
   if (run.status !== 'queued') return null;
 
@@ -376,11 +380,17 @@ export function notifyDeferredUnclaimed(
         ? 'Deferred · 排队过久未 claim · 聊天'
         : 'Deferred · 排队过久未 claim';
 
+  const draftHint = opts?.reassignDraft
+    ? ` 建议改派（草稿，未自动执行）：检查 agent 就绪后手动 reassign${
+        opts.reassignDraft.agentId ? ` · 当前 agent=${opts.reassignDraft.agentId}` : ''
+      }。`
+    : '';
+
   return notifyInbox({
     type: 'run_failed',
     severity: 'attention',
     title,
-    body: `Run ${run.id} 仍处于 queued，尚未被 worker claim${thresholdHint}。检查 agent 就绪/worker 是否卡住；与失败后 Squad Escalated 路径无关。`,
+    body: `Run ${run.id} 仍处于 queued，尚未被 worker claim${thresholdHint}。检查 agent 就绪/worker 是否卡住；与失败后 Squad Escalated 路径无关。${draftHint}`,
     issueId: run.issueId ?? null,
     runId: run.id,
     actorType: 'system',

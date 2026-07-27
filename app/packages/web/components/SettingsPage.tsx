@@ -88,7 +88,8 @@ function buildEnvSnippet(
   }
   lines.push('# export MEMORY_PROVIDER=sqlite-text');
   lines.push('# export MA_ISSUE_IDLE_MS=1800000  # issue idle 默认 30min');
-  lines.push('# export MA_DEFERRED_UNCLAIMED_MS=1800000  # Slice42 deferred 升级；默认 0=关闭');
+  lines.push('# export MA_DEFERRED_UNCLAIMED_MS=1800000  # Slice42/70 deferred 升级阈值；默认 0=关闭');
+  lines.push('# export MA_DEFERRED_AUTO_ESCALATE=1       # Slice70 opt-in；无 MS 时用建议 30min');
   // Slice 59：局域网 Web 闭环（public env，不入 DB；密钥勿提交 git）
   lines.push('# —— 局域网 token（server + web，密钥不落库）——');
   lines.push('# export MA_LOCAL_TOKEN=change-me          # server packages/server/.env');
@@ -689,6 +690,42 @@ export function SettingsPage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Slice 70：Deferred 可选升级（默认关；仅 inbox + 建议改派草稿，不静默 reassign） */}
+          <div
+            style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle, #e5e7eb)' }}
+            data-testid="settings-deferred-escalate"
+          >
+            <div style={{ fontWeight: 500, marginBottom: 6, fontSize: 13 }}>Deferred 升级（可选）</div>
+            <p className="text-dim text-sm" style={{ margin: '0 0 8px 0' }}>
+              默认关闭。开启后：queued 超时未 claim → 写 Inbox 事件 +「建议改派」草稿 note（不自动改 assignee）。
+              建议阈值 30min；也可用 env{' '}
+              <code>MA_DEFERRED_UNCLAIMED_MS</code> / <code>MA_DEFERRED_AUTO_ESCALATE=1</code>。
+            </p>
+            <label className="text-sm" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                data-testid="settings-deferred-auto-escalate"
+                checked={Boolean(
+                  inboxPrefs?.envForcesDeferredAutoEscalate || inboxPrefs?.deferredAutoEscalate,
+                )}
+                disabled={
+                  setInboxPrefs.isPending || Boolean(inboxPrefs?.envForcesDeferredAutoEscalate)
+                }
+                onChange={(e) =>
+                  setInboxPrefs.mutate({ deferredAutoEscalate: e.target.checked })
+                }
+              />
+              自动升级未认领 deferred（opt-in）
+              {inboxPrefs?.envForcesDeferredAutoEscalate
+                ? ' · env MA_DEFERRED_AUTO_ESCALATE 已强制开启'
+                : null}
+              {inboxPrefs?.effectiveDeferredUnclaimedMs &&
+              inboxPrefs.effectiveDeferredUnclaimedMs > 0
+                ? ` · 有效阈值 ${Math.round(inboxPrefs.effectiveDeferredUnclaimedMs / 60_000)}m`
+                : null}
+            </label>
           </div>
         </section>
 

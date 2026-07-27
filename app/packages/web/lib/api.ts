@@ -2256,6 +2256,12 @@ export type InboxPrefs = {
   };
   envForcesSuccess?: boolean;
   effectiveNotifyIssueSuccess?: boolean;
+  /** Slice 70：opt-in deferred 升级（默认 false） */
+  deferredAutoEscalate?: boolean;
+  envForcesDeferredAutoEscalate?: boolean;
+  effectiveDeferredAutoEscalate?: boolean;
+  effectiveDeferredUnclaimedMs?: number;
+  suggestedDeferredUnclaimedMs?: number;
 };
 
 /** GET/PUT /api/settings/inbox-prefs */

@@ -109,6 +109,13 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
                             ({act.payload.reason})
                           </span>
                         ) : null}
+                        {act.eventType === 'run_deferred' &&
+                        act.payload.reassignDraft?.note ? (
+                          <span className="text-dim" style={{ marginLeft: 8 }} data-testid="activity-reassign-draft">
+                            · {String(act.payload.reassignDraft.note)}
+                            {act.payload.reassignDraft.applied === false ? '（未自动执行）' : ''}
+                          </span>
+                        ) : null}
                       </div>
                     )}
                   </div>

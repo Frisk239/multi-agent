@@ -43,7 +43,8 @@
 | **O 运维** | 51 | Ops snapshot + live-probes | ✅ |
 
 **▶ Phase D 已收官：** [queue-55-62-phase-d-closeout-2026-07-27.md](./queue-55-62-phase-d-closeout-2026-07-27.md)（Slice **55–62 ✅**）  
-**▶ 下一阶段：** [Phase E 计划](./slice-plan-2026-07-27-phase-e.md) · Slice **63–70**（失败可解释 + 恢复纵深；F 时间线/流式仍可选后置）
+**▶ Phase E 已收官：** [queue-63-70-phase-e-closeout-2026-07-27.md](./queue-63-70-phase-e-closeout-2026-07-27.md)（Slice **63–70 ✅** · 失败可解释 + 恢复纵深）  
+**▶ 下一阶段可选：** Phase F（合并 Activity 时间线 / 流式加深）— 见 [Phase E 计划 §3](./slice-plan-2026-07-27-phase-e.md)
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -64,4 +65,4 @@
 | **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略：** Phase C 已收官；新会话可 gap 审计选题，勿把 7/26 全量表当未开工清单。
+**继续策略：** Phase E 已收官；新会话可开 Phase F 或 gap 审计选题，勿把 7/26 全量表当未开工清单。

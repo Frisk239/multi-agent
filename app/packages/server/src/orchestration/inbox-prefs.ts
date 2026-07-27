@@ -19,6 +19,12 @@ export type InboxPrefs = {
     attention: boolean;
     info: boolean;
   };
+  /**
+   * Slice 70：Deferred 可选升级（queued 过久未 claim → inbox + 建议改派草稿）。
+   * **默认 false**；与 env `MA_DEFERRED_AUTO_ESCALATE=1` 等价 opt-in。
+   * 阈值仍可由 `MA_DEFERRED_UNCLAIMED_MS` 覆盖；未设时用建议 30min。
+   */
+  deferredAutoEscalate: boolean;
 };
 
 const DEFAULTS: InboxPrefs = {
@@ -34,6 +40,7 @@ const DEFAULTS: InboxPrefs = {
     attention: true,
     info: true,
   },
+  deferredAutoEscalate: false,
 };
 
 function prefsPath(): string {
@@ -42,7 +49,7 @@ function prefsPath(): string {
 
 export function readInboxPrefs(): InboxPrefs {
   const p = prefsPath();
-  if (!existsSync(p)) return { ...DEFAULTS };
+  if (!existsSync(p)) return { ...DEFAULTS, notifyTypes: { ...DEFAULTS.notifyTypes }, notifySeverities: { ...DEFAULTS.notifySeverities } };
   try {
     const raw = JSON.parse(readFileSync(p, 'utf8')) as Partial<InboxPrefs>;
     return {
@@ -55,9 +62,14 @@ export function readInboxPrefs(): InboxPrefs {
         ...DEFAULTS.notifySeverities,
         ...(raw.notifySeverities || {}),
       },
+      deferredAutoEscalate: Boolean(raw.deferredAutoEscalate ?? DEFAULTS.deferredAutoEscalate),
     };
   } catch {
-    return { ...DEFAULTS };
+    return {
+      ...DEFAULTS,
+      notifyTypes: { ...DEFAULTS.notifyTypes },
+      notifySeverities: { ...DEFAULTS.notifySeverities },
+    };
   }
 }
 
@@ -68,6 +80,10 @@ export function writeInboxPrefs(patch: Partial<InboxPrefs>): InboxPrefs {
     ...patch,
     notifyTypes: { ...current.notifyTypes, ...(patch.notifyTypes || {}) },
     notifySeverities: { ...current.notifySeverities, ...(patch.notifySeverities || {}) },
+    deferredAutoEscalate:
+      typeof patch.deferredAutoEscalate === 'boolean'
+        ? patch.deferredAutoEscalate
+        : current.deferredAutoEscalate,
   };
   const dir = join(homedir(), '.multi-agent');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });

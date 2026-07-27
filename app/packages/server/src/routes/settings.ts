@@ -602,17 +602,32 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // P2-B：Inbox 偏好
+  // P2-B：Inbox 偏好（+ Slice 70 deferredAutoEscalate）
   app.get('/api/settings/inbox-prefs', async () => {
     const { readInboxPrefs } = await import('../orchestration/inbox-prefs.js');
+    const { getDeferredUnclaimedMs, SUGGESTED_DEFERRED_UNCLAIMED_MS, isDeferredAutoEscalateOptIn } =
+      await import('../orchestration/stale-runs.js');
     const prefs = readInboxPrefs();
     const envForce =
       process.env.MA_INBOX_NOTIFY_SUCCESS === '1' ||
       process.env.MA_INBOX_NOTIFY_SUCCESS === 'true';
+    const envAutoEscalate =
+      process.env.MA_DEFERRED_AUTO_ESCALATE === '1' ||
+      process.env.MA_DEFERRED_AUTO_ESCALATE === 'true' ||
+      process.env.MA_DEFERRED_AUTO_ESCALATE === 'yes';
+    const effectiveDeferredMs = getDeferredUnclaimedMs();
     return {
       ...prefs,
       envForcesSuccess: envForce,
       effectiveNotifyIssueSuccess: envForce || prefs.notifyIssueSuccess,
+      /** env 是否强制/等同开启 deferred escalate */
+      envForcesDeferredAutoEscalate: envAutoEscalate,
+      /** 有效是否开启（env 或 prefs 或显式 MS>0） */
+      effectiveDeferredAutoEscalate: isDeferredAutoEscalateOptIn() || effectiveDeferredMs > 0,
+      /** 当前有效阈值 ms；0=关闭 */
+      effectiveDeferredUnclaimedMs: effectiveDeferredMs,
+      /** Settings 文案建议阈值 */
+      suggestedDeferredUnclaimedMs: SUGGESTED_DEFERRED_UNCLAIMED_MS,
     };
   });
 
@@ -621,11 +636,43 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     const { writeInboxPrefs } = await import('../orchestration/inbox-prefs.js');
     const patch: Record<string, unknown> = {};
     if (typeof body.notifyIssueSuccess === 'boolean') patch.notifyIssueSuccess = body.notifyIssueSuccess;
-    if (Array.isArray(body.notifyTypes)) patch.notifyTypes = body.notifyTypes;
-    if (Array.isArray(body.notifySeverities)) patch.notifySeverities = body.notifySeverities;
-    
-    const prefs = writeInboxPrefs(patch);
-    return { ok: true as const, ...prefs };
+    if (body.notifyTypes && typeof body.notifyTypes === 'object' && !Array.isArray(body.notifyTypes)) {
+      patch.notifyTypes = body.notifyTypes;
+    }
+    if (
+      body.notifySeverities &&
+      typeof body.notifySeverities === 'object' &&
+      !Array.isArray(body.notifySeverities)
+    ) {
+      patch.notifySeverities = body.notifySeverities;
+    }
+    // 兼容旧错误写法：若客户端仍传 array 则忽略（不写坏 prefs）
+    if (Array.isArray(body.notifyTypes)) {
+      /* no-op: legacy bug */
+    }
+    if (Array.isArray(body.notifySeverities)) {
+      /* no-op */
+    }
+    if (typeof body.deferredAutoEscalate === 'boolean') {
+      patch.deferredAutoEscalate = body.deferredAutoEscalate;
+    }
+
+    const prefs = writeInboxPrefs(patch as Parameters<typeof writeInboxPrefs>[0]);
+    const { getDeferredUnclaimedMs, SUGGESTED_DEFERRED_UNCLAIMED_MS, isDeferredAutoEscalateOptIn } =
+      await import('../orchestration/stale-runs.js');
+    const envAutoEscalate =
+      process.env.MA_DEFERRED_AUTO_ESCALATE === '1' ||
+      process.env.MA_DEFERRED_AUTO_ESCALATE === 'true' ||
+      process.env.MA_DEFERRED_AUTO_ESCALATE === 'yes';
+    const effectiveDeferredMs = getDeferredUnclaimedMs();
+    return {
+      ok: true as const,
+      ...prefs,
+      envForcesDeferredAutoEscalate: envAutoEscalate,
+      effectiveDeferredAutoEscalate: isDeferredAutoEscalateOptIn() || effectiveDeferredMs > 0,
+      effectiveDeferredUnclaimedMs: effectiveDeferredMs,
+      suggestedDeferredUnclaimedMs: SUGGESTED_DEFERRED_UNCLAIMED_MS,
+    };
   });
 
   // E4：隔离 CLI 目录列表（~/.multi-agent/run-workspaces|chat-sessions）

@@ -4,6 +4,7 @@ import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { notifyDeferredUnclaimed, notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
+import { readInboxPrefs } from './inbox-prefs.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
@@ -85,11 +86,40 @@ export function getPrepareLeaseMs(): number {
 }
 
 /**
- * Slice 42 / D5：queued 过久未 claim → deferred 升级（可观测，不 fail）。
- * 默认 0=关闭（防噪声）；开启示例：MA_DEFERRED_UNCLAIMED_MS=1800000（30min）
+ * Slice 42 / D5 + Slice 70：queued 过久未 claim → deferred 升级（可观测，不 fail）。
+ *
+ * **默认关**（返回 0）：无自动升级 / 无静默改派。
+ *
+ * Opt-in（任一即可）：
+ * - `MA_DEFERRED_UNCLAIMED_MS>0` → 用该阈值（Slice 42）
+ * - `MA_DEFERRED_AUTO_ESCALATE=1|true` → 开启；阈值优先 env MS，否则建议值 30min
+ * - Settings/prefs `deferredAutoEscalate: true` → 同上
+ *
+ * 开启后行为：写 inbox + activity（含「建议改派」草稿 note）；**不**改 assignee。
  */
+/** 建议阈值：30min（Settings 文案 / AUTO_ESCALATE 默认） */
+export const SUGGESTED_DEFERRED_UNCLAIMED_MS = 30 * 60_000;
+
+function envTruthy(name: string): boolean {
+  const raw = process.env[name];
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+/** prefs / env 是否显式 opt-in deferred 升级（阈值可能仍来自建议值） */
+export function isDeferredAutoEscalateOptIn(): boolean {
+  if (envTruthy('MA_DEFERRED_AUTO_ESCALATE')) return true;
+  try {
+    return Boolean(readInboxPrefs().deferredAutoEscalate);
+  } catch {
+    return false;
+  }
+}
+
 export function getDeferredUnclaimedMs(): number {
-  return envMs('MA_DEFERRED_UNCLAIMED_MS', 0);
+  const explicit = envMs('MA_DEFERRED_UNCLAIMED_MS', 0);
+  if (explicit > 0) return explicit;
+  if (isDeferredAutoEscalateOptIn()) return SUGGESTED_DEFERRED_UNCLAIMED_MS;
+  return 0;
 }
 
 export function formatDurationMs(ms: number): string {
@@ -532,7 +562,7 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
 }
 
 /**
- * Slice 42 / D5：Deferred 升级（pre-claim，非失败路径）。
+ * Slice 42 / D5 + Slice 70：Deferred 升级（pre-claim，非失败路径）。
  *
  * 状态谓词（仅未进入有效执行）：
  * - 纳入：`status === 'queued'` 且 `createdAt` age ≥ 阈值，且 `startedAt` 为空
@@ -541,6 +571,7 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
  *
  * 行为：
  * - **不**改 run status / error（区别 failStaleQueuedRuns 硬 fail）
+ * - **不**改 assignee（Slice 70：仅 `reassignDraft` 建议 note，可演示 opt-in）
  * - **不**走 escalateFailedSquadRuns / `[Squad Escalated]` 文案
  * - activity `run_deferred` + inbox `dedupeKey: deferred:<runId>`
  * - 阈值 0（默认）→ no-op
@@ -587,7 +618,13 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     }
 
     const run = toAgentRun(row);
-    const inboxItem = notifyDeferredUnclaimed(run, { thresholdMs });
+    // Slice 70：草稿 reassign — 只写 note，不真改派
+    const reassignDraft = {
+      note: '建议改派',
+      agentId: row.agentId ?? null,
+      applied: false as const,
+    };
+    const inboxItem = notifyDeferredUnclaimed(run, { thresholdMs, reassignDraft });
 
     if (row.issueId) {
       db.insert(activityLogs)
@@ -603,6 +640,7 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
             thresholdMs,
             ageMs: now - row.createdAt,
             reason: 'queued_unclaimed',
+            reassignDraft,
           }),
           createdAt: now,
         })
