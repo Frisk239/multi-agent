@@ -13,6 +13,7 @@ import {
 import { confirmDialog } from '@/lib/confirm-store';
 import { ErrorState } from './ErrorState';
 import { TableSkeleton } from './Skeleton';
+import { Select } from './Select';
 
 type StatusFilter = '' | 'dead' | 'pending' | 'running' | 'completed' | 'failed';
 
@@ -163,7 +164,7 @@ export function WikiJobsPanel() {
         <div className="wiki-jobs-toolbar">
           <label>
             状态
-            <select
+            <Select
               value={status}
               data-testid="wiki-jobs-status-filter"
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
@@ -175,7 +176,7 @@ export function WikiJobsPanel() {
               <option value="completed">completed</option>
               <option value="failed">failed</option>
               <option value="">全部</option>
-            </select>
+            </Select>
           </label>
           <button
             type="button"

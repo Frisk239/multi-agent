@@ -16,6 +16,7 @@ import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Select } from './Select';
 
 const STATUS_ZH: Record<ProjectStatus, string> = {
   planned: '规划中',
@@ -217,7 +218,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
           </p>
         </div>
         <div className="page-actions">
-          <select
+          <Select
             className="projects-inline-status"
             value={project.status}
             aria-label="项目状态"
@@ -234,7 +235,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
                 {STATUS_ZH[s]}
               </option>
             ))}
-          </select>
+          </Select>
           <Link
             href={`/?project=${encodeURIComponent(project.id)}`}
             className="btn btn-secondary btn-sm"

@@ -15,6 +15,7 @@ import {
 } from '@/lib/api';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
+import { Select } from './Select';
 
 const STORAGE_OPEN = 'ma-helper-open';
 const STORAGE_AGENT = 'ma-helper-agent-id';
@@ -280,7 +281,7 @@ export function HelperRail() {
           <div className="helper-rail-agent-row">
             <label className="helper-agent-label text-dim text-sm">
               绑定智能体
-              <select
+              <Select
                 className="input helper-agent-select"
                 value={agentId}
                 data-testid="helper-agent-select"
@@ -297,7 +298,7 @@ export function HelperRail() {
                     {a.name} · {a.runtime}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 

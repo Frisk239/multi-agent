@@ -164,7 +164,7 @@ export function IssueHeader({
       </div>
       <label className="issue-project-field" data-testid="issue-project-field">
         <span className="issue-meta-k">项目</span>
-        <select
+        <Select
           className="priority-select"
           value={issue.projectId ?? ''}
           aria-label="所属项目"
@@ -182,7 +182,7 @@ export function IssueHeader({
               {p.title}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       {issue.parentIssueId ? (
         <div className="issue-props-parent" data-testid="issue-props-parent">
@@ -294,7 +294,7 @@ export function IssueHeader({
           {endActions}
           {variant === 'main' ? null : (
             <span className="issue-status-field">
-              <select
+              <Select
                 className="status-select"
                 value={issue.status}
                 onChange={(e) =>
@@ -310,7 +310,7 @@ export function IssueHeader({
                     {STATUS_ZH[s]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </span>
           )}
         </div>

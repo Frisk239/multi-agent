@@ -21,6 +21,7 @@ import { PageSkeleton } from './Skeleton';
 import { Icon } from './Icon';
 import { IssueDetail } from './IssueDetail';
 import { MarkdownBody } from './MarkdownBody';
+import { Select } from './Select';
 
 type ReadFilter = 'all' | 'unread' | 'read';
 type KindFilter = '' | InboxItem['kind'];
@@ -603,7 +604,7 @@ function InboxPageInner() {
         <div className="inbox-filters" data-testid="inbox-filters">
           <label>
             已读
-            <select
+            <Select
               value={readFilter}
               onChange={(e) => {
                 const v = e.target.value as ReadFilter;
@@ -614,11 +615,11 @@ function InboxPageInner() {
               <option value="all">全部</option>
               <option value="unread">未读</option>
               <option value="read">已读</option>
-            </select>
+            </Select>
           </label>
           <label>
             类型
-            <select
+            <Select
               value={kindFilter}
               onChange={(e) => replaceParams({ kind: e.target.value || null })}
               aria-label="筛选通知类型"
@@ -628,7 +629,7 @@ function InboxPageInner() {
               <option value="run_completed">完成</option>
               <option value="comment">评论</option>
               <option value="assigned">指派</option>
-            </select>
+            </Select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <input

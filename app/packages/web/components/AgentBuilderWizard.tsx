@@ -9,6 +9,7 @@ import {
   useCreateAgentFromTemplate,
   useRuntimeModels,
 } from '@/lib/api';
+import { Select } from './Select';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -260,15 +261,15 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
         <div data-testid="builder-step-2" className="ops-form-grid">
           <label className="ops-field">
             <span>运行时</span>
-            <select value={runtime} onChange={(e) => setRuntime(e.target.value as RuntimeId)}>
+            <Select value={runtime} onChange={(e) => setRuntime(e.target.value as RuntimeId)}>
               {RUNTIMES.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="ops-field">
             <span>模型</span>
-            <select
+            <Select
               value={model && (createModelCatalog?.models ?? []).some((m) => m.id === model) ? model : model ? '__custom__' : ''}
               onChange={(e) => {
                 const v = e.target.value;
@@ -285,7 +286,7 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
               {model && !(createModelCatalog?.models ?? []).some((m) => m.id === model) ? (
                 <option value="__custom__">{model}（当前）</option>
               ) : null}
-            </select>
+            </Select>
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}

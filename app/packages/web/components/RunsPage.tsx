@@ -24,6 +24,7 @@ import { PageSkeleton, TableSkeleton } from './Skeleton';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { RunEventTimelineDrawer } from './RunEventTimeline';
+import { Select } from './Select';
 
 /**
  * 运行观测页（本仓超车 Multica：真站无独立 /runs，本地做 Mission Control 列表）
@@ -423,7 +424,7 @@ function RunsPageInner() {
           <div className="runs-filters collection-toolbar" data-testid="runs-filters">
             <label>
               Agent
-              <select
+              <Select
                 value={agentId}
                 data-testid="runs-agent-filter"
                 onChange={(e) => replaceParams({ agent: e.target.value || null })}
@@ -435,11 +436,11 @@ function RunsPageInner() {
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
               小队
-              <select
+              <Select
                 value={squadId}
                 data-testid="runs-squad-filter"
                 onChange={(e) => replaceParams({ squad: e.target.value || null })}
@@ -451,7 +452,7 @@ function RunsPageInner() {
                     {s.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="runs-filter-check">
               <input
@@ -464,7 +465,7 @@ function RunsPageInner() {
             </label>
             <label>
               细分状态
-              <select
+              <Select
                 value={status}
                 data-testid="runs-status-filter"
                 onChange={(e) => {
@@ -482,7 +483,7 @@ function RunsPageInner() {
                 <option value="queued">queued</option>
                 <option value="cancelled">cancelled</option>
                 <option value="completed">completed</option>
-              </select>
+              </Select>
             </label>
           </div>
         ) : null}

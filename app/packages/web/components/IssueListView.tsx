@@ -11,6 +11,7 @@ import {
   computeVirtualTableSpacers,
   estimateIssueListRowHeight,
 } from '@/lib/issue-list-virtual';
+import { Select } from './Select';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -253,7 +254,7 @@ export function IssueListView({
                   </Link>
                 </td>
                 <td>
-                  <select
+                  <Select
                     className="btn-ghost btn-xs"
                     style={{
                       padding: '2px 6px',
@@ -273,7 +274,7 @@ export function IssueListView({
                         {col.title}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </td>
                 <td className="text-sm">
                   <span

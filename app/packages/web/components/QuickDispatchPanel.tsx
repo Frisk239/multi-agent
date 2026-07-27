@@ -16,6 +16,7 @@ import {
 import { confirmDialog } from '@/lib/confirm-store';
 import { toastSuccess } from '@/lib/toast';
 import { useFocusTrap } from '@/lib/use-focus-trap';
+import { Select } from './Select';
 
 type QuickDispatchPanelProps = {
   open: boolean;
@@ -350,7 +351,7 @@ export function QuickDispatchPanel({
         <form className="quick-dispatch-form" onSubmit={handleSubmit}>
           <label className="ops-field">
             <span>指派给</span>
-            <select
+            <Select
               value={assigneeValue}
               onChange={(e) => setAssigneeValue(e.target.value)}
               aria-label="指派 agent 或小队"
@@ -385,11 +386,11 @@ export function QuickDispatchPanel({
                   );
                 })}
               </optgroup>
-            </select>
+            </Select>
           </label>
           <label className="ops-field">
             <span>项目（可选）</span>
-            <select
+            <Select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               aria-label="所属项目"
@@ -409,7 +410,7 @@ export function QuickDispatchPanel({
                   </option>
                 );
               })}
-            </select>
+            </Select>
           </label>
           {selectedAssignee && assigneeBlocked ? (
             <div

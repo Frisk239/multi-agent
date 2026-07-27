@@ -8,6 +8,7 @@ import {
   useProjects,
   useScanLocalSkills,
 } from '@/lib/api';
+import { Select } from './Select';
 
 type Method = 'chooser' | 'url' | 'local';
 
@@ -286,7 +287,7 @@ export function CreateSkillDialog({
             <div className="skill-create-target-row">
               <label className="ops-field">
                 <span>写入目标</span>
-                <select
+                <Select
                   value={target}
                   onChange={(e) => {
                     const v = e.target.value as SkillImportTarget;
@@ -299,12 +300,12 @@ export function CreateSkillDialog({
                   <option value="user">用户 · ~/.multi-agent/skills（推荐）</option>
                   <option value="workspace">工作区 · &lt;cwd&gt;/.skills</option>
                   <option value="project">项目本机 · localPath/.skills</option>
-                </select>
+                </Select>
               </label>
               {target === 'project' ? (
                 <label className="ops-field">
                   <span>项目</span>
-                  <select
+                  <Select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
                     data-testid="create-skill-project"
@@ -317,7 +318,7 @@ export function CreateSkillDialog({
                         {p.localPath ? ` · ${p.localPath}` : ''}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
               <label className="skills-import-overwrite">

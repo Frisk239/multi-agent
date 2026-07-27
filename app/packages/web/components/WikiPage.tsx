@@ -16,6 +16,7 @@ import { WikiJobsPanel } from './WikiJobsPanel';
 import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
 import { PageSkeleton, Skeleton } from './Skeleton';
+import { Select } from './Select';
 
 // S06 Wiki 浏览器 + S07 + wiki-memory-ops + DS3 per-project；?slug= / ?q= / ?projectId= 可分享
 function WikiPageInner() {
@@ -161,7 +162,7 @@ function WikiPageInner() {
         <div className="page-actions">
           <label className="text-sm text-dim" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="sr-only">Wiki 项目根</span>
-            <select
+            <Select
               className="new-issue-select"
               value={projectIdFromUrl}
               onChange={(e) => setProjectId(e.target.value)}
@@ -182,7 +183,7 @@ function WikiPageInner() {
                   </option>
                 );
               })}
-            </select>
+            </Select>
           </label>
           <PageHeaderMore testId="wiki-header-more">
             <Link href="/memory" data-testid="wiki-to-memory" role="menuitem">

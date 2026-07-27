@@ -27,6 +27,7 @@ import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { Select } from './Select';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
@@ -510,7 +511,7 @@ function AutomationPageInner() {
             </label>
             <label className="ops-field">
               <span>调度类型</span>
-              <select
+              <Select
                 value={scheduleKind}
                 onChange={(e) =>
                   setScheduleKind(e.target.value as AutomationScheduleKind)
@@ -519,12 +520,12 @@ function AutomationPageInner() {
                 <option value="interval_minutes">固定间隔</option>
                 <option value="daily_at">每日时刻</option>
                 <option value="cron">Cron 表达式</option>
-              </select>
+              </Select>
             </label>
             {scheduleKind === 'interval_minutes' ? (
               <label className="ops-field">
                 <span>间隔（分钟）</span>
-                <select
+                <Select
                   value={intervalMinutes}
                   onChange={(e) =>
                     setIntervalMinutes(
@@ -537,7 +538,7 @@ function AutomationPageInner() {
                       {n}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             ) : scheduleKind === 'daily_at' ? (
               <label className="ops-field">
@@ -578,7 +579,7 @@ function AutomationPageInner() {
             )}
             <label className="ops-field">
               <span>指派给</span>
-              <select
+              <Select
                 value={assigneeValue}
                 onChange={(e) => setAssigneeValue(e.target.value)}
                 required
@@ -599,7 +600,7 @@ function AutomationPageInner() {
                     </option>
                   ))}
                 </optgroup>
-              </select>
+              </Select>
             </label>
           </div>
           <label className="ops-field">
@@ -721,7 +722,7 @@ function AutomationPageInner() {
             </div>
             <label className="agents-filter-field">
               启用
-              <select
+              <Select
                 value={enabledFromUrl}
                 data-testid="automation-enabled-filter"
                 onChange={(e) => replaceParams({ enabled: e.target.value || null })}
@@ -730,11 +731,11 @@ function AutomationPageInner() {
                 <option value="">全部</option>
                 <option value="on">已启用</option>
                 <option value="off">已停用</option>
-              </select>
+              </Select>
             </label>
             <label className="agents-filter-field">
               调度
-              <select
+              <Select
                 value={scheduleFromUrl}
                 data-testid="automation-schedule-filter"
                 onChange={(e) => replaceParams({ schedule: e.target.value || null })}
@@ -744,7 +745,7 @@ function AutomationPageInner() {
                 <option value="interval_minutes">间隔</option>
                 <option value="daily_at">每日</option>
                 <option value="cron">Cron</option>
-              </select>
+              </Select>
             </label>
             <label className="agents-filter-field agents-filter-check">
               <span className="sr-only">仅失败</span>

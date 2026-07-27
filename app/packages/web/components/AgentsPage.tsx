@@ -20,6 +20,7 @@ import { PageSkeleton } from './Skeleton';
 import { ErrorState } from './ErrorState';
 import { EmptyState } from './EmptyState';
 import { AgentBuilderWizard } from './AgentBuilderWizard';
+import { Select } from './Select';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -383,7 +384,7 @@ function AgentsPageInner() {
         </div>
         <label className="agents-filter-field">
           运行时
-          <select
+          <Select
             value={runtimeFilter}
             data-testid="agents-runtime-filter"
             onChange={(e) => replaceParams({ runtime: e.target.value || null })}
@@ -395,11 +396,11 @@ function AgentsPageInner() {
                 {r}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="agents-filter-field">
           就绪
-          <select
+          <Select
             value={readyFromUrl}
             data-testid="agents-ready-filter"
             onChange={(e) => replaceParams({ ready: e.target.value || null })}
@@ -410,7 +411,7 @@ function AgentsPageInner() {
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 

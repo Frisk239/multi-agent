@@ -10,6 +10,7 @@ import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { PageSkeleton } from './Skeleton';
 import { CreateSkillDialog } from './CreateSkillDialog';
+import { Select } from './Select';
 
 type SourceFilter = '' | 'project' | 'user' | 'workspace';
 
@@ -161,7 +162,7 @@ function SkillsPageInner() {
           </div>
           <label className="agents-filter-field">
             来源
-            <select
+            <Select
               value={sourceFromUrl}
               data-testid="skills-source-filter"
               onChange={(e) => replaceParams({ source: e.target.value || null })}
@@ -171,7 +172,7 @@ function SkillsPageInner() {
               <option value="user">用户级</option>
               <option value="workspace">工作区</option>
               <option value="project">项目本机</option>
-            </select>
+            </Select>
           </label>
         </div>
 

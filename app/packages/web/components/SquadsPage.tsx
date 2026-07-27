@@ -379,7 +379,7 @@ function SquadsPageInner() {
             </div>
             <label className="agents-filter-field">
               队长
-              <select
+              <Select
                 value={leaderFromUrl}
                 data-testid="squads-leader-filter"
                 onChange={(e) => replaceParams({ leader: e.target.value || null })}
@@ -391,11 +391,11 @@ function SquadsPageInner() {
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="agents-filter-field">
               队长就绪
-              <select
+              <Select
                 value={readyFromUrl}
                 data-testid="squads-ready-filter"
                 onChange={(e) => replaceParams({ ready: e.target.value || null })}
@@ -406,7 +406,7 @@ function SquadsPageInner() {
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 

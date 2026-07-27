@@ -12,6 +12,7 @@ import {
 import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
+import { Select } from './Select';
 
 const STATUS_ZH: Record<ProjectStatus, string> = {
   planned: '规划中',
@@ -185,7 +186,7 @@ export function ProjectsPage() {
               </label>
               <label className="ops-field">
                 <span>状态</span>
-                <select
+                <Select
                   value={statusCreate}
                   onChange={(e) => setStatusCreate(e.target.value as ProjectStatus)}
                   data-testid="projects-create-status"
@@ -196,7 +197,7 @@ export function ProjectsPage() {
                       {STATUS_ZH[s]}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <label className="ops-field">
@@ -248,7 +249,7 @@ export function ProjectsPage() {
             </div>
             <label className="agents-filter-field">
               状态
-              <select
+              <Select
                 value={statusFilter}
                 data-testid="projects-status-filter"
                 onChange={(e) => setStatusFilter(e.target.value as '' | ProjectStatus)}
@@ -268,7 +269,7 @@ export function ProjectsPage() {
                             : ` · ${counts.cancelled}`}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             {q.trim() || statusFilter ? (
               <button
@@ -369,7 +370,7 @@ export function ProjectsPage() {
                         )}
                       </td>
                       <td>
-                        <select
+                        <Select
                           className="projects-inline-status"
                           value={p.status}
                           aria-label={`${p.title} 状态`}
@@ -386,7 +387,7 @@ export function ProjectsPage() {
                               {STATUS_ZH[s]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </td>
                       <td data-testid="projects-row-stats">
                         <div className="projects-progress" title={`${done}/${total} 完成`}>

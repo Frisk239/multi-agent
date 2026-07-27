@@ -26,6 +26,7 @@ import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PageSkeleton } from './Skeleton';
+import { Select } from './Select';
 
 
 
@@ -220,7 +221,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               </label>
               <label className="ops-field">
                 <span>运行时</span>
-                <select
+                <Select
                   value={runtime}
                   onChange={(e) => setRuntime(e.target.value as RuntimeId)}
                   data-testid="agent-runtime-select"
@@ -230,11 +231,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                       {r}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="ops-field">
                 <span>模型</span>
-                <select
+                <Select
                   value={
                     model && (modelCatalog?.models ?? []).some((m) => m.id === model)
                       ? model
@@ -262,7 +263,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                   !(modelCatalog?.models ?? []).some((m) => m.id === model) ? (
                     <option value="__custom__">{model}（当前）</option>
                   ) : null}
-                </select>
+                </Select>
                 <input
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
@@ -290,7 +291,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               </label>
               <label className="ops-field">
                 <span>Thinking / Effort</span>
-                <select
+                <Select
                   value={
                     ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
                       ? thinkingLevel
@@ -314,7 +315,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                   !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
                     <option value="__custom__">{thinkingLevel}（当前）</option>
                   ) : null}
-                </select>
+                </Select>
                 <input
                   value={thinkingLevel}
                   onChange={(e) => setThinkingLevel(e.target.value)}
