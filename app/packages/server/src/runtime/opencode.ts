@@ -7,8 +7,47 @@ import type {
 } from './types.js';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, type LineContext } from './spawn-line.js';
-import { extractTokenUsage } from './usage-parse.js';
+import {
+  extractOpencodeStepTokens,
+  extractTokenUsage,
+  mergeUsage,
+} from './usage-parse.js';
+import { safeFormatToolError } from './event-normalizer.js';
 
+function safeStringifyResult(content: unknown): string {
+  if (typeof content === 'string') return content;
+  try {
+    return JSON.stringify(content ?? '').slice(0, 4000);
+  } catch (err) {
+    return safeFormatToolError(err);
+  }
+}
+
+function pickOpencodeSessionId(j: Record<string, unknown>): string | null {
+  const part = (j.part && typeof j.part === 'object' ? j.part : null) as Record<
+    string,
+    unknown
+  > | null;
+  const candidates = [
+    j.sessionID,
+    j.sessionId,
+    j.session_id,
+    j.session,
+    part?.sessionID,
+    part?.sessionId,
+    part?.session_id,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return null;
+}
+
+/**
+ * OpenCode `run --format json` 行解析（对齐 Multica opencode.go processEvents）。
+ * 捕获：providerSessionId / tool 事件 / step_finish tokens 累加 / text。
+ * Slice 50/60：supportsSessionResume 仍为 false — 本刀只加深捕获，不装会 resume。
+ */
 export function parseOpencodeLine(
   line: string,
   onEvent: (e: AgentEvent) => void,
@@ -17,40 +56,130 @@ export function parseOpencodeLine(
   const trimmed = line.trim();
   if (!trimmed) return;
 
-  // 1. 尝试 JSON 格式解析（支持 opencode stream-json 模式或结构化日志）
+  // 1. JSON 流（`--format json`）
   if (trimmed.startsWith('{')) {
     try {
-      const j = JSON.parse(trimmed);
-      if (typeof j === 'object' && j !== null) {
-        // providerSessionId 捕获
-        const sid = j.session_id ?? j.sessionId ?? j.session ?? j.id;
-        if (typeof sid === 'string' && sid.trim()) {
-          ctx.providerSessionId = sid.trim();
-        }
-        // token usage 解析
-        const usage = extractTokenUsage(j);
-        if (usage) ctx.usage = usage;
+      const j = JSON.parse(trimmed) as Record<string, unknown>;
+      if (typeof j !== 'object' || j === null) return;
 
-        // event 捕获
-        if (j.type === 'message' && typeof j.text === 'string') {
-          onEvent({ type: 'message', role: (j.role as 'assistant' | 'user') || 'assistant', text: j.text });
+      const sid = pickOpencodeSessionId(j);
+      if (sid) ctx.providerSessionId = sid;
+
+      // 顶层 / 嵌套 usage 尽力（非 step_finish 时）
+      const topUsage = extractTokenUsage(j) ?? extractTokenUsage(j.usage);
+      if (topUsage) ctx.usage = mergeUsage(ctx.usage, topUsage);
+
+      const type = typeof j.type === 'string' ? j.type : '';
+      const part =
+        j.part && typeof j.part === 'object'
+          ? (j.part as Record<string, unknown>)
+          : null;
+
+      switch (type) {
+        case 'text': {
+          const text =
+            (typeof part?.text === 'string' && part.text) ||
+            (typeof j.text === 'string' && j.text) ||
+            '';
+          if (text) {
+            onEvent({ type: 'message', role: 'assistant', text });
+            // 无 result 终态时用 text 拼 finalText 兜底
+            ctx.resultText = (ctx.resultText ?? '') + text;
+          }
           return;
         }
-        if (j.type === 'tool_start' && typeof j.name === 'string') {
-          onEvent({ type: 'tool_start', name: j.name, args: j.args });
+        case 'tool_use': {
+          // Multica: part.tool + part.state.{status,input,output}
+          const toolName =
+            (typeof part?.tool === 'string' && part.tool) ||
+            (typeof j.name === 'string' && j.name) ||
+            (typeof j.tool === 'string' && j.tool) ||
+            'tool';
+          const state =
+            part?.state && typeof part.state === 'object'
+              ? (part.state as Record<string, unknown>)
+              : null;
+          const input = state?.input ?? j.args ?? j.input;
+          onEvent({ type: 'tool_start', name: toolName, args: input });
+          if (state && (state.status === 'completed' || state.status === 'error')) {
+            const out =
+              state.status === 'error'
+                ? (state.error ?? state.output ?? 'tool error')
+                : (state.output ?? '');
+            onEvent({
+              type: 'tool_end',
+              name: toolName,
+              result: safeStringifyResult(out),
+            });
+          }
           return;
         }
-        if (j.type === 'tool_end' && typeof j.name === 'string') {
-          onEvent({ type: 'tool_end', name: j.name, result: j.result });
+        case 'step_finish': {
+          const tokens = part?.tokens ?? j.tokens;
+          const stepUsage = extractOpencodeStepTokens(tokens);
+          if (stepUsage) ctx.usage = mergeUsage(ctx.usage, stepUsage);
           return;
         }
+        case 'step_start': {
+          onEvent({ type: 'log', text: '[opencode] step_start' });
+          return;
+        }
+        case 'error': {
+          const errObj =
+            j.error && typeof j.error === 'object'
+              ? (j.error as Record<string, unknown>)
+              : null;
+          const errData =
+            errObj?.data && typeof errObj.data === 'object'
+              ? (errObj.data as Record<string, unknown>)
+              : null;
+          const msg =
+            (typeof errData?.message === 'string' && errData.message) ||
+            (typeof errObj?.message === 'string' && errObj.message) ||
+            (typeof j.message === 'string' && j.message) ||
+            'opencode error';
+          onEvent({ type: 'log', text: `[opencode] error: ${msg}` });
+          return;
+        }
+        case 'message': {
+          if (typeof j.text === 'string') {
+            onEvent({
+              type: 'message',
+              role: (j.role as 'assistant' | 'user') || 'assistant',
+              text: j.text,
+            });
+          }
+          return;
+        }
+        case 'tool_start': {
+          if (typeof j.name === 'string') {
+            onEvent({ type: 'tool_start', name: j.name, args: j.args });
+          }
+          return;
+        }
+        case 'tool_end': {
+          if (typeof j.name === 'string') {
+            onEvent({
+              type: 'tool_end',
+              name: j.name,
+              result:
+                typeof j.result === 'string'
+                  ? j.result
+                  : safeStringifyResult(j.result),
+            });
+          }
+          return;
+        }
+        default:
+          // 未知 type：已尽力取 session/usage，忽略事件
+          return;
       }
     } catch {
-      /* ignore invalid JSON, fallthrough to regex */
+      /* fallthrough to regex */
     }
   }
 
-  // 2. 文本模式：Token 统计文本正则解析 (例: "Tokens: 1500 input, 320 output" 或 "Prompt tokens: 1500, Completion tokens: 320")
+  // 2. 文本模式：Token 统计
   const inputMatch = trimmed.match(/(?:input|prompt)\s*tokens?\s*[:=]?\s*(\d+)/i);
   const outputMatch = trimmed.match(/(?:output|completion)\s*tokens?\s*[:=]?\s*(\d+)/i);
   if (inputMatch || outputMatch) {
@@ -63,9 +192,11 @@ export function parseOpencodeLine(
     };
   }
 
-  // 3. 文本模式：Session ID 正则捕获 (例: "Session ID: xxx" 或 "session: xxx")
-  const sessionMatch = trimmed.match(/(?:session(?:\s*id)?)\s*[:=]\s*([a-zA-Z0-9_-]{8,})/i);
-  if (sessionMatch && sessionMatch[1]) {
+  // 3. 文本模式：Session ID
+  const sessionMatch = trimmed.match(
+    /(?:session(?:\s*id)?)\s*[:=]\s*([a-zA-Z0-9_-]{8,})/i,
+  );
+  if (sessionMatch?.[1]) {
     ctx.providerSessionId = sessionMatch[1].trim();
   }
 }
@@ -76,6 +207,7 @@ export class OpencodeBackend implements RuntimeBackend {
   /**
    * Slice 50：CLI 虽可能有 --session，策略层未验证可靠 resume/miss；
    * 声明 false，execute 忽略 resumeSessionId，不装会。
+   * Slice 60：只加深 usage/tool/session **捕获**，不翻 true。
    */
   readonly supportsSessionResume = false;
 
@@ -93,14 +225,15 @@ export class OpencodeBackend implements RuntimeBackend {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'opencode CLI 未安装' };
 
-    const args = ['run'];
+    // Multica：`opencode run --format json` —— 结构化捕获依赖 json 流
+    const args = ['run', '--format', 'json'];
     const model = input.model?.trim();
     if (model) args.push('--model', model);
 
     const variant = input.thinkingLevel?.trim();
     if (variant) args.push('--variant', variant);
 
-    // Slice 50：supportsSessionResume=false → 忽略 input.resumeSessionId（不传假 --session）
+    // Slice 50/60：supportsSessionResume=false → 忽略 input.resumeSessionId
 
     args.push(input.prompt);
     return spawnLineProcess(

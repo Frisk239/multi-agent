@@ -60,6 +60,28 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
       expect(ctx.providerSessionId).toBe('cursor-sess-abc');
       expect(events[0]).toEqual({ type: 'log', text: '[cursor] init' });
     });
+
+    it('captures result usage camelCase (Slice 60)', () => {
+      const events: AgentEvent[] = [];
+      const ctx: LineContext = { resultText: null, usage: null, providerSessionId: null };
+      parseCursorLine(
+        JSON.stringify({
+          type: 'result',
+          result: 'ok',
+          session_id: 'cursor-sess-usage',
+          usage: { inputTokens: 9, outputTokens: 2, cacheReadTokens: 1, cacheWriteTokens: 0 },
+        }),
+        (e) => events.push(e),
+        ctx,
+      );
+      expect(ctx.providerSessionId).toBe('cursor-sess-usage');
+      expect(ctx.usage).toEqual({
+        input: 9,
+        output: 2,
+        cacheRead: 1,
+        cacheWrite: 0,
+      });
+    });
   });
 
   describe('Grok Line Parsing & Args', () => {

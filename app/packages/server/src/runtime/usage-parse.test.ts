@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { extractTokenUsage, parseUsageFromResultLine } from './usage-parse';
+import {
+  extractOpencodeStepTokens,
+  extractTokenUsage,
+  parseUsageFromResultLine,
+} from './usage-parse';
 
 describe('usage-parse', () => {
   describe('extractTokenUsage', () => {
@@ -122,6 +126,38 @@ describe('usage-parse', () => {
 
     it('returns null if no usage information present', () => {
       expect(parseUsageFromResultLine({})).toBeNull();
+    });
+
+    it('parses top-level camelCase tokens on result line (cursor variant)', () => {
+      const usage = parseUsageFromResultLine({
+        type: 'result',
+        inputTokens: 40,
+        outputTokens: 8,
+        cacheReadTokens: 2,
+        cacheWriteTokens: 1,
+      });
+      expect(usage).toEqual({
+        input: 40,
+        output: 8,
+        cacheRead: 2,
+        cacheWrite: 1,
+      });
+    });
+  });
+
+  describe('extractOpencodeStepTokens', () => {
+    it('parses nested cache read/write', () => {
+      const usage = extractOpencodeStepTokens({
+        input: 10,
+        output: 4,
+        cache: { read: 7, write: 3 },
+      });
+      expect(usage).toEqual({
+        input: 10,
+        output: 4,
+        cacheRead: 7,
+        cacheWrite: 3,
+      });
     });
   });
 });

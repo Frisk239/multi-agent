@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, stripAnsi } from './spawn-line.js';
+import { extractTokenUsage, mergeUsage } from './usage-parse.js';
 import { spawn } from 'node:child_process';
 
 /**
@@ -39,10 +40,22 @@ export function parseGrokLine(
       /* fall through plain text */
     }
     if (parsedJson) {
-      // DS1: Session ID extraction
+      // DS1 / Slice 60: Session ID extraction
       const sid = (j.session_id ?? j.sessionId ?? j.id) as string | undefined;
       if (typeof sid === 'string' && sid.trim() && ctx) {
         ctx.providerSessionId = sid.trim();
+      }
+
+      // Slice 60 顺手：usage 尽力（result / params / 顶层）
+      if (ctx) {
+        const fromTop = extractTokenUsage(j) ?? extractTokenUsage(j.usage);
+        if (fromTop) {
+          ctx.usage = mergeUsage(ctx.usage ?? null, fromTop);
+        }
+        if (j.result && typeof j.result === 'object') {
+          const ru = extractTokenUsage(j.result) ?? extractTokenUsage((j.result as Record<string, unknown>).usage);
+          if (ru) ctx.usage = mergeUsage(ctx.usage ?? null, ru);
+        }
       }
 
       // notifications/message 或 stream
@@ -59,6 +72,19 @@ export function parseGrokLine(
         const tool = params.tool as { name?: string } | undefined;
         if (tool?.name) {
           onEvent({ type: 'tool_start', name: tool.name, args: params });
+        }
+        // tool_end 若 params 带 result/output
+        if (tool?.name && (params.result != null || params.output != null)) {
+          onEvent({
+            type: 'tool_end',
+            name: tool.name,
+            result:
+              typeof params.result === 'string'
+                ? params.result
+                : typeof params.output === 'string'
+                  ? params.output
+                  : JSON.stringify(params.result ?? params.output ?? '').slice(0, 4000),
+          });
         }
         return;
       }
@@ -113,7 +139,7 @@ async function tryPrintMode(
     input.cwd,
     signal,
     onEvent,
-    (line, oe) => parseGrokLine(line, oe),
+    (line, oe, ctx) => parseGrokLine(line, oe, ctx),
     undefined,
     input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
   );
@@ -172,7 +198,7 @@ export class GrokBackend implements RuntimeBackend {
       input.cwd,
       signal,
       onEvent,
-      (line, oe) => parseGrokLine(line, oe),
+      (line, oe, ctx) => parseGrokLine(line, oe, ctx),
       undefined,
       input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
     );
