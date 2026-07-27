@@ -28,6 +28,7 @@ import {
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
+import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { confirmDialog } from '@/lib/confirm-store';
 import { FailureActionChip } from './FailureActionChip';
 import { SubagentTreeViewer } from './SubagentTreeViewer';
@@ -608,6 +609,20 @@ export function RunDetailPage({ runId }: { runId: string }) {
                   {shortId(run.pathBlockedByRunId)}
                 </Link>
                 （结束后自动开工，不会标失败）
+                {run.status === 'waiting_local_directory' &&
+                run.waitingLocalEnteredAt != null ? (
+                  <>
+                    {' · '}
+                    <span data-testid="run-waiting-elapsed">
+                      {waitingElapsedLabel(run.waitingLocalEnteredAt)}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            ) : run.status === 'waiting_local_directory' &&
+              run.waitingLocalEnteredAt != null ? (
+              <p className="run-path-lock-note" data-testid="run-waiting-elapsed">
+                {waitingElapsedLabel(run.waitingLocalEnteredAt)}
               </p>
             ) : null}
             {run.cwdMode === 'isolated_issue' ? (

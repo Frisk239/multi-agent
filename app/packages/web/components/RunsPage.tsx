@@ -22,6 +22,7 @@ import {
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
+import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { FailureActionChip } from './FailureActionChip';
@@ -740,7 +741,22 @@ function RunsPageInner() {
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   等待目录 · {shortId(r.pathBlockedByRunId)}
+                                  {r.status === 'waiting_local_directory' &&
+                                  r.waitingLocalEnteredAt != null
+                                    ? ` · ${waitingElapsedLabel(r.waitingLocalEnteredAt)}`
+                                    : ''}
                                 </Link>
+                              </>
+                            ) : r.status === 'waiting_local_directory' &&
+                              r.waitingLocalEnteredAt != null ? (
+                              <>
+                                {' · '}
+                                <span
+                                  className="runs-path-wait"
+                                  data-testid="runs-row-waiting-elapsed"
+                                >
+                                  {waitingElapsedLabel(r.waitingLocalEnteredAt)}
+                                </span>
                               </>
                             ) : null}
                             {r.squadId ? (

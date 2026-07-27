@@ -131,6 +131,8 @@ async function tick(): Promise<void> {
           patch: {
             status: 'waiting_local_directory',
             lastHeartbeatAt: now,
+            // Slice 66：进入 waiting 写墙钟；离开时清 null
+            waitingLocalEnteredAt: now,
             cwdPath: pathGate.path,
             cwdMode: 'project_local',
           },
@@ -158,7 +160,13 @@ async function tick(): Promise<void> {
     const claimTr = transitionRun({
       id: queued.id,
       fromStatuses: CLAIMABLE_RUN_STATUSES,
-      patch: { status: 'running', startedAt: now, lastHeartbeatAt: now },
+      patch: {
+        status: 'running',
+        startedAt: now,
+        lastHeartbeatAt: now,
+        // Slice 66：离开 waiting 清进入时刻
+        waitingLocalEnteredAt: null,
+      },
     });
     if (!claimTr.applied || !claimTr.row || claimTr.row.status !== 'running') {
       continue; // 没抢到（被别的 tick 抢）
@@ -528,6 +536,7 @@ async function tick(): Promise<void> {
           status: 'cancelled',
           finishedAt,
           error: result.error ?? null,
+          waitingLocalEnteredAt: null,
           ...(hasTokens ? tokenPatch : {}),
           ...sessionPatch,
         },
@@ -579,6 +588,7 @@ async function tick(): Promise<void> {
         status: 'completed',
         finishedAt,
         error: null,
+        waitingLocalEnteredAt: null,
         ...(hasTokens ? tokenPatch : {}),
         ...sessionPatch,
       },
@@ -744,7 +754,13 @@ export async function failRun(
   const tr = transitionRun({
     id: runId,
     fromStatuses: ACTIVE_RUN_STATUSES,
-    patch: { status: 'failed', finishedAt, error, failureReason: reason },
+    patch: {
+      status: 'failed',
+      finishedAt,
+      error,
+      failureReason: reason,
+      waitingLocalEnteredAt: null,
+    },
   });
   if (!tr.applied || !tr.row) return;
 

@@ -260,6 +260,13 @@
       "when": 1787059200000,
       "tag": "0036_schema_gap_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1787145600000,
+      "tag": "0037_waiting_local_entered_at",
+      "breakpoints": true
     }
   ]
 }

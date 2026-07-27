@@ -123,6 +123,8 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
       createdAt: agentRuns.createdAt,
       startedAt: agentRuns.startedAt,
       lastHeartbeatAt: agentRuns.lastHeartbeatAt,
+      // Slice 66：waiting 龄用进入时刻，避免用 createdAt 瞎猜
+      waitingLocalEnteredAt: agentRuns.waitingLocalEnteredAt,
     })
     .from(agentRuns)
     .where(
@@ -146,7 +148,10 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
       queueAges.push(Math.max(0, now - row.createdAt));
     } else if (row.status === 'waiting_local_directory') {
       waitingLocalDirectory += 1;
-      queueAges.push(Math.max(0, now - row.createdAt));
+      // 旧行 null → 回退 createdAt
+      const entered =
+        row.waitingLocalEnteredAt ?? row.createdAt;
+      queueAges.push(Math.max(0, now - entered));
     } else if (row.status === 'running') {
       running += 1;
       const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;

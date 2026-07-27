@@ -233,6 +233,7 @@ describe('failStaleWaitingLocalDirectoryRuns', () => {
         finishedAt: now,
         failureReason: 'waiting_local_directory_timeout',
         error: expect.stringContaining('waiting_local_directory'),
+        waitingLocalEnteredAt: null,
       }),
     );
     expect(mocks.publish).toHaveBeenCalledWith(

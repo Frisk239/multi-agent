@@ -94,6 +94,11 @@ export const AgentRun = z.object({
   finishedAt: z.string().datetime().nullable(),
   // bu01：执行中 heartbeat；stale sweeper / orphan 恢复用
   lastHeartbeatAt: z.string().datetime().nullable(),
+  /**
+   * Slice 66：进入 `waiting_local_directory` 的墙钟时刻（epoch ms）。
+   * 旧行 / 非 waiting 为 null；离开 waiting 时清 null。
+   */
+  waitingLocalEnteredAt: z.number().nullable().optional(),
   // S04：squad-leader run 标记（照 multica 090/127 migration）
   isLeader: z.boolean().default(false),
   squadId: BusinessId.nullable(),

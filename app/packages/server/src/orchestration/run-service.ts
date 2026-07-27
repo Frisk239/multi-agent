@@ -112,7 +112,12 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
   const tr = transitionRun({
     id: runId,
     fromStatuses: ACTIVE,
-    patch: { status: 'cancelled', finishedAt },
+    patch: {
+      status: 'cancelled',
+      finishedAt,
+      // Slice 66：离开 waiting 清进入时刻
+      waitingLocalEnteredAt: null,
+    },
   });
   if (!tr.applied || !tr.row) return { ok: false };
   abortRun(runId); // 触发 AbortController → spawn-line kill 子进程

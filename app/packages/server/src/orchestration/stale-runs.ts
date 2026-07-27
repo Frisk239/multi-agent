@@ -256,6 +256,7 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
         finishedAt: now,
         error: 'orphan: agent missing for queued run',
         failureReason: 'exec_error',
+        waitingLocalEnteredAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -294,7 +295,8 @@ export function touchWaitingLocalDirectoryLeases(now = Date.now()): number {
 
 /**
  * waiting_local_directory 墙钟超时 → timed_out。
- * 用 createdAt 作起点（无专用 enteredWaitingAt 字段）；短 path-lock 等待远低于默认 2h，不会误杀。
+ * Slice 66：优先 waitingLocalEnteredAt；旧行 null 时回退 createdAt。
+ * 短 path-lock 等待远低于默认 2h，不会误杀。
  */
 export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
   const maxMs = getWaitingLocalMaxMs();
@@ -309,7 +311,10 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
 
   let n = 0;
   for (const row of candidates) {
-    if (row.createdAt > cutoff) continue;
+    const enteredAt =
+      (row as { waitingLocalEnteredAt?: number | null }).waitingLocalEnteredAt ??
+      row.createdAt;
+    if (enteredAt > cutoff) continue;
     const error = `stale: waiting_local_directory exceeded wall clock (${formatDurationMs(maxMs)})`;
     const tr = transitionRun({
       id: row.id,
@@ -319,6 +324,7 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
         finishedAt: now,
         error,
         failureReason: 'waiting_local_directory_timeout',
+        waitingLocalEnteredAt: null,
       },
     });
     if (tr.applied && tr.row) {

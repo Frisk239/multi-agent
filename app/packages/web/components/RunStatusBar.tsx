@@ -11,6 +11,7 @@ import {
   useSquad,
 } from '@/lib/api';
 import { useRunProgressStore } from '@/lib/ws';
+import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { MarkdownBody } from './MarkdownBody';
 
 /**
@@ -211,7 +212,10 @@ export function RunStatusBar({
                 ? progress
                 : active.status === 'queued'
                   ? '已排队，等待 worker 领取…'
-                  : '执行中，等待进度推送…'}
+                  : active.status === 'waiting_local_directory'
+                    ? waitingElapsedLabel(active.waitingLocalEnteredAt) ??
+                      '等待本地目录锁…'
+                    : '执行中，等待进度推送…'}
             </p>
           </div>
         ) : null}

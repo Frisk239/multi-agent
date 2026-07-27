@@ -57,6 +57,7 @@ describe('reshape transformers', () => {
         startedAt: now,
         finishedAt: now,
         lastHeartbeatAt: now,
+        waitingLocalEnteredAt: null,
         isLeader: 0,
         squadId: null,
         rerunOfRunId: null,
@@ -82,6 +83,44 @@ describe('reshape transformers', () => {
       // Slice 28：默认无价表 → costUsd null + uncosted（有 token 时）
       expect(result.costUsd).toBeNull();
       expect(result.uncosted).toBe(true);
+      // Slice 66：非 waiting / 未写 → null
+      expect(result.waitingLocalEnteredAt).toBeNull();
+    });
+
+    it('maps waitingLocalEnteredAt epoch ms when present (Slice 66)', () => {
+      const now = Date.now();
+      const entered = now - 12_000;
+      const row = {
+        id: 'run-wait-1',
+        kind: 'issue' as const,
+        issueId: 'iss-1',
+        chatThreadId: null,
+        projectId: null,
+        agentId: 'agt-1',
+        status: 'waiting_local_directory' as const,
+        failureReason: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        lastHeartbeatAt: now,
+        waitingLocalEnteredAt: entered,
+        isLeader: 0,
+        squadId: null,
+        rerunOfRunId: null,
+        quickPrompt: null,
+        runtime: 'claude-code' as const,
+        cwdMode: 'project_local' as const,
+        cwdPath: '/repo',
+        tokensInput: null,
+        tokensOutput: null,
+        tokensCacheRead: null,
+        tokensCacheWrite: null,
+        createdAt: now - 60_000,
+      };
+
+      const result = toAgentRun(row as any);
+      expect(result.status).toBe('waiting_local_directory');
+      expect(result.waitingLocalEnteredAt).toBe(entered);
     });
   });
 });

@@ -155,11 +155,13 @@ assert(gate.holder?.id === runA, 'Path holder should be Run A');
 console.log('PASS: path lock defer check passed');
 
 // 模拟 worker tick 中的状态转换 logic：queued -> waiting_local_directory
+// Slice 66：进入时写 waitingLocalEnteredAt
 const now2 = Date.now();
 db.update(agentRuns)
   .set({
     status: 'waiting_local_directory',
     lastHeartbeatAt: now2,
+    waitingLocalEnteredAt: now2,
     cwdPath: gate.path,
     cwdMode: 'project_local',
   })
@@ -175,6 +177,16 @@ assert(
   rowBWaiting.cwdMode === 'project_local',
   `Expected cwdMode project_local, got ${rowBWaiting.cwdMode}`,
 );
+assert(
+  rowBWaiting.waitingLocalEnteredAt === now2,
+  `Expected waitingLocalEnteredAt ${now2}, got ${rowBWaiting.waitingLocalEnteredAt}`,
+);
+const apiWaiting = toAgentRun(rowBWaiting);
+assert(
+  apiWaiting.waitingLocalEnteredAt === now2,
+  `API waitingLocalEnteredAt expected ${now2}, got ${apiWaiting.waitingLocalEnteredAt}`,
+);
+console.log('PASS: waitingLocalEnteredAt written on enter (Slice 66)');
 
 const enrichedB = enrichRunRowWithPathLock(rowBWaiting, toAgentRun(rowBWaiting));
 assert(
@@ -208,10 +220,15 @@ const rowBCheck = db.select().from(agentRuns).where(eq(agentRuns.id, runB)).get(
 const gateFree = shouldDeferClaimForPath(rowBCheck);
 assert(gateFree.defer === false, 'Run B should no longer defer after Run A completes');
 
-// 模拟 claim：waiting_local_directory -> running
+// 模拟 claim：waiting_local_directory -> running（Slice 66：离开清 null）
 const now3 = Date.now();
 db.update(agentRuns)
-  .set({ status: 'running', startedAt: now3, lastHeartbeatAt: now3 })
+  .set({
+    status: 'running',
+    startedAt: now3,
+    lastHeartbeatAt: now3,
+    waitingLocalEnteredAt: null,
+  })
   .where(eq(agentRuns.id, runB))
   .run();
 
@@ -219,6 +236,10 @@ const rowBRunning = db.select().from(agentRuns).where(eq(agentRuns.id, runB)).ge
 assert(
   rowBRunning.status === 'running',
   `Expected status running, got ${rowBRunning.status}`,
+);
+assert(
+  rowBRunning.waitingLocalEnteredAt == null,
+  `Expected waitingLocalEnteredAt null after claim, got ${rowBRunning.waitingLocalEnteredAt}`,
 );
 console.log('PASS: Run B successfully transitioned from waiting_local_directory to running');
 

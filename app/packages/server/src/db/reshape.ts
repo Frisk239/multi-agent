@@ -242,6 +242,9 @@ export function toAgentRun(row: RunRow): AgentRun {
     startedAt: iso(row.startedAt),
     finishedAt: iso(row.finishedAt),
     lastHeartbeatAt: iso(row.lastHeartbeatAt),
+    // Slice 66：epoch ms；旧行/非 waiting 为 null
+    waitingLocalEnteredAt:
+      (row as { waitingLocalEnteredAt?: number | null }).waitingLocalEnteredAt ?? null,
     isLeader: row.isLeader === 1,
     squadId: row.squadId,
     rerunOfRunId: row.rerunOfRunId ?? null,
