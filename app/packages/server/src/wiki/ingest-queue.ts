@@ -1,5 +1,6 @@
 // S08 Wiki ingest 队列（spec §4，DB 行即锁 + DLQ=同表 dead）
 // Slice 39 / R6：fail → nextAttemptAt 指数退避；claim 尊重 nextAttemptAt
+// Slice 47 / H2：running lease 墙钟；启动 recover 与运行中 lease 语义分离
 import { eq, and, asc, inArray, or, isNull, lte } from 'drizzle-orm';
 import type { WikiIngestJob } from '@ma/shared';
 import { db } from '../db/client.js';
@@ -8,6 +9,25 @@ import { wikiIngestJobs } from '../db/schema.js';
 /** 基础退避 5s，按 failCount 指数增长，封顶 15min */
 export const WIKI_BACKOFF_BASE_MS = 5_000;
 export const WIKI_BACKOFF_MAX_MS = 15 * 60_000;
+
+/**
+ * Slice 47 / H2：running 墙钟 lease 默认 20min。
+ * env `MA_WIKI_RUNNING_LEASE_MS`；`0`/`false`=关闭运行中 lease（启动 recover 仍生效）。
+ */
+export const DEFAULT_WIKI_RUNNING_LEASE_MS = 20 * 60_000;
+
+function envMs(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  if (raw === '0' || raw === 'false') return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/** 运行中 stuck 墙钟（ms）；0=禁用 requeueStaleRunningJobs */
+export function getWikiRunningLeaseMs(): number {
+  return envMs('MA_WIKI_RUNNING_LEASE_MS', DEFAULT_WIKI_RUNNING_LEASE_MS);
+}
 
 /** failCount 已自增后：delay = min(base * 2^(failCount-1), max) */
 export function wikiIngestBackoffMs(failCount: number): number {
@@ -96,8 +116,8 @@ export function claimNextWikiIngestJob(now = Date.now()) {
   return row;
 }
 
-export function completeWikiIngestJob(id: string): void {
-  const now = Date.now();
+/** 仅当仍为 running 时 complete（lease 已 requeue / 已终态则 no-op，防双杀） */
+export function completeWikiIngestJob(id: string, now = Date.now()): void {
   db.update(wikiIngestJobs)
     .set({
       status: 'completed',
@@ -106,14 +126,17 @@ export function completeWikiIngestJob(id: string): void {
       lastError: null,
       nextAttemptAt: null,
     })
-    .where(eq(wikiIngestJobs.id, id))
+    .where(and(eq(wikiIngestJobs.id, id), eq(wikiIngestJobs.status, 'running')))
     .run();
 }
 
-// failCount++；< maxRetries → 回 pending + nextAttemptAt 退避；否则 dead
+/**
+ * failCount++；< maxRetries → 回 pending + nextAttemptAt 退避；否则 dead。
+ * 仅当仍为 running 时生效（lease requeue 后迟到的 execute fail 不二次计次）。
+ */
 export function failWikiIngestJob(id: string, error: string, now = Date.now()): void {
   const row = db.select().from(wikiIngestJobs).where(eq(wikiIngestJobs.id, id)).get();
-  if (!row) return;
+  if (!row || row.status !== 'running') return;
   const failCount = row.failCount + 1;
   if (failCount < row.maxRetries) {
     const nextAttemptAt = now + wikiIngestBackoffMs(failCount);
@@ -126,7 +149,7 @@ export function failWikiIngestJob(id: string, error: string, now = Date.now()): 
         startedAt: null,
         nextAttemptAt,
       })
-      .where(eq(wikiIngestJobs.id, id))
+      .where(and(eq(wikiIngestJobs.id, id), eq(wikiIngestJobs.status, 'running')))
       .run();
   } else {
     db.update(wikiIngestJobs)
@@ -138,7 +161,7 @@ export function failWikiIngestJob(id: string, error: string, now = Date.now()): 
         finishedAt: now,
         nextAttemptAt: null,
       })
-      .where(eq(wikiIngestJobs.id, id))
+      .where(and(eq(wikiIngestJobs.id, id), eq(wikiIngestJobs.status, 'running')))
       .run();
   }
 }
@@ -185,9 +208,13 @@ export function retryAllDeadWikiIngestJobs(limit = 100): {
   return { requested: dead.length, retried, skipped };
 }
 
-// 启动 recovery：卡在 running 的 job 回收为 pending（立即可 claim）
-export function recoverStuckRunningJobs(): number {
-  const now = Date.now();
+/**
+ * 启动 recovery（仅 worker start 调用）：上一进程遗留的全部 running → pending。
+ * - 不计 failCount（进程已死，属孤儿锁，非业务失败）
+ * - nextAttemptAt=null → 立即可 claim
+ * - 与 requeueStaleRunningJobs 不双杀：启动后无 running 残留；运行中只走 lease
+ */
+export function recoverStuckRunningJobs(now = Date.now()): number {
   const r = db
     .update(wikiIngestJobs)
     .set({
@@ -199,6 +226,38 @@ export function recoverStuckRunningJobs(): number {
     .where(eq(wikiIngestJobs.status, 'running'))
     .run();
   return r.changes ?? 0;
+}
+
+/**
+ * Slice 47 / H2：运行中 lease 扫。
+ * - 条件：status=running 且 (startedAt ?? updatedAt) < now - lease
+ * - 策略：走 fail 路径 → failCount++；未满 max → pending + nextAttemptAt 退避；满 → dead
+ * - lease=0 关闭（启动 recover 仍可用）
+ * - 可注入 now 便于单测时钟推进
+ */
+export function requeueStaleRunningJobs(now = Date.now()): number {
+  const leaseMs = getWikiRunningLeaseMs();
+  if (leaseMs <= 0) return 0;
+  const cutoff = now - leaseMs;
+  const running = db
+    .select()
+    .from(wikiIngestJobs)
+    .where(eq(wikiIngestJobs.status, 'running'))
+    .all();
+  let n = 0;
+  for (const row of running) {
+    const leaseStart = row.startedAt ?? row.updatedAt;
+    if (leaseStart > cutoff) continue;
+    const beforeStatus = row.status;
+    failWikiIngestJob(
+      row.id,
+      `stale: wiki ingest running lease exceeded (${leaseMs}ms)`,
+      now,
+    );
+    const after = db.select().from(wikiIngestJobs).where(eq(wikiIngestJobs.id, row.id)).get();
+    if (after && after.status !== beforeStatus) n += 1;
+  }
+  return n;
 }
 
 export function listWikiIngestJobs(status?: string) {

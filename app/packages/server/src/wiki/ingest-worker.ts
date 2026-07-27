@@ -1,9 +1,11 @@
 // S08 Wiki ingest worker（spec §4.4，学 run-worker tick；ingest 单并发）
+// Slice 47 / H2：tick 扫 running lease；启动 recover 只清孤儿锁
 import {
   claimNextWikiIngestJob,
   completeWikiIngestJob,
   failWikiIngestJob,
   recoverStuckRunningJobs,
+  requeueStaleRunningJobs,
 } from './ingest-queue.js';
 import { ingestIssue } from './ingest.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
@@ -17,9 +19,10 @@ export function startWikiIngestWorker(): void {
   if (timer) return;
   stopped = false;
   markWorkerStarted('wikiIngestWorker');
+  // 启动：上一进程遗留 running 一律回 pending（不计 failCount）
   const recovered = recoverStuckRunningJobs();
   if (recovered > 0) {
-    console.log(`[wiki-ingest-worker] recovered ${recovered} stuck running job(s)`);
+    console.log(`[wiki-ingest-worker] recovered ${recovered} orphan running job(s) on start`);
   }
   timer = setInterval(() => {
     void tick();
@@ -45,6 +48,11 @@ async function tick(): Promise<void> {
   if (stopped) return;
   // busy 时仍记 tick，证明 loop 活着
   noteWorkerTick('wikiIngestWorker');
+  // 运行中 lease：超时 running → fail 路径（pending+backoff 或 dead）；busy 时也扫
+  const leased = requeueStaleRunningJobs();
+  if (leased > 0) {
+    console.log(`[wiki-ingest-worker] requeued ${leased} stale running job(s) by lease`);
+  }
   if (busy) return;
   const job = claimNextWikiIngestJob();
   if (!job) return;
@@ -57,6 +65,7 @@ async function tick(): Promise<void> {
 async function execute(jobId: string, issueId: string): Promise<void> {
   try {
     await ingestIssue(issueId);
+    // complete/fail 均带 status=running 闸，lease 已 requeue 时 no-op
     completeWikiIngestJob(jobId);
   } catch (err) {
     console.error('[wiki-ingest-worker] job 失败:', jobId, err);

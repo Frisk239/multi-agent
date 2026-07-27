@@ -18,10 +18,15 @@ vi.mock('../db/client.js', () => ({
 
 import {
   claimNextWikiIngestJob,
+  completeWikiIngestJob,
   enqueueWikiIngest,
   failWikiIngestJob,
+  getWikiRunningLeaseMs,
+  recoverStuckRunningJobs,
+  requeueStaleRunningJobs,
   retryWikiIngestJob,
   wikiIngestBackoffMs,
+  DEFAULT_WIKI_RUNNING_LEASE_MS,
   WIKI_BACKOFF_BASE_MS,
   WIKI_BACKOFF_MAX_MS,
 } from './ingest-queue.js';
@@ -117,5 +122,175 @@ describe('wiki ingest backoff (Slice 39)', () => {
 
     const claimed = claimNextWikiIngestJob(t0);
     expect(claimed?.id).toBe(jobId);
+  });
+});
+
+describe('wiki ingest running lease (Slice 47)', () => {
+  let prevLease: string | undefined;
+
+  beforeEach(() => {
+    const t = createTestDb();
+    testState.db = t.db;
+    testState.cleanup = t.cleanup;
+    seedTestFixtures(t.db);
+    prevLease = process.env.MA_WIKI_RUNNING_LEASE_MS;
+    process.env.MA_WIKI_RUNNING_LEASE_MS = String(60_000); // 1min for tests
+  });
+
+  afterEach(() => {
+    if (prevLease === undefined) delete process.env.MA_WIKI_RUNNING_LEASE_MS;
+    else process.env.MA_WIKI_RUNNING_LEASE_MS = prevLease;
+    testState.cleanup?.();
+    testState.db = null;
+    testState.cleanup = null;
+  });
+
+  it('getWikiRunningLeaseMs reads env; default 20min when unset', () => {
+    delete process.env.MA_WIKI_RUNNING_LEASE_MS;
+    expect(getWikiRunningLeaseMs()).toBe(DEFAULT_WIKI_RUNNING_LEASE_MS);
+    process.env.MA_WIKI_RUNNING_LEASE_MS = '0';
+    expect(getWikiRunningLeaseMs()).toBe(0);
+    process.env.MA_WIKI_RUNNING_LEASE_MS = '900000';
+    expect(getWikiRunningLeaseMs()).toBe(900_000);
+  });
+
+  it('requeueStaleRunningJobs: clock advance stuck running → pending + failCount + backoff', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    expect(jobId).toBeTruthy();
+    const t0 = 1_700_000_000_000;
+    const leaseMs = getWikiRunningLeaseMs();
+
+    testState.db!
+      .update(wikiIngestJobs)
+      .set({ status: 'running', startedAt: t0, updatedAt: t0, nextAttemptAt: null })
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .run();
+
+    // still within lease
+    expect(requeueStaleRunningJobs(t0 + leaseMs - 1)).toBe(0);
+    let row = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(row.status).toBe('running');
+    expect(row.failCount).toBe(0);
+
+    // past lease wall
+    expect(requeueStaleRunningJobs(t0 + leaseMs)).toBe(1);
+    row = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(row.status).toBe('pending');
+    expect(row.failCount).toBe(1);
+    expect(row.startedAt).toBeNull();
+    expect(row.nextAttemptAt).toBe(t0 + leaseMs + wikiIngestBackoffMs(1));
+    expect(row.lastError).toMatch(/running lease/i);
+
+    // claim respects backoff
+    expect(claimNextWikiIngestJob(t0 + leaseMs + 100)).toBeNull();
+    const claimed = claimNextWikiIngestJob(row.nextAttemptAt!);
+    expect(claimed?.id).toBe(jobId);
+  });
+
+  it('requeueStaleRunningJobs: repeated lease hits reach dead', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    const t0 = 1_700_000_000_000;
+    const leaseMs = 60_000;
+
+    for (let i = 0; i < 3; i++) {
+      testState.db!
+        .update(wikiIngestJobs)
+        .set({
+          status: 'running',
+          startedAt: t0 + i * leaseMs,
+          updatedAt: t0 + i * leaseMs,
+          nextAttemptAt: null,
+        })
+        .where(eq(wikiIngestJobs.id, jobId!))
+        .run();
+      requeueStaleRunningJobs(t0 + i * leaseMs + leaseMs);
+    }
+
+    const dead = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(dead.status).toBe('dead');
+    expect(dead.failCount).toBe(3);
+    expect(retryWikiIngestJob(jobId!)).toBe(true);
+  });
+
+  it('recoverStuckRunningJobs does not bump failCount (startup orphan path)', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    const t0 = 1_700_000_000_000;
+    testState.db!
+      .update(wikiIngestJobs)
+      .set({ status: 'running', startedAt: t0, updatedAt: t0, failCount: 0 })
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .run();
+
+    expect(recoverStuckRunningJobs(t0)).toBe(1);
+    const row = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(row.status).toBe('pending');
+    expect(row.failCount).toBe(0);
+    expect(row.nextAttemptAt).toBeNull();
+    expect(row.startedAt).toBeNull();
+  });
+
+  it('complete/fail after lease requeue are no-ops (no double-kill)', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    const t0 = 1_700_000_000_000;
+    testState.db!
+      .update(wikiIngestJobs)
+      .set({ status: 'running', startedAt: t0, updatedAt: t0 })
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .run();
+
+    expect(requeueStaleRunningJobs(t0 + 60_000)).toBe(1);
+    const afterLease = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(afterLease.status).toBe('pending');
+    expect(afterLease.failCount).toBe(1);
+
+    completeWikiIngestJob(jobId!, t0 + 60_001);
+    failWikiIngestJob(jobId!, 'late fail', t0 + 60_002);
+
+    const final = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(final.status).toBe('pending');
+    expect(final.failCount).toBe(1);
+    expect(final.nextAttemptAt).toBe(afterLease.nextAttemptAt);
+  });
+
+  it('lease disabled (0) skips requeue', () => {
+    process.env.MA_WIKI_RUNNING_LEASE_MS = '0';
+    const jobId = enqueueWikiIngest('iss-test-1');
+    const t0 = 1_700_000_000_000;
+    testState.db!
+      .update(wikiIngestJobs)
+      .set({ status: 'running', startedAt: t0, updatedAt: t0 })
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .run();
+    expect(requeueStaleRunningJobs(t0 + 999_999_999)).toBe(0);
+    const row = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(row.status).toBe('running');
   });
 });
