@@ -306,6 +306,14 @@ export function startStaleRunSweeper(): void {
   }, STALE_SWEEP_INTERVAL_MS);
 }
 
+/** Slice 23：优雅退出时停周期收尸，避免与 cancel 竞态 */
+export function stopStaleRunSweeper(): void {
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
+  }
+}
+
 export function escalateFailedSquadRuns(now = Date.now()): number {
   const candidates = db
     .select()

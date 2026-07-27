@@ -29,14 +29,18 @@
 | Onboarding 首启向导 (GAP-02) | ✅ | Slice 5 (`slice5-onboarding-impl-1.md`) |
 | RuntimeEvent 统一事件协议 (GAP-10) | ✅ | Slice 6 (`slice6-runtimeevent-impl-1.md`) |
 
-## 体验可演进（下一阶段切片池 · 2026-07-24 审计）
+## 体验可演进（下一阶段切片池 · 2026-07-27 滚动）
 
-| ID | 缺口 | 优先级 | 说明 |
+> **排期真源：** [slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（Slice 23–32）  
+> 7/24–7/26 历史清单见 [gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md)
+
+| 波次 | 切片 | 主题 | 优先级 |
 |---|---|---|---|
-| GAP-05–08 | 自定义字段 / 流式加深 / 快捷键 / 通知偏好 | P1–P2 | 体验纵深 |
-| GAP-11–17 | 委派子代理 / Tool Registry / 长对话压缩 / … | P2 | 远期 |
+| **R 健壮性** | 23–25 | 优雅退出/进程树 · Memory 串行+断路器 · 委派 depth/硬闸 | P0 |
+| **U 日用** | 26–28 | WS topic+按页刷新 · Chat/Trap/空错载 · 模型价表成本 | P1 |
+| **D 纵深** | 29–32 | 虚拟滚动 · Agent 模板库 · Wiki 复利 · Issue 侧滑 | P1–P2 |
 
-详见 [gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) 完整清单 + 切片计划。
+**默认顺序：** R1→R2→R3→U1→U3→U2→D…（选项 A）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -56,4 +60,4 @@
 | **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略（2026-07-24）：** 体验可演进区按 Slice Owner 自动迭代；切片来源见差距审计。刻意不做仍有效。
+**继续策略（2026-07-27）：** 按 [slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md) 先健壮性后手感再纵深；默认从 Slice 23 开刀。刻意不做仍有效。

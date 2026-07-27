@@ -44,16 +44,17 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-26）
+## 当前方位（2026-07-27）
 
-- **阶段：** S01–S19 + 补1–5 已合 main；**体验与编排纵深阶段持续高推**
-- **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [全量 gap 分析 2026-07-26](app/.progress/gap-analysis-full-2026-07-26.md)
+- **阶段：** S01–S22 + 补1–5 已合 main（Builder 半落地）；**下一阶段 = 健壮性 → 日用手感 → 纵深**
+- **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **全量缺口与切片规划（2026-07-26）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md) — 三期 12 刀切片规划
-- **已交（近）：** **Slice 19 (CLI 适配器均衡化 opencode/cursor/grok)** · Slice 18 (CLI Health Inspector) · Slice 17 (PR Link Card) · Slice 16 (Custom Fields) · Slice 15 (Token Cost) · Slice 14 (Rich Comment Composer) · Slice 13 (Agent Live Pulse)
-- **▶ 下一阶段切片池：** Slice 20 (S6: Cron 表达式 + 自动化加深) / Slice 21 (S7: Agent Builder 引导式创建)
-- **上一刀 closeout：** [slice19-cliequalization-impl-1.md](app/.progress/slice19-cliequalization-impl-1.md)
-- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI
+- **滚动计划（真源）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md) — Slice **23–32** 三轨十刀  
+- **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
+- **已交（近）：** **Slice 23 进程生命周期硬化** · 22 子代理树 · 20 Cron · 19 CLI 均衡 · 18–13 …
+- **▶ 下一刀（默认选项 A）：** **Slice 24 Memory 写可靠+断路器** → 25 委派边界 → 26 WS 轻量订阅 → 27 手感包 → 28 成本价表 → 29–32 虚拟滚动/模板库/Wiki 复利/侧滑
+- **上一刀 closeout：** [slice23-graceful-shutdown-impl-1.md](app/.progress/slice23-graceful-shutdown-impl-1.md)
+- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

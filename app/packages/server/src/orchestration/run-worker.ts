@@ -56,15 +56,27 @@ const HEARTBEAT_INTERVAL_MS = 5_000;
 //   多个 executeRun 并发时各自 onEvent 同步写 DB（better-sqlite3 线程安全）+ eventBus 同步遍历。
 
 let timer: ReturnType<typeof setInterval> | null = null;
+let stopped = false;
 
 export function startRunWorker(): void {
   if (timer) return;
+  stopped = false;
   timer = setInterval(() => {
     void tick();
   }, 500);
 }
 
+/** Slice 23：关停时清 timer，阻止 wake 再 claim */
+export function stopRunWorker(): void {
+  stopped = true;
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
 export function wakeRunWorker(): void {
+  if (stopped) return;
   void tick();
 }
 
@@ -72,6 +84,7 @@ export function wakeRunWorker(): void {
 // 可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）。
 // C1：project_local 同 path 同时仅 1 个 running；被挡显示为 waiting_local_directory。
 async function tick(): Promise<void> {
+  if (stopped) return;
   const queuedRows = db
     .select()
     .from(agentRuns)

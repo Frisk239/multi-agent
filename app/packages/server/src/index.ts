@@ -9,6 +9,11 @@ import {
   startStaleRunSweeper,
 } from './orchestration/stale-runs.js';
 import { startAutomationWorker } from './orchestration/automation-worker.js';
+import {
+  DEFAULT_HARD_EXIT_MS,
+  DEFAULT_SHUTDOWN_GRACE_MS,
+  shutdownServer,
+} from './orchestration/graceful-shutdown.js';
 import { scanSkills } from './skill/scanner.js';
 import { ensureWikiDir } from './wiki/store.js';
 import { startWikiIngestWorker } from './wiki/ingest-worker.js';
@@ -72,6 +77,43 @@ async function main() {
     app.log.error(err);
     process.exit(1);
   }
+
+  // Slice 23：SIGINT/SIGTERM 优雅关停；grace 超时 hard exit，避免卡死
+  let shuttingDown = false;
+  const onSignal = (signal: NodeJS.Signals) => {
+    if (shuttingDown) {
+      console.warn(`[shutdown] reentry ${signal}, already shutting down`);
+      return;
+    }
+    shuttingDown = true;
+    console.log(`[shutdown] received ${signal}`);
+
+    const hardExitMs = Number(process.env.MA_SHUTDOWN_HARD_MS ?? DEFAULT_HARD_EXIT_MS);
+    const graceMs = Number(process.env.MA_SHUTDOWN_GRACE_MS ?? DEFAULT_SHUTDOWN_GRACE_MS);
+    const hardTimer = setTimeout(() => {
+      console.error(`[shutdown] hard exit after ${hardExitMs}ms`);
+      process.exit(1);
+    }, hardExitMs);
+    // 不让 hard timer 单独撑住事件循环
+    hardTimer.unref?.();
+
+    void (async () => {
+      try {
+        const report = await shutdownServer({ graceMs });
+        console.log(
+          `[shutdown] cancelled=${report.cancelled} residual=${report.stillActive.length} timedOut=${report.timedOut}`,
+        );
+        await app.close();
+        process.exit(report.timedOut ? 1 : 0);
+      } catch (e) {
+        console.error('[shutdown] failed:', e);
+        process.exit(1);
+      }
+    })();
+  };
+
+  process.once('SIGINT', () => onSignal('SIGINT'));
+  process.once('SIGTERM', () => onSignal('SIGTERM'));
 }
 
 main();
