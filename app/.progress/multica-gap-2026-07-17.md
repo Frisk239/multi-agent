@@ -44,7 +44,7 @@
 
 **▶ Phase D 已收官：** [queue-55-62-phase-d-closeout-2026-07-27.md](./queue-55-62-phase-d-closeout-2026-07-27.md)（Slice **55–62 ✅**）  
 **▶ Phase E 已收官：** [queue-63-70-phase-e-closeout-2026-07-27.md](./queue-63-70-phase-e-closeout-2026-07-27.md)（Slice **63–70 ✅** · 失败可解释 + 恢复纵深）  
-**▶ 下一阶段可选：** Phase F（合并 Activity 时间线 / 流式加深）— 见 [Phase E 计划 §3](./slice-plan-2026-07-27-phase-e.md)
+**▶ Phase F 计划已立：** [slice-plan-2026-07-27-phase-f.md](./slice-plan-2026-07-27-phase-f.md) · Slice **71–74**（Activity 活数据 · 合并故事线 · 流式 · 可选 Tool 面板）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 

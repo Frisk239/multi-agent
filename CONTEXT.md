@@ -46,18 +46,18 @@
 
 ## 当前方位（2026-07-27）
 
-- **阶段：** Phase A–E **已收官** · Phase F（时间线/流式）可选后置
+- **阶段：** Phase A–E **已收官** · **▶ Phase F 计划已立（71–74）**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
+- **Phase F 计划：** [slice-plan-2026-07-27-phase-f.md](app/.progress/slice-plan-2026-07-27-phase-f.md)（Activity 活数据 · 故事线 · 流式 · 可选 Tool 面板）  
 - **Phase E 整队 closeout：** [queue-63-70-phase-e-closeout-2026-07-27.md](app/.progress/queue-63-70-phase-e-closeout-2026-07-27.md)（Slice **63–70 ✅**）  
-- **Phase E 计划（只读）：** [slice-plan-2026-07-27-phase-e.md](app/.progress/slice-plan-2026-07-27-phase-e.md)（失败可解释 + 恢复纵深）  
+- **Phase E intake：** [phase-e-intake-2026-07-27.md](app/.progress/phase-e-intake-2026-07-27.md)  
 - **Phase D 整队 closeout：** [queue-55-62-phase-d-closeout-2026-07-27.md](app/.progress/queue-55-62-phase-d-closeout-2026-07-27.md)  
-- **Phase C 整队 closeout：** [queue-44-54-phase-c-closeout-2026-07-27.md](app/.progress/queue-44-54-phase-c-closeout-2026-07-27.md)  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)
-- **已交（近）：** Phase E **63–70**（Classify · chip · Inbox CTA · waiting 时刻 · forceFresh · prepare_lease · Ops resumeStats · deferred opt-in）
-- **▶ 下一刀默认：** 可选 **Phase F**（Issue 合并时间线 / Activity WS / 流式折叠）— 见 Phase E 计划 §3；或 gap 再选题
+- **已交（近）：** Phase E **63–70**
+- **▶ 下一刀默认：** **Slice 71** — Activity RQ + WS invalidate（见 Phase F 计划）
 - **上一刀 closeout：** [slice70-deferred-escalate-closeout.md](app/.progress/slice70-deferred-escalate-closeout.md) · 整队 [queue-63-70-phase-e-closeout-2026-07-27.md](app/.progress/queue-63-70-phase-e-closeout-2026-07-27.md)
-- **验收证据：** 各刀 unit + `e2e-slice64`…`e2e-slice70`（部分 live SKIP 无服）
+- **验收证据：** 各刀 unit + e2e（部分 live SKIP 无服）
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏 / Deferred 默认强制改派
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
