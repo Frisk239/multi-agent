@@ -1180,19 +1180,30 @@ export function useWorkspaceRuns(params?: {
   });
 }
 
+/** Slice 67：可选 forceFresh */
+export type RetryRunVars = {
+  runId: string;
+  forceFresh?: boolean;
+};
+
 export function useRetryRun() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (runId: string) => {
+    mutationFn: async (vars: string | RetryRunVars) => {
+      const runId = typeof vars === 'string' ? vars : vars.runId;
+      const forceFresh = typeof vars === 'string' ? false : vars.forceFresh === true;
       const res = await apiFetch(`${API}/runs/${encodeURIComponent(runId)}/retry`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(forceFresh ? { forceFresh: true } : {}),
       });
       if (!res.ok) throw new Error(await apiError(res, '再执行失败'));
       return res.json() as Promise<AgentRun>;
     },
     onSuccess: (run, variables) => {
+      const runId = typeof variables === 'string' ? variables : variables.runId;
       qc.invalidateQueries({ queryKey: ['runs'] });
-      qc.invalidateQueries({ queryKey: ['run', variables] });
+      qc.invalidateQueries({ queryKey: ['run', runId] });
       qc.invalidateQueries({ queryKey: ['child-runs'] });
       if (run.issueId) qc.invalidateQueries({ queryKey: ['runs', run.issueId] });
       qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
@@ -1212,7 +1223,7 @@ export function useRetryRun() {
 export function useRerunIssue(issueId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body?: { runId?: string }) => {
+    mutationFn: async (body?: { runId?: string; forceFresh?: boolean }) => {
       const res = await apiFetch(`${API}/issues/${encodeURIComponent(issueId)}/rerun`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

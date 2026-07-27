@@ -775,7 +775,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
-    const res = await rerunIssue(id, parsed.data.runId);
+    const res = await rerunIssue(id, {
+      sourceRunId: parsed.data.runId,
+      forceFresh: parsed.data.forceFresh === true,
+    });
     if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return reply.status(201).send(res.run);
   });

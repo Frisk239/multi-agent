@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, agents, comments, issues } from '../db/schema.js';
-import { toAgentRun, toComment } from '../db/reshape.js';
+import { agentRuns, agents, comments, issues, runMessages } from '../db/schema.js';
+import { toAgentRun, toComment, toRunMessage } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from './event-bus.js';
 import { abortRun } from './run-control.js';
@@ -172,18 +172,66 @@ export async function enqueueLeaderRun(
   return checkAndEnqueue(issueId, leaderId, { isLeader: true, squadId, ...opts });
 }
 
+/** Slice 67：forceFresh 时写可观测 system note（不发明新列） */
+function appendForceFreshSystemNote(runId: string, issueId: string | null): void {
+  try {
+    const maxRow = db
+      .select({ m: sql<number>`COALESCE(MAX(${runMessages.seq}), 0)` })
+      .from(runMessages)
+      .where(eq(runMessages.runId, runId))
+      .get();
+    const seq = (maxRow?.m ?? 0) + 1;
+    const id = crypto.randomUUID();
+    const createdAt = Date.now();
+    const body = '[session] force_fresh：跳过 CLI session resume，强制新会话';
+    db.insert(runMessages)
+      .values({
+        id,
+        runId,
+        seq,
+        kind: 'system',
+        body,
+        createdAt,
+      })
+      .run();
+    eventBus.publish({
+      type: 'run:message',
+      message: toRunMessage({
+        id,
+        runId,
+        seq,
+        kind: 'system',
+        body,
+        createdAt,
+      }),
+      issueId,
+    });
+  } catch {
+    /* ignore note write race */
+  }
+}
+
 // checkAndEnqueue —— enqueueAgentRun / enqueueLeaderRun 的共用实现（排雷补充#3 DRY）。
 // readiness 硬闸 + 去重（per-(issue,agent)）+ 熔断（issue 总 run 数）+ insert + publish + wake。
 async function checkAndEnqueue(
   issueId: string,
   agentId: string,
-  opts?: { isLeader?: boolean; squadId?: string; rerunOfRunId?: string | null; parentRunId?: string | null; quickPrompt?: string | null },
+  opts?: {
+    isLeader?: boolean;
+    squadId?: string;
+    rerunOfRunId?: string | null;
+    parentRunId?: string | null;
+    quickPrompt?: string | null;
+    /** Slice 67：跳过 session resume */
+    forceFresh?: boolean;
+  },
 ): Promise<EnqueueResult> {
   const isLeader = opts?.isLeader ?? false;
   const squadId = opts?.squadId ?? null;
   const rerunOfRunId = opts?.rerunOfRunId ?? null;
   const parentRunId = opts?.parentRunId ?? null;
   const quickPrompt = opts?.quickPrompt ?? null;
+  const forceFresh = opts?.forceFresh === true;
 
   const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) {
@@ -288,9 +336,14 @@ async function checkAndEnqueue(
       squadId,
       rerunOfRunId,
       parentRunId,
+      // Slice 67：enqueue 即标记 force_fresh，worker resolvePriorSession 跳过 resume
+      sessionResumeStatus: forceFresh ? 'force_fresh' : null,
       createdAt,
     })
     .run();
+  if (forceFresh) {
+    appendForceFreshSystemNote(id, issueId);
+  }
   const row = db.select().from(agentRuns).where(eq(agentRuns.id, id)).get()!;
   const run = toAgentRun(row);
   eventBus.publish({ type: 'run:queued', run });
@@ -321,15 +374,34 @@ export type RerunResult =
   | { ok: true; run: AgentRun }
   | { ok: false; status: number; error: string };
 
+export type RerunIssueOpts = {
+  sourceRunId?: string | null;
+  /** Slice 67：跳过 session resume */
+  forceFresh?: boolean;
+};
+
 /**
  * 人工再执行（学 Multica RerunIssue）：始终新行，不复活旧 run。
  * - 无 sourceRunId：当前 issue assignee → agent 或 squad leader
  * - 有 sourceRunId：该历史 run 的 agent / isLeader / squadId（须属于本 issue）
+ * - forceFresh：新 run 不绑定旧 session
  */
 export async function rerunIssue(
   issueId: string,
-  sourceRunId?: string | null,
+  sourceRunIdOrOpts?: string | null | RerunIssueOpts,
+  forceFreshArg?: boolean,
 ): Promise<RerunResult> {
+  // 兼容：rerunIssue(id, runId) | rerunIssue(id, { sourceRunId, forceFresh })
+  let sourceRunId: string | null | undefined;
+  let forceFresh = false;
+  if (sourceRunIdOrOpts != null && typeof sourceRunIdOrOpts === 'object') {
+    sourceRunId = sourceRunIdOrOpts.sourceRunId;
+    forceFresh = sourceRunIdOrOpts.forceFresh === true;
+  } else {
+    sourceRunId = sourceRunIdOrOpts;
+    forceFresh = forceFreshArg === true;
+  }
+
   const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
   if (!issue) return { ok: false, status: 404, error: 'issue 不存在' };
 
@@ -383,8 +455,9 @@ export async function rerunIssue(
           isLeader: true,
           squadId,
           rerunOfRunId: rerunOf,
+          forceFresh,
         })
-      : await checkAndEnqueue(issueId, agentId, { rerunOfRunId: rerunOf });
+      : await checkAndEnqueue(issueId, agentId, { rerunOfRunId: rerunOf, forceFresh });
 
   if (!enq.run) {
     const detail = enq.detail ?? '无法排队新 run';
@@ -402,7 +475,10 @@ export async function rerunIssue(
 }
 
 /** POST /api/runs/:id/retry —— 仅 failed|cancelled|timed_out 的 issue 工作 run；chat/QC 拒绝并给可行动文案 */
-export async function retryRun(runId: string): Promise<RerunResult> {
+export async function retryRun(
+  runId: string,
+  opts?: { forceFresh?: boolean },
+): Promise<RerunResult> {
   const src = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!src) return { ok: false, status: 404, error: 'run 不存在' };
 
@@ -432,5 +508,8 @@ export async function retryRun(runId: string): Promise<RerunResult> {
     };
   }
 
-  return rerunIssue(src.issueId, src.id);
+  return rerunIssue(src.issueId, {
+    sourceRunId: src.id,
+    forceFresh: opts?.forceFresh === true,
+  });
 }

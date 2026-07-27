@@ -14,7 +14,9 @@ export type SessionResumeStatus =
   | 'resumed'
   | 'poison_fresh'
   | 'unsupported'
-  | 'resume_miss';
+  | 'resume_miss'
+  /** Slice 67：用户显式 forceFresh，跳过 resume */
+  | 'force_fresh';
 
 export type PriorSessionDecision = {
   /** 传给 CLI 的 --resume id；null = fresh */
@@ -80,6 +82,7 @@ function rowSessionId(row: {
 /**
  * 从 DB 选 prior session。
  * 优先 rerunOfRunId 精确源 run；否则同 issue/chat + agent + runtime 最近可 resume。
+ * Slice 67：forceFresh / sessionResumeStatus=force_fresh → 跳过 resume，不绑定旧 session。
  */
 export function resolvePriorSession(runRow: {
   id: string;
@@ -89,7 +92,26 @@ export function resolvePriorSession(runRow: {
   chatThreadId?: string | null;
   kind?: string | null;
   rerunOfRunId?: string | null;
+  /** enqueue 时已写 force_fresh，或调用方显式传入 */
+  forceFresh?: boolean | null;
+  sessionResumeStatus?: string | null;
 }): PriorSessionDecision {
+  const forceFresh =
+    runRow.forceFresh === true ||
+    runRow.sessionResumeStatus === 'force_fresh';
+
+  // Slice 67：用户强制新会话——不查 prior、不绑定旧 session（能力矩阵不变）
+  if (forceFresh) {
+    return {
+      resumeSessionId: null,
+      status: 'force_fresh',
+      reason: runtimeSupportsSessionResume(runRow.runtime)
+        ? '用户 force_fresh：跳过 resume，强制新会话'
+        : `用户 force_fresh（runtime ${runRow.runtime} 本就不支持真 resume）`,
+      sourceRunId: null,
+    };
+  }
+
   if (!runtimeSupportsSessionResume(runRow.runtime)) {
     return {
       resumeSessionId: null,
@@ -256,6 +278,9 @@ export function finalizeSessionFields(opts: {
   let status: SessionResumeStatus;
   if (opts.planned.status === 'unsupported') {
     status = 'unsupported';
+  } else if (opts.planned.status === 'force_fresh' && !requested) {
+    // Slice 67：用户强制新会话意图保留到终态
+    status = 'force_fresh';
   } else if (opts.planned.status === 'poison_fresh' && !requested) {
     status = 'poison_fresh';
   } else if (requested && failed && !emitted) {

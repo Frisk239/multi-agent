@@ -141,7 +141,15 @@ export const AgentRun = z.object({
   providerSessionId: z.string().nullable().optional(),
   resumedSessionId: z.string().nullable().optional(),
   sessionResumeStatus: z
-    .enum(['fresh', 'resumed', 'poison_fresh', 'unsupported', 'resume_miss'])
+    .enum([
+      'fresh',
+      'resumed',
+      'poison_fresh',
+      'unsupported',
+      'resume_miss',
+      // Slice 67：用户显式 forceFresh，跳过 resume
+      'force_fresh',
+    ])
     .nullable()
     .optional(),
   sessionPoisoned: z.boolean().optional(),
@@ -319,10 +327,18 @@ export const CancelRunsManyResponse = z.object({
 export type CancelRunsManyResponse = z.infer<typeof CancelRunsManyResponse>;
 
 // run-observability：POST /api/issues/:id/rerun body（Multica task_id → runId）
+// Slice 67：forceFresh=true → 新 run 跳过 session resume
 export const RerunIssueInput = z.object({
   runId: BusinessId.optional(),
+  forceFresh: z.boolean().optional(),
 });
 export type RerunIssueInput = z.infer<typeof RerunIssueInput>;
+
+/** POST /api/runs/:id/retry body（可选；空 body 兼容旧客户端） */
+export const RetryRunInput = z.object({
+  forceFresh: z.boolean().optional(),
+});
+export type RetryRunInput = z.infer<typeof RetryRunInput>;
 
 export const RunFailureCode = z.enum([
   'cwd_missing',

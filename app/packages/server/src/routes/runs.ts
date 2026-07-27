@@ -3,6 +3,7 @@ import { eq, desc, asc, and, inArray, type SQL, sql } from 'drizzle-orm';
 import {
   CancelRunsManyInput,
   ListRunsQuery,
+  RetryRunInput,
   type RunsActiveCount,
 } from '@ma/shared';
 import { db } from '../db/client.js';
@@ -153,9 +154,22 @@ export async function runRoutes(app: FastifyInstance) {
   });
 
   // POST /api/runs/:runId/retry —— 人工再执行（新行）；QC 无 issue → 400
+  // Slice 67：可选 body { forceFresh?: boolean }
   app.post('/api/runs/:runId/retry', async (req, reply) => {
     const { runId } = req.params as { runId: string };
-    const res = await retryRun(runId);
+    const body = req.body === undefined || req.body === null ? {} : req.body;
+    const parsed = RetryRunInput.safeParse(body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      });
+    }
+    const res = await retryRun(runId, {
+      forceFresh: parsed.data.forceFresh === true,
+    });
     if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return reply.status(201).send(res.run);
   });

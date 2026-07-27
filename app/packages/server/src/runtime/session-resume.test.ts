@@ -88,4 +88,65 @@ describe('Slice 50 session resume capability matrix', () => {
     expect(isSessionPoisonText('Error: prompt is too long')).toBe(true);
     expect(isSessionPoisonText('network timeout')).toBe(false);
   });
+
+  // Slice 67
+  it('forceFresh skips resume binding even for claude-code', () => {
+    const d = resolvePriorSession({
+      id: 'run-ff',
+      runtime: 'claude-code',
+      agentId: 'ag-x',
+      issueId: 'iss-x',
+      kind: 'issue',
+      forceFresh: true,
+      rerunOfRunId: 'run-src',
+    });
+    expect(d.resumeSessionId).toBeNull();
+    expect(d.status).toBe('force_fresh');
+    expect(d.reason).toMatch(/force_fresh|强制/);
+    expect(d.sourceRunId).toBeNull();
+  });
+
+  it('sessionResumeStatus=force_fresh same as forceFresh flag', () => {
+    const d = resolvePriorSession({
+      id: 'run-ff2',
+      runtime: 'claude-code',
+      agentId: 'ag-x',
+      issueId: 'iss-x',
+      kind: 'issue',
+      sessionResumeStatus: 'force_fresh',
+    });
+    expect(d.resumeSessionId).toBeNull();
+    expect(d.status).toBe('force_fresh');
+  });
+
+  it('forceFresh on unsupported runtime still force_fresh (matrix unchanged)', () => {
+    const d = resolvePriorSession({
+      id: 'run-ff-op',
+      runtime: 'opencode',
+      agentId: 'ag-x',
+      issueId: 'iss-x',
+      kind: 'issue',
+      forceFresh: true,
+    });
+    expect(d.resumeSessionId).toBeNull();
+    expect(d.status).toBe('force_fresh');
+    // 能力矩阵仍 false
+    expect(runtimeSupportsSessionResume('opencode')).toBe(false);
+  });
+
+  it('finalize keeps force_fresh status', () => {
+    const fin = finalizeSessionFields({
+      planned: {
+        resumeSessionId: null,
+        status: 'force_fresh',
+        reason: 'user',
+        sourceRunId: null,
+      },
+      emittedSessionId: 'sess-new',
+      exitReason: 'completed',
+    });
+    expect(fin.sessionResumeStatus).toBe('force_fresh');
+    expect(fin.resumedSessionId).toBeNull();
+    expect(fin.providerSessionId).toBe('sess-new');
+  });
 });

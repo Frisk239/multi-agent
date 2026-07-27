@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { classifyRunFailure, type RunMessage } from '@ma/shared';
 import {
   useAgent,
@@ -134,6 +134,8 @@ function sessionResumeLabel(
       return '新鲜启动';
     case 'poison_fresh':
       return '中毒后新会话';
+    case 'force_fresh':
+      return '强制新会话';
     case 'unsupported':
       return '本 runtime 不支持真 resume';
     case 'resume_miss':
@@ -216,6 +218,17 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const streamChunk = run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const [kindFilter, setKindFilter] = useState<'' | RunMessage['kind']>('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /** Slice 67：强制新会话；session_poisoned 默认勾选 */
+  const [forceFresh, setForceFresh] = useState(false);
+  const [forceFreshTouched, setForceFreshTouched] = useState(false);
+
+  // session_poisoned 失败默认勾选「强制新会话」（用户未手动改过时）
+  useEffect(() => {
+    if (forceFreshTouched) return;
+    const poisoned =
+      run?.failureReason === 'session_poisoned' || run?.sessionPoisoned === true;
+    setForceFresh(Boolean(poisoned));
+  }, [run?.id, run?.failureReason, run?.sessionPoisoned, forceFreshTouched]);
 
   const isLive =
     run?.status === 'queued' ||
@@ -346,15 +359,47 @@ export function RunDetailPage({ runId }: { runId: string }) {
             </button>
           ) : null}
           {recovery === 'issue_retry' ? (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              data-testid="run-detail-retry"
-              disabled={retry.isPending}
-              onClick={() => retry.mutate(run.id)}
+            <div
+              className="run-detail-retry-group"
+              data-testid="run-detail-retry-group"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              {retry.isPending ? '排队中…' : '再执行'}
-            </button>
+              <label
+                className="run-detail-force-fresh"
+                data-testid="force-fresh-label"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+                title="跳过 CLI session resume，强制新会话"
+              >
+                <input
+                  type="checkbox"
+                  data-testid="force-fresh-checkbox"
+                  checked={forceFresh}
+                  onChange={(e) => {
+                    setForceFreshTouched(true);
+                    setForceFresh(e.target.checked);
+                  }}
+                />
+                强制新会话
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                data-testid="run-detail-retry"
+                disabled={retry.isPending}
+                onClick={() =>
+                  retry.mutate({ runId: run.id, forceFresh: forceFresh === true })
+                }
+              >
+                {retry.isPending ? '排队中…' : '再执行'}
+              </button>
+            </div>
           ) : null}
           {recovery === 'open_chat' && chatHref ? (
             <Link
@@ -575,6 +620,11 @@ export function RunDetailPage({ runId }: { runId: string }) {
             {run.sessionResumeStatus === 'unsupported' ? (
               <p className="run-path-lock-note text-dim" data-testid="run-session-unsupported">
                 仅 claude-code 支持真 session resume；其它 runtime 可能仍复用隔离目录或塞 prompt 历史。
+              </p>
+            ) : null}
+            {run.sessionResumeStatus === 'force_fresh' ? (
+              <p className="run-path-lock-note" data-testid="run-session-force-fresh">
+                本 run 由用户<strong>强制新会话</strong>启动（跳过 CLI session resume）。
               </p>
             ) : null}
           </div>

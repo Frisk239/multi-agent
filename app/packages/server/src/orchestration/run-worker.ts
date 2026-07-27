@@ -274,6 +274,7 @@ async function tick(): Promise<void> {
     }
 
   // DS1：execute 前解析 prior session（ADR 0004）
+  // Slice 67：enqueue 时 sessionResumeStatus=force_fresh → 跳过 resume
   const priorSession = resolvePriorSession({
     id: runRow.id,
     runtime: runRow.runtime,
@@ -282,6 +283,8 @@ async function tick(): Promise<void> {
     chatThreadId: runRow.chatThreadId ?? null,
     kind: (runRow.kind as string) ?? 'issue',
     rerunOfRunId: runRow.rerunOfRunId ?? null,
+    sessionResumeStatus:
+      (runRow as { sessionResumeStatus?: string | null }).sessionResumeStatus ?? null,
   });
   try {
     db.update(agentRuns)

@@ -16,6 +16,9 @@ import {
   CreateAgentInput,
   CreateCommentInput,
   AutomationScheduleKind,
+  RerunIssueInput,
+  RetryRunInput,
+  AgentRun,
 } from './schema';
 
 describe('Shared Schema Validators', () => {
@@ -291,6 +294,46 @@ describe('Shared Schema Validators', () => {
       expect(() => BusinessId.parse(123)).toThrow();
       expect(() => BusinessId.parse(null)).toThrow();
       expect(() => BusinessId.parse(undefined)).toThrow();
+    });
+  });
+
+  // Slice 67
+  describe('RerunIssueInput / RetryRunInput forceFresh', () => {
+    it('accepts empty body and forceFresh boolean', () => {
+      expect(RerunIssueInput.parse({})).toEqual({});
+      expect(RerunIssueInput.parse({ forceFresh: true, runId: 'r1' })).toEqual({
+        forceFresh: true,
+        runId: 'r1',
+      });
+      expect(RetryRunInput.parse({})).toEqual({});
+      expect(RetryRunInput.parse({ forceFresh: false })).toEqual({ forceFresh: false });
+    });
+
+    it('rejects non-boolean forceFresh', () => {
+      expect(() => RetryRunInput.parse({ forceFresh: 'yes' })).toThrow();
+      expect(() => RerunIssueInput.parse({ forceFresh: 1 })).toThrow();
+    });
+
+    it('AgentRun sessionResumeStatus accepts force_fresh', () => {
+      const base = {
+        id: 'run-1',
+        issueId: null,
+        agentId: 'ag-1',
+        runtime: 'claude-code',
+        status: 'queued',
+        kind: 'issue',
+        quickPrompt: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        lastHeartbeatAt: null,
+        isLeader: false,
+        squadId: null,
+        createdAt: new Date().toISOString(),
+        sessionResumeStatus: 'force_fresh' as const,
+      };
+      const parsed = AgentRun.parse(base);
+      expect(parsed.sessionResumeStatus).toBe('force_fresh');
     });
   });
 });
