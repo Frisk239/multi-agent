@@ -123,11 +123,19 @@ describe('Shared Schema Validators', () => {
         'stale_heartbeat',
         'exec_error',
         'timeout',
+        'squad_member_escalated',
         'waiting_local_directory_timeout',
+        // Slice 63
+        'auth_required',
+        'quota_exceeded',
+        'session_poisoned',
+        'cancelled',
+        'user_aborted',
       ];
       for (const r of reasons) {
         expect(AgentRunFailureReason.parse(r)).toBe(r);
       }
+      expect(AgentRunFailureReason.options).toEqual(reasons);
     });
   });
 

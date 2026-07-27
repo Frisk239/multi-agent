@@ -27,7 +27,7 @@ import { triggerFromComment } from './comment-trigger.js';
 import { memoryManager } from '../memory/manager.js';
 import { recordActivityLog } from './activity-logger.js';
 import type { AgentEvent } from '../runtime/types.js';
-import type { AgentRun, AgentRunFailureReason } from '@ma/shared';
+import { classifyFailure, type AgentRun, type AgentRunFailureReason } from '@ma/shared';
 import {
   enrichRunRowWithPathLock,
   normalizePathLockKey,
@@ -724,13 +724,9 @@ async function tick(): Promise<void> {
   }
 }
 
+/** Slice 63：薄包装 → shared classifyFailure 规则表 */
 function inferFailureReason(error: string): AgentRunFailureReason {
-  const l = error.toLowerCase();
-  if (l.includes('tool watchdog') || l.includes('tool_watchdog')) return 'tool_watchdog';
-  if (l.includes('idle')) return 'idle_watchdog';
-  if (l.includes('heartbeat') || l.includes('orphan')) return 'stale_heartbeat';
-  if (l.includes('timeout') || l.includes('timed out')) return 'timeout';
-  return 'exec_error';
+  return classifyFailure(error);
 }
 
 export async function failRun(
@@ -742,6 +738,7 @@ export async function failRun(
   const prev = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!prev) return;
 
+  // 显式 failureReason 优先；否则走 Classify 规则表
   const reason = failureReason ?? inferFailureReason(error);
   // Slice 39：0-change 不发 run:failed / inbox
   const tr = transitionRun({
