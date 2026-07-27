@@ -42,6 +42,7 @@ vi.mock('./memory/manager.js', () => ({
 }));
 
 import {
+  buildOpsResumeStats,
   buildOpsSnapshot,
   summarizeAgesMs,
 } from './ops-snapshot.js';
@@ -131,6 +132,23 @@ describe('ops snapshot', () => {
       busyTimeoutMs: 5000,
       journalMode: 'wal',
       foreignKeys: true,
+    });
+    // Slice 69：resumeStats 必有键；空 mock 库全 0 + window 7d
+    expect(snap.resumeStats).toMatchObject({
+      sessionPoisoned: 0,
+      resumeMiss: 0,
+      deferredUnclaimed: 0,
+      window: '7d',
+    });
+  });
+
+  it('buildOpsResumeStats returns 7d window keys', () => {
+    const stats = buildOpsResumeStats(Date.now());
+    expect(stats).toEqual({
+      sessionPoisoned: 0,
+      resumeMiss: 0,
+      deferredUnclaimed: 0,
+      window: '7d',
     });
   });
 });

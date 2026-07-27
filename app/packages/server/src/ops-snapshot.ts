@@ -1,6 +1,7 @@
 /** Slice 51：运维快照 — 一页 JSON 排障（runs / wiki / memory breaker / workers / automation） */
+/** Slice 69：resumeStats — poison / resume_miss / deferred 近窗计数 */
 
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
 import {
   db,
   getSqliteHardeningInfo,
@@ -9,6 +10,7 @@ import {
 import {
   agentRuns,
   automationRuns,
+  inboxItems,
   wikiIngestJobs,
 } from './db/schema.js';
 import { memoryManager } from './memory/manager.js';
@@ -18,6 +20,10 @@ import {
   type WorkerHealthKey,
   type WorkerHealthSnapshot,
 } from './process-health.js';
+
+/** Slice 69 钉死：近 7 日（createdAt） */
+export const RESUME_STATS_WINDOW = '7d' as const;
+export const RESUME_STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type OpsQueueAgeSummary = {
   count: number;
@@ -77,6 +83,19 @@ export type OpsSqliteSnapshot = Pick<
   'path' | 'busyTimeoutMs' | 'journalMode' | 'foreignKeys'
 >;
 
+/**
+ * Slice 69：session resume / deferred 运营计数（近窗，非时序 BI）
+ * - sessionPoisoned：session_poisoned=1 的 run 数
+ * - resumeMiss：session_resume_status='resume_miss'
+ * - deferredUnclaimed：inbox 未读未归档、dedupe_key 以 deferred: 开头
+ */
+export type OpsResumeStats = {
+  sessionPoisoned: number;
+  resumeMiss: number;
+  deferredUnclaimed: number;
+  window: typeof RESUME_STATS_WINDOW;
+};
+
 export type OpsSnapshot = {
   ts: number;
   status: 'ok' | 'degraded';
@@ -88,6 +107,8 @@ export type OpsSnapshot = {
   automation: OpsAutomationSnapshot;
   /** Slice 57：主库 pragma 快照 */
   sqlite: OpsSqliteSnapshot;
+  /** Slice 69：poison / resume_miss / deferred 近窗计数 */
+  resumeStats: OpsResumeStats;
 };
 
 function percentileSorted(sortedAsc: number[], p: number): number | null {
@@ -263,6 +284,67 @@ export function buildOpsSqliteSnapshot(
   }
 }
 
+/**
+ * Slice 69：近 7 日 poison / resume_miss + 同窗未读 deferred inbox。
+ * SQLite 上简单 select + length；空库全 0。
+ */
+export function buildOpsResumeStats(now = Date.now()): OpsResumeStats {
+  const cutoff = now - RESUME_STATS_WINDOW_MS;
+
+  let sessionPoisoned = 0;
+  let resumeMiss = 0;
+  let deferredUnclaimed = 0;
+
+  try {
+    sessionPoisoned = db
+      .select({ id: agentRuns.id })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.sessionPoisoned, 1),
+          gte(agentRuns.createdAt, cutoff),
+        ),
+      )
+      .all().length;
+
+    resumeMiss = db
+      .select({ id: agentRuns.id })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.sessionResumeStatus, 'resume_miss'),
+          gte(agentRuns.createdAt, cutoff),
+        ),
+      )
+      .all().length;
+
+    deferredUnclaimed = db
+      .select({ id: inboxItems.id })
+      .from(inboxItems)
+      .where(
+        and(
+          eq(inboxItems.read, 0),
+          eq(inboxItems.archived, 0),
+          like(inboxItems.dedupeKey, 'deferred:%'),
+          gte(inboxItems.createdAt, cutoff),
+        ),
+      )
+      .all().length;
+  } catch {
+    // 排障快照不应因计数失败拖垮整页；降级 0
+    sessionPoisoned = 0;
+    resumeMiss = 0;
+    deferredUnclaimed = 0;
+  }
+
+  return {
+    sessionPoisoned,
+    resumeMiss,
+    deferredUnclaimed,
+    window: RESUME_STATS_WINDOW,
+  };
+}
+
 export function buildOpsSnapshot(opts?: {
   now?: number;
   processHealth?: ProcessHealthResponse;
@@ -275,6 +357,7 @@ export function buildOpsSnapshot(opts?: {
   const memory = buildOpsMemorySnapshot();
   const automation = buildOpsAutomationSnapshot();
   const sqliteSnap = buildOpsSqliteSnapshot(opts?.sqlite);
+  const resumeStats = buildOpsResumeStats(now);
 
   const processDegraded = processHealth.status === 'degraded';
   const opsDegraded =
@@ -299,5 +382,6 @@ export function buildOpsSnapshot(opts?: {
     },
     automation,
     sqlite: sqliteSnap,
+    resumeStats,
   };
 }

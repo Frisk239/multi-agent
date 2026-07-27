@@ -130,6 +130,13 @@ describe('GET /api/ops/snapshot', () => {
       journalMode: 'wal',
       foreignKeys: true,
     });
+    // Slice 69
+    expect(body.resumeStats).toMatchObject({
+      sessionPoisoned: expect.any(Number),
+      resumeMiss: expect.any(Number),
+      deferredUnclaimed: expect.any(Number),
+      window: '7d',
+    });
   });
 });
 

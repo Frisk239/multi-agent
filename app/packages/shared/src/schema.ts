@@ -1905,6 +1905,27 @@ export const OpsSnapshot = z.object({
     failedRules: z.number().int().nonnegative(),
     lastFailedAt: z.string().nullable(),
   }),
+  /** Slice 57：主库 pragma（可选，兼容旧响应） */
+  sqlite: z
+    .object({
+      path: z.string(),
+      busyTimeoutMs: z.number().int().nonnegative(),
+      journalMode: z.string(),
+      foreignKeys: z.boolean(),
+    })
+    .optional(),
+  /**
+   * Slice 69：近窗 session poison / resume_miss / deferred 未认领计数
+   * window 钉死 '7d'
+   */
+  resumeStats: z
+    .object({
+      sessionPoisoned: z.number().int().nonnegative(),
+      resumeMiss: z.number().int().nonnegative(),
+      deferredUnclaimed: z.number().int().nonnegative(),
+      window: z.string(),
+    })
+    .optional(),
 });
 export type OpsSnapshot = z.infer<typeof OpsSnapshot>;
 

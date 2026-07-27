@@ -1444,6 +1444,24 @@ function OpsSnapshotCard() {
               <span className="text-dim">无</span>
             )}
           </li>
+          {data.resumeStats ? (
+            <li data-testid="ops-resume-stats">
+              Resume（{data.resumeStats.window}）：poisoned{' '}
+              <strong data-testid="ops-resume-stats-poisoned">
+                {data.resumeStats.sessionPoisoned}
+              </strong>
+              {' · '}
+              resume_miss{' '}
+              <strong data-testid="ops-resume-stats-miss">
+                {data.resumeStats.resumeMiss}
+              </strong>
+              {' · '}
+              deferred 未认领{' '}
+              <strong data-testid="ops-resume-stats-deferred">
+                {data.resumeStats.deferredUnclaimed}
+              </strong>
+            </li>
+          ) : null}
         </ul>
       ) : isError ? (
         <p className="text-dim text-sm">无法加载 /api/ops/snapshot</p>
