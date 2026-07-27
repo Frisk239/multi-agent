@@ -13,6 +13,7 @@ vi.mock('../db/client.js', () => {
     db: { select: () => chain },
     sqlite: {
       prepare: () => ({ get: () => ({ '1': 1 }) }),
+      backup: vi.fn(async () => ({ totalPages: 1, remainingPages: 0 })),
     },
     getSqliteHardeningInfo: () => ({
       path: './dev.db',
@@ -38,6 +39,16 @@ vi.mock('../memory/manager.js', () => ({
   },
 }));
 
+const backupMocks = vi.hoisted(() => ({
+  createDbBackup: vi.fn(),
+  listDbBackups: vi.fn(),
+}));
+
+vi.mock('../ops-backup.js', () => ({
+  createDbBackup: backupMocks.createDbBackup,
+  listDbBackups: backupMocks.listDbBackups,
+}));
+
 import { opsRoutes } from './ops.js';
 import {
   __resetProcessHealthForTests,
@@ -53,13 +64,38 @@ function makeApp() {
     get: (path: string, handler: Handler) => {
       routes[`GET ${path}`] = handler;
     },
+    post: (path: string, handler: Handler) => {
+      routes[`POST ${path}`] = handler;
+    },
   };
   return { app: app as never, routes };
+}
+
+function makeReply() {
+  const state: { statusCode?: number; body?: unknown } = {};
+  const reply = {
+    status(code: number) {
+      state.statusCode = code;
+      return {
+        send(body: unknown) {
+          state.body = body;
+          return body;
+        },
+      };
+    },
+    send(body: unknown) {
+      state.body = body;
+      return body;
+    },
+  };
+  return { reply, state };
 }
 
 describe('GET /api/ops/snapshot', () => {
   beforeEach(() => {
     __resetProcessHealthForTests();
+    backupMocks.createDbBackup.mockReset();
+    backupMocks.listDbBackups.mockReset();
   });
 
   it('returns ops snapshot JSON with required fields', async () => {
@@ -94,5 +130,83 @@ describe('GET /api/ops/snapshot', () => {
       journalMode: 'wal',
       foreignKeys: true,
     });
+  });
+});
+
+describe('POST /api/ops/backup & GET /api/ops/backups', () => {
+  beforeEach(() => {
+    backupMocks.createDbBackup.mockReset();
+    backupMocks.listDbBackups.mockReset();
+  });
+
+  it('POST backup success → success:true + path/sizeBytes/createdAt', async () => {
+    backupMocks.createDbBackup.mockResolvedValue({
+      success: true,
+      path: 'D:/tmp/ma-backup-x.db',
+      name: 'ma-backup-x.db',
+      sizeBytes: 4096,
+      createdAt: '2026-07-27T00:00:00.000Z',
+      dir: 'D:/tmp',
+    });
+
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const handler = routes['POST /api/ops/backup'];
+    expect(handler).toBeTypeOf('function');
+
+    const body = (await handler({}, makeReply().reply)) as Record<string, any>;
+    expect(body).toMatchObject({
+      success: true,
+      path: 'D:/tmp/ma-backup-x.db',
+      sizeBytes: 4096,
+      createdAt: '2026-07-27T00:00:00.000Z',
+    });
+  });
+
+  it('POST backup failure → status + code', async () => {
+    backupMocks.createDbBackup.mockResolvedValue({
+      success: false,
+      error: '备份目录不可写',
+      code: 'BACKUP_DIR_NOT_WRITABLE',
+      status: 503,
+    });
+
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const { reply, state } = makeReply();
+    const body = (await routes['POST /api/ops/backup']!({}, reply)) as Record<
+      string,
+      any
+    >;
+    expect(state.statusCode).toBe(503);
+    expect(body ?? state.body).toMatchObject({
+      success: false,
+      code: 'BACKUP_DIR_NOT_WRITABLE',
+    });
+  });
+
+  it('GET backups lists entries', async () => {
+    backupMocks.listDbBackups.mockReturnValue({
+      success: true,
+      dir: 'D:/tmp/.ma-backups',
+      backups: [
+        {
+          name: 'ma-backup-a.db',
+          path: 'D:/tmp/.ma-backups/ma-backup-a.db',
+          size: 100,
+          mtime: '2026-07-27T00:00:00.000Z',
+        },
+      ],
+    });
+
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const body = (await routes['GET /api/ops/backups']!({})) as Record<
+      string,
+      any
+    >;
+    expect(body.success).toBe(true);
+    expect(body.backups).toHaveLength(1);
+    expect(body.backups[0].name).toBe('ma-backup-a.db');
   });
 });

@@ -1,7 +1,9 @@
 // Slice 51：运维快照 API（排障 JSON，非 Prometheus）
+// Slice 58：DB backup / list
 import type { FastifyInstance } from 'fastify';
 import { sqlite } from '../db/client.js';
 import { buildOpsSnapshot } from '../ops-snapshot.js';
+import { createDbBackup, listDbBackups } from '../ops-backup.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
 
 function pingSqlite(): DbPingResult {
@@ -23,5 +25,42 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const now = Date.now();
     const processHealth = buildProcessHealth({ now, db: pingSqlite() });
     return buildOpsSnapshot({ now, processHealth });
+  });
+
+  /** POST /api/ops/backup — better-sqlite3 .backup() → MA_BACKUP_DIR 或 .ma-backups */
+  app.post('/api/ops/backup', async (_req, reply) => {
+    const result = await createDbBackup();
+    if (!result.success) {
+      return reply.status(result.status).send({
+        success: false,
+        error: result.error,
+        code: result.code,
+      });
+    }
+    return {
+      success: true,
+      path: result.path,
+      name: result.name,
+      sizeBytes: result.sizeBytes,
+      createdAt: result.createdAt,
+      dir: result.dir,
+    };
+  });
+
+  /** GET /api/ops/backups — 列出备份目录内 .db 文件 */
+  app.get('/api/ops/backups', async (_req, reply) => {
+    const result = listDbBackups();
+    if (!result.success) {
+      return reply.status(result.status).send({
+        success: false,
+        error: result.error,
+        code: result.code,
+      });
+    }
+    return {
+      success: true,
+      dir: result.dir,
+      backups: result.backups,
+    };
   });
 }

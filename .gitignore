@@ -46,6 +46,10 @@ pnpm-debug.log*
 *.db-journal
 *.sqlite
 
+# ── Ops DB 备份目录（Slice 58，默认 process.cwd()/.ma-backups）──
+.ma-backups/
+**/.ma-backups/
+
 # ── 工具产物（验收/MCP 调试产生，不进版本库）──
 .playwright-mcp/
 .playwright-cli/
