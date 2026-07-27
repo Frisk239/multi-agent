@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { resolveGChordRoute } from './shortcuts';
 
 export function useShortcuts() {
   const router = useRouter();
@@ -47,11 +48,24 @@ export function useShortcuts() {
       }
 
       if (key === '/') {
-        const searchInput = document.querySelector('input[placeholder*="搜索"]') as HTMLInputElement;
+        const searchInput = document.querySelector(
+          'input[placeholder*="搜索"]',
+        ) as HTMLInputElement;
         if (searchInput) {
           searchInput.focus();
           e.preventDefault();
         }
+        return;
+      }
+
+      // g-chord 必须先于单键 c/n（否则 g c 会被「新建 Issue」吞掉）
+      if (lastKey === 'g') {
+        const route = resolveGChordRoute(key);
+        if (route) {
+          router.push(route);
+          e.preventDefault();
+        }
+        lastKey = '';
         return;
       }
 
@@ -62,25 +76,6 @@ export function useShortcuts() {
 
       if (key === 'q') {
         window.dispatchEvent(new CustomEvent('open-quick-dispatch'));
-        return;
-      }
-
-      if (lastKey === 'g') {
-        switch (key) {
-          case 'i':
-            router.push('/');
-            break;
-          case 'n':
-            router.push('/inbox');
-            break;
-          case 'r':
-            router.push('/runs');
-            break;
-          case 's':
-            router.push('/settings');
-            break;
-        }
-        lastKey = '';
         return;
       }
 

@@ -13108,3 +13108,96 @@ a.issue-card-run-fail--link:hover {
     width: 100vw;
   }
 }
+
+/* ============================================================
+   Slice 53 · 窄屏侧栏抽屉（≤900px）
+   默认隐藏 + 壳层汉堡 + overlay；Esc / 点遮罩关闭
+   ============================================================ */
+
+.shell-hamburger {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .shell-hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1200;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--border-subtle, var(--border));
+    border-radius: 10px;
+    background: var(--bg-elevated, var(--app-shell));
+    color: var(--text-primary);
+    box-shadow: 0 2px 10px color-mix(in srgb, #000 14%, transparent);
+    cursor: pointer;
+  }
+
+  .shell-hamburger:hover {
+    background: var(--bg-hover, color-mix(in srgb, var(--bg-elevated) 90%, #000));
+  }
+
+  .shell-hamburger-bars {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 16px;
+  }
+
+  .shell-hamburger-bars > span {
+    display: block;
+    height: 2px;
+    width: 100%;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1140;
+    background: rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(2px);
+  }
+
+  .sidebar.sidebar--drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1160;
+    width: min(var(--sidebar-width), 86vw);
+    max-width: 320px;
+    height: 100vh;
+    max-height: 100vh;
+    transform: translateX(-105%);
+    transition: transform 0.18s ease;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  .sidebar.sidebar--drawer.sidebar--drawer-open {
+    transform: translateX(0);
+    pointer-events: auto;
+    box-shadow: 8px 0 28px color-mix(in srgb, #000 22%, transparent);
+  }
+
+  /* 主列顶栏给汉堡留空间，避免内容被压住 */
+  .main-column {
+    padding-top: 0;
+  }
+
+  .main-content {
+    padding-top: 4px;
+  }
+}

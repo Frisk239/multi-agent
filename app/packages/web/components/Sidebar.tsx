@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useInbox,
   useInboxUnreadCount,
@@ -11,6 +11,7 @@ import {
   useWikiJobs,
 } from '@/lib/api';
 import { useWsStore } from '@/lib/ws';
+import { NARROW_SIDEBAR_MAX_PX } from '@/lib/shortcuts';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { CommandPalette } from './CommandPalette';
@@ -194,6 +195,11 @@ function readOpsOpen(): boolean {
   }
 }
 
+function readIsNarrow(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia(`(max-width: ${NARROW_SIDEBAR_MAX_PX}px)`).matches;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -213,18 +219,68 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [collapseReady, setCollapseReady] = useState(false);
   const [opsOpen, setOpsOpen] = useState(true);
+  /** ≤900px：默认隐藏侧栏，汉堡 + overlay 打开 */
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setCollapsed(readSidebarCollapsed());
     setOpsOpen(readOpsOpen());
+    setIsNarrow(readIsNarrow());
     setCollapseReady(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${NARROW_SIDEBAR_MAX_PX}px)`);
+    const onChange = () => {
+      const next = mq.matches;
+      setIsNarrow(next);
+      if (!next) setMobileOpen(false);
+    };
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // 路由变化时收起窄屏抽屉
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const toggleMobile = useCallback(() => setMobileOpen((v) => !v), []);
 
   useEffect(() => {
     const handleOpenQuickDispatch = () => setQuickDispatchOpen(true);
     window.addEventListener('open-quick-dispatch', handleOpenQuickDispatch);
     return () => window.removeEventListener('open-quick-dispatch', handleOpenQuickDispatch);
   }, []);
+
+  // Esc / 全局关弹层：窄屏侧栏一起关
+  useEffect(() => {
+    if (!isNarrow || !mobileOpen) return;
+    const onClose = () => setMobileOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('close-all-modals', onClose);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('close-all-modals', onClose);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isNarrow, mobileOpen]);
+
+  // 窄屏抽屉打开时锁 body 滚动
+  useEffect(() => {
+    if (!isNarrow || !mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isNarrow, mobileOpen]);
 
   function handleOpsToggle(e: React.SyntheticEvent<HTMLDetailsElement>) {
     const next = e.currentTarget.open;
@@ -237,6 +293,10 @@ export function Sidebar() {
   }
 
   function toggleCollapsed() {
+    if (isNarrow) {
+      toggleMobile();
+      return;
+    }
     setCollapsed((v) => {
       const next = !v;
       try {
@@ -331,14 +391,57 @@ export function Sidebar() {
     },
   ];
 
-  const isCollapsed = collapseReady && collapsed;
+  // 窄屏强制展开文案（抽屉内不走 icon-only collapse）
+  const isCollapsed = collapseReady && collapsed && !isNarrow;
+  const showAsDrawer = isNarrow;
+  const drawerOpen = showAsDrawer && mobileOpen;
 
   return (
+    <>
+      {/* 窄屏壳层汉堡：侧栏默认隐藏时仍可打开 */}
+      {showAsDrawer ? (
+        <button
+          type="button"
+          className="shell-hamburger"
+          data-testid="shell-hamburger"
+          aria-label={mobileOpen ? '关闭导航' : '打开导航'}
+          aria-expanded={mobileOpen}
+          aria-controls="app-sidebar"
+          onClick={toggleMobile}
+        >
+          <span className="shell-hamburger-bars" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
+      ) : null}
+
+      {drawerOpen ? (
+        <div
+          className="sidebar-overlay"
+          data-testid="sidebar-overlay"
+          role="presentation"
+          onClick={closeMobile}
+        />
+      ) : null}
+
     <aside
-      className={`sidebar${isCollapsed ? ' sidebar--collapsed' : ''}`}
+      id="app-sidebar"
+      className={[
+        'sidebar',
+        isCollapsed ? 'sidebar--collapsed' : '',
+        showAsDrawer ? 'sidebar--drawer' : '',
+        drawerOpen ? 'sidebar--drawer-open' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       aria-label="主导航"
       data-testid="app-sidebar"
       data-collapsed={isCollapsed ? '1' : '0'}
+      data-narrow={showAsDrawer ? '1' : '0'}
+      data-mobile-open={drawerOpen ? '1' : '0'}
+      aria-hidden={showAsDrawer && !mobileOpen ? true : undefined}
     >
       <div className="sidebar-workspace">
         <svg
@@ -365,12 +468,24 @@ export function Sidebar() {
           type="button"
           className="sidebar-collapse-btn"
           data-testid="sidebar-collapse-toggle"
-          title={isCollapsed ? '展开侧栏' : '折叠侧栏'}
-          aria-label={isCollapsed ? '展开侧栏' : '折叠侧栏'}
-          aria-expanded={!isCollapsed}
-          onClick={toggleCollapsed}
+          title={
+            showAsDrawer
+              ? '关闭导航'
+              : isCollapsed
+                ? '展开侧栏'
+                : '折叠侧栏'
+          }
+          aria-label={
+            showAsDrawer
+              ? '关闭导航'
+              : isCollapsed
+                ? '展开侧栏'
+                : '折叠侧栏'
+          }
+          aria-expanded={showAsDrawer ? mobileOpen : !isCollapsed}
+          onClick={showAsDrawer ? closeMobile : toggleCollapsed}
         >
-          {isCollapsed ? '⟩' : '⟨'}
+          {showAsDrawer ? '✕' : isCollapsed ? '⟩' : '⟨'}
         </button>
       </div>
 
@@ -551,5 +666,6 @@ export function Sidebar() {
         initialPrompt={quickPrefill}
       />
     </aside>
+    </>
   );
 }

@@ -3,37 +3,12 @@
 import { useRef } from 'react';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { useShortcuts } from '@/lib/use-shortcuts';
-
-const SHORTCUTS = [
-  {
-    category: '导航 Navigation',
-    items: [
-      { label: '跳转到 Kanban/Issues', keys: ['g', 'i'] },
-      { label: '跳转到 Inbox', keys: ['g', 'n'] },
-      { label: '跳转到 Runs', keys: ['g', 'r'] },
-      { label: '跳转到 Settings', keys: ['g', 's'] },
-    ],
-  },
-  {
-    category: '操作 Actions',
-    items: [
-      { label: '新建 Issue', keys: ['c', '或', 'n'] },
-      { label: '快速派活 (Quick Dispatch)', keys: ['q'] },
-      { label: '全局搜索', keys: ['/'] },
-    ],
-  },
-  {
-    category: '视图 Views',
-    items: [
-      { label: '查看快捷键帮助', keys: ['?'] },
-      { label: '关闭弹窗 / 撤销焦点', keys: ['Esc'] },
-    ],
-  },
-];
+import { getShortcutHelpGroups } from '@/lib/shortcuts';
 
 export function KeyboardShortcutsModal() {
   const { isHelpOpen, closeHelp } = useShortcuts();
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const SHORTCUTS = getShortcutHelpGroups();
 
   useFocusTrap(isHelpOpen, dialogRef, {
     onEscape: closeHelp,
