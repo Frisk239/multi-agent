@@ -14,12 +14,17 @@ import {
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 import {
+  resolveFailureActionUi,
+  shouldShowFailureActionChip,
+} from '@/lib/failure-action-map';
+import {
   chatThreadHref,
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
+import { FailureActionChip } from './FailureActionChip';
 import { PageSkeleton, TableSkeleton } from './Skeleton';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -610,6 +615,17 @@ function RunsPageInner() {
                     r.status === 'failed' || r.error
                       ? classifyRunFailure(r.error)
                       : null;
+                  const failureAction = shouldShowFailureActionChip({
+                    status: r.status,
+                    error: r.error,
+                    failureReason: r.failureReason,
+                  })
+                    ? resolveFailureActionUi({
+                        failureReason: r.failureReason,
+                        error: r.error,
+                        status: r.status,
+                      })
+                    : null;
                   const highlighted = highlightRunId === r.id;
                   const reasonTitle = cls
                     ? `${cls.title}${r.error ? `\n${r.error}` : ''}`
@@ -648,6 +664,13 @@ function RunsPageInner() {
                           <span className="leader-badge runs-leader-badge" title="小队队长 run">
                             队长
                           </span>
+                        ) : null}
+                        {failureAction ? (
+                          <FailureActionChip
+                            ui={failureAction}
+                            testId="runs-failure-chip"
+                            className="run-failure-chip--runs"
+                          />
                         ) : null}
                       </td>
                       <td className="runs-col-task">

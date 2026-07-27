@@ -20,11 +20,16 @@ import {
   type RunEventViewItem,
 } from '@/lib/run-event-pairs';
 import {
+  resolveFailureActionUi,
+  shouldShowFailureActionChip,
+} from '@/lib/failure-action-map';
+import {
   chatThreadHref,
   qcRetryHref,
   runRecoveryKind,
 } from '@/lib/run-recovery';
 import { confirmDialog } from '@/lib/confirm-store';
+import { FailureActionChip } from './FailureActionChip';
 import { SubagentTreeViewer } from './SubagentTreeViewer';
 
 
@@ -218,6 +223,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const failure =
     run && (run.status === 'failed' || run.error)
       ? classifyRunFailure(run.error)
+      : null;
+  const failureAction =
+    run &&
+    shouldShowFailureActionChip({
+      status: run.status,
+      error: run.error,
+      failureReason: run.failureReason,
+    })
+      ? resolveFailureActionUi({
+          failureReason: run.failureReason,
+          error: run.error,
+          status: run.status,
+        })
       : null;
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
@@ -439,6 +457,13 @@ export function RunDetailPage({ runId }: { runId: string }) {
             </span>
           ) : null}
           {run.isLeader ? <span className="leader-badge">队长</span> : null}
+          {failureAction ? (
+            <FailureActionChip
+              ui={failureAction}
+              testId="run-failure-chip"
+              className="run-failure-chip--inline"
+            />
+          ) : null}
         </div>
 
         <div className="run-detail-chip-row" data-testid="run-detail-meta">

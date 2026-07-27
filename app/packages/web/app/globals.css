@@ -9590,6 +9590,52 @@ a.issue-card-run-fail--link:hover {
   text-decoration: none;
 }
 
+/* Slice 64 · failure action chip (retry / human / neutral) */
+.run-failure-chip {
+  gap: 4px;
+  max-width: 28rem;
+  white-space: normal;
+  line-height: 1.25;
+}
+.run-failure-chip-label {
+  font-weight: 600;
+  color: inherit;
+}
+.run-failure-chip-sep {
+  opacity: 0.55;
+}
+.run-failure-chip-action {
+  color: inherit;
+  opacity: 0.92;
+}
+.run-failure-chip[data-variant='retry'] {
+  color: color-mix(in srgb, var(--accent) 88%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.run-failure-chip[data-variant='human'] {
+  color: color-mix(in srgb, var(--color-red) 85%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--color-red) 40%, transparent);
+  background: color-mix(in srgb, var(--color-red) 9%, transparent);
+}
+.run-failure-chip[data-variant='neutral'] {
+  color: var(--text-muted);
+  border-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.run-failure-chip--inline {
+  margin-left: 2px;
+}
+.run-failure-chip--runs {
+  display: flex;
+  margin-top: 4px;
+  max-width: 14rem;
+  font-size: 11px;
+}
+.runs-col-status .run-failure-chip--runs {
+  white-space: normal;
+}
+
 .run-detail-cwd {
   margin-top: var(--space-2);
   display: flex;
