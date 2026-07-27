@@ -43,7 +43,7 @@
 | **O 运维** | 51 | Ops snapshot + live-probes | ✅ |
 
 **▶ Phase D 已收官：** [queue-55-62-phase-d-closeout-2026-07-27.md](./queue-55-62-phase-d-closeout-2026-07-27.md)（Slice **55–62 ✅**）  
-**▶ 下一阶段：** 可选 Phase E（失败可解释）/ Phase F（时间线·流式）；计划见 [slice-plan-2026-07-27-phase-d.md](./slice-plan-2026-07-27-phase-d.md) §3
+**▶ 下一阶段：** [Phase E 计划](./slice-plan-2026-07-27-phase-e.md) · Slice **63–70**（失败可解释 + 恢复纵深；F 时间线/流式仍可选后置）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
