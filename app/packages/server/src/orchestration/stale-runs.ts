@@ -34,6 +34,12 @@ export const STALE_QUEUED_MS = 30 * 60_000;
  * 环境变量 MA_WAITING_LOCAL_MAX_MS；0=关闭（不 fail）。
  */
 export const DEFAULT_WAITING_LOCAL_MAX_MS = 2 * 60 * 60_000;
+/**
+ * Slice 68 · prepare_lease（学 Multica FailStale / prepare_lease_expires_at 精神，单进程）。
+ * claim→running 后至 executor 稳定（registerRunAbort）前的半 claim 窗。
+ * MA_PREPARE_LEASE_MS；0=关闭（claim 不写 lease，sweeper no-op）。
+ */
+export const DEFAULT_PREPARE_LEASE_MS = 120_000;
 export const STALE_SWEEP_INTERVAL_MS = 15_000;
 
 function envMs(name: string, fallback: number): number {
@@ -71,6 +77,14 @@ export function getWaitingLocalMaxMs(): number {
 }
 
 /**
+ * Slice 68：半 claim prepare lease 时长；0=关闭。
+ * 默认 120s，覆盖 resolveCwd / resolvePrompt / session 等 prepare 路径。
+ */
+export function getPrepareLeaseMs(): number {
+  return envMs('MA_PREPARE_LEASE_MS', DEFAULT_PREPARE_LEASE_MS);
+}
+
+/**
  * Slice 42 / D5：queued 过久未 claim → deferred 升级（可观测，不 fail）。
  * 默认 0=关闭（防噪声）；开启示例：MA_DEFERRED_UNCLAIMED_MS=1800000（30min）
  */
@@ -90,6 +104,8 @@ export type RunRecoveryReport = {
   staleQueued: number;
   missingAgentQueued: number;
   staleWaitingLocal: number;
+  /** Slice 68：过期 prepare lease 半 claim */
+  stalePrepareLease: number;
   total: number;
 };
 
@@ -160,6 +176,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
         finishedAt,
         error,
         failureReason,
+        prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -192,6 +209,7 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
         finishedAt: now,
         error: 'orphan: no live executor after restart',
         failureReason: 'stale_heartbeat',
+        prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -205,7 +223,65 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
   return n;
 }
 
-/** queued 过久未 claim → failed（对齐 Multica stale 清扫精神，本地无 prepare_lease） */
+/**
+ * Slice 68 · FailStale prepare_lease（本地单进程版）。
+ *
+ * **半 claim 判定：**
+ * - `status === 'running'`
+ * - `prepareLeaseExpiresAt != null`（claim 写；稳定 running 后清 null）
+ * - `prepareLeaseExpiresAt < now`
+ *
+ * 本仓无 `dispatched` 态：claim 直接 queued/waiting → running 并写 lease；
+ * `registerRunAbort` 后清 lease = 进入稳定 executor。
+ *
+ * **过期行为（钉死）：fail** → `status=failed`，`failureReason=exec_error`，
+ * error 含 `prepare_lease`；**不** requeue。
+ */
+export function failStalePrepareLeaseRuns(now = Date.now()): number {
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'running'))
+    .all();
+
+  let n = 0;
+  for (const row of candidates) {
+    const lease =
+      (row as { prepareLeaseExpiresAt?: number | null }).prepareLeaseExpiresAt ??
+      null;
+    if (lease == null) continue;
+    if (lease >= now) continue;
+
+    const error =
+      'stale: prepare_lease expired (claim never reached stable running)';
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['running'],
+      patch: {
+        status: 'failed',
+        finishedAt: now,
+        error,
+        failureReason: 'exec_error',
+        prepareLeaseExpiresAt: null,
+        waitingLocalEnteredAt: null,
+      },
+    });
+    if (tr.applied && tr.row) {
+      clearToolInflight(row.id);
+      abortRun(row.id);
+      const run = toAgentRun(tr.row);
+      eventBus.publish({ type: 'run:failed', run });
+      notifyRunTerminal(run);
+      n++;
+    }
+  }
+  if (n > 0) {
+    console.warn(`[run] failStalePrepareLeaseRuns n=${n}`);
+  }
+  return n;
+}
+
+/** queued 过久未 claim → failed（对齐 Multica FailStale 精神；半 claim 见 prepare_lease） */
 export function failStaleQueuedRuns(now = Date.now()): number {
   const cutoff = now - STALE_QUEUED_MS;
   const candidates = db
@@ -225,6 +301,7 @@ export function failStaleQueuedRuns(now = Date.now()): number {
         finishedAt: now,
         error: 'stale: queued too long without claim',
         failureReason: 'idle_timeout',
+        prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -257,6 +334,7 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
         error: 'orphan: agent missing for queued run',
         failureReason: 'exec_error',
         waitingLocalEnteredAt: null,
+        prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -325,6 +403,7 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
         error,
         failureReason: 'waiting_local_directory_timeout',
         waitingLocalEnteredAt: null,
+        prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
@@ -337,19 +416,26 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
   return n;
 }
 
-/** 运维/启动共用：一次扫完 orphan running + stale running/queued/waiting + missing agent + 续租目录锁 */
+/** 运维/启动共用：一次扫完 orphan running + prepare lease + stale running/queued/waiting + missing agent + 续租目录锁 */
 export function recoverStuckRuns(now = Date.now()): RunRecoveryReport {
   touchWaitingLocalDirectoryLeases(now);
+  // prepare_lease 半 claim 优先于 orphan：两者都是 running 无 abort，但 lease 文案更准
+  const stalePrepareLease = failStalePrepareLeaseRuns(now);
   const orphanRunning = recoverOrphanedRunningRuns(now);
   const staleRunning = failStaleRunningRuns(now);
   const missingAgentQueued = failQueuedMissingAgentRuns(now);
   const staleQueued = failStaleQueuedRuns(now);
   const staleWaitingLocal = failStaleWaitingLocalDirectoryRuns(now);
   const total =
-    orphanRunning + staleRunning + missingAgentQueued + staleQueued + staleWaitingLocal;
+    orphanRunning +
+    staleRunning +
+    missingAgentQueued +
+    staleQueued +
+    staleWaitingLocal +
+    stalePrepareLease;
   if (total > 0) {
     console.warn(
-      `[run] recoverStuckRuns total=${total} orphanRunning=${orphanRunning} staleRunning=${staleRunning} missingAgentQueued=${missingAgentQueued} staleQueued=${staleQueued} staleWaitingLocal=${staleWaitingLocal}`,
+      `[run] recoverStuckRuns total=${total} orphanRunning=${orphanRunning} staleRunning=${staleRunning} missingAgentQueued=${missingAgentQueued} staleQueued=${staleQueued} staleWaitingLocal=${staleWaitingLocal} stalePrepareLease=${stalePrepareLease}`,
     );
   }
   return {
@@ -358,6 +444,7 @@ export function recoverStuckRuns(now = Date.now()): RunRecoveryReport {
     staleQueued,
     missingAgentQueued,
     staleWaitingLocal,
+    stalePrepareLease,
     total,
   };
 }
@@ -372,6 +459,8 @@ export function startStaleRunSweeper(): void {
       noteWorkerTick('staleRunSweeper');
       // 周期清扫与目录锁动态续租
       touchWaitingLocalDirectoryLeases();
+      // Slice 68：半 claim prepare_lease 过期 → fail（先于 heartbeat/orphan 语义）
+      failStalePrepareLeaseRuns();
       failStaleRunningRuns();
       failQueuedMissingAgentRuns();
       // deferred 在 hard-fail 之前：仍为 queued 时可观测升级

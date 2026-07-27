@@ -253,6 +253,8 @@ export const agentRuns = sqliteTable(
     lastHeartbeatAt: integer('last_heartbeat_at'),
     // Slice 66：进入 waiting_local_directory 墙钟起点；离开时清 null；旧行 null
     waitingLocalEnteredAt: integer('waiting_local_entered_at'),
+    // Slice 68：claim→running 后 prepare 阶段 lease 到期（epoch ms）；稳定 executor 后清 null
+    prepareLeaseExpiresAt: integer('prepare_lease_expires_at'),
     // run-observability：人工 rerun 血缘（可空）
     rerunOfRunId: text('rerun_of_run_id'),
     // A2 UX Trust：CLI cwd 审计（resolve-run-cwd）

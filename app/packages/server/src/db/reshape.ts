@@ -245,6 +245,9 @@ export function toAgentRun(row: RunRow): AgentRun {
     // Slice 66：epoch ms；旧行/非 waiting 为 null
     waitingLocalEnteredAt:
       (row as { waitingLocalEnteredAt?: number | null }).waitingLocalEnteredAt ?? null,
+    // Slice 68：prepare lease 到期；稳定 running / 终态为 null
+    prepareLeaseExpiresAt:
+      (row as { prepareLeaseExpiresAt?: number | null }).prepareLeaseExpiresAt ?? null,
     isLeader: row.isLeader === 1,
     squadId: row.squadId,
     rerunOfRunId: row.rerunOfRunId ?? null,

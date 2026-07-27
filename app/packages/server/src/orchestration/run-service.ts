@@ -117,6 +117,8 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
       finishedAt,
       // Slice 66：离开 waiting 清进入时刻
       waitingLocalEnteredAt: null,
+      // Slice 68：离开半 claim / 任意活跃态清 prepare lease
+      prepareLeaseExpiresAt: null,
     },
   });
   if (!tr.applied || !tr.row) return { ok: false };

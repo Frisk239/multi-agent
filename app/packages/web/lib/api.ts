@@ -1683,6 +1683,8 @@ export function useRecoverStuckRuns() {
         staleQueued: number;
         missingAgentQueued: number;
         staleWaitingLocal?: number;
+        /** Slice 68：过期 prepare lease 半 claim */
+        stalePrepareLease?: number;
         total: number;
       }>;
     },
@@ -1697,8 +1699,12 @@ export function useRecoverStuckRuns() {
           typeof r.staleWaitingLocal === 'number' && r.staleWaitingLocal > 0
             ? ` · 目录等待超时 ${r.staleWaitingLocal}`
             : '';
+        const leasePart =
+          typeof r.stalePrepareLease === 'number' && r.stalePrepareLease > 0
+            ? ` · prepare租约 ${r.stalePrepareLease}`
+            : '';
         toastSuccess(
-          `已收尸 ${r.total} 条（running残留 ${r.orphanRunning} · 心跳超时 ${r.staleRunning} · 缺 agent ${r.missingAgentQueued} · 排队过久 ${r.staleQueued}${waitingPart}）`,
+          `已收尸 ${r.total} 条（running残留 ${r.orphanRunning} · 心跳超时 ${r.staleRunning} · 缺 agent ${r.missingAgentQueued} · 排队过久 ${r.staleQueued}${waitingPart}${leasePart}）`,
           {
             action: { label: '失败运行', href: '/runs?status=failed' },
             durationMs: 8000,

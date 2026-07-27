@@ -37,6 +37,9 @@ describe('schema migrator drift gate (Slice 41)', () => {
 
     const agentRun = colNames(sqlite, 'agent_run');
     expect(agentRun.has('parent_run_id')).toBe(true);
+    // Slice 66 / 68
+    expect(agentRun.has('waiting_local_entered_at')).toBe(true);
+    expect(agentRun.has('prepare_lease_expires_at')).toBe(true);
 
     const issue = colNames(sqlite, 'issue');
     expect(issue.has('custom_fields')).toBe(true);

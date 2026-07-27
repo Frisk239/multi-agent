@@ -58,6 +58,7 @@ describe('reshape transformers', () => {
         finishedAt: now,
         lastHeartbeatAt: now,
         waitingLocalEnteredAt: null,
+        prepareLeaseExpiresAt: null,
         isLeader: 0,
         squadId: null,
         rerunOfRunId: null,
@@ -85,6 +86,8 @@ describe('reshape transformers', () => {
       expect(result.uncosted).toBe(true);
       // Slice 66：非 waiting / 未写 → null
       expect(result.waitingLocalEnteredAt).toBeNull();
+      // Slice 68：稳定/终态 → null
+      expect(result.prepareLeaseExpiresAt).toBeNull();
     });
 
     it('maps waitingLocalEnteredAt epoch ms when present (Slice 66)', () => {
@@ -104,6 +107,7 @@ describe('reshape transformers', () => {
         finishedAt: null,
         lastHeartbeatAt: now,
         waitingLocalEnteredAt: entered,
+        prepareLeaseExpiresAt: null,
         isLeader: 0,
         squadId: null,
         rerunOfRunId: null,
@@ -121,6 +125,43 @@ describe('reshape transformers', () => {
       const result = toAgentRun(row as any);
       expect(result.status).toBe('waiting_local_directory');
       expect(result.waitingLocalEnteredAt).toBe(entered);
+    });
+
+    it('maps prepareLeaseExpiresAt epoch ms when present (Slice 68)', () => {
+      const now = Date.now();
+      const lease = now + 120_000;
+      const row = {
+        id: 'run-lease-1',
+        kind: 'issue' as const,
+        issueId: 'iss-1',
+        chatThreadId: null,
+        projectId: null,
+        agentId: 'agt-1',
+        status: 'running' as const,
+        failureReason: null,
+        error: null,
+        startedAt: now,
+        finishedAt: null,
+        lastHeartbeatAt: now,
+        waitingLocalEnteredAt: null,
+        prepareLeaseExpiresAt: lease,
+        isLeader: 0,
+        squadId: null,
+        rerunOfRunId: null,
+        quickPrompt: null,
+        runtime: 'claude-code' as const,
+        cwdMode: 'project_local' as const,
+        cwdPath: '/repo',
+        tokensInput: null,
+        tokensOutput: null,
+        tokensCacheRead: null,
+        tokensCacheWrite: null,
+        createdAt: now,
+      };
+
+      const result = toAgentRun(row as any);
+      expect(result.status).toBe('running');
+      expect(result.prepareLeaseExpiresAt).toBe(lease);
     });
   });
 });

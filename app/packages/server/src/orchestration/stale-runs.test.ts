@@ -5,14 +5,17 @@ import {
   getIssueWallTimeoutMs,
   getWaitingLocalMaxMs,
   getDeferredUnclaimedMs,
+  getPrepareLeaseMs,
   formatDurationMs,
   failStaleWaitingLocalDirectoryRuns,
+  failStalePrepareLeaseRuns,
   escalateDeferredUnclaimedRuns,
   STALE_RUNNING_MS,
   DEFAULT_ISSUE_IDLE_MS,
   DEFAULT_OPENCODE_IDLE_MS,
   DEFAULT_ISSUE_TOOL_IDLE_MS,
   DEFAULT_WAITING_LOCAL_MAX_MS,
+  DEFAULT_PREPARE_LEASE_MS,
 } from './stale-runs';
 
 const mocks = vi.hoisted(() => ({
@@ -140,6 +143,7 @@ describe('stale-runs configuration and helpers', () => {
     expect(DEFAULT_OPENCODE_IDLE_MS).toBe(10 * 60_000);
     expect(DEFAULT_ISSUE_TOOL_IDLE_MS).toBe(2 * 60 * 60_000);
     expect(DEFAULT_WAITING_LOCAL_MAX_MS).toBe(2 * 60 * 60_000);
+    expect(DEFAULT_PREPARE_LEASE_MS).toBe(120_000);
   });
 
   it('getIssueIdleMs returns default or opencode specific idle timeout', () => {
@@ -187,11 +191,89 @@ describe('stale-runs configuration and helpers', () => {
     expect(getDeferredUnclaimedMs()).toBe(0);
   });
 
+  it('getPrepareLeaseMs defaults to 120s and is configurable (Slice 68)', () => {
+    expect(getPrepareLeaseMs()).toBe(DEFAULT_PREPARE_LEASE_MS);
+
+    vi.stubEnv('MA_PREPARE_LEASE_MS', '90000');
+    expect(getPrepareLeaseMs()).toBe(90_000);
+
+    vi.stubEnv('MA_PREPARE_LEASE_MS', '0');
+    expect(getPrepareLeaseMs()).toBe(0);
+  });
+
   it('formatDurationMs formats ms into human-readable strings', () => {
     expect(formatDurationMs(500)).toBe('1s');
     expect(formatDurationMs(5_000)).toBe('5s');
     expect(formatDurationMs(65_000)).toBe('1m');
     expect(formatDurationMs(3600_000)).toBe('1.0h');
+  });
+});
+
+describe('failStalePrepareLeaseRuns (Slice 68)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('fails running rows with expired prepareLeaseExpiresAt', () => {
+    const now = 10_000_000;
+    const row = {
+      id: 'run-half-claim',
+      status: 'running',
+      prepareLeaseExpiresAt: now - 1,
+      agentId: 'agt-1',
+      kind: 'issue',
+      issueId: 'iss-1',
+      createdAt: now - 200_000,
+    };
+    mocks.selectAll.mockReturnValue([row]);
+    mocks.selectGet.mockReturnValue({
+      ...row,
+      status: 'failed',
+      finishedAt: now,
+      error: 'stale: prepare_lease expired (claim never reached stable running)',
+      failureReason: 'exec_error',
+      prepareLeaseExpiresAt: null,
+    });
+
+    const n = failStalePrepareLeaseRuns(now);
+    expect(n).toBe(1);
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'failed',
+        failureReason: 'exec_error',
+        error: expect.stringContaining('prepare_lease'),
+        prepareLeaseExpiresAt: null,
+      }),
+    );
+    expect(mocks.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'run:failed' }),
+    );
+    expect(mocks.notifyRunTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips running rows with null lease (stable) or unexpired lease', () => {
+    const now = 10_000_000;
+    mocks.selectAll.mockReturnValue([
+      {
+        id: 'run-stable',
+        status: 'running',
+        prepareLeaseExpiresAt: null,
+      },
+      {
+        id: 'run-fresh-lease',
+        status: 'running',
+        prepareLeaseExpiresAt: now + 60_000,
+      },
+    ]);
+
+    expect(failStalePrepareLeaseRuns(now)).toBe(0);
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
   });
 });
 

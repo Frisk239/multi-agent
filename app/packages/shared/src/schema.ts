@@ -99,6 +99,11 @@ export const AgentRun = z.object({
    * 旧行 / 非 waiting 为 null；离开 waiting 时清 null。
    */
   waitingLocalEnteredAt: z.number().nullable().optional(),
+  /**
+   * Slice 68：claim 后 prepare 阶段 lease 到期（epoch ms）。
+   * 半 claim 窗口内非 null；进入稳定 running（executor 已 register）后清 null。
+   */
+  prepareLeaseExpiresAt: z.number().nullable().optional(),
   // S04：squad-leader run 标记（照 multica 090/127 migration）
   isLeader: z.boolean().default(false),
   squadId: BusinessId.nullable(),

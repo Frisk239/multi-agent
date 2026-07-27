@@ -14,7 +14,10 @@ import {
 import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
-import { touchRunHeartbeat } from './stale-runs.js';
+import {
+  getPrepareLeaseMs,
+  touchRunHeartbeat,
+} from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
 import { resolveRunPrompt } from '../runtime/prompt.js';
@@ -156,7 +159,10 @@ async function tick(): Promise<void> {
     }
 
     // claim（条件 UPDATE queued/waiting_local_directory→running）；Slice 39：changes 判定
+    // Slice 68：claim 时写 prepareLeaseExpiresAt；半 claim = running 且 lease 未清。
+    // Multica 精神：dispatched+prepare_lease；本仓无 dispatched，用 lease 列标 prepare 窗。
     const now = Date.now();
+    const prepareLeaseMs = getPrepareLeaseMs();
     const claimTr = transitionRun({
       id: queued.id,
       fromStatuses: CLAIMABLE_RUN_STATUSES,
@@ -166,6 +172,9 @@ async function tick(): Promise<void> {
         lastHeartbeatAt: now,
         // Slice 66：离开 waiting 清进入时刻
         waitingLocalEnteredAt: null,
+        // Slice 68：prepare 窗；0=关闭 lease（不写）
+        prepareLeaseExpiresAt:
+          prepareLeaseMs > 0 ? now + prepareLeaseMs : null,
       },
     });
     if (!claimTr.applied || !claimTr.row || claimTr.row.status !== 'running') {
@@ -335,6 +344,14 @@ async function tick(): Promise<void> {
     /* ignore write race */
   }
 
+  // Slice 68：prepare 期间可能被 prepare_lease sweeper / cancel 抢终态；spawn 前复核
+  {
+    const live = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get();
+    if (!live || live.status !== 'running') {
+      return;
+    }
+  }
+
   if (runRow.issueId) {
     recordActivityLog({
       issueId: runRow.issueId,
@@ -347,6 +364,23 @@ async function tick(): Promise<void> {
   }
 
   const signal = registerRunAbort(runRow.id);
+  // Slice 68：abort 已 register = 稳定 running；清 prepare lease（半 claim 结束）
+  try {
+    db.update(agentRuns)
+      .set({ prepareLeaseExpiresAt: null })
+      .where(and(eq(agentRuns.id, runRow.id), eq(agentRuns.status, 'running')))
+      .run();
+  } catch {
+    /* ignore write race */
+  }
+  // 清 lease 后再核一次：若 sweeper 已 fail，不进 executor
+  {
+    const live = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get();
+    if (!live || live.status !== 'running') {
+      clearRunAbort(runRow.id);
+      return;
+    }
+  }
   const kindForTimeout = (runRow.kind as string) ?? 'issue';
   // F3：chat 保留 5s 进程 pulse（防 worker 假死）；issue/QC 仅事件 touch（idle 语义）
   const useProcessPulse = kindForTimeout === 'chat';
@@ -540,6 +574,7 @@ async function tick(): Promise<void> {
           finishedAt,
           error: result.error ?? null,
           waitingLocalEnteredAt: null,
+          prepareLeaseExpiresAt: null,
           ...(hasTokens ? tokenPatch : {}),
           ...sessionPatch,
         },
@@ -592,6 +627,7 @@ async function tick(): Promise<void> {
         finishedAt,
         error: null,
         waitingLocalEnteredAt: null,
+        prepareLeaseExpiresAt: null,
         ...(hasTokens ? tokenPatch : {}),
         ...sessionPatch,
       },
@@ -763,6 +799,7 @@ export async function failRun(
       error,
       failureReason: reason,
       waitingLocalEnteredAt: null,
+      prepareLeaseExpiresAt: null,
     },
   });
   if (!tr.applied || !tr.row) return;
