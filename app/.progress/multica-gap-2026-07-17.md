@@ -29,22 +29,20 @@
 | Onboarding 首启向导 (GAP-02) | ✅ | Slice 5 (`slice5-onboarding-impl-1.md`) |
 | RuntimeEvent 统一事件协议 (GAP-10) | ✅ | Slice 6 (`slice6-runtimeevent-impl-1.md`) |
 
-## 体验可演进（下一阶段切片池 · 2026-07-27 Phase C）
+## 体验可演进（Phase C 已收官 · 2026-07-27）
 
-> **排期真源：** [slice-plan-2026-07-27-phase-c.md](./slice-plan-2026-07-27-phase-c.md)（Slice **44–54**）  
-> Phase B 已收官：[slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md)（33–43）· [queue-23-43-phase-b-closeout-2026-07-27.md](./queue-23-43-phase-b-closeout-2026-07-27.md)  
-> Phase A：[slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（23–32）  
-> 历史清单：[gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md)（多数 ID 已过时）
+> **Phase C 整队：** [queue-44-54-phase-c-closeout-2026-07-27.md](./queue-44-54-phase-c-closeout-2026-07-27.md)（Slice **44–54 ✅**）  
+> 计划（只读）：[slice-plan-2026-07-27-phase-c.md](./slice-plan-2026-07-27-phase-c.md)  
+> Phase B：[slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md) · [queue-23-43-phase-b-closeout-2026-07-27.md](./queue-23-43-phase-b-closeout-2026-07-27.md)
 
-| 波次 | 切片 | 主题 | 优先级 |
+| 波次 | 切片 | 主题 | 状态 |
 |---|---|---|---|
-| **H 诚实** | 44 / 47 | 假成功 Backend 归零 · Wiki running lease | P0 |
-| **U 手感** | 45–46 / 48 / 52–54 | 草稿 · 看板 live · Confirm · Select/批量 · 键/窄屏 · mention chips | P0–P2 |
-| **S 安全/Resume** | 49–50 | 本地 token（放开 bind）· Resume 能力矩阵 | P1 |
-| **O 运维** | 51 | Ops snapshot + live-probes 去 stub | P1 |
+| **H 诚实** | 44 / 47 | 假成功 Backend · Wiki running lease | ✅ |
+| **U 手感** | 45–46 / 48 / 52–54 | 草稿 · live · Confirm · Select · 键/窄屏 · chips | ✅ |
+| **S 安全/Resume** | 49–50 | 本地 token · Resume 矩阵 | ✅ |
+| **O 运维** | 51 | Ops snapshot + live-probes | ✅ |
 
-**默认顺序：** H1→U8→U9→H2→U10→S1→S2→O1→U11→U12→U13  
-即 **44 → 45 → 46 → 47 → 48 → 49 → 50 → 51 → 52 → 53 → 54**（选项 A · 见 phase-c 计划）
+**▶ 下一阶段：** 新 gap 审计 / 日用加深（非自动编号）；刻意不做仍有效。
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -65,4 +63,4 @@
 | **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略（2026-07-27 Phase C）：** 按 [slice-plan-2026-07-27-phase-c.md](./slice-plan-2026-07-27-phase-c.md) 先 **假成功归零** → 草稿/盯板手感 → Wiki lease → Confirm → token/Resume → Ops → 手感收口；默认从 **Slice 44** 开刀。刻意不做仍有效。
+**继续策略：** Phase C 已收官；新会话可 gap 审计选题，勿把 7/26 全量表当未开工清单。

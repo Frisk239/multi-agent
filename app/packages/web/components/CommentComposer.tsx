@@ -4,6 +4,10 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import type { AgentPulseStatus } from '@ma/shared';
 import { useAgents, useSquads, useCreateComment } from '@/lib/api';
 import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
+import {
+  parseMentionChips,
+  removeMentionFromBody,
+} from '@/lib/mention-chips';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { MarkdownBody } from './MarkdownBody';
@@ -57,6 +61,9 @@ export function CommentComposer({ issueId }: { issueId: string }) {
     setSelectedIndex(0);
   }, [filtered.length]);
 
+  // Sticky mention chips（从 body 解析，删 chip 同步 markdown）
+  const mentionChips = useMemo(() => parseMentionChips(body), [body]);
+
   // 计算当前输入内容中将要触发唤醒的 Agent / Squad（Multica 风格唤醒预览）
   const liveTriggers = useMemo(() => {
     if (!body.trim()) return [];
@@ -79,6 +86,11 @@ export function CommentComposer({ issueId }: { issueId: string }) {
     }
     return triggered;
   }, [body, roster]);
+
+  function removeChip(id: string) {
+    setBody((prev) => removeMentionFromBody(prev, id));
+    setMentionQ(null);
+  }
 
   function onChange(v: string) {
     setBody(v);
@@ -277,6 +289,45 @@ export function CommentComposer({ issueId }: { issueId: string }) {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* Slice 54 · sticky mention chips（扫清 @ 了谁） */}
+            {mentionChips.length > 0 && (
+              <div
+                className="composer-mention-chips"
+                data-testid="composer-mention-chips"
+              >
+                {mentionChips.map((chip) => {
+                  const label = chip.label.startsWith('@')
+                    ? chip.label
+                    : `@${chip.label}`;
+                  return (
+                    <span
+                      key={`${chip.kind}-${chip.id}`}
+                      className="composer-mention-chip"
+                      data-testid="composer-mention-chip"
+                      data-mention-kind={chip.kind}
+                      data-mention-id={chip.id}
+                    >
+                      <Icon
+                        name={chip.kind === 'agent' ? 'agent' : 'squad'}
+                        size={12}
+                      />
+                      <span className="composer-mention-chip-label">{label}</span>
+                      <button
+                        type="button"
+                        className="composer-mention-chip-remove"
+                        aria-label={`移除 ${label}`}
+                        title={`移除 ${label}`}
+                        data-testid="composer-mention-chip-remove"
+                        onClick={() => removeChip(chip.id)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
             )}
           </div>
         ) : (

@@ -46,17 +46,17 @@
 
 ## 当前方位（2026-07-27）
 
-- **阶段：** Phase A（23–32）与 **Phase B（33–43）已收官**；**Phase C = 诚实失败 → 高频手感 → 安全/Resume → 运维面**
+- **阶段：** Phase A（23–32）· B（33–43）· **C（44–54）均已收官**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **滚动计划（真源）：** [slice-plan-2026-07-27-phase-c.md](app/.progress/slice-plan-2026-07-27-phase-c.md) — Slice **44–54**  
-- **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)（33–43 已合）  
-- **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
-- **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** Phase B **23–43**；Phase C **44–53**（… · Select · 快捷键/窄屏）
-- **▶ 下一刀默认：** [Slice 54 · Mention chips 薄版](app/.progress/slice-plan-2026-07-27-phase-c.md)（Phase C 收官）
-- **上一刀 closeout：** [slice53-shortcuts-sidebar-closeout.md](app/.progress/slice53-shortcuts-sidebar-closeout.md)
-- **验收证据：** Slice53 unit 8 + e2e 11（g-c/a/w + 窄屏）
+- **Phase C 计划（只读）：** [slice-plan-2026-07-27-phase-c.md](app/.progress/slice-plan-2026-07-27-phase-c.md)（44–54 已合）  
+- **Phase C 整队 closeout：** [queue-44-54-phase-c-closeout-2026-07-27.md](app/.progress/queue-44-54-phase-c-closeout-2026-07-27.md)  
+- **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)  
+- **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)
+- **已交（近）：** Phase C **44–54 整队**（诚实失败 · 草稿/live · lease · Confirm · token · Resume · Ops · Select · 快捷键/窄屏 · mention chips）
+- **▶ 下一刀默认：** 新 gap 审计 / 日用体验加深（Phase C 已收官）
+- **上一刀 closeout：** [slice54-mention-chips-closeout.md](app/.progress/slice54-mention-chips-closeout.md) · 整队 [queue-44-54-phase-c-closeout-2026-07-27.md](app/.progress/queue-44-54-phase-c-closeout-2026-07-27.md)
+- **验收证据：** 各刀 unit + `e2e-slice44`…`e2e-slice54`；Slice54 mention chips 6 PASS
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
