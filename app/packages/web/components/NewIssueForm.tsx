@@ -12,6 +12,13 @@ import {
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
+import {
+  clearDraft,
+  draftKey,
+  readJsonDraft,
+  writeJsonDraft,
+  type NewIssueDraft,
+} from '@/lib/draft-storage';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { Select } from './Select';
@@ -24,6 +31,18 @@ type ExecPreview =
 // S12：内联表单升级——可指派 agent/squad；侧栏 /?new=1 触发展开
 // issue-cwd-gate：有指派且 cwd 未就绪时警告（与快速派活对齐）
 // A1 UX Trust：可选 project + 执行目录预检（隔离 / 项目本机 / 路径无效）
+const NEW_ISSUE_DRAFT_DEBOUNCE_MS = 300;
+
+function isPriority(v: string): v is Priority {
+  return (
+    v === 'none' ||
+    v === 'low' ||
+    v === 'medium' ||
+    v === 'high' ||
+    v === 'urgent'
+  );
+}
+
 export function NewIssueForm() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -32,6 +51,8 @@ export function NewIssueForm() {
   const [projectId, setProjectId] = useState('');
   const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const draftReadyRef = useRef(false);
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const create = useCreateIssue();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -51,6 +72,62 @@ export function NewIssueForm() {
   });
 
   const projectFromUrl = searchParams.get('project') ?? '';
+
+  // Slice 45：mount 恢复草稿（不恢复 open）
+  useEffect(() => {
+    const saved = readJsonDraft<NewIssueDraft>(draftKey.newIssue);
+    if (saved) {
+      if (typeof saved.title === 'string') setTitle(saved.title);
+      if (typeof saved.priority === 'string' && isPriority(saved.priority)) {
+        setPriority(saved.priority);
+      }
+      if (typeof saved.assigneeValue === 'string') setAssigneeValue(saved.assigneeValue);
+      if (typeof saved.projectId === 'string' && !projectFromUrl) {
+        setProjectId(saved.projectId);
+      }
+      if (Array.isArray(saved.customFields)) {
+        setCustomFields(
+          saved.customFields
+            .filter((f) => f && typeof f.k === 'string' && typeof f.v === 'string')
+            .map((f) => ({ k: f.k, v: f.v })),
+        );
+      }
+    }
+    draftReadyRef.current = true;
+    // 仅 mount 恢复一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- projectFromUrl 仅首帧读
+  }, []);
+
+  // Slice 45：字段变更 debounce 写盘（不写 open）
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    if (draftTimerRef.current != null) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const payload: NewIssueDraft = {
+        title,
+        priority,
+        assigneeValue,
+        projectId,
+        customFields,
+      };
+      // 全空则清掉，避免脏 key
+      const empty =
+        !title.trim() &&
+        priority === 'none' &&
+        !assigneeValue &&
+        !projectId &&
+        customFields.every((f) => !f.k.trim() && !f.v.trim());
+      if (empty) clearDraft(draftKey.newIssue);
+      else writeJsonDraft(draftKey.newIssue, payload);
+      draftTimerRef.current = null;
+    }, NEW_ISSUE_DRAFT_DEBOUNCE_MS);
+    return () => {
+      if (draftTimerRef.current != null) {
+        clearTimeout(draftTimerRef.current);
+        draftTimerRef.current = null;
+      }
+    };
+  }, [title, priority, assigneeValue, projectId, customFields]);
 
   const cwdBlocked = useMemo(() => {
     const cwd = settings?.checks?.find((c) => c.id === 'cwd');
@@ -147,12 +224,17 @@ export function NewIssueForm() {
   }, [projectFromUrl]);
 
   function reset() {
+    if (draftTimerRef.current != null) {
+      clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
     setTitle('');
     setPriority('none');
     setAssigneeValue('');
     setCustomFields([]);
     if (!projectFromUrl) setProjectId('');
     setOpen(false);
+    clearDraft(draftKey.newIssue);
   }
 
   function submit(e: React.FormEvent) {

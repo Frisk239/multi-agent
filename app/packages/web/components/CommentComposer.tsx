@@ -3,12 +3,17 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import type { AgentPulseStatus } from '@ma/shared';
 import { useAgents, useSquads, useCreateComment } from '@/lib/api';
+import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { MarkdownBody } from './MarkdownBody';
 
 export function CommentComposer({ issueId }: { issueId: string }) {
-  const [body, setBody] = useState('');
+  const {
+    value: body,
+    setValue: setBody,
+    clear: clearDraftBody,
+  } = usePersistentDraft(issueId ? draftKey.comment(issueId) : null);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [mentionQ, setMentionQ] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -151,7 +156,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
       { body: t },
       {
         onSuccess: () => {
-          setBody('');
+          clearDraftBody();
           setMode('edit');
         },
       }

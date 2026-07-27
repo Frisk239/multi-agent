@@ -20,6 +20,7 @@ import {
   useWorkspaceRuns,
 } from '@/lib/api';
 import { isNearBottom, NEAR_BOTTOM_PX } from '@/lib/chat-scroll';
+import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -103,7 +104,11 @@ export function ChatPage() {
 
   const agentFromUrl = searchParams.get('agent') ?? '';
   const [agentId, setAgentId] = useState('');
-  const [draft, setDraft] = useState('');
+  const {
+    value: draft,
+    setValue: setDraft,
+    clear: clearChatDraft,
+  } = usePersistentDraft(threadId ? draftKey.chat(threadId) : null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -289,8 +294,13 @@ export function ChatPage() {
     const body = draft.trim();
     if (!body || !threadId || liveRun) return;
     if (!(await checkGitDirty(selectedThread?.projectId ?? null))) return;
-    setDraft('');
-    await postMessage.mutateAsync(body);
+    clearChatDraft();
+    try {
+      await postMessage.mutateAsync(body);
+    } catch {
+      // 发送失败：把正文写回当前 thread 草稿（避免用户丢字）
+      setDraft(body);
+    }
   }
 
   /** 重发上一条：取最近一条用户消息正文，再 POST 新 run */
