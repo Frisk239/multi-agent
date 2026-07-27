@@ -96,6 +96,9 @@ describe('graceful-shutdown', () => {
       abortRun: vi.fn(() => false),
       sleep: vi.fn(async () => undefined),
       now: vi.fn(() => 0),
+      walCheckpoint: vi.fn(() => {
+        order.push('walCheckpoint');
+      }),
     };
 
     const report = await shutdownServer({ graceMs: 50, deps });
@@ -103,9 +106,32 @@ describe('graceful-shutdown', () => {
     expect(report.workersStopped).toBe(true);
     expect(report.cancelled).toBe(0);
     expect(report.timedOut).toBe(false);
+    expect(report.walCheckpointOk).toBe(true);
     expect(order[0]).toBe('stopWorkers');
     expect(order).toContain('listDb');
+    expect(order).toContain('walCheckpoint');
     expect(deps.stopWorkers).toHaveBeenCalledTimes(1);
+    expect(deps.walCheckpoint).toHaveBeenCalledTimes(1);
+  });
+
+  it('shutdownServer: walCheckpoint=false skips checkpoint', async () => {
+    const walCheckpoint = vi.fn();
+    const report = await shutdownServer({
+      graceMs: 50,
+      walCheckpoint: false,
+      deps: {
+        stopWorkers: vi.fn(),
+        listDbActiveRunIds: vi.fn(() => []),
+        cancelRunsMany: vi.fn(() => ({ cancelled: 0 })),
+        listActiveRunIds: vi.fn(() => []),
+        abortRun: vi.fn(() => false),
+        sleep: vi.fn(async () => undefined),
+        now: vi.fn(() => 0),
+        walCheckpoint,
+      },
+    });
+    expect(report.walCheckpointOk).toBeNull();
+    expect(walCheckpoint).not.toHaveBeenCalled();
   });
 
   it('exports a sensible default grace window', () => {

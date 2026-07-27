@@ -1,7 +1,8 @@
 // Slice 23：进程优雅退出 —— 停 worker → cancel ACTIVE DB runs → abort 残留 → 等 empty 或 grace。
 // 复用 cancelRunsMany / abortRun / listActiveRunIds；不重写 killTree（spawn-line 走 AbortSignal）。
+// Slice 57：关停末尾可选 WAL checkpoint（PASSIVE，失败仅 warn）。
 import { inArray } from 'drizzle-orm';
-import { db } from '../db/client.js';
+import { db, sqlite, walCheckpoint } from '../db/client.js';
 import { agentRuns } from '../db/schema.js';
 import { logger } from '../logger.js';
 import { stopAutomationWorker } from './automation-worker.js';
@@ -26,6 +27,8 @@ export type CancelAllActiveRunsReport = {
 
 export type ShutdownServerReport = CancelAllActiveRunsReport & {
   workersStopped: true;
+  /** Slice 57：wal_checkpoint(PASSIVE) 是否执行成功；跳过则为 null */
+  walCheckpointOk: boolean | null;
 };
 
 export type ShutdownServerOptions = {
@@ -35,6 +38,8 @@ export type ShutdownServerOptions = {
   pollMs?: number;
   /** 可注入依赖（测试用） */
   deps?: Partial<ShutdownDeps>;
+  /** 默认 true：关停末尾 PASSIVE checkpoint；测试可关 */
+  walCheckpoint?: boolean;
 };
 
 type ShutdownDeps = {
@@ -45,6 +50,7 @@ type ShutdownDeps = {
   abortRun: (id: string) => boolean;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
+  walCheckpoint: () => void;
 };
 
 function defaultStopWorkers(): void {
@@ -67,6 +73,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function defaultWalCheckpoint(): void {
+  walCheckpoint(sqlite, 'PASSIVE');
+}
+
 function resolveDeps(partial?: Partial<ShutdownDeps>): ShutdownDeps {
   return {
     stopWorkers: partial?.stopWorkers ?? defaultStopWorkers,
@@ -76,6 +86,7 @@ function resolveDeps(partial?: Partial<ShutdownDeps>): ShutdownDeps {
     abortRun: partial?.abortRun ?? abortRun,
     sleep: partial?.sleep ?? sleep,
     now: partial?.now ?? (() => Date.now()),
+    walCheckpoint: partial?.walCheckpoint ?? defaultWalCheckpoint,
   };
 }
 
@@ -153,5 +164,20 @@ export async function shutdownServer(
     '[shutdown] cancelAllActiveRuns done',
   );
 
-  return { ...report, workersStopped: true };
+  let walCheckpointOk: boolean | null = null;
+  if (opts.walCheckpoint !== false) {
+    try {
+      d.walCheckpoint();
+      walCheckpointOk = true;
+      logger.info('[shutdown] wal_checkpoint(PASSIVE) ok');
+    } catch (e) {
+      walCheckpointOk = false;
+      logger.warn(
+        { err: e instanceof Error ? e.message : String(e) },
+        '[shutdown] wal_checkpoint(PASSIVE) failed',
+      );
+    }
+  }
+
+  return { ...report, workersStopped: true, walCheckpointOk };
 }

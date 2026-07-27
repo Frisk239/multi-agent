@@ -14,6 +14,12 @@ vi.mock('../db/client.js', () => {
     sqlite: {
       prepare: () => ({ get: () => ({ '1': 1 }) }),
     },
+    getSqliteHardeningInfo: () => ({
+      path: './dev.db',
+      busyTimeoutMs: 5000,
+      journalMode: 'wal',
+      foreignKeys: true,
+    }),
   };
 });
 
@@ -83,5 +89,10 @@ describe('GET /api/ops/snapshot', () => {
     expect(body.workers?.runWorker).toBeDefined();
     expect(body.automation).toHaveProperty('lastError');
     expect(body.process?.db?.ok).toBe(true);
+    expect(body.sqlite).toMatchObject({
+      busyTimeoutMs: 5000,
+      journalMode: 'wal',
+      foreignKeys: true,
+    });
   });
 });

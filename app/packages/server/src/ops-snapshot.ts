@@ -1,7 +1,11 @@
 /** Slice 51：运维快照 — 一页 JSON 排障（runs / wiki / memory breaker / workers / automation） */
 
 import { desc, eq, inArray } from 'drizzle-orm';
-import { db } from './db/client.js';
+import {
+  db,
+  getSqliteHardeningInfo,
+  type SqliteHardeningInfo,
+} from './db/client.js';
 import {
   agentRuns,
   automationRuns,
@@ -67,6 +71,12 @@ export type OpsAutomationSnapshot = {
   lastFailedAt: string | null;
 };
 
+/** Slice 57：SQLite 硬化面（busy_timeout / journal / path） */
+export type OpsSqliteSnapshot = Pick<
+  SqliteHardeningInfo,
+  'path' | 'busyTimeoutMs' | 'journalMode' | 'foreignKeys'
+>;
+
 export type OpsSnapshot = {
   ts: number;
   status: 'ok' | 'degraded';
@@ -76,6 +86,8 @@ export type OpsSnapshot = {
   workers: Record<WorkerHealthKey, WorkerHealthSnapshot>;
   process: Pick<ProcessHealthResponse, 'uptimeMs' | 'db' | 'status'>;
   automation: OpsAutomationSnapshot;
+  /** Slice 57：主库 pragma 快照 */
+  sqlite: OpsSqliteSnapshot;
 };
 
 function percentileSorted(sortedAsc: number[], p: number): number | null {
@@ -230,9 +242,26 @@ export function buildOpsAutomationSnapshot(): OpsAutomationSnapshot {
   };
 }
 
+export function buildOpsSqliteSnapshot(
+  info?: OpsSqliteSnapshot,
+): OpsSqliteSnapshot {
+  if (info) return info;
+  try {
+    return getSqliteHardeningInfo();
+  } catch {
+    return {
+      path: process.env.DB_PATH ?? './dev.db',
+      busyTimeoutMs: 0,
+      journalMode: 'unknown',
+      foreignKeys: false,
+    };
+  }
+}
+
 export function buildOpsSnapshot(opts?: {
   now?: number;
   processHealth?: ProcessHealthResponse;
+  sqlite?: OpsSqliteSnapshot;
 }): OpsSnapshot {
   const now = opts?.now ?? Date.now();
   const processHealth = opts?.processHealth ?? buildProcessHealth({ now });
@@ -240,6 +269,7 @@ export function buildOpsSnapshot(opts?: {
   const wiki = buildOpsWikiSnapshot();
   const memory = buildOpsMemorySnapshot();
   const automation = buildOpsAutomationSnapshot();
+  const sqliteSnap = buildOpsSqliteSnapshot(opts?.sqlite);
 
   const processDegraded = processHealth.status === 'degraded';
   const opsDegraded =
@@ -263,5 +293,6 @@ export function buildOpsSnapshot(opts?: {
       db: processHealth.db,
     },
     automation,
+    sqlite: sqliteSnap,
   };
 }

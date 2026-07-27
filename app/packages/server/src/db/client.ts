@@ -1,12 +1,35 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
+import {
+  applySqlitePragmas,
+  getSqliteHardeningInfo as getHardeningFromDb,
+  resolveSqliteBusyTimeoutMs,
+  type SqliteHardeningInfo,
+} from './sqlite-pragmas.js';
+
+export {
+  DEFAULT_SQLITE_BUSY_TIMEOUT_MS,
+  applySqlitePragmas,
+  readSqlitePragmas,
+  resolveSqliteBusyTimeoutMs,
+  walCheckpoint,
+  type SqliteHardeningInfo,
+  type SqliteWalCheckpointMode,
+} from './sqlite-pragmas.js';
 
 const DB_PATH = process.env.DB_PATH ?? './dev.db';
 
+export const SQLITE_BUSY_TIMEOUT_MS = resolveSqliteBusyTimeoutMs();
 export const sqlite = new Database(DB_PATH);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+applySqlitePragmas(sqlite, { busyTimeoutMs: SQLITE_BUSY_TIMEOUT_MS });
+
+export function getSqliteHardeningInfo(
+  database: Database.Database = sqlite,
+  path: string = DB_PATH,
+): SqliteHardeningInfo {
+  return getHardeningFromDb(database, path);
+}
 
 export const db = drizzle(sqlite, { schema });
 

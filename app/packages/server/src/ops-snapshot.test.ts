@@ -17,6 +17,12 @@ vi.mock('./db/client.js', () => {
     sqlite: {
       prepare: () => ({ get: () => ({ '1': 1 }) }),
     },
+    getSqliteHardeningInfo: () => ({
+      path: './dev.db',
+      busyTimeoutMs: 5000,
+      journalMode: 'wal',
+      foreignKeys: true,
+    }),
   };
 });
 
@@ -119,6 +125,12 @@ describe('ops snapshot', () => {
     expect(snap.automation).toMatchObject({
       lastError: null,
       failedRules: expect.any(Number),
+    });
+    expect(snap.sqlite).toMatchObject({
+      path: './dev.db',
+      busyTimeoutMs: 5000,
+      journalMode: 'wal',
+      foreignKeys: true,
     });
   });
 });
