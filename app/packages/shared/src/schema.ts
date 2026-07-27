@@ -1643,6 +1643,16 @@ export type DomainEvent =
   | RuntimeEventEvent
   | AgentStatusChangedEvent;
 
+// —— Slice 26：WS 轻量订阅（客户端 → 服务端）——
+// topics=null：旧客户端兼容，全量 fanout
+// topics 非 null：按 topic 过滤（replace 全集，非增量）
+// 语法：issue: | issue:{id} | run: | run:{id} | agent: | agent:{id} | inbox: | wiki:
+export const WsClientMessage = z.object({
+  type: z.literal('subscribe'),
+  topics: z.array(z.string().min(1)).nullable(),
+});
+export type WsClientMessage = z.infer<typeof WsClientMessage>;
+
 // —— bu04：Settings / 环境诊断（G0 只读）——
 export const SettingsCheckStatus = z.enum(['ok', 'warn', 'error']);
 export type SettingsCheckStatus = z.infer<typeof SettingsCheckStatus>;

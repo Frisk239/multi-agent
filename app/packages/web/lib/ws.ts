@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import type { Issue, Comment, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
 import { classifyRunFailure } from '@ma/shared';
@@ -77,15 +78,159 @@ export const useRunProgressStore = create<RunProgressState>((set) => ({
     }),
 }));
 
+// —— Slice 26：pathname → topics / 重连 invalidate（纯函数，可单测）——
+
+/** 全局默认：lifecycle 级 issue/agent/inbox；不含 run: stream（看板靠 agent:status + 重连） */
+const DEFAULT_LIFECYCLE_TOPICS = ['issue:', 'agent:', 'inbox:'] as const;
+
+/**
+ * 按当前路由决定 WS 订阅全集（replace）。
+ * - board / my-issues / agents 等：issue/agent/inbox（无 run:，不收 S 档 stream）
+ * - issue 详情：issue:{id} + run:（lifecycle via issue/run；stream via run:）
+ * - runs / chat：含 run:
+ * - wiki：wiki: + inbox:
+ */
+export function topicsForPath(pathname: string | null | undefined): string[] {
+  const path = (pathname ?? '/').split('?')[0] || '/';
+  const parts = path.split('/').filter(Boolean);
+  const head = parts[0] ?? '';
+  const id = parts[1];
+
+  // 详情 / 流页
+  if (head === 'issues' && id) {
+    return [`issue:${id}`, 'run:', 'agent:', 'inbox:'];
+  }
+  if (head === 'runs') {
+    // /runs 与 /runs/[id]
+    return id
+      ? [`run:${id}`, 'run:', 'issue:', 'agent:', 'inbox:']
+      : ['run:', 'issue:', 'agent:', 'inbox:'];
+  }
+  if (head === 'chat') {
+    return ['run:', 'agent:', 'inbox:', 'issue:'];
+  }
+  if (head === 'wiki') {
+    return ['wiki:', 'inbox:'];
+  }
+  if (head === 'agents' && id) {
+    return ['agent:', `agent:${id}`, 'inbox:', 'issue:'];
+  }
+  if (head === 'inbox') {
+    return ['inbox:', 'issue:', 'agent:'];
+  }
+
+  // 看板 / 列表 / 其它：lifecycle 默认，不订 run:（S 档不进板）
+  // `/` `/issues` `/my-issues` `/agents` `/settings` …
+  return [...DEFAULT_LIFECYCLE_TOPICS];
+}
+
+/**
+ * 重连时按 pathname 选择 invalidate 的 queryKey 前缀列表。
+ * 全局始终含 runs-active-count + inbox-unread。
+ */
+export function invalidateForPath(pathname: string | null | undefined): string[][] {
+  const path = (pathname ?? '/').split('?')[0] || '/';
+  const parts = path.split('/').filter(Boolean);
+  const head = parts[0] ?? '';
+  const id = parts[1];
+
+  const keys: string[][] = [
+    ['runs-active-count'],
+    ['inbox-unread'],
+  ];
+
+  if (head === 'issues' && id) {
+    keys.push(['issue', id], ['comments', id], ['runs', id], ['issues']);
+    return keys;
+  }
+  if (head === 'runs') {
+    keys.push(['runs'], ['runs', 'workspace']);
+    if (id) keys.push(['run', id], ['run-messages', id], ['run-tree', id]);
+    return keys;
+  }
+  if (head === 'chat') {
+    keys.push(['chat-threads'], ['chat-messages'], ['runs-active-count']);
+    return keys;
+  }
+  if (head === 'wiki') {
+    keys.push(['wiki-pages'], ['wiki-jobs'], ['wiki-page'], ['wiki-health']);
+    return keys;
+  }
+  if (head === 'agents') {
+    keys.push(['agents'], ['agents-readiness']);
+    if (id) keys.push(['agent', id], ['agent-runs', id], ['agent-readiness']);
+    return keys;
+  }
+  if (head === 'inbox') {
+    keys.push(['inbox']);
+    return keys;
+  }
+  if (head === 'my-issues') {
+    keys.push(['issues'], ['agents']);
+    return keys;
+  }
+  if (head === 'issues' || head === '' || path === '/') {
+    keys.push(['issues'], ['agents']);
+    return keys;
+  }
+  if (head === 'squads') {
+    keys.push(['squads'], ['agents']);
+    return keys;
+  }
+  if (head === 'projects') {
+    keys.push(['projects'], ['issues']);
+    return keys;
+  }
+  if (head === 'automation') {
+    keys.push(['automation-rules'], ['automation-runs']);
+    return keys;
+  }
+  if (head === 'memory') {
+    keys.push(['memory'], ['memory-status']);
+    return keys;
+  }
+  if (head === 'settings') {
+    keys.push(['settings-status'], ['settings-diagnostics'], ['runtimes']);
+    return keys;
+  }
+
+  // 未知路由：保守刷 issues + agents（仍不刷 runs 四件套）
+  keys.push(['issues'], ['agents']);
+  return keys;
+}
+
+function sendSubscribe(ws: WebSocket, topics: string[]): void {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'subscribe', topics }));
+}
+
+function applyInvalidateKeys(qc: QueryClient, keys: string[][]): void {
+  for (const queryKey of keys) {
+    qc.invalidateQueries({ queryKey });
+  }
+}
+
 // S02：issue 列表 + 单条 issue + comments 幂等更新
 export function useWsEvents() {
   const qc = useQueryClient();
+  const pathname = usePathname();
   const setStatus = useWsStore((s) => s.setStatus);
   const setProgress = useRunProgressStore((s) => s.setProgress);
   const setTool = useRunProgressStore((s) => s.setTool);
   const appendPartial = useRunProgressStore((s) => s.appendPartial);
   const appendStreamChunk = useRunProgressStore((s) => s.appendStreamChunk);
   const clearProgress = useRunProgressStore((s) => s.clearProgress);
+
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // 路由变化 → replace 订阅
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    sendSubscribe(ws, topicsForPath(pathname));
+  }, [pathname]);
 
   useEffect(() => {
     let mounted = true;
@@ -96,21 +241,23 @@ export function useWsEvents() {
     function connect() {
       if (!mounted) return;
       ws = new WebSocket('ws://localhost:3001/ws');
+      wsRef.current = ws;
 
       ws.onopen = () => {
         if (!mounted) return;
         setStatus('open');
+        // Slice 26：open 后按当前 pathname subscribe
+        sendSubscribe(ws, topicsForPath(pathnameRef.current));
         if (retryCount > 0) {
-          qc.invalidateQueries({ queryKey: ['issues'] });
-          qc.invalidateQueries({ queryKey: ['agents'] });
-          qc.invalidateQueries({ queryKey: ['runs'] });
-          qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+          // 重连：按页 invalidate，全局角标始终刷
+          applyInvalidateKeys(qc, invalidateForPath(pathnameRef.current));
         }
         retryCount = 0;
       };
 
       ws.onclose = () => {
         if (!mounted) return;
+        if (wsRef.current === ws) wsRef.current = null;
         setStatus('closed');
         const delay = Math.min(30000, Math.pow(2, retryCount) * 1000);
         retryCount++;
@@ -321,6 +468,7 @@ export function useWsEvents() {
       mounted = false;
       clearTimeout(retryTimer);
       if (ws) ws.close();
+      if (wsRef.current === ws) wsRef.current = null;
     };
   }, [qc, setStatus, setProgress, setTool, appendPartial, appendStreamChunk, clearProgress]);
 }

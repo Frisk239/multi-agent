@@ -51,9 +51,9 @@
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **滚动计划（真源）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md) — Slice **23–32** 三轨十刀  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** **Slice 25 委派边界** · 24 Memory 断路器 · 23 优雅关停 · 22 子代理树 · …
-- **▶ 下一刀（默认选项 A）：** **Slice 26 WS 轻量订阅+重连按页** → 27 手感包 → 28 成本价表 → 29–32 虚拟滚动/模板库/Wiki 复利/侧滑
-- **上一刀 closeout：** [slice25-subagent-boundary-impl-1.md](app/.progress/slice25-subagent-boundary-impl-1.md)
+- **已交（近）：** **Slice 26 WS 订阅** · 25 委派边界 · 24 Memory 断路器 · 23 关停 · …
+- **▶ 下一刀（默认选项 A）：** **Slice 27 交互手感包** → 28 成本价表 → 29–32 虚拟滚动/模板库/Wiki 复利/侧滑
+- **上一刀 closeout：** [slice26-ws-subscribe-impl-1.md](app/.progress/slice26-ws-subscribe-impl-1.md)
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
