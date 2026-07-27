@@ -15,12 +15,15 @@ import {
   RunEventTimelineInline,
 } from './RunEventTimeline';
 import { ActivityTimeline } from './ActivityTimeline';
+import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ErrorState } from './ErrorState';
 import { IssuePrCard } from './IssuePrCard';
 import { PageSkeleton } from './Skeleton';
 import { AssigneeSelect } from './AssigneeSelect';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '../lib/toast';
+import { Select } from './Select';
 
 const PROPS_OPEN_KEY = 'ma-issue-props-open';
 
@@ -66,7 +69,7 @@ function IssueSheetMeta({ issue }: { issue: Issue }) {
     <div className="issue-sheet-meta" data-testid="issue-sheet-meta">
       <label className="issue-priority-field">
         <span className="issue-meta-k">状态</span>
-        <select
+        <Select
           className="status-select"
           value={issue.status}
           onChange={(e) =>
@@ -83,7 +86,7 @@ function IssueSheetMeta({ issue }: { issue: Issue }) {
               {STATUS_ZH[s]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="issue-meta-assignee" data-testid="issue-sheet-assignee">
         <span className="issue-meta-k">负责人</span>
@@ -113,7 +116,13 @@ export function IssueDetail({
   variant?: IssueDetailVariant;
 }) {
   const isSheet = variant === 'sheet';
-  const { data: issue, isLoading: il, error: ie } = useIssue(id);
+  const {
+    data: issue,
+    isLoading: il,
+    isError: issueIsError,
+    error: ie,
+    refetch: refetchIssue,
+  } = useIssue(id);
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: runs = [] } = useRuns(id);
   const { data: usage } = useIssueRunUsage(isSheet ? '' : id);
@@ -199,7 +208,59 @@ export function IssueDetail({
       </div>
     );
   }
-  if (ie || !issue) return <div className="issue-detail">Issue 不存在</div>;
+
+  if (issueIsError || ie || !issue) {
+    const errMsg =
+      ie instanceof Error
+        ? ie.message
+        : typeof ie === 'string'
+          ? ie
+          : '未知错误';
+    const isLoadFail = Boolean(issueIsError || ie);
+    return (
+      <div
+        className={`issue-detail${isSheet ? ' issue-detail--sheet' : ''}`}
+        data-testid="issue-detail-error"
+        data-variant={variant}
+      >
+        {isLoadFail ? (
+          <>
+            <ErrorState
+              title="加载 Issue 失败"
+              description={errMsg}
+              onRetry={() => void refetchIssue()}
+            />
+            <div
+              className="issue-detail-error-actions"
+              style={{ marginTop: 12, textAlign: 'center' }}
+            >
+              <Link
+                href="/"
+                className="btn btn-ghost btn-sm"
+                data-testid="issue-back-board"
+              >
+                回看板
+              </Link>
+            </div>
+          </>
+        ) : (
+          <EmptyState
+            title="Issue 不存在"
+            description="可能已删除，或链接失效。"
+            action={
+              <Link
+                href="/"
+                className="btn btn-primary btn-sm"
+                data-testid="issue-back-board"
+              >
+                回看板
+              </Link>
+            }
+          />
+        )}
+      </div>
+    );
+  }
 
   const historyCount = runs.length;
   const commentCount = comments?.length ?? 0;

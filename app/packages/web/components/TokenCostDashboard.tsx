@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useTokenUsageAnalytics } from '@/lib/api';
 import type { TokenUsageGroupItem } from '@ma/shared';
-import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
+import { PageSkeleton } from './Skeleton';
 
 const DAY_OPTIONS = [7, 30, 90] as const;
 type GroupByOption = 'agent' | 'project' | 'day' | 'issue';
@@ -46,7 +47,7 @@ export function TokenCostDashboard({
   if (isLoading) {
     return (
       <div className="page-container" data-testid="token-cost-loading">
-        <EmptyState title="加载 Token 成本数据…" />
+        <PageSkeleton />
       </div>
     );
   }
@@ -54,14 +55,10 @@ export function TokenCostDashboard({
   if (isError || !data) {
     return (
       <div className="page-container" data-testid="token-cost-error">
-        <EmptyState
+        <ErrorState
           title="无法加载 Token 成本数据"
           description={error instanceof Error ? error.message : '请确认 API 已启动'}
-          action={
-            <button type="button" className="btn-ghost btn-sm" onClick={() => void refetch()}>
-              重试
-            </button>
-          }
+          onRetry={() => void refetch()}
         />
       </div>
     );

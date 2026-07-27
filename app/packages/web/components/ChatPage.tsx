@@ -26,7 +26,11 @@ import { confirmDialog } from '@/lib/confirm-store';
 import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
+import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
+import { ErrorState } from './ErrorState';
+import { Select } from './Select';
+import { Skeleton } from './Skeleton';
 
 
 
@@ -78,15 +82,25 @@ export function ChatPage() {
 
   const { data: agents = [] } = useAgents();
   const { data: projects = [] } = useProjects();
-  const { data: threads = [], isLoading: threadsLoading } = useChatThreads({
+  const {
+    data: threads = [],
+    isLoading: threadsLoading,
+    isError: threadsError,
+    error: threadsErr,
+    refetch: refetchThreads,
+  } = useChatThreads({
     archived: showArchived,
   });
   const pinThread = usePinChatThread();
   const archiveThread = useArchiveChatThread();
   const updateThreadProject = useUpdateChatThreadProject();
-  const { data: messages = [], isLoading: messagesLoading } = useChatMessages(
-    threadId || undefined,
-  );
+  const {
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesError,
+    error: messagesErr,
+    refetch: refetchMessages,
+  } = useChatMessages(threadId || undefined);
   const { data: execContext } = useChatExecContext(threadId || undefined);
   const createThread = useCreateChatThread();
   const postMessage = usePostChatMessage(threadId || undefined);
@@ -367,7 +381,7 @@ export function ChatPage() {
             <div className="chat-new-panel" data-testid="chat-new-panel">
               <label className="chat-new-label">
                 选择智能体
-                <select
+                <Select
                   className="chat-new-select"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
@@ -378,7 +392,7 @@ export function ChatPage() {
                       {a.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <button
                 type="button"
@@ -411,13 +425,57 @@ export function ChatPage() {
               </button>
             </div>
             {threadsLoading ? (
-              <p className="chat-rail-hint">加载会话…</p>
+              <div
+                className="chat-rail-skeleton"
+                data-testid="chat-threads-loading"
+                aria-busy="true"
+              >
+                <Skeleton variant="rectangular" height={48} className="mb-2" />
+                <Skeleton variant="rectangular" height={48} className="mb-2" />
+                <Skeleton variant="rectangular" height={48} className="mb-2" />
+              </div>
+            ) : threadsError ? (
+              <div className="chat-rail-error" data-testid="chat-threads-error">
+                <ErrorState
+                  title="加载会话失败"
+                  description={
+                    threadsErr instanceof Error ? threadsErr.message : '未知错误'
+                  }
+                  onRetry={() => void refetchThreads()}
+                />
+              </div>
             ) : threads.length === 0 ? (
-              <div className="chat-rail-empty">
-                <p>{showArchived ? '没有已归档会话' : '还没有对话'}</p>
-                <p className="chat-rail-hint">
-                  {showArchived ? '归档的会话会出现在这里' : '点右上角 + 与智能体开聊'}
-                </p>
+              <div className="chat-rail-empty" data-testid="chat-threads-empty">
+                <EmptyState
+                  title={showArchived ? '没有已归档会话' : '还没有对话'}
+                  description={
+                    showArchived
+                      ? '归档的会话会出现在这里'
+                      : agents.length
+                        ? '点右上角 + 与智能体开聊'
+                        : '先创建智能体，再开新对话'
+                  }
+                  action={
+                    showArchived ? undefined : agents.length ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        data-testid="chat-empty-new"
+                        onClick={() => setPickerOpen(true)}
+                      >
+                        新建对话
+                      </button>
+                    ) : (
+                      <Link
+                        href="/agents"
+                        className="btn btn-primary btn-sm"
+                        data-testid="chat-empty-agents"
+                      >
+                        去选 Agent
+                      </Link>
+                    )
+                  }
+                />
               </div>
             ) : (
               <ul className="chat-threads">
@@ -509,24 +567,53 @@ export function ChatPage() {
         <section className="chat-main" data-testid="chat-main">
           {!threadId || !selectedThread ? (
             <div className="chat-empty" data-testid="chat-empty">
-              <div className="chat-empty-card">
-                <div className="chat-empty-icon" aria-hidden>
-                  ✦
+              {threadsLoading ? (
+                <div data-testid="chat-main-loading" aria-busy="true">
+                  <Skeleton variant="rectangular" height={28} width="40%" className="mb-4" />
+                  <Skeleton variant="text" lines={3} />
                 </div>
-                <h2>和你的智能体对话</h2>
-                <p data-testid="chat-empty-copy">
-                  一对一聊天：默认在隔离目录跑 CLI。会话头可绑项目本机目录，下一句即进真仓。
-                  从左侧选会话，或点下方新建对话。
-                </p>
-                <button
-                  type="button"
-                  className="chat-empty-cta"
-                  onClick={() => setPickerOpen(true)}
-                  disabled={!agents.length}
-                >
-                  新对话
-                </button>
-              </div>
+              ) : threadsError ? (
+                <div data-testid="chat-main-error">
+                  <ErrorState
+                    title="加载会话失败"
+                    description={
+                      threadsErr instanceof Error ? threadsErr.message : '未知错误'
+                    }
+                    onRetry={() => void refetchThreads()}
+                  />
+                </div>
+              ) : (
+                <EmptyState
+                  className="chat-empty-card"
+                  icon="✦"
+                  title="和你的智能体对话"
+                  description={
+                    agents.length
+                      ? '一对一聊天：默认在隔离目录跑 CLI。从左侧选会话，或点下方新建对话。'
+                      : '还没有可用智能体。先创建或启用 Agent，再开聊。'
+                  }
+                  action={
+                    agents.length ? (
+                      <button
+                        type="button"
+                        className="chat-empty-cta"
+                        data-testid="chat-empty-cta"
+                        onClick={() => setPickerOpen(true)}
+                      >
+                        新建对话
+                      </button>
+                    ) : (
+                      <Link
+                        href="/agents"
+                        className="chat-empty-cta"
+                        data-testid="chat-empty-cta-agents"
+                      >
+                        去选 Agent
+                      </Link>
+                    )
+                  }
+                />
+              )}
             </div>
           ) : (
             <>
@@ -546,7 +633,7 @@ export function ChatPage() {
                   <div className="chat-main-project-row" data-testid="chat-project-row">
                     <label className="chat-project-field">
                       <span className="chat-project-label">项目</span>
-                      <select
+                      <Select
                         className="chat-project-select"
                         value={selectedThread.projectId ?? ''}
                         aria-label="会话绑定项目"
@@ -574,7 +661,7 @@ export function ChatPage() {
                             </option>
                           );
                         })}
-                      </select>
+                      </Select>
                     </label>
                     {execContext ? (
                       <p
@@ -620,11 +707,36 @@ export function ChatPage() {
                   onScroll={handleMessagesScroll}
                 >
                   {messagesLoading ? (
-                    <p className="chat-rail-hint">加载消息…</p>
+                    <div
+                      className="chat-messages-loading"
+                      data-testid="chat-messages-loading"
+                      aria-busy="true"
+                    >
+                      <Skeleton variant="rectangular" height={56} className="mb-3" />
+                      <Skeleton variant="rectangular" height={56} className="mb-3" />
+                      <Skeleton variant="rectangular" height={40} width="70%" />
+                    </div>
+                  ) : messagesError ? (
+                    <div
+                      className="chat-messages-error"
+                      data-testid="chat-messages-error"
+                    >
+                      <ErrorState
+                        title="加载消息失败"
+                        description={
+                          messagesErr instanceof Error
+                            ? messagesErr.message
+                            : '未知错误'
+                        }
+                        onRetry={() => void refetchMessages()}
+                      />
+                    </div>
                   ) : messages.length === 0 && !liveRun ? (
-                    <p className="chat-rail-hint chat-messages-empty">
-                      还没有消息，打个招呼吧。
-                    </p>
+                    <EmptyState
+                      className="chat-messages-empty"
+                      title="还没有消息"
+                      description="打个招呼吧，Enter 发送。"
+                    />
                   ) : (
                     messages.map((m) => {
                       const isUser = m.role === 'user';

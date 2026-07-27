@@ -4,9 +4,10 @@ import { Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useWorkspaceUsage } from '@/lib/api';
-import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
+import { PageSkeleton } from './Skeleton';
 import { TokenCostDashboard } from './TokenCostDashboard';
 
 const DAY_OPTIONS = [7, 30, 90] as const;
@@ -57,23 +58,19 @@ function UsagePageInner() {
 
   if (isLoading) {
     return (
-      <div className="page-container">
-        <EmptyState title="加载用量…" />
+      <div className="page-container" data-testid="usage-loading">
+        <PageSkeleton />
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="page-container">
-        <EmptyState
+      <div className="page-container" data-testid="usage-error">
+        <ErrorState
           title="无法加载用量"
           description={error instanceof Error ? error.message : '请确认 API 已启动'}
-          action={
-            <button type="button" className="btn-ghost btn-sm" onClick={() => void refetch()}>
-              重试
-            </button>
-          }
+          onRetry={() => void refetch()}
         />
       </div>
     );
