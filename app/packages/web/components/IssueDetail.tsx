@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
-import { API, apiFetch, useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
+import { API, apiFetch, useActivities, useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
@@ -15,6 +15,7 @@ import {
   RunEventTimelineInline,
 } from './RunEventTimeline';
 import { ActivityTimeline } from './ActivityTimeline';
+import { IssueStoryline } from './IssueStoryline';
 import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ErrorState } from './ErrorState';
@@ -124,13 +125,17 @@ export function IssueDetail({
     refetch: refetchIssue,
   } = useIssue(id);
   const { data: comments, isLoading: cl } = useComments(id);
+  const { data: activities = [] } = useActivities(id);
   const { data: runs = [] } = useRuns(id);
   const { data: usage } = useIssueRunUsage(isSheet ? '' : id);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [execOpen, setExecOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(true);
-  const [activityTab, setActivityTab] = useState<'comments' | 'activity'>('comments');
+  /** Slice 72：默认故事线；保留评论 / 活动 tab */
+  const [activityTab, setActivityTab] = useState<
+    'storyline' | 'comments' | 'activity'
+  >('storyline');
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -386,16 +391,45 @@ export function IssueDetail({
                 className="issue-section-head"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <h3 className="issue-section-title" style={{ margin: 0 }}>
-                    {isSheet ? '评论' : '动态'}
+                    {isSheet ? '动态' : '动态'}
                   </h3>
                   {isSheet ? (
-                    <span className="text-dim text-sm" data-testid="issue-sheet-comment-count">
-                      {commentCount}
-                    </span>
+                    <div className="kanban-view-tabs" role="tablist" style={{ margin: 0 }}>
+                      <button
+                        type="button"
+                        role="tab"
+                        className={`kanban-scope-tab${activityTab === 'storyline' ? ' is-active' : ''}`}
+                        aria-selected={activityTab === 'storyline'}
+                        data-testid="activity-tab-storyline"
+                        onClick={() => setActivityTab('storyline')}
+                      >
+                        故事线
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        className={`kanban-scope-tab${activityTab === 'comments' ? ' is-active' : ''}`}
+                        aria-selected={activityTab === 'comments'}
+                        data-testid="activity-tab-comments"
+                        onClick={() => setActivityTab('comments')}
+                      >
+                        评论 ({commentCount})
+                      </button>
+                    </div>
                   ) : (
                     <div className="kanban-view-tabs" role="tablist" style={{ margin: 0 }}>
+                      <button
+                        type="button"
+                        role="tab"
+                        className={`kanban-scope-tab${activityTab === 'storyline' ? ' is-active' : ''}`}
+                        aria-selected={activityTab === 'storyline'}
+                        data-testid="activity-tab-storyline"
+                        onClick={() => setActivityTab('storyline')}
+                      >
+                        故事线
+                      </button>
                       <button
                         type="button"
                         role="tab"
@@ -418,9 +452,40 @@ export function IssueDetail({
                       </button>
                     </div>
                   )}
+                  {isSheet ? (
+                    <span className="text-dim text-sm" data-testid="issue-sheet-comment-count">
+                      {commentCount}
+                    </span>
+                  ) : null}
                 </div>
               </div>
-              {isSheet || activityTab === 'comments' ? (
+              {activityTab === 'storyline' ? (
+                <>
+                  <IssueStoryline
+                    issueId={id}
+                    comments={comments ?? []}
+                    activities={activities}
+                    runs={runs}
+                    compact={isSheet}
+                    onOpenRun={
+                      isSheet
+                        ? undefined
+                        : (runId) => {
+                            setSelectedRunId(runId);
+                            setExecOpen(true);
+                            setTimelineOpen(true);
+                          }
+                    }
+                  />
+                  <div
+                    className="issue-reply-zone"
+                    data-testid={replyZoneTestId ?? 'issue-reply-zone'}
+                  >
+                    <div className="issue-reply-zone-label text-dim text-sm">读后即回</div>
+                    <CommentComposer issueId={id} />
+                  </div>
+                </>
+              ) : activityTab === 'comments' ? (
                 <>
                   <Timeline items={comments ?? []} hideHeader />
                   <div

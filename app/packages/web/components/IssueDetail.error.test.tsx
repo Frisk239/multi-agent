@@ -27,6 +27,12 @@ vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
   useIssue: () => issueState,
   useComments: () => ({ data: [], isLoading: false }),
+  useActivities: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useRuns: () => ({ data: [] }),
   useIssueRunUsage: () => ({ data: undefined }),
   useUpdateIssue: () => ({ mutate: vi.fn(), isPending: false }),
@@ -67,6 +73,9 @@ vi.mock('./RunEventTimeline', () => ({
 }));
 vi.mock('./ActivityTimeline', () => ({
   ActivityTimeline: () => null,
+}));
+vi.mock('./IssueStoryline', () => ({
+  IssueStoryline: () => null,
 }));
 vi.mock('./ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,

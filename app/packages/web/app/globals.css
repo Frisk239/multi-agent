@@ -10834,6 +10834,81 @@ a.issue-card-run-fail--link:hover {
   border: 1px solid var(--border-subtle);
 }
 
+/* Slice 72 · Issue 故事线 */
+.issue-storyline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.issue-storyline--compact {
+  padding: 2px 0 4px;
+}
+
+.issue-storyline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.storyline-item {
+  min-width: 0;
+}
+
+.storyline-item--activity,
+.storyline-item--run {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+.storyline-item--run.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.storyline-item--run.is-clickable:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.storyline-item-icon {
+  font-size: 16px;
+  line-height: 20px;
+  flex-shrink: 0;
+}
+
+.storyline-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.storyline-item-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.storyline-item-detail {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+
+.storyline-run-open-hint {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.storyline-item--comment .timeline-item {
+  margin: 0;
+}
+
 .overflow-x-auto {
   overflow-x: auto;
 }

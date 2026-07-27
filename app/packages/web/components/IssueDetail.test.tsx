@@ -46,6 +46,22 @@ const runs = [
 vi.mock('@/lib/api', () => ({
   useIssue: () => ({ data: issue, isLoading: false, error: null }),
   useComments: () => ({ data: comments, isLoading: false }),
+  useActivities: () => ({
+    data: [
+      {
+        id: 'act-1',
+        issueId: 'iss-1',
+        actorType: 'member',
+        actorName: 'Me',
+        eventType: 'status_changed',
+        payload: { from: 'todo', to: 'in_progress' },
+        createdAt: '2026-07-01T00:30:00.000Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useRuns: () => ({ data: runs }),
   useIssueRunUsage: (id: string) =>
     id
@@ -129,6 +145,10 @@ vi.mock('./ActivityTimeline', () => ({
   ActivityTimeline: () => <div data-testid="activity-timeline">activity</div>,
 }));
 
+vi.mock('./IssueStoryline', () => ({
+  IssueStoryline: () => <div data-testid="issue-storyline">storyline</div>,
+}));
+
 vi.mock('./ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -175,8 +195,11 @@ describe('IssueDetail variant', () => {
     const root = screen.getByTestId('issue-detail');
     expect(root).toHaveAttribute('data-variant', 'page');
     expect(screen.getByTestId('issue-props-toggle')).toBeTruthy();
+    expect(screen.getByTestId('activity-tab-storyline')).toBeTruthy();
     expect(screen.getByTestId('activity-tab-comments')).toBeTruthy();
     expect(screen.getByTestId('activity-tab-log')).toBeTruthy();
+    // default tab = storyline
+    expect(screen.getByTestId('issue-storyline')).toBeTruthy();
     expect(screen.queryByTestId('issue-sheet-meta')).toBeNull();
     expect(screen.queryByTestId('issue-sheet-more')).toBeNull();
     // failed run auto-opens exec on live/fail paths via page hash only for live;
@@ -187,7 +210,7 @@ describe('IssueDetail variant', () => {
     );
   });
 
-  it('sheet: light surface — status/assignee/comments/recent run, hide props & knowledge', () => {
+  it('sheet: light surface — status/assignee/storyline/recent run, hide props & knowledge', () => {
     render(<IssueDetail id="iss-1" variant="sheet" />);
     const root = screen.getByTestId('issue-detail');
     expect(root).toHaveAttribute('data-variant', 'sheet');
@@ -202,7 +225,10 @@ describe('IssueDetail variant', () => {
     );
     expect(screen.getByTestId('issue-sheet-more')).toBeTruthy();
     expect(screen.getByTestId('comment-composer')).toBeTruthy();
-    expect(screen.getByTestId('timeline-mock')).toBeTruthy();
+    // Slice 72: sheet 默认故事线
+    expect(screen.getByTestId('issue-storyline')).toBeTruthy();
+    expect(screen.getByTestId('activity-tab-storyline')).toBeTruthy();
+    expect(screen.getByTestId('activity-tab-comments')).toBeTruthy();
 
     // heavy page pieces hidden
     expect(screen.queryByTestId('issue-props-rail')).toBeNull();
