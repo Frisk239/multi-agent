@@ -2724,8 +2724,11 @@ export function useAutomationRuns(ruleId: string | null | undefined, limit = 10)
   });
 }
 
-// —— Slice 15 (S3): Token 成本归因 hooks ——
-export function useTokenUsageAnalytics(days = 30, groupBy: 'agent' | 'project' | 'day' = 'agent') {
+// —— Slice 15 (S3) + Slice 28: Token 成本归因 hooks ——
+export function useTokenUsageAnalytics(
+  days = 30,
+  groupBy: 'agent' | 'project' | 'day' | 'issue' = 'agent',
+) {
   return useQuery<TokenUsageAnalyticsResponse>({
     queryKey: ['token-usage-analytics', days, groupBy],
     queryFn: async () => {

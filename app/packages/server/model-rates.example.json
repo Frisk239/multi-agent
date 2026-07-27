@@ -1,0 +1,19 @@
+{
+  "$comment": "示例模型价表（USD / 1M tokens）。复制后设 MA_MODEL_RATES_PATH=绝对路径，或把内容塞进 MA_MODEL_RATES_JSON。无配置时全部 uncosted，不兜底 $3/$15。",
+  "models": {
+    "claude-opus-4": { "promptUsdPer1M": 15.0, "completionUsdPer1M": 75.0 },
+    "claude-sonnet-4": { "promptUsdPer1M": 3.0, "completionUsdPer1M": 15.0 },
+    "claude-haiku-3.5": { "promptUsdPer1M": 0.8, "completionUsdPer1M": 4.0 },
+    "gpt-4o": { "promptUsdPer1M": 2.5, "completionUsdPer1M": 10.0 },
+    "gpt-4o-mini": { "promptUsdPer1M": 0.15, "completionUsdPer1M": 0.6 },
+    "grok-4.5": { "promptUsdPer1M": 3.0, "completionUsdPer1M": 15.0 },
+    "opencode/default": { "promptUsdPer1M": 3.0, "completionUsdPer1M": 15.0 }
+  },
+  "aliases": {
+    "sonnet": "claude-sonnet-4",
+    "opus": "claude-opus-4",
+    "haiku": "claude-haiku-3.5",
+    "claude-sonnet-4-20250514": "claude-sonnet-4",
+    "claude-opus-4-20250514": "claude-opus-4"
+  }
+}

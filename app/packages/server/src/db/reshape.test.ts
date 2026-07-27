@@ -79,6 +79,9 @@ describe('reshape transformers', () => {
       expect(result.tokensInput).toBe(100);
       expect(result.tokensOutput).toBe(50);
       expect(result.finishedAt).toBe(new Date(now).toISOString());
+      // Slice 28：默认无价表 → costUsd null + uncosted（有 token 时）
+      expect(result.costUsd).toBeNull();
+      expect(result.uncosted).toBe(true);
     });
   });
 });

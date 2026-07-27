@@ -478,6 +478,21 @@ export function RunDetailPage({ runId }: { runId: string }) {
               Token in {run.tokensInput ?? '—'} · out {run.tokensOutput ?? '—'}
             </span>
           ) : null}
+          {run.tokensInput != null || run.tokensOutput != null ? (
+            <span
+              className="run-detail-chip run-detail-chip--cost"
+              data-testid="run-detail-cost"
+              title={
+                run.costUsd != null
+                  ? '按本地 model 价表推估（非云账单）'
+                  : 'uncosted：无价表或未知 model（非 $0）'
+              }
+            >
+              {run.costUsd != null
+                ? `$${run.costUsd < 0.01 ? run.costUsd.toFixed(6) : run.costUsd.toFixed(4)}`
+                : 'uncosted'}
+            </span>
+          ) : null}
           <span className="run-detail-chip text-dim">
             {run.createdAt ? new Date(run.createdAt).toLocaleString() : ''}
           </span>

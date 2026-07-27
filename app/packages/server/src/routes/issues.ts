@@ -14,6 +14,7 @@ import {
   type IssueRunUsage,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
+import { estimateCost, loadModelRates } from '../runtime/model-rates.js';
 import {
   issues,
   comments,
@@ -811,7 +812,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    // DS4：SUM 非空 token 列
+    // DS4：SUM 非空 token 列；Slice 28：按 model 价表估 cost
     let tokensInSum = 0;
     let tokensOutSum = 0;
     let tokensCacheReadSum = 0;
@@ -820,6 +821,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     let tokensOutN = 0;
     let tokensCacheReadN = 0;
     let tokensCacheWriteN = 0;
+    let costSum = 0;
+    let costedRuns = 0;
+    let uncostedRuns = 0;
+    const ratesConfig = loadModelRates();
     for (const r of rows) {
       const ti = (r as { tokensInput?: number | null }).tokensInput;
       const to = (r as { tokensOutput?: number | null }).tokensOutput;
@@ -841,6 +846,18 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         tokensCacheWriteSum += cw;
         tokensCacheWriteN += 1;
       }
+      const est = estimateCost({
+        model: (r as { model?: string | null }).model,
+        tokensInput: ti,
+        tokensOutput: to,
+        config: ratesConfig,
+      });
+      if (est.uncosted) {
+        if (est.uncostedReason !== 'no_tokens') uncostedRuns += 1;
+      } else if (est.costUsd != null) {
+        costSum += est.costUsd;
+        costedRuns += 1;
+      }
     }
 
     const terminal = completed + failed;
@@ -859,6 +876,9 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       tokensOutput: tokensOutN > 0 ? tokensOutSum : null,
       tokensCacheRead: tokensCacheReadN > 0 ? tokensCacheReadSum : null,
       tokensCacheWrite: tokensCacheWriteN > 0 ? tokensCacheWriteSum : null,
+      costUsd: costedRuns > 0 ? Number(costSum.toFixed(6)) : null,
+      uncostedRuns,
+      costedRuns,
     };
     return usage;
   });

@@ -159,10 +159,14 @@ function UsagePageInner() {
                 ? `in ${data.tokensInput ?? '—'} · out ${data.tokensOutput ?? '—'}`
                 : '本地不可用'}
             </div>
-            <div className="agent-stat-hint text-dim text-sm">
-              {data.tokensInput != null || data.tokensOutput != null
-                ? 'CLI 尽力汇总（无美元账单）'
-                : '尚无 CLI 上报 token；费用恒不可用'}
+            <div className="agent-stat-hint text-dim text-sm" data-testid="usage-kpi-cost">
+              {data.costUsd != null
+                ? `推估 $${data.costUsd.toFixed(4)} · 计价 ${data.costedRuns ?? '—'} · uncosted ${data.uncostedRuns ?? 0}`
+                : data.tokensInput != null || data.tokensOutput != null
+                  ? (data.uncostedRuns ?? 0) > 0
+                    ? `uncosted ${data.uncostedRuns}（无价表或未知 model）`
+                    : '费用 uncosted'
+                  : '尚无 CLI 上报 token'}
             </div>
           </div>
         </div>

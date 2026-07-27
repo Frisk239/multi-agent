@@ -117,6 +117,14 @@ export const AgentRun = z.object({
   tokensOutput: z.number().int().nonnegative().nullable().optional(),
   tokensCacheRead: z.number().int().nonnegative().nullable().optional(),
   tokensCacheWrite: z.number().int().nonnegative().nullable().optional(),
+  /**
+   * Slice 28：按本地 model 价表实时估算的 USD 成本。
+   * null = uncosted（无价表 / 未知 model / 无 token），禁止假 $0。
+   * 可不落库，API reshape 时计算。
+   */
+  costUsd: z.number().nonnegative().nullable().optional(),
+  /** true 表示有 token 但无法计价 */
+  uncosted: z.boolean().optional(),
   // DS1：CLI provider session（ADR 0004；非 claude 多为 null / unsupported）
   providerSessionId: z.string().nullable().optional(),
   resumedSessionId: z.string().nullable().optional(),
@@ -1013,12 +1021,22 @@ export const IssueRunUsage = z.object({
   tokensOutput: z.number().nonnegative().nullable(),
   tokensCacheRead: z.number().nonnegative().nullable(),
   tokensCacheWrite: z.number().nonnegative().nullable(),
+  /**
+   * Slice 28：按 model 价表汇总的推估成本；null = 全部 uncosted 或无 token。
+   * 非假 $0。
+   */
+  costUsd: z.number().nonnegative().nullable(),
+  /** 有 token 但无法计价的 run 数 */
+  uncostedRuns: z.number().int().nonnegative().optional(),
+  /** 成功计价的 run 数 */
+  costedRuns: z.number().int().nonnegative().optional(),
 });
 export type IssueRunUsage = z.infer<typeof IssueRunUsage>;
 
 /**
- * GET /api/usage?days=30 —— 工作区用量中心（G17 + DS4）
- * token*：有落库则 SUM，否则 null；costUsd 仍恒 null（无美元账单）。
+ * GET /api/usage?days=30 —— 工作区用量中心（G17 + DS4 + Slice 28）
+ * token*：有落库则 SUM，否则 null；
+ * costUsd：有价表则按 model 估算，否则 null（禁止假 $0）。
  */
 export const UsageAgentRow = z.object({
   agentId: BusinessId,
@@ -1056,10 +1074,13 @@ export const WorkspaceUsage = z.object({
   successRate: z.number().min(0).max(1).nullable(),
   totalDurationMs: z.number().nonnegative().nullable(),
   avgDurationMs: z.number().nonnegative().nullable(),
-  /** 本地无 token 计量 */
+  /** 本地 token 汇总（无则 null） */
   tokensInput: z.number().nonnegative().nullable(),
   tokensOutput: z.number().nonnegative().nullable(),
+  /** Slice 28：价表估算；无价表/全 uncosted → null，禁止假 $0 */
   costUsd: z.number().nonnegative().nullable(),
+  uncostedRuns: z.number().int().nonnegative().optional(),
+  costedRuns: z.number().int().nonnegative().optional(),
   byAgent: z.array(UsageAgentRow),
   byDay: z.array(UsageDayRow),
 });
@@ -1965,17 +1986,21 @@ export const AutomationRun = z.object({
 });
 export type AutomationRun = z.infer<typeof AutomationRun>;
 
-// —— Slice 15 (S3): Token 成本归因与可视化面板 ——
+// —— Slice 15 (S3) + Slice 28: Token 成本归因（按 model 价表，诚实 uncosted）——
 export const TokenUsageGroupItem = z.object({
   id: z.string(),
   name: z.string(),
   promptTokens: z.number().int().nonnegative(),
   completionTokens: z.number().int().nonnegative(),
   totalTokens: z.number().int().nonnegative(),
-  promptCostUsd: z.number().nonnegative(),
-  completionCostUsd: z.number().nonnegative(),
-  totalCostUsd: z.number().nonnegative(),
+  /** 有价表可算时为数字；本组全 uncosted 则为 null（禁止假 $0） */
+  promptCostUsd: z.number().nonnegative().nullable(),
+  completionCostUsd: z.number().nonnegative().nullable(),
+  totalCostUsd: z.number().nonnegative().nullable(),
   runCount: z.number().int().nonnegative(),
+  /** 本组内无法计价（有 token 但无 model 费率）的 run 数 */
+  uncostedRuns: z.number().int().nonnegative().optional(),
+  costedRuns: z.number().int().nonnegative().optional(),
 });
 export type TokenUsageGroupItem = z.infer<typeof TokenUsageGroupItem>;
 
@@ -1983,25 +2008,38 @@ export const TokenUsageAnalyticsResponse = z.object({
   windowDays: z.number().int().positive(),
   since: z.string(),
   until: z.string(),
-  groupBy: z.enum(['agent', 'project', 'day']),
+  groupBy: z.enum(['agent', 'project', 'day', 'issue']),
   totals: z.object({
     promptTokens: z.number().int().nonnegative(),
     completionTokens: z.number().int().nonnegative(),
     totalTokens: z.number().int().nonnegative(),
-    promptCostUsd: z.number().nonnegative(),
-    completionCostUsd: z.number().nonnegative(),
-    totalCostUsd: z.number().nonnegative(),
+    promptCostUsd: z.number().nonnegative().nullable(),
+    completionCostUsd: z.number().nonnegative().nullable(),
+    totalCostUsd: z.number().nonnegative().nullable(),
     totalRuns: z.number().int().nonnegative(),
     runsWithTokens: z.number().int().nonnegative(),
+    /** 有 token 但无价表/未知 model */
+    uncostedRuns: z.number().int().nonnegative(),
+    costedRuns: z.number().int().nonnegative(),
   }),
-  rates: z.object({
-    promptUsdPer1M: z.number(),
-    completionUsdPer1M: z.number(),
-  }),
+  /**
+   * 价表状态：configured=已加载模型费率；未配置时 rates 字段可为 null。
+   * 不再硬编码全局 $3/$15。
+   */
+  ratesConfigured: z.boolean(),
+  rates: z
+    .object({
+      /** 展示用：若仅一种费率则回填；多 model 时可为 null */
+      promptUsdPer1M: z.number().nullable(),
+      completionUsdPer1M: z.number().nullable(),
+      modelCount: z.number().int().nonnegative().optional(),
+    })
+    .nullable(),
   items: z.array(TokenUsageGroupItem),
   byAgent: z.array(TokenUsageGroupItem).optional(),
   byProject: z.array(TokenUsageGroupItem).optional(),
   byDay: z.array(TokenUsageGroupItem).optional(),
+  byIssue: z.array(TokenUsageGroupItem).optional(),
 });
 export type TokenUsageAnalyticsResponse = z.infer<typeof TokenUsageAnalyticsResponse>;
 

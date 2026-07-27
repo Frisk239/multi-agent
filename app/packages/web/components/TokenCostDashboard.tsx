@@ -8,15 +8,18 @@ import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
 const DAY_OPTIONS = [7, 30, 90] as const;
-type GroupByOption = 'agent' | 'project' | 'day';
+type GroupByOption = 'agent' | 'project' | 'day' | 'issue';
 
 function formatNumber(num: number): string {
   return num.toLocaleString('en-US');
 }
 
-function formatUsd(num: number): string {
+/** Slice 28：null = uncosted，禁止显示假 $0.00 */
+function formatUsd(num: number | null | undefined): string {
+  if (num == null || !Number.isFinite(num)) return 'uncosted';
   if (num === 0) return '$0.00';
   if (num < 0.0001) return `$${num.toFixed(6)}`;
+  if (num < 0.01) return `$${num.toFixed(4)}`;
   return `$${num.toFixed(4)}`;
 }
 
@@ -64,7 +67,16 @@ export function TokenCostDashboard({
     );
   }
 
-  const { totals, rates, items, byAgent } = data;
+  const { totals, rates, ratesConfigured, items, byAgent } = data;
+  const uncostedRuns = totals.uncostedRuns ?? 0;
+  const costedRuns = totals.costedRuns ?? 0;
+
+  const ratesHint = !ratesConfigured
+    ? '未配置模型价表（MA_MODEL_RATES_JSON / MA_MODEL_RATES_PATH）· 全部 uncosted'
+    : rates?.promptUsdPer1M != null && rates?.completionUsdPer1M != null
+      ? `费率：Prompt $${rates.promptUsdPer1M}/1M · Completion $${rates.completionUsdPer1M}/1M` +
+        (rates.modelCount != null ? ` · ${rates.modelCount} 个模型` : '')
+      : `已配置 ${rates?.modelCount ?? '多'} 个模型费率（按 run.model 分别计价）`;
 
   return (
     <div className="token-cost-dashboard" data-testid="token-cost-dashboard">
@@ -75,8 +87,8 @@ export function TokenCostDashboard({
             <Icon name="usage" size={20} className="text-indigo-400" />
             Token 消耗与推估成本
           </h2>
-          <p className="text-xs text-dim mt-1">
-            费率标准：Prompt ${rates.promptUsdPer1M}/1M token · Completion ${rates.completionUsdPer1M}/1M token
+          <p className="text-xs text-dim mt-1" data-testid="token-rates-hint">
+            {ratesHint}
           </p>
         </div>
 
@@ -116,6 +128,14 @@ export function TokenCostDashboard({
             </button>
             <button
               type="button"
+              className={`memory-kind-chip${groupBy === 'issue' ? ' is-active' : ''}`}
+              data-testid="token-groupby-issue"
+              onClick={() => setGroupBy('issue')}
+            >
+              按 Issue
+            </button>
+            <button
+              type="button"
               className={`memory-kind-chip${groupBy === 'day' ? ' is-active' : ''}`}
               data-testid="token-groupby-day"
               onClick={() => setGroupBy('day')}
@@ -138,7 +158,6 @@ export function TokenCostDashboard({
 
       {/* KPI 卡片网格 */}
       <div className="usage-kpi-grid mb-6" data-testid="token-kpi-grid">
-        {/* 卡片 1: 总 Token 消耗 */}
         <div className="agent-stat-card" data-testid="token-kpi-tokens">
           <div className="agent-stat-label">总 Token 消耗 · {days}天</div>
           <div className="agent-stat-value text-indigo-400">
@@ -149,18 +168,23 @@ export function TokenCostDashboard({
           </div>
         </div>
 
-        {/* 卡片 2: 总推估费用 */}
         <div className="agent-stat-card" data-testid="token-kpi-cost">
           <div className="agent-stat-label">总推估费用 (USD)</div>
-          <div className="agent-stat-value text-emerald-400">
+          <div
+            className={`agent-stat-value ${totals.totalCostUsd == null ? 'text-amber-400' : 'text-emerald-400'}`}
+            data-testid="token-kpi-cost-value"
+          >
             {formatUsd(totals.totalCostUsd)}
           </div>
           <div className="agent-stat-hint text-dim text-sm">
-            In {formatUsd(totals.promptCostUsd)} · Out {formatUsd(totals.completionCostUsd)}
+            {totals.totalCostUsd == null
+              ? uncostedRuns > 0
+                ? `${uncostedRuns} 次 uncosted（无价表或未知 model）`
+                : '暂无计费数据'
+              : `In ${formatUsd(totals.promptCostUsd)} · Out ${formatUsd(totals.completionCostUsd)}`}
           </div>
         </div>
 
-        {/* 卡片 3: Token 榜首 Agent */}
         <div className="agent-stat-card" data-testid="token-kpi-top-agent">
           <div className="agent-stat-label">最消耗 Token Agent</div>
           <div className="agent-stat-value agent-stat-value--sm text-amber-400">
@@ -173,14 +197,13 @@ export function TokenCostDashboard({
           </div>
         </div>
 
-        {/* 卡片 4: 覆盖率 */}
         <div className="agent-stat-card" data-testid="token-kpi-coverage">
           <div className="agent-stat-label">有 Token 记录的任务</div>
           <div className="agent-stat-value">
             {totals.runsWithTokens} / {totals.totalRuns}
           </div>
-          <div className="agent-stat-hint text-dim text-sm">
-            覆盖率 {totals.totalRuns > 0 ? Math.round((totals.runsWithTokens / totals.totalRuns) * 100) : 0}%
+          <div className="agent-stat-hint text-dim text-sm" data-testid="token-uncosted-stat">
+            计价 {costedRuns} · uncosted {uncostedRuns}
           </div>
         </div>
       </div>
@@ -219,7 +242,11 @@ export function TokenCostDashboard({
                     />
                   </div>
                   <span className="usage-day-count">{formatNumber(ag.totalTokens)}</span>
-                  <span className="usage-day-fail text-emerald-400 font-mono text-xs">{formatUsd(ag.totalCostUsd)}</span>
+                  <span
+                    className={`usage-day-fail font-mono text-xs ${ag.totalCostUsd == null ? 'text-amber-400' : 'text-emerald-400'}`}
+                  >
+                    {formatUsd(ag.totalCostUsd)}
+                  </span>
                 </div>
               );
             })}
@@ -231,7 +258,13 @@ export function TokenCostDashboard({
       <section className="usage-section" data-testid="token-distribution-section">
         <div className="agent-overview-section-head">
           <h3 className="agent-overview-title">
-            {groupBy === 'agent' ? 'Agent 分布明细' : groupBy === 'project' ? '项目分布明细' : '按日期分布明细'}
+            {groupBy === 'agent'
+              ? 'Agent 分布明细'
+              : groupBy === 'project'
+                ? '项目分布明细'
+                : groupBy === 'issue'
+                  ? 'Issue 分布明细'
+                  : '按日期分布明细'}
           </h3>
           <span className="text-dim text-sm">{items.length} 个维度条目</span>
         </div>
@@ -243,7 +276,15 @@ export function TokenCostDashboard({
             <table className="data-table" data-testid="token-distribution-table">
               <thead>
                 <tr>
-                  <th>{groupBy === 'agent' ? 'Agent' : groupBy === 'project' ? '项目' : '日期'}</th>
+                  <th>
+                    {groupBy === 'agent'
+                      ? 'Agent'
+                      : groupBy === 'project'
+                        ? '项目'
+                        : groupBy === 'issue'
+                          ? 'Issue'
+                          : '日期'}
+                  </th>
                   <th>运行次数</th>
                   <th>Prompt Token</th>
                   <th>Completion Token</th>
@@ -253,8 +294,14 @@ export function TokenCostDashboard({
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => {
-                  const pct = totals.totalCostUsd > 0 ? (row.totalCostUsd / totals.totalCostUsd) * 100 : 0;
+                {items.map((row: TokenUsageGroupItem) => {
+                  const denom = totals.totalCostUsd ?? 0;
+                  const pct =
+                    denom > 0 && row.totalCostUsd != null
+                      ? (row.totalCostUsd / denom) * 100
+                      : totals.totalTokens > 0
+                        ? (row.totalTokens / totals.totalTokens) * 100
+                        : 0;
                   return (
                     <tr key={row.id} data-item-id={row.id} data-testid={`token-row-${row.id}`}>
                       <td className="font-medium">
@@ -266,6 +313,10 @@ export function TokenCostDashboard({
                           <Link href={`/projects/${row.id}`} className="table-link">
                             {row.name}
                           </Link>
+                        ) : groupBy === 'issue' && row.id !== 'no-issue' ? (
+                          <Link href={`/issues/${row.id}`} className="table-link">
+                            {row.name}
+                          </Link>
                         ) : (
                           row.name
                         )}
@@ -274,11 +325,21 @@ export function TokenCostDashboard({
                       <td className="text-dim text-sm">{formatNumber(row.promptTokens)}</td>
                       <td className="text-dim text-sm">{formatNumber(row.completionTokens)}</td>
                       <td className="text-sm font-semibold">{formatNumber(row.totalTokens)}</td>
-                      <td className="text-emerald-400 font-mono text-sm font-semibold">{formatUsd(row.totalCostUsd)}</td>
+                      <td
+                        className={`font-mono text-sm font-semibold ${row.totalCostUsd == null ? 'text-amber-400' : 'text-emerald-400'}`}
+                      >
+                        {formatUsd(row.totalCostUsd)}
+                        {(row.uncostedRuns ?? 0) > 0 ? (
+                          <span className="text-dim text-xs ml-1">({row.uncostedRuns} uncosted)</span>
+                        ) : null}
+                      </td>
                       <td className="text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-16 bg-gray-700 h-2 rounded overflow-hidden">
-                            <div className="bg-indigo-500 h-full" style={{ width: `${Math.min(100, Math.max(2, pct))}%` }} />
+                            <div
+                              className="bg-indigo-500 h-full"
+                              style={{ width: `${Math.min(100, Math.max(2, pct))}%` }}
+                            />
                           </div>
                           <span className="text-dim text-xs">{pct.toFixed(1)}%</span>
                         </div>

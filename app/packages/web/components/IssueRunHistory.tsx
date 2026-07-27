@@ -138,6 +138,12 @@ export function IssueRunHistory({
                 {formatDurationMs(usage.avgDurationMs)}
               </strong>
             </span>
+            <span className="text-dim">·</span>
+            <span data-testid="issue-usage-cost-chip" title="按本地 model 价表推估；无价表为 uncosted">
+              {usage.costUsd != null
+                ? `$${usage.costUsd < 0.01 ? usage.costUsd.toFixed(6) : usage.costUsd.toFixed(4)}`
+                : 'uncosted'}
+            </span>
           </div>
         ) : (
           <Link

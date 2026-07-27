@@ -358,6 +358,19 @@ export function IssueDetail({
                   <div className="col-span-2 font-medium mt-1">Total: {
                     (usage.tokensInput || 0) + (usage.tokensOutput || 0) + (usage.tokensCacheRead || 0) + (usage.tokensCacheWrite || 0)
                   }</div>
+                  <div className="col-span-2 mt-1" data-testid="issue-usage-cost">
+                    费用:{' '}
+                    <span className={usage.costUsd != null ? 'text-emerald-400 font-mono' : 'text-amber-400'}>
+                      {usage.costUsd != null
+                        ? `$${usage.costUsd < 0.01 ? usage.costUsd.toFixed(6) : usage.costUsd.toFixed(4)}`
+                        : 'uncosted'}
+                    </span>
+                    {(usage.uncostedRuns ?? 0) > 0 ? (
+                      <span className="text-dim text-xs ml-1">
+                        · {usage.uncostedRuns} uncosted
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : null}

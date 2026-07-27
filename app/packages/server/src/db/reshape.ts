@@ -28,6 +28,7 @@ import {
   projects,
 } from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
+import { estimateCost } from '../runtime/model-rates.js';
 
 type IssueRow = typeof issues.$inferSelect;
 type LabelRow = typeof issueLabels.$inferSelect;
@@ -258,6 +259,27 @@ export function toAgentRun(row: RunRow): AgentRun {
     tokensCacheRead: (row as { tokensCacheRead?: number | null }).tokensCacheRead ?? null,
     tokensCacheWrite:
       (row as { tokensCacheWrite?: number | null }).tokensCacheWrite ?? null,
+    // Slice 28：实时按 model 价表估算；不落库；无价表 → null + uncosted
+    ...(() => {
+      const model = (() => {
+        const m = (row as { model?: string | null }).model?.trim();
+        return m ? m : null;
+      })();
+      const est = estimateCost({
+        model,
+        tokensInput: (row as { tokensInput?: number | null }).tokensInput ?? null,
+        tokensOutput: (row as { tokensOutput?: number | null }).tokensOutput ?? null,
+      });
+      const hasTokens =
+        ((row as { tokensInput?: number | null }).tokensInput != null &&
+          (row as { tokensInput?: number | null }).tokensInput! > 0) ||
+        ((row as { tokensOutput?: number | null }).tokensOutput != null &&
+          (row as { tokensOutput?: number | null }).tokensOutput! > 0);
+      return {
+        costUsd: est.costUsd,
+        uncosted: hasTokens ? est.uncosted : false,
+      };
+    })(),
     providerSessionId:
       (row as { providerSessionId?: string | null }).providerSessionId ?? null,
     resumedSessionId:

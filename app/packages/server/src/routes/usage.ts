@@ -1,9 +1,11 @@
 // G17：工作区用量中心（对标 Multica /usage 的本地可算指标）
+// Slice 28：costUsd 按 model 价表估算；无价表 → null（禁止假 $0）
 import type { FastifyInstance } from 'fastify';
 import { gte } from 'drizzle-orm';
 import type { UsageAgentRow, UsageDayRow, WorkspaceUsage } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, agents } from '../db/schema.js';
+import { estimateCost, loadModelRates } from '../runtime/model-rates.js';
 
 function localDayKey(ms: number): string {
   const d = new Date(ms);
@@ -89,6 +91,10 @@ export async function usageRoutes(app: FastifyInstance): Promise<void> {
     let tokensOutSum = 0;
     let tokensInN = 0;
     let tokensOutN = 0;
+    let costSum = 0;
+    let costedRuns = 0;
+    let uncostedRuns = 0;
+    const ratesConfig = loadModelRates();
 
     for (const r of rows) {
       const ag = touchAgent(r.agentId);
@@ -105,6 +111,19 @@ export async function usageRoutes(app: FastifyInstance): Promise<void> {
       if (typeof to === 'number') {
         tokensOutSum += to;
         tokensOutN += 1;
+      }
+
+      const est = estimateCost({
+        model: (r as { model?: string | null }).model,
+        tokensInput: ti,
+        tokensOutput: to,
+        config: ratesConfig,
+      });
+      if (est.uncosted) {
+        if (est.uncostedReason !== 'no_tokens') uncostedRuns += 1;
+      } else if (est.costUsd != null) {
+        costSum += est.costUsd;
+        costedRuns += 1;
       }
 
       let runDur: number | null = null;
@@ -188,7 +207,10 @@ export async function usageRoutes(app: FastifyInstance): Promise<void> {
       // DS4：有落库则 SUM，否则诚实 null
       tokensInput: tokensInN > 0 ? tokensInSum : null,
       tokensOutput: tokensOutN > 0 ? tokensOutSum : null,
-      costUsd: null,
+      // Slice 28：有价表可算才给数字；否则 null（禁止假 $0）
+      costUsd: costedRuns > 0 ? Number(costSum.toFixed(6)) : null,
+      uncostedRuns,
+      costedRuns,
       byAgent: byAgentRows,
       byDay: byDayRows,
     };
