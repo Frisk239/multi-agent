@@ -15,6 +15,11 @@ import {
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 import type { InboxItem } from '@ma/shared';
+import {
+  isActionableInboxItem,
+  resolveInboxPrimaryCta,
+  type InboxPrimaryCta,
+} from '@/lib/inbox-run-cta';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { PageSkeleton } from './Skeleton';
@@ -81,20 +86,6 @@ function isCwdFailBody(text: string | null | undefined): boolean {
   return e.includes('cwd') || e.includes('ma_workspace_cwd') || e.includes('工作目录');
 }
 
-function runListHref(item: InboxItem): string | null {
-  if (!item.runId) {
-    if (isFailItem(item)) return '/runs?status=failed';
-    return null;
-  }
-  const sp = new URLSearchParams();
-  sp.set('run', item.runId);
-  if (isFailItem(item)) sp.set('status', 'failed');
-  if (item.kind === 'run_completed' || item.type === 'run_completed') {
-    sp.set('status', 'completed');
-  }
-  return `/runs?${sp.toString()}`;
-}
-
 /** Multica：同一 Issue 多条通知折叠为最新一条（列表按创建时间 desc） */
 function dedupeInboxItems(items: InboxItem[]): InboxItem[] {
   const seen = new Set<string>();
@@ -122,86 +113,164 @@ function displaySubtitle(item: InboxItem): string {
   return kindLabel(item.kind);
 }
 
-function InboxRetryButton({
+/** 无 Issue 详情区：主 CTA + 次要入口（避免双主按钮） */
+function InboxDetailPrimaryActions({ item }: { item: InboxItem }) {
+  const cta = resolveInboxPrimaryCta(item);
+  return (
+    <>
+      {cta.kind !== 'none' ? (
+        <InboxPrimaryCtaControl item={item} cta={cta} />
+      ) : null}
+      {isFailItem(item) && item.runId ? (
+        <Link
+          href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${item.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(item.body ?? item.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
+          className="inbox-action-btn inbox-action-link"
+          data-testid="inbox-dm-agent"
+        >
+          带日志追问 (DM)
+        </Link>
+      ) : null}
+      {isFailItem(item) && isCwdFailBody(item.body ?? item.summary) ? (
+        <Link
+          href="/settings"
+          className="inbox-action-btn inbox-action-link"
+          data-testid="inbox-fail-settings"
+        >
+          环境
+        </Link>
+      ) : null}
+      {item.runId && cta.kind !== 'open_run' && cta.kind !== 'retry' ? (
+        <Link
+          href={`/runs?run=${encodeURIComponent(item.runId)}&status=all`}
+          className="inbox-action-btn inbox-action-link"
+          data-testid="inbox-open-run"
+        >
+          打开运行
+        </Link>
+      ) : null}
+      {cta.kind !== 'open_chat' ? (
+        <Link
+          href="/chat"
+          className="inbox-action-btn inbox-action-link"
+          data-testid="inbox-open-chat"
+        >
+          打开聊天
+        </Link>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Slice 65：主 CTA
+ * - retry → 既有诚实分流（chat→会话 / 无 issue→重派 / 否则 retry API）
+ * - open_* → Link
+ * 统一 data-testid="inbox-primary-cta"；保留 inbox-retry-run 兼容旧 e2e
+ */
+function InboxPrimaryCtaControl({
   item,
+  cta,
   onDone,
 }: {
   item: InboxItem;
+  cta: InboxPrimaryCta;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const retry = useRetryRun();
   const [pending, setPending] = useState(false);
-  if (!item.runId || !isFailItem(item)) return null;
 
-  async function onRecover() {
-    if (!item.runId || pending || retry.isPending) return;
-    setPending(true);
-    try {
-      // F5/F10：按 run.kind 诚实分流；标题兜底（run 已删时仍可回会话）
-      const res = await apiFetch(
-        `${API}/runs/${encodeURIComponent(item.runId)}`,
-      );
-      if (res.ok) {
-        const run = (await res.json()) as {
-          kind?: string;
-          issueId?: string | null;
-          chatThreadId?: string | null;
-          quickPrompt?: string | null;
-        };
-        if (run.kind === 'chat') {
-          const href = run.chatThreadId
-            ? `/chat?thread=${encodeURIComponent(run.chatThreadId)}`
-            : '/chat';
-          router.push(href);
+  if (cta.kind === 'none') return null;
+
+  if (cta.kind === 'retry' && item.runId) {
+    async function onRecover() {
+      if (!item.runId || pending || retry.isPending) return;
+      setPending(true);
+      try {
+        // F5/F10：按 run.kind 诚实分流；标题兜底（run 已删时仍可回会话）
+        const res = await apiFetch(
+          `${API}/runs/${encodeURIComponent(item.runId)}`,
+        );
+        if (res.ok) {
+          const run = (await res.json()) as {
+            kind?: string;
+            issueId?: string | null;
+            chatThreadId?: string | null;
+            quickPrompt?: string | null;
+          };
+          if (run.kind === 'chat') {
+            const href = run.chatThreadId
+              ? `/chat?thread=${encodeURIComponent(run.chatThreadId)}`
+              : '/chat';
+            router.push(href);
+            onDone?.();
+            setPending(false);
+            return;
+          }
+          if (!run.issueId) {
+            const qp = run.quickPrompt?.trim()
+              ? `?quickPrompt=${encodeURIComponent(run.quickPrompt.trim())}`
+              : '';
+            router.push(`/${qp}`);
+            onDone?.();
+            setPending(false);
+            return;
+          }
+        } else if (/聊天失败|聊天/.test(item.title ?? '')) {
+          router.push('/chat');
           onDone?.();
           setPending(false);
           return;
         }
-        if (!run.issueId) {
-          const qp = run.quickPrompt?.trim()
-            ? `?quickPrompt=${encodeURIComponent(run.quickPrompt.trim())}`
-            : '';
-          router.push(`/${qp}`);
+        retry.mutate(item.runId, {
+          onSuccess: () => onDone?.(),
+          onSettled: () => setPending(false),
+        });
+      } catch {
+        if (/聊天失败|聊天/.test(item.title ?? '')) {
+          router.push('/chat');
           onDone?.();
           setPending(false);
           return;
         }
-      } else if (/聊天失败|聊天/.test(item.title ?? '')) {
-        router.push('/chat');
-        onDone?.();
-        setPending(false);
-        return;
+        retry.mutate(item.runId!, {
+          onSuccess: () => onDone?.(),
+          onSettled: () => setPending(false),
+        });
       }
-      retry.mutate(item.runId, {
-        onSuccess: () => onDone?.(),
-        onSettled: () => setPending(false),
-      });
-    } catch {
-      if (/聊天失败|聊天/.test(item.title ?? '')) {
-        router.push('/chat');
-        onDone?.();
-        setPending(false);
-        return;
-      }
-      retry.mutate(item.runId!, {
-        onSuccess: () => onDone?.(),
-        onSettled: () => setPending(false),
-      });
     }
+
+    return (
+      <button
+        type="button"
+        className="inbox-action-btn inbox-action-btn--primary"
+        data-testid="inbox-primary-cta"
+        data-cta-kind="retry"
+        data-inbox-retry-run="1"
+        data-run-id={item.runId}
+        disabled={pending || retry.isPending}
+        onClick={(e) => {
+          e.stopPropagation();
+          void onRecover();
+        }}
+      >
+        {pending || retry.isPending ? '处理中…' : cta.label || '再执行'}
+      </button>
+    );
   }
 
+  if (!cta.href) return null;
+
   return (
-    <button
-      type="button"
-      className="inbox-action-btn inbox-action-btn--primary"
-      data-testid="inbox-retry-run"
-      data-run-id={item.runId}
-      disabled={pending || retry.isPending}
-      onClick={() => void onRecover()}
+    <Link
+      href={cta.href}
+      className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
+      data-testid="inbox-primary-cta"
+      data-cta-kind={cta.kind}
+      onClick={(e) => e.stopPropagation()}
     >
-      {pending || retry.isPending ? '处理中…' : '恢复'}
-    </button>
+      {cta.label}
+    </Link>
   );
 }
 
@@ -431,7 +500,7 @@ function InboxPageInner() {
           replyZone.focus();
         } else {
           const primaryAction = document.querySelector<HTMLElement>(
-            '[data-testid="inbox-retry-run"], [data-testid="inbox-open-run"], [data-testid="inbox-open-chat"], [data-testid="inbox-open-issue"]',
+            '[data-testid="inbox-primary-cta"], [data-testid="inbox-retry-run"], [data-testid="inbox-open-run"], [data-testid="inbox-open-chat"], [data-testid="inbox-open-issue"]',
           );
           if (primaryAction) {
             primaryAction.focus();
@@ -684,12 +753,16 @@ function InboxPageInner() {
         <div className="inbox-split-list" data-testid="inbox-split-list">
           {items.length === 0 ? (
             <EmptyState
-              title="暂无动态"
+              title={
+                activeAll.length === 0 && archivedAll.length === 0
+                  ? '没有需要处理的项'
+                  : '当前筛选下没有需要处理的项'
+              }
               icon="📭"
               description={
                 activeAll.length > 0 || archivedAll.length > 0
-                  ? '当前筛选无结果，试试清除筛选。'
-                  : '评论、指派与 Run 终态会出现在这里'
+                  ? '试试清除筛选，或在运维里查看全部类型。默认偏向失败/关注，不推翻你的通知偏好。'
+                  : '失败、等待与需处理的运行会出现在这里；评论/指派也会在此汇总。'
               }
               action={
                 activeAll.length > 0 || archivedAll.length > 0 ? (
@@ -712,6 +785,13 @@ function InboxPageInner() {
                       data-testid="inbox-empty-chat"
                     >
                       打开聊天
+                    </Link>
+                    <Link
+                      href="/runs?status=failed"
+                      className="btn-ghost btn-sm"
+                      data-testid="inbox-empty-failed-runs"
+                    >
+                      失败运行
                     </Link>
                   </div>
                 )
@@ -848,17 +928,20 @@ function InboxPageInner() {
                     ) : null}
                   </div>
                   <div className="inbox-issue-toolbar-actions">
+                    {(() => {
+                      const cta = resolveInboxPrimaryCta(selected);
+                      return cta.kind !== 'none' ? (
+                        <InboxPrimaryCtaControl item={selected} cta={cta} />
+                      ) : null;
+                    })()}
                     {isFailItem(selected) && selected.runId ? (
-                      <>
-                        <InboxRetryButton item={selected} />
-                        <Link
-                          href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${selected.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(selected.body ?? selected.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
-                          className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
-                          data-testid="inbox-dm-agent"
-                        >
-                          带日志追问 (DM)
-                        </Link>
-                      </>
+                      <Link
+                        href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${selected.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(selected.body ?? selected.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
+                        className="inbox-action-btn inbox-action-link"
+                        data-testid="inbox-dm-agent"
+                      >
+                        带日志追问 (DM)
+                      </Link>
                     ) : null}
                     {selected.runId ? (
                       <Link
@@ -969,44 +1052,7 @@ function InboxPageInner() {
                     className="inbox-actions inbox-detail-actions"
                     data-testid="inbox-detail-actions"
                   >
-                    {isFailItem(selected) && selected.runId ? (
-                      <>
-                        <InboxRetryButton item={selected} />
-                        <Link
-                          href={`/chat?quickPrompt=${encodeURIComponent(`上次运行 (Run ${selected.runId.slice(0, 8)}) 失败了，请分析报错：\n\`\`\`\n${(selected.body ?? selected.summary ?? '').slice(0, 500)}\n\`\`\`\n并给出修复方案。`)}`}
-                          className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
-                          data-testid="inbox-dm-agent"
-                        >
-                          带日志追问 (DM)
-                        </Link>
-                      </>
-                    ) : null}
-                    {isFailItem(selected) &&
-                    isCwdFailBody(selected.body ?? selected.summary) ? (
-                      <Link
-                        href="/settings"
-                        className="inbox-action-btn inbox-action-link"
-                        data-testid="inbox-fail-settings"
-                      >
-                        环境
-                      </Link>
-                    ) : null}
-                    {runListHref(selected) ? (
-                      <Link
-                        href={runListHref(selected)!}
-                        className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
-                        data-testid="inbox-open-run"
-                      >
-                        打开运行
-                      </Link>
-                    ) : null}
-                    <Link
-                      href="/chat"
-                      className="inbox-action-btn inbox-action-link inbox-action-btn--primary"
-                      data-testid="inbox-open-chat"
-                    >
-                      打开聊天
-                    </Link>
+                    <InboxDetailPrimaryActions item={selected} />
                     {!selected.archived ? (
                       <button
                         type="button"
@@ -1097,9 +1143,21 @@ function InboxRow({
         </button>
         {!archived ? (
           <div className="inbox-row-actions" data-testid="inbox-row-actions" style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '8px' }}>
-            {isFailItem(item) && item.runId ? (
-              <InboxRetryButton item={item} />
-            ) : null}
+            {(() => {
+              const cta = resolveInboxPrimaryCta(item);
+              // 需处理项始终展示主 CTA；普通评论/完成仅有 issue 时也给一个轻量入口
+              if (cta.kind === 'none') return null;
+              if (
+                !isActionableInboxItem(item) &&
+                cta.kind !== 'retry' &&
+                cta.kind !== 'open_run' &&
+                cta.kind !== 'open_chat'
+              ) {
+                // comment/assigned：列表保持干净，详情再给 issue 入口
+                return null;
+              }
+              return <InboxPrimaryCtaControl item={item} cta={cta} />;
+            })()}
             <button
               type="button"
               className="inbox-row-archive"
