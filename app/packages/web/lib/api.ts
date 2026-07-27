@@ -739,30 +739,38 @@ export function useBulkUpdateIssueStatus() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error('批量更新状态失败');
+      if (!res.ok) throw new Error(await apiError(res, '批量更新状态失败'));
       return res.json() as Promise<{ success: boolean; updatedCount: number }>;
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess(`已更新 ${r.updatedCount} 项状态`);
     },
+    onError: (err) => toastError(errMessage(err, '批量更新状态失败')),
   });
 }
 
 export function useBulkUpdateIssueAssignee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { issueIds: string[]; assigneeType: string | null; assigneeId: string | null }) => {
+    mutationFn: async (input: {
+      issueIds: string[];
+      assigneeType: string | null;
+      assigneeId: string | null;
+    }) => {
       const res = await fetch(`${API}/issues/bulk-assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error('批量指派失败');
+      if (!res.ok) throw new Error(await apiError(res, '批量指派失败'));
       return res.json() as Promise<{ success: boolean; updatedCount: number }>;
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess(`已更新 ${r.updatedCount} 项指派`);
     },
+    onError: (err) => toastError(errMessage(err, '批量指派失败')),
   });
 }
 
@@ -775,12 +783,14 @@ export function useBulkDeleteIssues() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error('批量删除失败');
+      if (!res.ok) throw new Error(await apiError(res, '批量删除失败'));
       return res.json() as Promise<{ success: boolean; deletedCount: number }>;
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['issues'] });
+      toastSuccess(`已删除 ${r.deletedCount} 项`);
     },
+    onError: (err) => toastError(errMessage(err, '批量删除失败')),
   });
 }
 

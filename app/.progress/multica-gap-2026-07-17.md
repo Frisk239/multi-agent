@@ -42,7 +42,7 @@
 | **S 安全/Resume** | 49–50 | 本地 token · Resume 矩阵 | ✅ |
 | **O 运维** | 51 | Ops snapshot + live-probes | ✅ |
 
-**▶ 下一阶段：** 新 gap 审计 / 日用加深（非自动编号）；刻意不做仍有效。
+**▶ 下一阶段：** [Phase D 计划](./slice-plan-2026-07-27-phase-d.md) · Slice **55–62**（一致性收口 + 运维安心；E/F 可选延伸）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 

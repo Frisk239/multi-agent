@@ -29,6 +29,7 @@ import {
 } from './IssueSideSheet';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 import { OnboardingWizard } from './OnboardingWizard';
@@ -322,7 +323,13 @@ function KanbanBoardInner() {
       ? originFromUrl
       : undefined;
 
-  const { data: issuesPage, isLoading } = useIssues({
+  const {
+    data: issuesPage,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
     priority: priorityQuery,
@@ -335,6 +342,10 @@ function KanbanBoardInner() {
   const { data: labels } = useLabels();
   const reorder = useReorderIssues();
   const [dragId, setDragId] = useState<string | null>(null);
+  const bulkPending =
+    bulkUpdateStatus.isPending ||
+    bulkUpdateAssignee.isPending ||
+    bulkDelete.isPending;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -512,6 +523,17 @@ function KanbanBoardInner() {
   const showMore = moreFiltersOpen || moreFilterCount > 0;
 
   if (isLoading) return <PageSkeleton />;
+  if (isError) {
+    return (
+      <div className="page-container" data-testid="kanban-error">
+        <ErrorState
+          title="加载看板失败"
+          description={error instanceof Error ? error.message : '未知错误'}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+  }
 
   function handleDragStart(event: any) {
     setDragId(event.active.id);
@@ -1159,6 +1181,7 @@ function KanbanBoardInner() {
           data-testid="kanban-bulk-bar"
           role="toolbar"
           aria-label="批量操作"
+          aria-busy={bulkPending || undefined}
           style={{
             transform: 'translateX(-50%)',
             position: 'fixed',
@@ -1177,7 +1200,9 @@ function KanbanBoardInner() {
           }}
         >
           <span className="font-medium" data-testid="kanban-bulk-count">
-            已选择 {selectedIds.size} 项
+            {bulkPending
+              ? `处理中…（${selectedIds.size} 项）`
+              : `已选择 ${selectedIds.size} 项`}
           </span>
 
           <Select
@@ -1185,6 +1210,7 @@ function KanbanBoardInner() {
             value=""
             aria-label="批量修改状态"
             data-testid="kanban-bulk-status"
+            disabled={bulkPending}
             onChange={(e) => {
               if (e.target.value) {
                 bulkUpdateStatus.mutate(
@@ -1212,6 +1238,7 @@ function KanbanBoardInner() {
             value=""
             aria-label="批量更改指派"
             data-testid="kanban-bulk-assignee"
+            disabled={bulkPending}
             onChange={(e) => {
               const val = e.target.value;
               if (val) {
@@ -1262,6 +1289,7 @@ function KanbanBoardInner() {
             type="button"
             className="btn-error btn-sm"
             data-testid="kanban-bulk-delete"
+            disabled={bulkPending}
             onClick={() => {
               void (async () => {
                 const n = selectedIds.size;
@@ -1279,7 +1307,7 @@ function KanbanBoardInner() {
               })();
             }}
           >
-            批量删除
+            {bulkDelete.isPending ? '删除中…' : '批量删除'}
           </button>
 
           <button
