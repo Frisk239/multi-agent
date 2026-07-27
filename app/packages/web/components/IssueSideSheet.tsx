@@ -73,7 +73,7 @@ export function IssueSideSheet({
           </div>
         </header>
         <div className="issue-side-sheet-body" data-testid="issue-side-sheet-body">
-          <IssueDetail id={issueId} />
+          <IssueDetail id={issueId} variant="sheet" />
         </div>
       </div>
     </div>

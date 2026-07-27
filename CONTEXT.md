@@ -46,16 +46,18 @@
 
 ## 当前方位（2026-07-27）
 
-- **阶段：** S01–S22 + 补1–5 已合 main（Builder 半落地）；**下一阶段 = 健壮性 → 日用手感 → 纵深**
+- **阶段：** Phase A（Slice **23–32**）已收官；**Phase B = 验收锁回归 → 恢复/安全补洞 → 手感债 → 编排纵深**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
-- **滚动计划（真源）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md) — Slice **23–32** 三轨十刀  
+- **滚动计划（真源）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md) — Slice **33–43**  
+- **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** **Slice 23–32 整队**（关停·Memory 断路器·委派边界·WS 订阅·手感·价表·列表 virtual·模板库·Wiki 复利·Issue 侧滑）
-- **▶ 下一阶段：** 全栈 live Playwright 补验 + 穿插债（Kanban 列 virtual / 窄屏抽屉等）；新主题另开 gap 审计
-- **上一刀 closeout：** [slice32-issue-sheet-impl-1.md](app/.progress/slice32-issue-sheet-impl-1.md) · 计划 [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)
+- **已交（近）：** **Slice 23–38**（A: 关停→侧滑 · B: live Playwright·手感债·run 恢复·Sheet 轻量·Kanban virtual·healthz/bind）
+- **▶ 下一刀默认：** Phase B 余下 **39+**（见 phase-b 计划）或新 gap 审计
+- **上一刀 closeout：** [queue-23-38-closeout-2026-07-27.md](app/.progress/queue-23-38-closeout-2026-07-27.md) · [slice38-healthz-bind-impl-1.md](app/.progress/slice38-healthz-bind-impl-1.md)
+- **验收证据：** Slice33 live Playwright **PASS=14 FAIL=0**（log under `app/.progress/logs/`）
 
-- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间
+- **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 
 ## 相关入口

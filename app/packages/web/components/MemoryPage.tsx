@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   useMemoryStatus,
@@ -13,6 +13,7 @@ import {
   useSettingsStatus,
   type MemoryItem,
 } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
@@ -80,15 +81,12 @@ function MemoryPageInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
-  useEffect(() => {
-    if (!detailId) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeDetail();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailId]);
+  const detailPanelRef = useRef<HTMLElement | null>(null);
+  useFocusTrap(Boolean(detailId), detailPanelRef, {
+    onEscape: closeDetail,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   // 防抖写 URL → 再由 URL 驱动 useMemoryList
   useEffect(() => {
@@ -731,7 +729,7 @@ function MemoryPageInner() {
             data-testid="memory-detail-backdrop"
             onClick={closeDetail}
           />
-          <aside className="memory-detail-panel">
+          <aside ref={detailPanelRef} className="memory-detail-panel" tabIndex={-1}>
             <header className="memory-detail-head">
               <div>
                 <h2 className="memory-detail-title">记忆详情</h2>
@@ -759,6 +757,7 @@ function MemoryPageInner() {
                 type="button"
                 className="btn-secondary btn-sm"
                 data-testid="memory-detail-close"
+                data-autofocus
                 onClick={closeDetail}
               >
                 关闭

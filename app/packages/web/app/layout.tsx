@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
 import { EnvBanner } from '@/components/EnvBanner';
+import { WsConnectionBanner } from '@/components/WsConnectionBanner';
 import { OnboardingCard } from '@/components/OnboardingCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HelperRail } from '@/components/HelperRail';
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Suspense>
               <div className="main-column">
                 <EnvBanner />
+                <WsConnectionBanner />
                 <main className="main-content">
                   <Suspense fallback={null}>
                     <OnboardingCard />

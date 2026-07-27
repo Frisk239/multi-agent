@@ -1647,6 +1647,7 @@ export function useRecoverStuckRuns() {
         staleRunning: number;
         staleQueued: number;
         missingAgentQueued: number;
+        staleWaitingLocal?: number;
         total: number;
       }>;
     },
@@ -1657,8 +1658,12 @@ export function useRecoverStuckRuns() {
       qc.invalidateQueries({ queryKey: ['inbox-unread'] });
       if (r.total === 0) toastSuccess('没有需要收尸的卡住 run');
       else {
+        const waitingPart =
+          typeof r.staleWaitingLocal === 'number' && r.staleWaitingLocal > 0
+            ? ` · 目录等待超时 ${r.staleWaitingLocal}`
+            : '';
         toastSuccess(
-          `已收尸 ${r.total} 条（running残留 ${r.orphanRunning} · 心跳超时 ${r.staleRunning} · 缺 agent ${r.missingAgentQueued} · 排队过久 ${r.staleQueued}）`,
+          `已收尸 ${r.total} 条（running残留 ${r.orphanRunning} · 心跳超时 ${r.staleRunning} · 缺 agent ${r.missingAgentQueued} · 排队过久 ${r.staleQueued}${waitingPart}）`,
           {
             action: { label: '失败运行', href: '/runs?status=failed' },
             durationMs: 8000,

@@ -3,10 +3,12 @@ import { db } from '../db/client.js';
 import { automationRules } from '../db/schema.js';
 import { logger } from '../logger.js';
 import { computeDuePlannedAt, dispatchAutomationRule } from './automation-dispatch.js';
+import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
 async function tick(): Promise<void> {
+  noteWorkerTick('automationWorker');
   const now = Date.now();
   const rules = db
     .select()
@@ -33,6 +35,7 @@ function tickSafe() {
 /** 30s tick + 启动立即 tick 一次；仅 enabled 规则。disabled 仍可 run-now。 */
 export function startAutomationWorker(): void {
   if (timer) return;
+  markWorkerStarted('automationWorker');
   tickSafe();
   timer = setInterval(() => {
     void tick();
@@ -44,6 +47,7 @@ export function startAutomationWorker(): void {
 }
 
 export function stopAutomationWorker(): void {
+  markWorkerStopped('automationWorker');
   if (timer) {
     clearInterval(timer);
     timer = null;

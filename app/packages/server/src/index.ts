@@ -21,7 +21,10 @@ import { memoryManager } from './memory/manager.js';
 import { SqliteTextProvider } from './memory/sqlite-text-provider.js';
 import { PgvectorProvider } from './memory/pgvector-provider.js';
 
+import { resolveListenHost } from './bind.js';
+
 const PORT = Number(process.env.PORT ?? 3001);
+const HOST = resolveListenHost();
 
 // S10：MEMORY_PROVIDER 选择；pgvector 失败回退 sqlite-text（R11：先 initialize 再 isAvailable）
 async function initMemoryProvider(): Promise<void> {
@@ -71,8 +74,9 @@ async function main() {
   // S08：Wiki ingest 队列 worker（spec §4.4）
   startWikiIngestWorker();
   try {
-    await app.listen({ port: PORT, host: '0.0.0.0' });
-    console.log(`✓ server 起在 http://localhost:${PORT} (ws: /ws)`);
+    // Slice 38：默认 127.0.0.1；局域网暴露设 MA_BIND=0.0.0.0（或 HOST）
+    await app.listen({ port: PORT, host: HOST });
+    console.log(`✓ server 起在 http://${HOST}:${PORT} (ws: /ws · healthz: /healthz)`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

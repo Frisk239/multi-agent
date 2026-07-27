@@ -57,6 +57,7 @@ export const AgentRunFailureReason = z.enum([
   'exec_error',
   'timeout',
   'squad_member_escalated',
+  'waiting_local_directory_timeout',
 ]);
 export type AgentRunFailureReason = z.infer<typeof AgentRunFailureReason>;
 

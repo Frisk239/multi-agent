@@ -45,6 +45,16 @@ describe('run-recovery', () => {
       expect(runRecoveryKind(failedIssue)).toBe('issue_retry');
     });
 
+    it('returns issue_retry for timed_out issue runs', () => {
+      const timedOutIssue = {
+        kind: 'issue' as const,
+        status: 'timed_out' as const,
+        issueId: 'iss-100',
+        chatThreadId: null,
+      };
+      expect(runRecoveryKind(timedOutIssue)).toBe('issue_retry');
+    });
+
     it('returns qc_redispatch for terminal quick_create runs without issueId', () => {
       const failedQC = { kind: 'quick_create' as const, status: 'failed' as const, issueId: null, chatThreadId: null };
       expect(runRecoveryKind(failedQC)).toBe('qc_redispatch');

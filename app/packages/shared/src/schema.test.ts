@@ -123,6 +123,7 @@ describe('Shared Schema Validators', () => {
         'stale_heartbeat',
         'exec_error',
         'timeout',
+        'waiting_local_directory_timeout',
       ];
       for (const r of reasons) {
         expect(AgentRunFailureReason.parse(r)).toBe(r);

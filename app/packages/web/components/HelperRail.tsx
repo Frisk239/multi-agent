@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import {
   useChatThreads,
   useCreateChatThread,
 } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 
 const API = 'http://localhost:3001/api';
@@ -109,12 +110,8 @@ export function HelperRail() {
     readiness.status !== 'ready' &&
     readiness.status !== 'busy';
 
-  // /chat 全页不显示浮层（Multica floating-chat 同款）
-  if (pathname === '/chat' || pathname.startsWith('/chat/')) {
-    return null;
-  }
-
-  if (!hydrated) return null;
+  const onChatPage =
+    pathname === '/chat' || pathname.startsWith('/chat/');
 
   function toggleOpen() {
     setOpen((v) => {
@@ -128,6 +125,20 @@ export function HelperRail() {
     setOpen(false);
     writeStored(STORAGE_OPEN, '0');
   }
+
+  const railRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open && hydrated && !onChatPage, railRef, {
+    onEscape: close,
+    restoreFocus: true,
+    autoFocus: true,
+  });
+
+  // /chat 全页不显示浮层（Multica floating-chat 同款）
+  if (onChatPage) {
+    return null;
+  }
+
+  if (!hydrated) return null;
 
   async function ensureThread(): Promise<string | null> {
     if (threadId) return threadId;
@@ -222,7 +233,14 @@ export function HelperRail() {
       ) : null}
 
       {open ? (
-        <div className="helper-rail" data-testid="helper-rail" role="dialog" aria-label="本地助手">
+        <div
+          ref={railRef}
+          className="helper-rail"
+          data-testid="helper-rail"
+          role="dialog"
+          aria-label="本地助手"
+          tabIndex={-1}
+        >
           <div className="helper-rail-head">
             <div className="helper-rail-title">
               <Icon name="bot" size={16} />
@@ -250,6 +268,7 @@ export function HelperRail() {
                 type="button"
                 className="btn-ghost btn-sm"
                 data-testid="helper-close"
+                data-autofocus
                 aria-label="关闭助手"
                 onClick={close}
               >

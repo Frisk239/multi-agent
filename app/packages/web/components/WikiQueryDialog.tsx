@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useWikiQuery, useCreateWikiPage } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { MarkdownBody } from './MarkdownBody';
 
 // S07 query 对话框（spec §5.3）
@@ -13,6 +14,7 @@ export function WikiQueryDialog({
   onClose: () => void;
   projectId?: string | null;
 }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [question, setQuestion] = useState('');
   const [result, setResult] = useState<{
     answer: string;
@@ -20,6 +22,12 @@ export function WikiQueryDialog({
   } | null>(null);
   const query = useWikiQuery(projectId);
   const createPage = useCreateWikiPage(projectId);
+
+  useFocusTrap(true, dialogRef, {
+    onEscape: onClose,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   function handleSubmit() {
     if (!question.trim()) return;
@@ -41,7 +49,15 @@ export function WikiQueryDialog({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Wiki 问答"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h3>Wiki 问答</h3>
           <button type="button" className="modal-close" onClick={onClose}>
@@ -53,6 +69,7 @@ export function WikiQueryDialog({
             <input
               type="text"
               className="wiki-query-input"
+              data-autofocus
               placeholder="输入你的问题..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}

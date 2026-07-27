@@ -59,8 +59,12 @@ pnpm ma -- --help     # 本机 ma CLI（如 issue create）
 |---|---|
 | `MA_WORKSPACE_CWD` | 工作区根路径（**覆盖** Settings 里持久化的 `workspace.root_path`） |
 | `PORT` | server 端口（默认 3001） |
+| `MA_BIND` / `HOST` | listen 地址（**默认 `127.0.0.1`**；局域网暴露：`MA_BIND=0.0.0.0`） |
+| `MA_CORS_ORIGIN` | CORS 允许源（默认 `http://localhost:3000` + `127.0.0.1:3000`；逗号分隔扩展） |
 | `DB_PATH` | SQLite 文件路径 |
 | `WIKI_LLM_*` / embedding | Wiki 编译用密钥（**仅 env**，Settings 只检测不写库） |
+
+进程探针：`GET http://127.0.0.1:3001/healthz`（ok/degraded + worker lastTick）。
 
 参考：`packages/server/.env.example`（本地 `.env` 已 gitignore）。
 

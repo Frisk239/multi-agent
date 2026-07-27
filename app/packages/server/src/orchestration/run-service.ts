@@ -11,7 +11,7 @@ import { notifyEnqueueSkipped } from './inbox-writer.js';
 import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
 const ACTIVE = ['queued', 'waiting_local_directory', 'running'] as const;
-const RETRYABLE = ['failed', 'cancelled'] as const;
+const RETRYABLE = ['failed', 'cancelled', 'timed_out'] as const;
 
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
 // 15 给 3 倍余量，防住失控但不误杀正常多轮交互。
@@ -400,13 +400,13 @@ export async function rerunIssue(
   return { ok: true, run: enq.run };
 }
 
-/** POST /api/runs/:id/retry —— 仅 failed|cancelled 的 issue 工作 run；chat/QC 拒绝并给可行动文案 */
+/** POST /api/runs/:id/retry —— 仅 failed|cancelled|timed_out 的 issue 工作 run；chat/QC 拒绝并给可行动文案 */
 export async function retryRun(runId: string): Promise<RerunResult> {
   const src = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!src) return { ok: false, status: 404, error: 'run 不存在' };
 
   if (!RETRYABLE.includes(src.status as (typeof RETRYABLE)[number])) {
-    return { ok: false, status: 400, error: '仅 failed 或 cancelled 的 run 可再执行' };
+    return { ok: false, status: 400, error: '仅 failed、cancelled 或 timed_out 的 run 可再执行' };
   }
 
   // Slice3 / F5：chat 与 issue Rerun 分离；勿用「快速派活」文案盖住 chat

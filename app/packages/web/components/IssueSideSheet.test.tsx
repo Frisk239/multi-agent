@@ -8,8 +8,18 @@ import {
 } from './IssueSideSheet';
 
 vi.mock('./IssueDetail', () => ({
-  IssueDetail: ({ id }: { id: string }) => (
-    <div data-testid="issue-detail" data-issue-id={id}>
+  IssueDetail: ({
+    id,
+    variant,
+  }: {
+    id: string;
+    variant?: string;
+  }) => (
+    <div
+      data-testid="issue-detail"
+      data-issue-id={id}
+      data-variant={variant ?? 'page'}
+    >
       mock detail {id}
     </div>
   ),
@@ -66,6 +76,10 @@ describe('IssueSideSheet', () => {
     expect(screen.getByTestId('issue-detail')).toHaveAttribute(
       'data-issue-id',
       'iss-42',
+    );
+    expect(screen.getByTestId('issue-detail')).toHaveAttribute(
+      'data-variant',
+      'sheet',
     );
     expect(screen.getByTestId('issue-side-sheet-fullpage')).toHaveAttribute(
       'href',

@@ -4,7 +4,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 
 export function ErrorState({
-  title = 'Something went wrong',
+  title = '出了点问题',
   description,
   onRetry,
   className = '',
@@ -21,7 +21,7 @@ export function ErrorState({
       {description && <div className="error-state-desc">{description}</div>}
       {onRetry && (
         <button className="error-state-retry-btn" onClick={onRetry}>
-          Try Again
+          重试
         </button>
       )}
     </div>

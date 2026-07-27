@@ -1,8 +1,18 @@
-import React from 'react';
+'use client';
+
+import React, { useRef } from 'react';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { IssueCard } from './IssueCard';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useDensity } from '@/lib/density';
+import {
+  KANBAN_COLUMN_OVERSCAN,
+  estimateKanbanCardGap,
+  estimateKanbanCardHeight,
+  shouldVirtualizeKanbanColumn,
+} from '@/lib/kanban-column-virtual';
 
 interface Props {
   title: string;
@@ -25,8 +35,41 @@ interface Props {
   onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
 }
 
+function renderCard(
+  iss: Issue,
+  props: Pick<
+    Props,
+    | 'onDragStart'
+    | 'readinessByAgentId'
+    | 'failedIssueIds'
+    | 'activeIssueIds'
+    | 'assigneeAgentByIssueId'
+    | 'selectedIds'
+    | 'onToggleSelect'
+    | 'getDetailHref'
+    | 'onOpenDetail'
+  >,
+) {
+  const agentId = props.assigneeAgentByIssueId?.[iss.id];
+  const rd = agentId ? props.readinessByAgentId?.[agentId] : null;
+  return (
+    <IssueCard
+      issue={iss}
+      onDragStart={props.onDragStart}
+      readiness={rd}
+      lastRunFailed={props.failedIssueIds?.has(iss.id)}
+      runActive={props.activeIssueIds?.has(iss.id)}
+      selected={props.selectedIds?.has(iss.id)}
+      onToggleSelect={props.onToggleSelect}
+      detailHref={props.getDetailHref?.(iss)}
+      onOpenDetail={props.onOpenDetail}
+    />
+  );
+}
+
 /**
  * Multica board-column：列 tint 背景 + 标题计数 + 空列「无 issue」
+ * Slice 37：单列 ≥40 时 @tanstack/react-virtual 列内滚动（与 list 阈值对齐）。
  * 参考 references/repos/multica/packages/views/issues/components/board-column.tsx
  */
 export const KanbanColumn = React.memo(function KanbanColumn({
@@ -34,7 +77,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   color,
   issues,
   onDragStart,
-  onDrop,
+  onDrop: _onDrop,
   status,
   readinessByAgentId,
   failedIssueIds,
@@ -49,6 +92,34 @@ export const KanbanColumn = React.memo(function KanbanColumn({
     id: status,
     data: { type: 'Column', status },
   });
+  const { density } = useDensity();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualize = shouldVirtualizeKanbanColumn(issues.length);
+  const estimateSize = estimateKanbanCardHeight(density);
+  const gap = estimateKanbanCardGap(density);
+
+  const cardVirtualizer = useVirtualizer({
+    count: virtualize ? issues.length : 0,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => estimateSize,
+    overscan: KANBAN_COLUMN_OVERSCAN,
+    gap,
+    getItemKey: (index) => issues[index]?.id ?? index,
+    enabled: virtualize,
+  });
+
+  const virtualItems = virtualize ? cardVirtualizer.getVirtualItems() : [];
+  const cardProps = {
+    onDragStart,
+    readinessByAgentId,
+    failedIssueIds,
+    activeIssueIds,
+    assigneeAgentByIssueId,
+    selectedIds,
+    onToggleSelect,
+    getDetailHref,
+    onOpenDetail,
+  };
 
   return (
     <section
@@ -56,6 +127,9 @@ export const KanbanColumn = React.memo(function KanbanColumn({
       className="kanban-column"
       data-status={status}
       data-testid="kanban-column"
+      data-virtualized={virtualize ? '1' : '0'}
+      data-virtual-count={issues.length}
+      data-virtual-rendered={virtualize ? virtualItems.length : issues.length}
     >
       <header className="kanban-column-header">
         <div className="kanban-column-heading">
@@ -78,37 +152,63 @@ export const KanbanColumn = React.memo(function KanbanColumn({
           </a>
         </div>
       </header>
-      <div className="kanban-column-body">
+      <div
+        ref={parentRef}
+        className="kanban-column-body"
+        data-testid="kanban-column-body"
+      >
         {issues.length === 0 ? (
           <div className="kanban-column-empty" data-testid="kanban-column-empty">
             无 issue
           </div>
         ) : (
-          <SortableContext items={issues.map(i => i.id)} strategy={verticalListSortingStrategy}>
-            {issues.map((iss) => {
-              const agentId = assigneeAgentByIssueId?.[iss.id];
-              const rd = agentId ? readinessByAgentId?.[agentId] : null;
-              return (
+          <SortableContext items={issues.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {virtualize ? (
+              <div
+                className="kanban-column-virtual-inner"
+                data-testid="kanban-column-virtual-inner"
+                style={{
+                  height: `${cardVirtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualItems.map((virtualRow) => {
+                  const iss = issues[virtualRow.index];
+                  if (!iss) return null;
+                  return (
+                    <div
+                      key={iss.id}
+                      className="kanban-card-slot kanban-card-slot--virtual"
+                      data-testid="kanban-card-slot"
+                      data-issue-id={iss.id}
+                      data-index={virtualRow.index}
+                      ref={cardVirtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      {renderCard(iss, cardProps)}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              issues.map((iss) => (
                 <div
                   key={iss.id}
                   className="kanban-card-slot"
                   data-testid="kanban-card-slot"
                   data-issue-id={iss.id}
                 >
-                  <IssueCard
-                    issue={iss}
-                    onDragStart={onDragStart}
-                    readiness={rd}
-                    lastRunFailed={failedIssueIds?.has(iss.id)}
-                    runActive={activeIssueIds?.has(iss.id)}
-                    selected={selectedIds?.has(iss.id)}
-                    onToggleSelect={onToggleSelect}
-                    detailHref={getDetailHref?.(iss)}
-                    onOpenDetail={onOpenDetail}
-                  />
+                  {renderCard(iss, cardProps)}
                 </div>
-              );
-            })}
+              ))
+            )}
           </SortableContext>
         )}
       </div>

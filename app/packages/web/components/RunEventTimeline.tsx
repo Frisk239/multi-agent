@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun, RunMessage } from '@ma/shared';
 import { useRunMessages, useChildRuns } from '@/lib/api';
@@ -14,6 +14,7 @@ import {
   type RunEventDrawerFilter,
   type RunEventViewItem,
 } from '@/lib/run-event-pairs';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { useRunProgressStore } from '@/lib/ws';
 
 function kindLabel(kind: RunMessage['kind']): string {
@@ -348,6 +349,7 @@ export function RunEventTimelineDrawer({
     run?.status === 'waiting_local_directory' ||
     run?.status === 'running';
   const [filter, setFilter] = useState<RunEventDrawerFilter>('all');
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
   const filteredItems = useMemo(
@@ -355,14 +357,11 @@ export function RunEventTimelineDrawer({
     [viewItems, filter],
   );
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  useFocusTrap(open && Boolean(run), panelRef, {
+    onEscape: onClose,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   useEffect(() => {
     if (!open) setFilter('all');
@@ -388,7 +387,7 @@ export function RunEventTimelineDrawer({
         data-testid="run-event-drawer-backdrop"
         onClick={onClose}
       />
-      <div className="run-event-drawer-panel">
+      <div ref={panelRef} className="run-event-drawer-panel" tabIndex={-1}>
         <header className="run-event-drawer-head">
           <div>
             <h2 className="run-event-drawer-title">运行事件时间线</h2>
@@ -423,6 +422,7 @@ export function RunEventTimelineDrawer({
               type="button"
               className="btn-secondary btn-sm"
               data-testid="run-event-drawer-close"
+              data-autofocus
               onClick={onClose}
             >
               关闭

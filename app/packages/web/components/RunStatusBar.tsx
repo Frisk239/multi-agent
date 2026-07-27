@@ -58,7 +58,10 @@ export function RunStatusBar({
     active.status === 'queued' ||
     active.status === 'waiting_local_directory' ||
     active.status === 'running';
-  const canRerun = active.status === 'failed' || active.status === 'cancelled';
+  const canRerun =
+    active.status === 'failed' ||
+    active.status === 'cancelled' ||
+    active.status === 'timed_out';
   const progress =
     active.status === 'running' ? progressByRun[active.id]?.trim() : undefined;
   const failure =

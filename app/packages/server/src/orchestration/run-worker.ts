@@ -41,6 +41,7 @@ import {
 } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { parseAndDispatchSubagents } from './subagent-dispatch.js';
+import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -61,6 +62,7 @@ let stopped = false;
 export function startRunWorker(): void {
   if (timer) return;
   stopped = false;
+  markWorkerStarted('runWorker');
   timer = setInterval(() => {
     void tick();
   }, 500);
@@ -69,6 +71,7 @@ export function startRunWorker(): void {
 /** Slice 23：关停时清 timer，阻止 wake 再 claim */
 export function stopRunWorker(): void {
   stopped = true;
+  markWorkerStopped('runWorker');
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -85,6 +88,7 @@ export function wakeRunWorker(): void {
 // C1：project_local 同 path 同时仅 1 个 running；被挡显示为 waiting_local_directory。
 async function tick(): Promise<void> {
   if (stopped) return;
+  noteWorkerTick('runWorker');
   const queuedRows = db
     .select()
     .from(agentRuns)

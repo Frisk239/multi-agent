@@ -14,6 +14,7 @@ import {
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageBreadcrumb } from './PageBreadcrumb';
+import { PageSkeleton } from './Skeleton';
 import { SquadRunsTimeline } from './SquadRunsTimeline';
 
 function readinessClass(status: AgentReadiness['status'] | undefined): string {
@@ -110,7 +111,13 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
     return { ok, warn, bad, unknown, total: roster.length };
   }, [roster, readinessMap]);
 
-  if (isLoading || (squad && !ready)) return <div className="page-container">加载中…</div>;
+  if (isLoading || (squad && !ready)) {
+    return (
+      <div className="page-container" data-testid="squad-detail-loading">
+        <PageSkeleton />
+      </div>
+    );
+  }
   if (isError || !squad) {
     return (
       <div className="page-container">

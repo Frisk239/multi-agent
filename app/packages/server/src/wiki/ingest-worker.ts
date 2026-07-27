@@ -6,6 +6,7 @@ import {
   recoverStuckRunningJobs,
 } from './ingest-queue.js';
 import { ingestIssue } from './ingest.js';
+import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 // 内存单并发闸：避免上一个 execute 未结束时 tick 再 claim 下一单（LLM 刷爆）
@@ -15,6 +16,7 @@ let stopped = false;
 export function startWikiIngestWorker(): void {
   if (timer) return;
   stopped = false;
+  markWorkerStarted('wikiIngestWorker');
   const recovered = recoverStuckRunningJobs();
   if (recovered > 0) {
     console.log(`[wiki-ingest-worker] recovered ${recovered} stuck running job(s)`);
@@ -27,6 +29,7 @@ export function startWikiIngestWorker(): void {
 /** Slice 23：关停时清 timer（在途 ingest best-effort 不强制 drain） */
 export function stopWikiIngestWorker(): void {
   stopped = true;
+  markWorkerStopped('wikiIngestWorker');
   if (timer) {
     clearInterval(timer);
     timer = null;
@@ -39,7 +42,10 @@ export function wakeWikiIngestWorker(): void {
 }
 
 async function tick(): Promise<void> {
-  if (stopped || busy) return;
+  if (stopped) return;
+  // busy 时仍记 tick，证明 loop 活着
+  noteWorkerTick('wikiIngestWorker');
+  if (busy) return;
   const job = claimNextWikiIngestJob();
   if (!job) return;
   busy = true;

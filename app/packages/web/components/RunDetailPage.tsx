@@ -33,6 +33,7 @@ import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
 import { ErrorBoundary } from './ErrorBoundary';
+import { PageSkeleton } from './Skeleton';
 
 
 /**
@@ -249,7 +250,11 @@ export function RunDetailPage({ runId }: { runId: string }) {
                 : run?.status;
 
   if (isLoading) {
-    return <div className="page-container">加载运行…</div>;
+    return (
+      <div className="page-container" data-testid="run-detail-loading">
+        <PageSkeleton />
+      </div>
+    );
   }
   if (isError || !run) {
     return (

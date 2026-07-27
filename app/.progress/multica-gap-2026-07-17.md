@@ -29,18 +29,20 @@
 | Onboarding 首启向导 (GAP-02) | ✅ | Slice 5 (`slice5-onboarding-impl-1.md`) |
 | RuntimeEvent 统一事件协议 (GAP-10) | ✅ | Slice 6 (`slice6-runtimeevent-impl-1.md`) |
 
-## 体验可演进（下一阶段切片池 · 2026-07-27 滚动）
+## 体验可演进（下一阶段切片池 · 2026-07-27 Phase B）
 
-> **排期真源：** [slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（Slice 23–32）  
+> **排期真源：** [slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md)（Slice **33–43**）  
+> Phase A 已收官：[slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md)（23–32）· [slice32-issue-sheet-impl-1.md](./slice32-issue-sheet-impl-1.md)  
 > 7/24–7/26 历史清单见 [gap-analysis-2026-07-24.md](./gap-analysis-2026-07-24.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md)
 
 | 波次 | 切片 | 主题 | 优先级 |
 |---|---|---|---|
-| **R 健壮性** | 23–25 | 优雅退出/进程树 · Memory 串行+断路器 · 委派 depth/硬闸 | P0 |
-| **U 日用** | 26–28 | WS topic+按页刷新 · Chat/Trap/空错载 · 模型价表成本 | P1 |
-| **D 纵深** | 29–32 | 虚拟滚动 · Agent 模板库 · Wiki 复利 · Issue 侧滑 | P1–P2 |
+| **V 验收** | 33 | 全栈 live Playwright 补验 | P0 |
+| **U 手感债** | 34 / 36–37 / 40 | 三态+断线条+Trap · Sheet 轻量 · 列 virtual · 运维叙事/Select | P0–P1 |
+| **R 补洞** | 35 / 38–39 / 41 | timeout+waiting 恢复 · bind/healthz · transition+Wiki 退避 · 迁移单轨 | P0–P1 |
+| **D 纵深** | 42–43 | Deferred 升级 · Prompt 静态化 | P2 |
 
-**默认顺序：** R1→R2→R3→U1→U3→U2→D…（选项 A）
+**默认顺序：** V1→U4→R4→U5→U6→R5→R6→U7→R7→D5→D6（选项 A · 见 phase-b 计划）
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -60,4 +62,4 @@
 | **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略（2026-07-27）：** 按 [slice-plan-2026-07-27-next.md](./slice-plan-2026-07-27-next.md) 先健壮性后手感再纵深；默认从 Slice 23 开刀。刻意不做仍有效。
+**继续策略（2026-07-27 Phase B）：** 按 [slice-plan-2026-07-27-phase-b.md](./slice-plan-2026-07-27-phase-b.md) 先 live 验收 → 手感债/恢复补洞 → 安全与状态机 → 纵深；默认从 **Slice 33** 开刀。刻意不做仍有效。

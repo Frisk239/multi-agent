@@ -24,6 +24,7 @@ import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { ErrorBoundary } from './ErrorBoundary';
+import { PageSkeleton } from './Skeleton';
 
 
 
@@ -74,7 +75,13 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     setProfileReady(true);
   }, [agent]);
 
-  if (isLoading || !profileReady) return <div className="page-container">加载中…</div>;
+  if (isLoading || !profileReady) {
+    return (
+      <div className="page-container" data-testid="agent-detail-loading">
+        <PageSkeleton />
+      </div>
+    );
+  }
   if (isError || !agent) {
     return (
       <div className="page-container">
@@ -547,7 +554,10 @@ function OverviewTab({
                       ? `Issue ${r.issueId.slice(0, 8)}…`
                       : '运行';
               const ok = r.status === 'completed';
-              const bad = r.status === 'failed' || r.status === 'cancelled';
+              const bad =
+                r.status === 'failed' ||
+                r.status === 'cancelled' ||
+                r.status === 'timed_out';
               return (
                 <li
                   key={r.id}
@@ -712,7 +722,9 @@ function RunsTab({ agentId }: { agentId: string }) {
         <tbody>
           {runs.map((r) => {
             const canRetry =
-              (r.status === 'failed' || r.status === 'cancelled') &&
+              (r.status === 'failed' ||
+                r.status === 'cancelled' ||
+                r.status === 'timed_out') &&
               !!r.issueId &&
               r.kind !== 'chat';
             const chatHref =

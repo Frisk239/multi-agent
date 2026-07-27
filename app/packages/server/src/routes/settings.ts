@@ -41,6 +41,7 @@ import {
   resolveWorkspaceCwd,
   setWorkspaceRootPath,
 } from '../workspace-cwd.js';
+import { resolveListenHost } from '../bind.js';
 
 function envNonEmpty(name: string): boolean {
   const v = process.env[name];
@@ -339,11 +340,16 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
 
   // --- server ---
   const port = Number(process.env.PORT ?? 3001);
+  const host = resolveListenHost();
+  const lanHint =
+    host === '127.0.0.1' || host === 'localhost'
+      ? ' · 仅本机；局域网暴露：MA_BIND=0.0.0.0（并设 MA_CORS_ORIGIN）'
+      : ` · bind=${host}`;
   checks.push({
     id: 'server',
     label: '服务',
     status: 'ok',
-    detail: `监听端口 ${port}`,
+    detail: `监听 ${host}:${port}${lanHint}`,
     href: '/runs?status=active',
     actionLabel: '在途运行',
   });

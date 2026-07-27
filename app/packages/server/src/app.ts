@@ -21,20 +21,25 @@ import { usageRoutes } from './routes/usage.js';
 import { projectRoutes } from './routes/projects.js';
 import { profileRoutes } from './routes/profile.js';
 import { analyticsRoutes } from './routes/analytics.js';
+import { healthzRoutes } from './routes/healthz.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
+import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
+  // Slice 38：CORS 默认收紧到本机 web origin（MA_CORS_ORIGIN 可配）
+  const corsAllowed = resolveCorsOrigins();
   await app.register(cors, {
-    origin: true,
+    origin: makeCorsOriginChecker(corsAllowed),
   });
   await app.register(websocket);
 
   // 接线（spec §6.5）：eventBus → wsBroadcaster
   eventBus.on((e) => wsBroadcaster.broadcast(e));
 
+  await app.register(healthzRoutes);
   await app.register(issueRoutes);
   await app.register(labelRoutes);
   await app.register(commentRoutes);

@@ -20,7 +20,8 @@ export type RunRecoveryKind = 'issue_retry' | 'open_chat' | 'qc_redispatch' | 'n
 export function runRecoveryKind(
   run: Pick<AgentRun, 'kind' | 'status' | 'issueId' | 'chatThreadId'>,
 ): RunRecoveryKind {
-  const terminal = run.status === 'failed' || run.status === 'cancelled';
+  const terminal =
+    run.status === 'failed' || run.status === 'cancelled' || run.status === 'timed_out';
   if (!terminal) return 'none';
   if (run.kind === 'chat') return run.chatThreadId ? 'open_chat' : 'none';
   if (run.issueId) return 'issue_retry';

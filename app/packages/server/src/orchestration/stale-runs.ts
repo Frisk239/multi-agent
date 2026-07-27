@@ -7,6 +7,7 @@ import { notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
+import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
 
 /**
  * F3 + C2 超时分层（学 Multica config.go）：
@@ -26,6 +27,12 @@ export const DEFAULT_OPENCODE_IDLE_MS = 10 * 60_000;
 export const DEFAULT_ISSUE_TOOL_IDLE_MS = 2 * 60 * 60_000;
 /** queued 过久无人 claim（agent 缺失/worker 卡死）→ fail；默认 30 分钟 */
 export const STALE_QUEUED_MS = 30 * 60_000;
+/**
+ * waiting_local_directory 墙钟上限：默认 2h。
+ * 短路径锁等待靠 touchWaitingLocalDirectoryLeases 续租；此上限防永久挂起。
+ * 环境变量 MA_WAITING_LOCAL_MAX_MS；0=关闭（不 fail）。
+ */
+export const DEFAULT_WAITING_LOCAL_MAX_MS = 2 * 60 * 60_000;
 export const STALE_SWEEP_INTERVAL_MS = 15_000;
 
 function envMs(name: string, fallback: number): number {
@@ -57,6 +64,11 @@ export function getIssueWallTimeoutMs(): number {
   return envMs('MA_ISSUE_TIMEOUT_MS', 0);
 }
 
+/** waiting_local_directory 最大等待；0=关闭墙钟 fail */
+export function getWaitingLocalMaxMs(): number {
+  return envMs('MA_WAITING_LOCAL_MAX_MS', DEFAULT_WAITING_LOCAL_MAX_MS);
+}
+
 export function formatDurationMs(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
   if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
@@ -68,6 +80,7 @@ export type RunRecoveryReport = {
   staleRunning: number;
   staleQueued: number;
   missingAgentQueued: number;
+  staleWaitingLocal: number;
   total: number;
 };
 
@@ -272,33 +285,89 @@ export function touchWaitingLocalDirectoryLeases(now = Date.now()): number {
   return n;
 }
 
-/** 运维/启动共用：一次扫完 orphan running + stale running/queued + missing agent + 续租目录锁 */
+/**
+ * waiting_local_directory 墙钟超时 → timed_out。
+ * 用 createdAt 作起点（无专用 enteredWaitingAt 字段）；短 path-lock 等待远低于默认 2h，不会误杀。
+ */
+export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
+  const maxMs = getWaitingLocalMaxMs();
+  if (maxMs <= 0) return 0;
+
+  const cutoff = now - maxMs;
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'waiting_local_directory'))
+    .all();
+
+  let n = 0;
+  for (const row of candidates) {
+    if (row.createdAt > cutoff) continue;
+    const error = `stale: waiting_local_directory exceeded wall clock (${formatDurationMs(maxMs)})`;
+    db.update(agentRuns)
+      .set({
+        status: 'timed_out',
+        finishedAt: now,
+        error,
+        failureReason: 'waiting_local_directory_timeout',
+      })
+      .where(
+        and(
+          eq(agentRuns.id, row.id),
+          eq(agentRuns.status, 'waiting_local_directory'),
+        ),
+      )
+      .run();
+    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get();
+    if (next?.status === 'timed_out') {
+      const run = toAgentRun(next);
+      eventBus.publish({ type: 'run:failed', run });
+      notifyRunTerminal(run);
+      n++;
+    }
+  }
+  return n;
+}
+
+/** 运维/启动共用：一次扫完 orphan running + stale running/queued/waiting + missing agent + 续租目录锁 */
 export function recoverStuckRuns(now = Date.now()): RunRecoveryReport {
   touchWaitingLocalDirectoryLeases(now);
   const orphanRunning = recoverOrphanedRunningRuns(now);
   const staleRunning = failStaleRunningRuns(now);
   const missingAgentQueued = failQueuedMissingAgentRuns(now);
   const staleQueued = failStaleQueuedRuns(now);
-  const total = orphanRunning + staleRunning + missingAgentQueued + staleQueued;
+  const staleWaitingLocal = failStaleWaitingLocalDirectoryRuns(now);
+  const total =
+    orphanRunning + staleRunning + missingAgentQueued + staleQueued + staleWaitingLocal;
   if (total > 0) {
     console.warn(
-      `[run] recoverStuckRuns total=${total} orphanRunning=${orphanRunning} staleRunning=${staleRunning} missingAgentQueued=${missingAgentQueued} staleQueued=${staleQueued}`,
+      `[run] recoverStuckRuns total=${total} orphanRunning=${orphanRunning} staleRunning=${staleRunning} missingAgentQueued=${missingAgentQueued} staleQueued=${staleQueued} staleWaitingLocal=${staleWaitingLocal}`,
     );
   }
-  return { orphanRunning, staleRunning, staleQueued, missingAgentQueued, total };
+  return {
+    orphanRunning,
+    staleRunning,
+    staleQueued,
+    missingAgentQueued,
+    staleWaitingLocal,
+    total,
+  };
 }
 
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startStaleRunSweeper(): void {
   if (sweepTimer) return;
+  markWorkerStarted('staleRunSweeper');
   sweepTimer = setInterval(() => {
     try {
+      noteWorkerTick('staleRunSweeper');
       // 周期清扫与目录锁动态续租
       touchWaitingLocalDirectoryLeases();
       failStaleRunningRuns();
       failQueuedMissingAgentRuns();
       failStaleQueuedRuns();
+      failStaleWaitingLocalDirectoryRuns();
       escalateFailedSquadRuns();
     } catch (e) {
       logger.error({ err: e instanceof Error ? e.message : String(e) }, '[run] stale sweep failed');
@@ -308,6 +377,7 @@ export function startStaleRunSweeper(): void {
 
 /** Slice 23：优雅退出时停周期收尸，避免与 cancel 竞态 */
 export function stopStaleRunSweeper(): void {
+  markWorkerStopped('staleRunSweeper');
   if (sweepTimer) {
     clearInterval(sweepTimer);
     sweepTimer = null;

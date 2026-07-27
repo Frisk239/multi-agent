@@ -600,6 +600,49 @@ a:hover {
   flex-shrink: 0;
 }
 
+/* Slice 34：WS 断线可行动条 */
+.ws-connection-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: 8px var(--space-4);
+  border-bottom: 1px solid color-mix(in srgb, #ef4444 35%, var(--border));
+  background: color-mix(in srgb, #ef4444 10%, var(--bg-elevated, var(--bg-secondary)));
+  color: var(--text);
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+}
+
+.ws-connection-banner[data-status='connecting'] {
+  border-bottom-color: color-mix(in srgb, #eab308 40%, var(--border));
+  background: color-mix(in srgb, #eab308 10%, var(--bg-elevated, var(--bg-secondary)));
+}
+
+.ws-connection-banner-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.ws-connection-banner-main strong {
+  color: #b91c1c;
+}
+
+.ws-connection-banner[data-status='connecting'] .ws-connection-banner-main strong {
+  color: #9a6700;
+}
+
+.ws-connection-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .env-banner-main {
   display: flex;
   flex-wrap: wrap;
@@ -1011,6 +1054,21 @@ a.kanban-column-focus:hover {
   min-height: 0;
   overflow-y: auto;
   padding: 2px 2px 4px;
+}
+
+/* Slice 37: absolute virtual slots; gap comes from virtualizer, not flex */
+.kanban-column[data-virtualized='1'] .kanban-column-body {
+  display: block;
+  gap: 0;
+}
+
+.kanban-column-virtual-inner {
+  position: relative;
+  width: 100%;
+}
+
+.kanban-card-slot--virtual {
+  box-sizing: border-box;
 }
 
 .kanban-column-empty {
@@ -12748,33 +12806,74 @@ a.issue-card-run-fail--link:hover {
   padding: 8px 16px 24px;
 }
 
-/* Sheet 内复用 IssueDetail：收紧双栏，避免过窄 */
+/* Sheet 内复用 IssueDetail：轻量单列（Slice 36） */
 .issue-side-sheet-body .issue-detail {
   max-width: none;
 }
 
 .issue-side-sheet-body .issue-detail-layout {
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .issue-side-sheet-body .issue-detail-main {
-  padding-right: 12px;
+  padding-right: 0;
 }
 
-.issue-side-sheet-body .issue-props-rail {
-  max-height: none;
-  position: static;
+.issue-detail--sheet .issue-header--main {
+  margin-bottom: 8px;
+}
+
+.issue-sheet-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-base));
+}
+
+.issue-sheet-meta .issue-priority-field,
+.issue-sheet-meta .issue-meta-assignee {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.issue-sheet-more {
+  margin: 0 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-elevated, transparent);
+}
+
+.issue-sheet-more-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+  user-select: none;
+}
+
+.issue-sheet-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.issue-sheet-more-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.issue-exec-section--sheet {
+  margin-top: 8px;
 }
 
 @media (max-width: 720px) {
   .issue-side-sheet-panel {
     width: 100vw;
-  }
-  .issue-side-sheet-body .issue-detail-layout {
-    grid-template-columns: 1fr;
-  }
-  .issue-side-sheet-body .issue-props-rail {
-    border-left: 0;
-    border-top: 1px solid var(--border-subtle);
   }
 }

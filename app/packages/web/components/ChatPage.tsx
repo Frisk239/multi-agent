@@ -149,7 +149,12 @@ export function ChatPage() {
   const lastFailedRun = useMemo(() => {
     if (liveRun) return null;
     return (
-      threadRuns.find((r) => r.status === 'failed' || r.status === 'cancelled') ?? null
+      threadRuns.find(
+        (r) =>
+          r.status === 'failed' ||
+          r.status === 'cancelled' ||
+          r.status === 'timed_out',
+      ) ?? null
     );
   }, [threadRuns, liveRun]);
 
