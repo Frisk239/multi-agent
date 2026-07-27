@@ -38,6 +38,7 @@ import {
   issueIdsFromRuns,
 } from '@/lib/issue-card-live';
 import { confirmDialog } from '@/lib/confirm-store';
+import { Select } from './Select';
 
 const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
   { value: '', label: '全部优先级' },
@@ -128,6 +129,28 @@ function KanbanBoardInner() {
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+
+  // Slice 52 · Esc 清选（有选中且无确认框时）
+  useEffect(() => {
+    if (selectedIds.size === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[data-testid="confirm-dialog"]')) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (
+        active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      handleClearSelection();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedIds.size, handleClearSelection]);
 
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
@@ -650,11 +673,12 @@ function KanbanBoardInner() {
             onChange={(e) => setQDraft(e.target.value)}
             aria-label="搜索 Issue"
           />
-          <select
+          <Select
             className="kanban-assignee-select"
             value={selectValue}
             onChange={(e) => setAssigneeFilter(e.target.value)}
             aria-label="按指派筛选"
+            data-testid="kanban-assignee-filter"
           >
             <option value="">全部指派</option>
             <option value="any">已指派</option>
@@ -673,7 +697,7 @@ function KanbanBoardInner() {
                 </option>
               ))}
             </optgroup>
-          </select>
+          </Select>
           <div
             className="kanban-view-tabs"
             role="tablist"
@@ -772,7 +796,7 @@ function KanbanBoardInner() {
                 舒适
               </button>
             </div>
-            <select
+            <Select
               className="kanban-priority-select"
               value={priorityQuery ?? ''}
               onChange={(e) => setPriorityFilter(e.target.value)}
@@ -784,7 +808,7 @@ function KanbanBoardInner() {
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <div className="kanban-priority-pills" role="toolbar" aria-label="快捷优先级" data-testid="kanban-priority-pills">
               {(
                 [
@@ -807,7 +831,7 @@ function KanbanBoardInner() {
                 </button>
               ))}
             </div>
-            <select
+            <Select
               className="kanban-origin-select"
               value={originQuery ?? ''}
               onChange={(e) => setOriginFilter(e.target.value)}
@@ -817,8 +841,8 @@ function KanbanBoardInner() {
               <option value="">全部来源</option>
               <option value="automation">自动化</option>
               <option value="quick_create">快速派活</option>
-            </select>
-            <select
+            </Select>
+            <Select
               className="kanban-project-select"
               value={projectFromUrl}
               onChange={(e) => setProjectFilter(e.target.value)}
@@ -831,8 +855,8 @@ function KanbanBoardInner() {
                   {p.title}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               className="kanban-status-select"
               value={statusQuery ?? ''}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -845,7 +869,7 @@ function KanbanBoardInner() {
                   {c.title}
                 </option>
               ))}
-            </select>
+            </Select>
             <button
               type="button"
               className={`kanban-filter-pill kanban-failed-toggle${failedOnly ? ' active' : ''}`}
@@ -1130,28 +1154,64 @@ function KanbanBoardInner() {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 shadow-xl rounded-lg p-4 flex items-center gap-4 z-50" style={{ transform: 'translateX(-50%)', position: 'fixed', bottom: '1rem', left: '50%', backgroundColor: 'var(--bg-elevated)', padding: '1rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', gap: '1rem', boxShadow: 'var(--floating-shadow)', border: '1px solid var(--border-subtle)', zIndex: 50, color: 'var(--text-primary)' }}>
-          <span className="font-medium">已选择 {selectedIds.size} 项</span>
-          
-          <select 
-            className="select select-bordered select-sm"
+        <div
+          className="kanban-bulk-bar"
+          data-testid="kanban-bulk-bar"
+          role="toolbar"
+          aria-label="批量操作"
+          style={{
+            transform: 'translateX(-50%)',
+            position: 'fixed',
+            bottom: '1rem',
+            left: '50%',
+            backgroundColor: 'var(--bg-elevated)',
+            padding: '0.75rem 1rem',
+            borderRadius: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            boxShadow: 'var(--floating-shadow)',
+            border: '1px solid var(--border-subtle)',
+            zIndex: 50,
+            color: 'var(--text-primary)',
+          }}
+        >
+          <span className="font-medium" data-testid="kanban-bulk-count">
+            已选择 {selectedIds.size} 项
+          </span>
+
+          <Select
+            className="kanban-bulk-select"
             value=""
+            aria-label="批量修改状态"
+            data-testid="kanban-bulk-status"
             onChange={(e) => {
               if (e.target.value) {
                 bulkUpdateStatus.mutate(
-                  { issueIds: Array.from(selectedIds), status: e.target.value as IssueStatus },
-                  { onSuccess: () => handleClearSelection() }
+                  {
+                    issueIds: Array.from(selectedIds),
+                    status: e.target.value as IssueStatus,
+                  },
+                  { onSuccess: () => handleClearSelection() },
                 );
               }
             }}
           >
-            <option value="" disabled>修改状态...</option>
-            {COLUMNS.map(c => <option key={c.status} value={c.status}>{c.title}</option>)}
-          </select>
-          
-          <select
-            className="select select-bordered select-sm"
+            <option value="" disabled>
+              修改状态…
+            </option>
+            {COLUMNS.map((c) => (
+              <option key={c.status} value={c.status}>
+                {c.title}
+              </option>
+            ))}
+          </Select>
+
+          <Select
+            className="kanban-bulk-select"
             value=""
+            aria-label="批量更改指派"
+            data-testid="kanban-bulk-assignee"
             onChange={(e) => {
               const val = e.target.value;
               if (val) {
@@ -1168,23 +1228,38 @@ function KanbanBoardInner() {
                   id = val.slice(6);
                 }
                 bulkUpdateAssignee.mutate(
-                  { issueIds: Array.from(selectedIds), assigneeType: type, assigneeId: id },
-                  { onSuccess: () => handleClearSelection() }
+                  {
+                    issueIds: Array.from(selectedIds),
+                    assigneeType: type,
+                    assigneeId: id,
+                  },
+                  { onSuccess: () => handleClearSelection() },
                 );
               }
             }}
           >
-            <option value="" disabled>更改指派...</option>
+            <option value="" disabled>
+              更改指派…
+            </option>
             <option value="unassigned">未指派</option>
-            <optgroup label="Agents">
-              {agents.map(a => <option key={a.id} value={`agent:${a.id}`}>{a.name}</option>)}
+            <optgroup label="智能体">
+              {agents.map((a) => (
+                <option key={a.id} value={`agent:${a.id}`}>
+                  {a.name}
+                </option>
+              ))}
             </optgroup>
-            <optgroup label="Squads">
-              {squads.map(s => <option key={s.id} value={`squad:${s.id}`}>{s.name}</option>)}
+            <optgroup label="小队">
+              {squads.map((s) => (
+                <option key={s.id} value={`squad:${s.id}`}>
+                  {s.name}
+                </option>
+              ))}
             </optgroup>
-          </select>
-          
+          </Select>
+
           <button
+            type="button"
             className="btn-error btn-sm"
             data-testid="kanban-bulk-delete"
             onClick={() => {
@@ -1206,8 +1281,15 @@ function KanbanBoardInner() {
           >
             批量删除
           </button>
-          
-          <button className="btn-ghost btn-sm" onClick={handleClearSelection}>取消选择</button>
+
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="kanban-bulk-clear"
+            onClick={handleClearSelection}
+          >
+            取消选择
+          </button>
         </div>
       )}
 

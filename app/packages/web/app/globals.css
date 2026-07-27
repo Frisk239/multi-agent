@@ -10389,6 +10389,37 @@ a.issue-card-run-fail--link:hover {
   cursor: not-allowed;
 }
 
+/* Slice 52 · 看板批量条 Select 与工具栏筛选手感对齐 */
+.kanban-bulk-bar {
+  flex-wrap: wrap;
+  max-width: min(960px, calc(100vw - 2rem));
+}
+
+.kanban-bulk-bar .kanban-bulk-select,
+.kanban-bulk-bar .ma-select {
+  min-width: 9.5rem;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 8px;
+  background-color: var(--bg-elevated, var(--surface));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M3 4.5L6 8l3-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text-primary, var(--text));
+  font: inherit;
+  font-size: var(--text-sm);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.kanban-bulk-bar .kanban-bulk-select:focus,
+.kanban-bulk-bar .ma-select:focus {
+  outline: none;
+  border-color: var(--accent, #5b8def);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #5b8def) 18%, transparent);
+}
+
 .run-event-drawer-failure {
   display: flex;
   flex-wrap: wrap;

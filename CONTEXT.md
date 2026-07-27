@@ -53,10 +53,10 @@
 - **Phase B 计划（只读）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md)（33–43 已合）  
 - **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** Phase B **23–43**；Phase C **44–51**（诚实/手感/安全/Resume/Ops 前半）
-- **▶ 下一刀默认：** [Slice 52 · 看板 Select/批量条](app/.progress/slice-plan-2026-07-27-phase-c.md)
-- **上一刀 closeout：** [slice51-ops-snapshot-closeout.md](app/.progress/slice51-ops-snapshot-closeout.md)
-- **验收证据：** Slice51 ops unit + e2e pass=6
+- **已交（近）：** Phase B **23–43**；Phase C **44–52**（… · Ops · 看板 Select）
+- **▶ 下一刀默认：** [Slice 53 · 快捷键 + 窄屏侧栏](app/.progress/slice-plan-2026-07-27-phase-c.md)
+- **上一刀 closeout：** [slice52-board-select-closeout.md](app/.progress/slice52-board-select-closeout.md)
+- **验收证据：** Slice52 e2e 13 PASS（ma-select + bulk Esc）
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
