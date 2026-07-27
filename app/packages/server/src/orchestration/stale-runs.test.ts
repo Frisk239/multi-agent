@@ -4,8 +4,10 @@ import {
   getIssueToolIdleMs,
   getIssueWallTimeoutMs,
   getWaitingLocalMaxMs,
+  getDeferredUnclaimedMs,
   formatDurationMs,
   failStaleWaitingLocalDirectoryRuns,
+  escalateDeferredUnclaimedRuns,
   STALE_RUNNING_MS,
   DEFAULT_ISSUE_IDLE_MS,
   DEFAULT_OPENCODE_IDLE_MS,
@@ -18,21 +20,32 @@ const mocks = vi.hoisted(() => ({
   selectGet: vi.fn(),
   updateSet: vi.fn(),
   updateWhereRun: vi.fn(),
+  insertValues: vi.fn(),
+  insertRun: vi.fn(),
   publish: vi.fn(),
   notifyRunTerminal: vi.fn(),
+  notifyDeferredUnclaimed: vi.fn(),
+  notifySquadEscalated: vi.fn(),
   toAgentRun: vi.fn((row: any) => row),
+  lastFromTable: null as any,
 }));
 
 vi.mock('../db/client.js', () => {
   return {
     db: {
       select: () => ({
-        from: () => ({
-          where: () => ({
-            all: mocks.selectAll,
-            get: mocks.selectGet,
-          }),
-        }),
+        from: (table: any) => {
+          mocks.lastFromTable = table;
+          return {
+            where: () => ({
+              all: (...args: any[]) => {
+                // activityLogs queries vs agentRuns: use same selectAll; tests sequence returns
+                return mocks.selectAll(...args);
+              },
+              get: mocks.selectGet,
+            }),
+          };
+        },
       }),
       update: () => ({
         set: (vals: any) => {
@@ -47,6 +60,17 @@ vi.mock('../db/client.js', () => {
           };
         },
       }),
+      insert: () => ({
+        values: (vals: any) => {
+          mocks.insertValues(vals);
+          return {
+            run: () => {
+              mocks.insertRun();
+              return { changes: 1 };
+            },
+          };
+        },
+      }),
     },
   };
 });
@@ -57,7 +81,10 @@ vi.mock('../db/schema.js', () => ({
     status: 'status',
   },
   agents: {},
-  activityLogs: {},
+  activityLogs: {
+    issueId: 'issueId',
+    eventType: 'eventType',
+  },
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -79,7 +106,8 @@ vi.mock('./event-bus.js', () => ({
 
 vi.mock('./inbox-writer.js', () => ({
   notifyRunTerminal: (...args: any[]) => mocks.notifyRunTerminal(...args),
-  notifySquadEscalated: vi.fn(),
+  notifySquadEscalated: (...args: any[]) => mocks.notifySquadEscalated(...args),
+  notifyDeferredUnclaimed: (...args: any[]) => mocks.notifyDeferredUnclaimed(...args),
 }));
 
 vi.mock('./run-control.js', () => ({
@@ -147,6 +175,16 @@ describe('stale-runs configuration and helpers', () => {
 
     vi.stubEnv('MA_WAITING_LOCAL_MAX_MS', '0');
     expect(getWaitingLocalMaxMs()).toBe(0);
+  });
+
+  it('getDeferredUnclaimedMs defaults to 0 (disabled) and is configurable', () => {
+    expect(getDeferredUnclaimedMs()).toBe(0);
+
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', '1800000');
+    expect(getDeferredUnclaimedMs()).toBe(1_800_000);
+
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', '0');
+    expect(getDeferredUnclaimedMs()).toBe(0);
   });
 
   it('formatDurationMs formats ms into human-readable strings', () => {
@@ -234,5 +272,158 @@ describe('failStaleWaitingLocalDirectoryRuns', () => {
     expect(failStaleWaitingLocalDirectoryRuns(Date.now())).toBe(0);
     expect(mocks.selectAll).not.toHaveBeenCalled();
     expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('escalateDeferredUnclaimedRuns (Slice 42 D5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    mocks.notifyDeferredUnclaimed.mockReturnValue({ id: 'inbox-1' });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('no-ops when MA_DEFERRED_UNCLAIMED_MS=0 (default)', () => {
+    expect(getDeferredUnclaimedMs()).toBe(0);
+    mocks.selectAll.mockReturnValue([
+      {
+        id: 'run-old',
+        status: 'queued',
+        createdAt: 1,
+        startedAt: null,
+        issueId: 'iss-1',
+        agentId: 'agt-1',
+      },
+    ]);
+    expect(escalateDeferredUnclaimedRuns(10_000_000)).toBe(0);
+    expect(mocks.selectAll).not.toHaveBeenCalled();
+    expect(mocks.notifyDeferredUnclaimed).not.toHaveBeenCalled();
+    expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
+    expect(mocks.insertValues).not.toHaveBeenCalled();
+  });
+
+  it('escalates only aged queued runs (inject now); writes activity + deferred inbox', () => {
+    const threshold = 30 * 60_000;
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
+    const now = 10_000_000;
+    const oldQueued = {
+      id: 'run-queued-old',
+      status: 'queued',
+      createdAt: now - threshold - 1,
+      startedAt: null,
+      issueId: 'iss-1',
+      agentId: 'agt-1',
+      kind: 'issue',
+    };
+    const freshQueued = {
+      id: 'run-queued-fresh',
+      status: 'queued',
+      createdAt: now - 1_000,
+      startedAt: null,
+      issueId: 'iss-1',
+      agentId: 'agt-1',
+      kind: 'issue',
+    };
+
+    // 1st all(): agentRuns candidates; 2nd all(): activityLogs for oldQueued (empty)
+    mocks.selectAll
+      .mockReturnValueOnce([oldQueued, freshQueued])
+      .mockReturnValueOnce([]);
+
+    const n = escalateDeferredUnclaimedRuns(now);
+    expect(n).toBe(1);
+    expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledTimes(1);
+    expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'run-queued-old', status: 'queued' }),
+      { thresholdMs: threshold },
+    );
+    expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issueId: 'iss-1',
+        eventType: 'run_deferred',
+        actorType: 'system',
+        payload: expect.stringContaining('run-queued-old'),
+      }),
+    );
+  });
+
+  it('skips runs that already have run_deferred activity (dedupe)', () => {
+    const threshold = 60_000;
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
+    const now = 5_000_000;
+    const oldQueued = {
+      id: 'run-dup',
+      status: 'queued',
+      createdAt: now - threshold - 10,
+      startedAt: null,
+      issueId: 'iss-2',
+      agentId: 'agt-2',
+      kind: 'issue',
+    };
+    mocks.selectAll
+      .mockReturnValueOnce([oldQueued])
+      .mockReturnValueOnce([
+        {
+          id: 'act-1',
+          issueId: 'iss-2',
+          eventType: 'run_deferred',
+          payload: JSON.stringify({ runId: 'run-dup' }),
+        },
+      ]);
+
+    expect(escalateDeferredUnclaimedRuns(now)).toBe(0);
+    expect(mocks.notifyDeferredUnclaimed).not.toHaveBeenCalled();
+    expect(mocks.insertValues).not.toHaveBeenCalled();
+  });
+
+  it('skips queued rows that already have startedAt (not unclaimed)', () => {
+    const threshold = 60_000;
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
+    const now = 5_000_000;
+    mocks.selectAll.mockReturnValueOnce([
+      {
+        id: 'run-claimed-once',
+        status: 'queued',
+        createdAt: now - threshold - 10,
+        startedAt: now - threshold,
+        issueId: 'iss-3',
+        agentId: 'agt-3',
+        kind: 'issue',
+      },
+    ]);
+
+    expect(escalateDeferredUnclaimedRuns(now)).toBe(0);
+    expect(mocks.notifyDeferredUnclaimed).not.toHaveBeenCalled();
+  });
+
+  it('does not use Squad Escalated path or mutate run status', () => {
+    const threshold = 1_000;
+    vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
+    const now = 100_000;
+    mocks.selectAll
+      .mockReturnValueOnce([
+        {
+          id: 'run-d',
+          status: 'queued',
+          createdAt: now - threshold - 1,
+          startedAt: null,
+          issueId: 'iss-d',
+          agentId: 'agt-d',
+          kind: 'issue',
+        },
+      ])
+      .mockReturnValueOnce([]);
+
+    escalateDeferredUnclaimedRuns(now);
+    expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+    const payload = mocks.insertValues.mock.calls[0]?.[0]?.payload as string;
+    expect(payload).not.toContain('Squad Escalated');
+    expect(payload).toContain('queued_unclaimed');
   });
 });

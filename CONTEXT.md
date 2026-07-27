@@ -52,10 +52,10 @@
 - **滚动计划（真源）：** [slice-plan-2026-07-27-phase-b.md](app/.progress/slice-plan-2026-07-27-phase-b.md) — Slice **33–43**  
 - **Phase A 计划（只读）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)（23–32 已合）  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** **Slice 23–38**（A: 关停→侧滑 · B: live Playwright·手感债·run 恢复·Sheet 轻量·Kanban virtual·healthz/bind）
-- **▶ 下一刀默认：** Phase B 余下 **39+**（见 phase-b 计划）或新 gap 审计
-- **上一刀 closeout：** [queue-23-38-closeout-2026-07-27.md](app/.progress/queue-23-38-closeout-2026-07-27.md) · [slice38-healthz-bind-impl-1.md](app/.progress/slice38-healthz-bind-impl-1.md)
-- **验收证据：** Slice33 live Playwright **PASS=14 FAIL=0**（log under `app/.progress/logs/`）
+- **已交（近）：** **Slice 23–43 Phase B 整队**（39 状态转移/Wiki 退避 · 40 Select/运维叙事 · 41 迁移单轨 · 42 Deferred · 43 Prompt 静态化）
+- **▶ 下一刀默认：** 新 gap 审计 / 体验加深；Phase B 计划 33–43 已收官
+- **上一刀 closeout：** [queue-23-43-phase-b-closeout-2026-07-27.md](app/.progress/queue-23-43-phase-b-closeout-2026-07-27.md)
+- **验收证据：** Slice33 live Playwright 基线 + 本会话复跑（见 closeout）
 
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间 / TipTap 全量 / Wiki 图谱大屏
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`

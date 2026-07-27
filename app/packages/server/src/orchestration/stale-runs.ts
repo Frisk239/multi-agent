@@ -3,7 +3,7 @@ import { db } from '../db/client.js';
 import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
-import { notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
+import { notifyDeferredUnclaimed, notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
@@ -68,6 +68,14 @@ export function getIssueWallTimeoutMs(): number {
 /** waiting_local_directory 最大等待；0=关闭墙钟 fail */
 export function getWaitingLocalMaxMs(): number {
   return envMs('MA_WAITING_LOCAL_MAX_MS', DEFAULT_WAITING_LOCAL_MAX_MS);
+}
+
+/**
+ * Slice 42 / D5：queued 过久未 claim → deferred 升级（可观测，不 fail）。
+ * 默认 0=关闭（防噪声）；开启示例：MA_DEFERRED_UNCLAIMED_MS=1800000（30min）
+ */
+export function getDeferredUnclaimedMs(): number {
+  return envMs('MA_DEFERRED_UNCLAIMED_MS', 0);
 }
 
 export function formatDurationMs(ms: number): string {
@@ -360,6 +368,8 @@ export function startStaleRunSweeper(): void {
       touchWaitingLocalDirectoryLeases();
       failStaleRunningRuns();
       failQueuedMissingAgentRuns();
+      // deferred 在 hard-fail 之前：仍为 queued 时可观测升级
+      escalateDeferredUnclaimedRuns();
       failStaleQueuedRuns();
       failStaleWaitingLocalDirectoryRuns();
       escalateFailedSquadRuns();
@@ -422,6 +432,92 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
     
     notifySquadEscalated(run);
     n++;
+  }
+  return n;
+}
+
+/**
+ * Slice 42 / D5：Deferred 升级（pre-claim，非失败路径）。
+ *
+ * 状态谓词（仅未进入有效执行）：
+ * - 纳入：`status === 'queued'` 且 `createdAt` age ≥ 阈值，且 `startedAt` 为空
+ * - 跳过：`running` / `completed` / `failed` / `timed_out`（已执行或终态）
+ * - 跳过：`waiting_local_directory`（path-lock 显式排队，已进入 claim 闸门语义，非「无人 claim」）
+ *
+ * 行为：
+ * - **不**改 run status / error（区别 failStaleQueuedRuns 硬 fail）
+ * - **不**走 escalateFailedSquadRuns / `[Squad Escalated]` 文案
+ * - activity `run_deferred` + inbox `dedupeKey: deferred:<runId>`
+ * - 阈值 0（默认）→ no-op
+ */
+export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
+  const thresholdMs = getDeferredUnclaimedMs();
+  if (thresholdMs <= 0) return 0;
+
+  const cutoff = now - thresholdMs;
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'queued'))
+    .all();
+
+  let n = 0;
+  for (const row of candidates) {
+    if (row.createdAt > cutoff) continue;
+    // 已 claim 过（有 startedAt）则不算 unclaimed；正常 invariant 下 queued 应为空
+    if (row.startedAt != null) continue;
+
+    // activity 去重：同 run 只升一次
+    if (row.issueId) {
+      const existingActs = db
+        .select()
+        .from(activityLogs)
+        .where(
+          and(
+            eq(activityLogs.issueId, row.issueId),
+            eq(activityLogs.eventType, 'run_deferred'),
+          ),
+        )
+        .all();
+      const already = existingActs.some((act) => {
+        if (!act.payload) return false;
+        try {
+          const p = JSON.parse(act.payload) as { runId?: string };
+          return p.runId === row.id;
+        } catch {
+          return false;
+        }
+      });
+      if (already) continue;
+    }
+
+    const run = toAgentRun(row);
+    const inboxItem = notifyDeferredUnclaimed(run, { thresholdMs });
+
+    if (row.issueId) {
+      db.insert(activityLogs)
+        .values({
+          id: crypto.randomUUID(),
+          issueId: row.issueId,
+          actorType: 'system',
+          actorName: '系统',
+          eventType: 'run_deferred',
+          payload: JSON.stringify({
+            runId: row.id,
+            agentId: row.agentId,
+            thresholdMs,
+            ageMs: now - row.createdAt,
+            reason: 'queued_unclaimed',
+          }),
+          createdAt: now,
+        })
+        .run();
+    }
+
+    // 无 issue 时仅 inbox 可观测；inbox 被 prefs/mute 挡掉仍计一次扫过（靠 dedupe 下次 skip）
+    if (inboxItem || row.issueId) {
+      n++;
+    }
   }
   return n;
 }

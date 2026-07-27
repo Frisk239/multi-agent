@@ -253,6 +253,13 @@
       "when": 1786972800000,
       "tag": "0035_wiki_ingest_next_attempt_at",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1787059200000,
+      "tag": "0036_schema_gap_columns",
+      "breakpoints": true
     }
   ]
 }

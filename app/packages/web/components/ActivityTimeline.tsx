@@ -47,6 +47,10 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
         return { icon: '✅', title: 'Run 执行完成', color: 'var(--color-green)' };
       case 'run_failed':
         return { icon: '❌', title: 'Run 执行失败', color: 'var(--color-red)' };
+      case 'run_deferred':
+        return { icon: '⏳', title: 'Deferred · 排队未 claim', color: 'var(--color-orange)' };
+      case 'squad_escalated':
+        return { icon: '🚨', title: '小队升级告警', color: 'var(--color-red)' };
       default:
         return { icon: '📌', title: event.eventType, color: 'var(--text-dim)' };
     }
@@ -89,12 +93,21 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
                         指派调整为: <code>{act.payload.to || '未指派'}</code>
                       </span>
                     )}
-                    {(act.eventType === 'run_started' || act.eventType === 'run_completed' || act.eventType === 'run_failed') && (
+                    {(act.eventType === 'run_started' ||
+                      act.eventType === 'run_completed' ||
+                      act.eventType === 'run_failed' ||
+                      act.eventType === 'run_deferred' ||
+                      act.eventType === 'squad_escalated') && (
                       <div>
                         <Link href={`/runs?run=${act.payload.runId}`} className="text-sm" style={{ textDecoration: 'underline' }}>
                           查看 Run {act.payload.runId?.slice(0, 8)}
                         </Link>
                         {act.payload.error ? <span className="text-red" style={{ marginLeft: 8 }}>({act.payload.error})</span> : null}
+                        {act.eventType === 'run_deferred' && act.payload.reason ? (
+                          <span className="text-dim" style={{ marginLeft: 8 }}>
+                            ({act.payload.reason})
+                          </span>
+                        ) : null}
                       </div>
                     )}
                   </div>

@@ -202,6 +202,8 @@ export const ActivityEventType = z.enum([
   'mention_delegated',
   'custom_fields_updated',
   'squad_escalated',
+  /** Slice 42：queued 过久未 claim 的 deferred 升级（非失败路径） */
+  'run_deferred',
 ]);
 export type ActivityEventType = z.infer<typeof ActivityEventType>;
 

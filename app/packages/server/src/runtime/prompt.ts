@@ -127,22 +127,137 @@ export function formatTrailingUserText(threadId: string): string {
 
 // buildPrompt —— 组装喂给 CLI 的 user prompt（spec §6.2）：
 // Issue 标题 + 描述 + 最近 K 条 comment 文本 + 一句工作指令。
-// 临时上下文进 user 侧内容（hermes cache 规则，borrow G-PROMPT-CACHE）。
-// S04：leader run 时前置三段 briefing（spec §5，S9 决策——我们无 Instructions 层，
-//   briefing 是最高优先级角色指令，逻辑上应先于具体任务）。
-// S05：skill 前置于一切（spec §6.1）——skill 是"执行方法论"，逻辑上先于角色 briefing
-//   和具体任务。
-// S08：wiki bridge；S09：memory prefetch。
-// bu02：agent.instructions 注入（非 leader briefing 替代）。
-// 拼接顺序：skill → wiki → memory → **agent instructions** → briefing(if leader) → issueBody，
-// 统一用 parts.filter(Boolean).join('\n\n---\n\n')（borrow G-SKILL-INJECT + G-PROMPT-CACHE）。
-	interface PromptRunContext {
-	  isLeader: boolean;
-	  squadId: string | null;
-	  agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
-	  /** Slice 25：子代理 run 跳过 memory prefetch 注入 */
-	  skipMemory?: boolean;
-	}
+// Slice 43 / hermes cache（G-PROMPT-CACHE + slice7 围栏）：
+//   staticSystem 前缀固定（可缓存）：skills / about / instructions / boundary / squad protocol+roster
+//   dynamicUser  per-run：mission / issue body+comments / wiki retrieved / memory retrieved
+// 固定组装顺序：staticSystem → dynamicUser，节间用 PROMPT_PART_SEPARATOR。
+// CLI 仍只收拼接后的单字符串（composePrompt）；密钥模型不改、不落库。
+
+/** 节间分隔（slice7 / G-SKILL-INJECT 既有围栏，勿改） */
+export const PROMPT_PART_SEPARATOR = '\n\n---\n\n';
+
+/**
+ * Slice 43：静态 system 前缀 vs per-run 动态 user 侧。
+ * 换 memory / issue 评论不应改写 staticSystem，便于 provider prompt cache。
+ */
+export type PromptParts = {
+  /** 可缓存前缀：skills · about · instructions · boundary · squad protocol/roster */
+  staticSystem: string;
+  /** per-run：mission · issue body/comments · wiki/memory retrieved-context */
+  dynamicUser: string;
+};
+
+export interface PromptRunContext {
+  isLeader: boolean;
+  squadId: string | null;
+  agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
+  /** Slice 25：子代理 run 跳过 memory prefetch 注入 */
+  skipMemory?: boolean;
+}
+
+/** 过滤空节后按固定分隔符拼接 */
+export function joinPromptSections(sections: Array<string | null | undefined>): string {
+  return sections
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean)
+    .join(PROMPT_PART_SEPARATOR);
+}
+
+/** 固定顺序：staticSystem 前缀 + dynamicUser */
+export function composePrompt(parts: PromptParts): string {
+  return joinPromptSections([parts.staticSystem, parts.dynamicUser]);
+}
+
+function wrapRetrievedContext(
+  kind: 'wiki' | 'memory',
+  title: string,
+  body: string,
+): string {
+  return `<retrieved-context kind="${kind}" title="${title}">\n${body}\n</retrieved-context>`;
+}
+
+/**
+ * 纯组装：静态 / 动态边界唯一入口（单测换 memory 不改 static 前缀）。
+ * 顺序见 Slice 43 Must。
+ */
+export function assembleIssuePromptParts(blocks: {
+  skillBlock?: string | null;
+  aboutBlock?: string | null;
+  instructionsBlock?: string | null;
+  boundaryBlock?: string | null;
+  /** Squad Operating Protocol + Roster（静态） */
+  squadProtocolBlock?: string | null;
+  /** Mission Directive：per-run / per-squad 任务，进动态 */
+  missionBlock?: string | null;
+  issueBody: string;
+  wikiBlock?: string | null;
+  repoContextNote?: string | null;
+  /** 已是 memory 正文；此处包 retrieved-context */
+  memoryBlock?: string | null;
+}): PromptParts {
+  const staticSystem = joinPromptSections([
+    blocks.skillBlock,
+    blocks.aboutBlock,
+    blocks.instructionsBlock,
+    blocks.boundaryBlock,
+    blocks.squadProtocolBlock,
+  ]);
+
+  const memoryWrapped = blocks.memoryBlock?.trim()
+    ? wrapRetrievedContext('memory', 'Memory Context', blocks.memoryBlock.trim())
+    : null;
+
+  const dynamicUser = joinPromptSections([
+    blocks.missionBlock,
+    blocks.issueBody,
+    blocks.wikiBlock,
+    blocks.repoContextNote,
+    memoryWrapped,
+  ]);
+
+  return { staticSystem, dynamicUser };
+}
+
+/** 静态前缀各节（skills → about → instructions → boundary → protocol/roster） */
+export function buildStaticSystemParts(blocks: {
+  skillBlock?: string | null;
+  aboutBlock?: string | null;
+  instructionsBlock?: string | null;
+  boundaryBlock?: string | null;
+  squadProtocolBlock?: string | null;
+}): string[] {
+  return [
+    blocks.skillBlock,
+    blocks.aboutBlock,
+    blocks.instructionsBlock,
+    blocks.boundaryBlock,
+    blocks.squadProtocolBlock,
+  ]
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean);
+}
+
+/** 动态 user 各节（mission → issue → wiki/note → memory） */
+export function buildDynamicUserParts(blocks: {
+  missionBlock?: string | null;
+  issueBody: string;
+  wikiBlock?: string | null;
+  repoContextNote?: string | null;
+  memoryBlock?: string | null;
+}): string[] {
+  const memoryWrapped = blocks.memoryBlock?.trim()
+    ? wrapRetrievedContext('memory', 'Memory Context', blocks.memoryBlock.trim())
+    : null;
+  return [
+    blocks.missionBlock,
+    blocks.issueBody,
+    blocks.wikiBlock,
+    blocks.repoContextNote,
+    memoryWrapped,
+  ]
+    .map((s) => (typeof s === 'string' ? s.trim() : ''))
+    .filter(Boolean);
+}
 
 function serverUrlFromEnv(): string {
   const fromEnv = process.env.MA_SERVER_URL?.trim();
@@ -279,11 +394,14 @@ export function resolveAssignedSkillsForContext(
   return out;
 }
 
-// S10：async buildPrompt，await memory prefetch（pgvector 需 embed）
-export async function buildPrompt(
+/**
+ * S10 + Slice 43：解析 issue 上下文，拆 static/dynamic，再 compose 为 CLI 单字符串。
+ * 对外仍返回 string | null（密钥模型不变）。
+ */
+export async function buildPromptParts(
   issueId: string,
   run?: PromptRunContext,
-): Promise<string | null> {
+): Promise<PromptParts | null> {
   const issue = db.select().from(issues).where(eq(issues.id, issueId)).get();
   if (!issue) return null;
   const rows = db
@@ -300,7 +418,7 @@ export async function buildPrompt(
 
   // F6：与 resolveRunCwd 同源——project local / workspace / 隔离
   const ctx = resolveIssuePromptContext(issueId);
-  const body = [
+  const issueBody = [
     `Issue ${issue.identifier}: ${issue.title}`,
     issue.description ? `Description:\n${issue.description}` : '',
     history ? `Recent comments:\n${history}` : '',
@@ -311,7 +429,7 @@ export async function buildPrompt(
     .filter(Boolean)
     .join('\n\n');
 
-  // S05 + F6 skill 注入
+  // --- static ---
   let skillBlock: string | null = null;
   if (run?.agentId) {
     const skills = resolveAssignedSkillsForContext(run.agentId, ctx);
@@ -320,34 +438,32 @@ export async function buildPrompt(
     }
   }
 
-  // 拼接顺序（保护 Prompt Cache）：
-  // 静态前缀区：skill → user about → agent instructions → briefing
-  // 动态附加区：body (Issue) → wiki (<retrieved-context>) → memory (<retrieved-context>)
-  const parts: string[] = [];
-  if (skillBlock) parts.push(skillBlock);
-
   // G18：本地用户 About（Settings 可编辑；空则跳过）
+  let aboutBlock: string | null = null;
   const localUser = db.select().from(users).where(eq(users.id, LOCAL_MEMBER.id)).get();
   const about = localUser?.about?.trim();
   if (about) {
     const who = localUser?.name?.trim() || LOCAL_MEMBER.name;
-    parts.push(`# About the Human Operator\nName: ${who}\n${about}`);
+    aboutBlock = `# About the Human Operator\nName: ${who}\n${about}`;
   }
 
-  // bu02：agent instructions（在 memory 之后、briefing 之前 -> 现在移到静态区）
+  let instructionsBlock: string | null = null;
+  let boundaryBlock: string | null = null;
   if (run?.agentId) {
     const agent = db.select().from(agents).where(eq(agents.id, run.agentId)).get();
     const instructions = agent?.instructions?.trim();
     if (instructions) {
-      parts.push(`# Agent Instructions\n${instructions}`);
+      instructionsBlock = `# Agent Instructions\n${instructions}`;
     }
     const allowedPaths = agent?.allowedPaths?.trim();
     if (allowedPaths) {
-      parts.push(`<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`);
+      boundaryBlock = `<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`;
     }
   }
 
-  // S04 briefing 前置（spec §5 S9）
+  // S04：protocol/roster 静态；mission 进动态（per-run 任务指令）
+  let squadProtocolBlock: string | null = null;
+  let missionBlock: string | null = null;
   if (run?.isLeader && run?.squadId) {
     const squad = loadSquadDetail(run.squadId);
     if (squad) {
@@ -356,51 +472,77 @@ export async function buildPrompt(
       const roster = rosterMembers
         .map((m) => `- ${m.name} — [@${m.name}](mention://agent/${m.agentId})`)
         .join('\n');
-      const briefing = [
+      squadProtocolBlock = [
         `# Squad Operating Protocol\n${squad.operatingProtocol}`,
         `# Squad Roster\n${roster}`,
-        `# Mission Directive\n${squad.missionDirective}`,
       ].join('\n\n');
-      parts.push(briefing);
+      if (squad.missionDirective?.trim()) {
+        missionBlock = `# Mission Directive\n${squad.missionDirective}`;
+      }
     }
   }
 
-  // 加入 Issue 主体（动态区开始）
-  parts.push(body);
-
-  // F6：AGENTS 相对仓库根；isolated 不注入 workspace AGENTS（错仓）
+  // --- dynamic：wiki / repo note / memory ---
+  let wikiBlock: string | null = null;
+  let repoContextNote: string | null = null;
   if (ctx.injectRepoContext && ctx.path) {
     if (ctx.mode === 'project_local') {
       const agentsCtx = readAgentsContextFromRoot(ctx.path);
       if (agentsCtx) {
-        parts.push(`<retrieved-context kind="wiki" title="Wiki Context">\n# Project AGENTS / Wiki Snapshot\n${agentsCtx}\n</retrieved-context>`);
+        wikiBlock = wrapRetrievedContext(
+          'wiki',
+          'Wiki Context',
+          `# Project AGENTS / Wiki Snapshot\n${agentsCtx}`,
+        );
       }
     } else {
       // workspace 模式：保持 S08 managed 块（控制台工作区 AGENTS.md）
       const wikiBridge = readManagedBlock();
       if (wikiBridge) {
-        parts.push(`<retrieved-context kind="wiki" title="Wiki Context">\n# Project Wiki Snapshot\n${wikiBridge}\n</retrieved-context>`);
+        wikiBlock = wrapRetrievedContext(
+          'wiki',
+          'Wiki Context',
+          `# Project Wiki Snapshot\n${wikiBridge}`,
+        );
       }
     }
   } else if (!ctx.injectRepoContext) {
-    parts.push(
-      '# Repo context\n未绑定可用的项目本机目录：已跳过仓库 AGENTS.md 与项目级 .skills 注入。可在项目详情绑定 localPath。',
-    );
+    repoContextNote =
+      '# Repo context\n未绑定可用的项目本机目录：已跳过仓库 AGENTS.md 与项目级 .skills 注入。可在项目详情绑定 localPath。';
   }
 
   // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题
   // Slice 25：子 run（parentRunId）默认 skip，避免 fan-out 重复注入
+  let memoryBlock: string | null = null;
   if (!run?.skipMemory) {
-    const memoryBlock = await memoryManager.prefetchForIssue({
+    memoryBlock = await memoryManager.prefetchForIssue({
       id: issue.id,
       title: issue.title,
       description: issue.description,
     });
-    if (memoryBlock) {
-      // 包装在 retrieved-context 中
-      parts.push(`<retrieved-context kind="memory" title="Memory Context">\n${memoryBlock}\n</retrieved-context>`);
-    }
   }
 
-  return parts.join('\n\n---\n\n');
+  return assembleIssuePromptParts({
+    skillBlock,
+    aboutBlock,
+    instructionsBlock,
+    boundaryBlock,
+    squadProtocolBlock,
+    missionBlock,
+    issueBody,
+    wikiBlock,
+    repoContextNote,
+    memoryBlock,
+  });
+}
+
+// S10：async buildPrompt，await memory prefetch（pgvector 需 embed）
+// Slice 43：经 PromptParts 固定顺序 compose；CLI 仍收单字符串
+export async function buildPrompt(
+  issueId: string,
+  run?: PromptRunContext,
+): Promise<string | null> {
+  const parts = await buildPromptParts(issueId, run);
+  if (!parts) return null;
+  return composePrompt(parts);
 }

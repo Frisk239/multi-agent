@@ -80,6 +80,7 @@ function buildEnvSnippet(
   }
   lines.push('# export MEMORY_PROVIDER=sqlite-text');
   lines.push('# export MA_ISSUE_IDLE_MS=1800000  # issue idle 默认 30min');
+  lines.push('# export MA_DEFERRED_UNCLAIMED_MS=1800000  # Slice42 deferred 升级；默认 0=关闭');
   return `${lines.join('\n')}\n`;
 }
 

@@ -342,3 +342,51 @@ export function notifySquadEscalated(run: AgentRun): void {
     recipientId: LOCAL_MEMBER.id,
   });
 }
+
+/**
+ * Slice 42 / D5：queued 过久未 claim 的 deferred 升级通知。
+ * - 与 notifySquadEscalated / [Squad Escalated] **分流**（无 Squad 文案、无 escalate: key）
+ * - dedupeKey 固定 `deferred:<runId>`，可关阈值（MA_DEFERRED_UNCLAIMED_MS=0）
+ * - 不改 run 状态；硬 fail 仍由 failStaleQueuedRuns 负责
+ */
+export function notifyDeferredUnclaimed(
+  run: AgentRun,
+  opts?: { thresholdMs?: number },
+): ReturnType<typeof toInboxItem> | null {
+  if (run.status !== 'queued') return null;
+
+  let issueIdentifier: string | null = null;
+  if (run.issueId) {
+    const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
+    if (issue) {
+      issueIdentifier = issue.identifier;
+      ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'run_watcher');
+    }
+  }
+
+  const thresholdHint =
+    opts?.thresholdMs && opts.thresholdMs > 0
+      ? `（阈值 ${Math.round(opts.thresholdMs / 60_000)}m）`
+      : '';
+  const title = issueIdentifier
+    ? `Deferred · 排队过久未 claim · ${issueIdentifier}`
+    : run.kind === 'quick_create'
+      ? 'Deferred · 排队过久未 claim · 快速派活'
+      : run.kind === 'chat'
+        ? 'Deferred · 排队过久未 claim · 聊天'
+        : 'Deferred · 排队过久未 claim';
+
+  return notifyInbox({
+    type: 'run_failed',
+    severity: 'attention',
+    title,
+    body: `Run ${run.id} 仍处于 queued，尚未被 worker claim${thresholdHint}。检查 agent 就绪/worker 是否卡住；与失败后 Squad Escalated 路径无关。`,
+    issueId: run.issueId ?? null,
+    runId: run.id,
+    actorType: 'system',
+    actorId: null,
+    dedupeKey: `deferred:${run.id}`,
+    recipientType: 'member',
+    recipientId: LOCAL_MEMBER.id,
+  });
+}
