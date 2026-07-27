@@ -6,6 +6,23 @@ import { agentRuns, agents, runMessages } from '../db/schema.js';
 type AgentRunRow = typeof agentRuns.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
 
+/** 父侧树摘要默认 2000 字；env: MA_SUBAGENT_SUMMARY_CAP */
+export function getSubagentSummaryCap(): number {
+  const raw = process.env.MA_SUBAGENT_SUMMARY_CAP;
+  if (raw == null || raw.trim() === '') return 2000;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 2000;
+  return Math.floor(n);
+}
+
+/** 截断过长 summary，避免 fan-out 树 payload 炸前端 */
+export function truncateSubagentSummary(text: string | null | undefined): string | null {
+  if (text == null) return null;
+  const cap = getSubagentSummaryCap();
+  if (text.length <= cap) return text;
+  return `${text.slice(0, cap)}…`;
+}
+
 /**
  * Build the full delegation tree rooted at `rootRunId`.
  *
@@ -125,7 +142,8 @@ function buildNode(
     durationMs = Date.now() - row.startedAt;
   }
 
-  const summary = summaryMap.get(row.id) || row.error || row.quickPrompt || null;
+  const rawSummary = summaryMap.get(row.id) || row.error || row.quickPrompt || null;
+  const summary = truncateSubagentSummary(rawSummary);
 
   return {
     id: row.id,

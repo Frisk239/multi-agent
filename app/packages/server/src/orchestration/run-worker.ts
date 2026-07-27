@@ -680,7 +680,8 @@ async function tick(): Promise<void> {
     notifyRunTerminal(rFinal);
 
     // S09：成功 run 且有 issue 才写记忆（失败/取消路径禁止调用）
-    if (linkedIssueId) {
+    // Slice 25：子 run（parentRunId）跳过 syncRunCompleted，避免 fan-out 污染 memory
+    if (linkedIssueId && runRow.parentRunId == null) {
       try {
         const issueRow = db
           .select()

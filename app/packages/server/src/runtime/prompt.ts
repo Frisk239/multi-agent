@@ -136,11 +136,13 @@ export function formatTrailingUserText(threadId: string): string {
 // bu02：agent.instructions 注入（非 leader briefing 替代）。
 // 拼接顺序：skill → wiki → memory → **agent instructions** → briefing(if leader) → issueBody，
 // 统一用 parts.filter(Boolean).join('\n\n---\n\n')（borrow G-SKILL-INJECT + G-PROMPT-CACHE）。
-interface PromptRunContext {
-  isLeader: boolean;
-  squadId: string | null;
-  agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
-}
+	interface PromptRunContext {
+	  isLeader: boolean;
+	  squadId: string | null;
+	  agentId?: string; // S05：查 agent_skill 分配；bu02：查 instructions
+	  /** Slice 25：子代理 run 跳过 memory prefetch 注入 */
+	  skipMemory?: boolean;
+	}
 
 function serverUrlFromEnv(): string {
   const fromEnv = process.env.MA_SERVER_URL?.trim();
@@ -226,10 +228,12 @@ export async function resolveRunPrompt(
     });
   }
   if (!runRow.issueId) return null;
+  // Slice 25：子 run（有 parentRunId）默认 skipMemory，避免 fan-out 污染 prompt
   return buildPrompt(runRow.issueId, {
     isLeader: runRow.isLeader === 1,
     squadId: runRow.squadId,
     agentId: runRow.agentId,
+    skipMemory: runRow.parentRunId != null,
   });
 }
 
@@ -385,14 +389,17 @@ export async function buildPrompt(
   }
 
   // S10：async memory prefetch（spec V8）；无命中 / 失败 → null，不留空标题
-  const memoryBlock = await memoryManager.prefetchForIssue({
-    id: issue.id,
-    title: issue.title,
-    description: issue.description,
-  });
-  if (memoryBlock) {
-    // 包装在 retrieved-context 中
-    parts.push(`<retrieved-context kind="memory" title="Memory Context">\n${memoryBlock}\n</retrieved-context>`);
+  // Slice 25：子 run（parentRunId）默认 skip，避免 fan-out 重复注入
+  if (!run?.skipMemory) {
+    const memoryBlock = await memoryManager.prefetchForIssue({
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+    });
+    if (memoryBlock) {
+      // 包装在 retrieved-context 中
+      parts.push(`<retrieved-context kind="memory" title="Memory Context">\n${memoryBlock}\n</retrieved-context>`);
+    }
   }
 
   return parts.join('\n\n---\n\n');
