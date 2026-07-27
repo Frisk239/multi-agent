@@ -148,6 +148,35 @@ export function filterRunEventView(
   );
 }
 
+/**
+ * Slice 73：折叠 header 一行 args 预览（优先 start.args）。
+ * 空则回落 result / body，保证有内容可读。
+ */
+export function pairArgsLinePreview(
+  start: RunMessage,
+  end?: RunMessage,
+  max = 90,
+): string {
+  const startP = parseToolPayload(start.body);
+  if (startP.argsText) return previewBody(startP.argsText, max);
+  if (startP.summary) return previewBody(startP.summary, max);
+  if (end) {
+    const endP = parseToolPayload(end.body);
+    if (endP.resultText) return previewBody(endP.resultText, max);
+    if (endP.summary) return previewBody(endP.summary, max);
+  }
+  return previewBody(start.body || end?.body || '', max);
+}
+
+/** kind 色条 class 后缀（tool / assistant / user / system） */
+export function kindToneOf(kind: RunMessage['kind'] | 'tool_pair'): string {
+  if (kind === 'tool_start' || kind === 'tool_pair') return 'tool';
+  if (kind === 'tool_end') return 'tool-end';
+  if (kind === 'assistant') return 'assistant';
+  if (kind === 'user') return 'user';
+  return 'system';
+}
+
 export function pairCollapsedPreview(
   start: RunMessage,
   end: RunMessage,
@@ -155,9 +184,20 @@ export function pairCollapsedPreview(
 ): string {
   const startP = parseToolPayload(start.body);
   const endP = parseToolPayload(end.body);
-  const args = startP.summary ?? (startP.argsText ? previewBody(startP.argsText, max) : null);
-  const result = endP.summary ?? (endP.resultText ? previewBody(endP.resultText, max) : null);
-  if (args && result) return `${args} → ${previewBody(result, Math.min(80, max))}`;
+  // 更密：args 一行优先；有 result 时用短箭头
+  const args =
+    startP.argsText
+      ? previewBody(startP.argsText, max)
+      : startP.summary
+        ? previewBody(startP.summary, max)
+        : null;
+  const result =
+    endP.resultText
+      ? previewBody(endP.resultText, Math.min(64, max))
+      : endP.summary
+        ? previewBody(endP.summary, Math.min(64, max))
+        : null;
+  if (args && result) return `${args} → ${result}`;
   if (args) return args;
   if (result) return result;
   return previewBody(start.body || end.body || '', max);

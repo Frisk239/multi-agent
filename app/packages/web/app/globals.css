@@ -9407,6 +9407,22 @@ a.issue-card-run-fail--link:hover {
 .run-event-item--tool-pair {
   border-left: 3px solid #f59e0b;
 }
+
+.run-event-kind-bar {
+  position: relative;
+}
+
+.run-event-kind-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent, #5b8def);
+  opacity: 0.25;
+  z-index: 0;
+}
 .run-event-item--assistant {
   border-left: 3px solid #5b8def;
 }
@@ -9496,6 +9512,30 @@ a.issue-card-run-fail--link:hover {
   white-space: nowrap;
   font-size: var(--text-sm);
   color: var(--text-muted, var(--text-dim));
+}
+
+.run-event-preview--args {
+  color: #64748b;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Slice 73：run live partial（对齐 chat-thinking-partial 质感） */
+.run-trace-live-partial {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.run-trace-live-partial .run-partial-md {
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.run-trace-bottom-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
 }
 
 .run-event-chevron {

@@ -6,6 +6,8 @@ import { classifyRunFailure, type AgentRun, type RunMessage } from '@ma/shared';
 import { useRetryRun, useRunMessages, useChildRuns } from '@/lib/api';
 import {
   filterRunEventView,
+  kindToneOf,
+  pairArgsLinePreview,
   pairCollapsedPreview,
   pairRunToolEvents,
   parseToolName,
@@ -26,6 +28,7 @@ import {
 } from '@/lib/run-recovery';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { useRunProgressStore } from '@/lib/ws';
+import { MarkdownBody } from './MarkdownBody';
 
 function kindLabel(kind: RunMessage['kind']): string {
   if (kind === 'tool_start') return '工具开始';
@@ -36,11 +39,55 @@ function kindLabel(kind: RunMessage['kind']): string {
 }
 
 function kindTone(kind: RunMessage['kind']): string {
-  if (kind === 'tool_start') return 'tool';
-  if (kind === 'tool_end') return 'tool-end';
-  if (kind === 'assistant') return 'assistant';
-  if (kind === 'user') return 'user';
-  return 'system';
+  return kindToneOf(kind);
+}
+
+/** Slice 73：live partial 展示（对齐 Chat） */
+function RunLivePartial({
+  text,
+  testId = 'run-partial',
+}: {
+  text: string;
+  testId?: string;
+}) {
+  const t = text.trim();
+  if (!t) return null;
+  return (
+    <div
+      className="run-trace-live-partial run-trace-live-card mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative"
+      data-testid={testId}
+    >
+      <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
+        <span className="mr-1">…</span> 实时输出
+      </div>
+      <div className="run-partial-md text-sm text-gray-800">
+        <MarkdownBody source={t} />
+      </div>
+      <span
+        className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle"
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+function RunLiveStreamChunk({ text }: { text: string }) {
+  const t = text.trim();
+  if (!t) return null;
+  return (
+    <div
+      className="run-trace-live-card mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative"
+      data-testid="run-stream-chunk"
+    >
+      <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
+        <span className="mr-1">⚡</span> Agent 正在实时响应中...
+      </div>
+      <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
+        {t}
+        <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
+      </pre>
+    </div>
+  );
 }
 
 export function RunEventTimelineInline({
@@ -58,12 +105,14 @@ export function RunEventTimelineInline({
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const toolByRunId = useRunProgressStore((s) => s.toolByRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
+  const partialByRun = useRunProgressStore((s) => s.partialByRunId);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const streamChunk = 
     run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
   const activeTool =
     run && run.status === 'running' ? toolByRunId[run.id]?.trim() : undefined;
+  const partialText = runId ? partialByRun[runId] : undefined;
   const isLive =
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
@@ -129,17 +178,14 @@ export function RunEventTimelineInline({
           进度：{progress}
         </p>
       ) : null}
-      {isLive && streamChunk ? (
-        <div className="run-trace-live-card mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative">
-          <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
-            <span className="mr-1">⚡</span> Agent 正在实时响应中...
-          </div>
-          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
-            {streamChunk}
-            <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
-          </pre>
-        </div>
+
+      {isLive && partialText ? (
+        <RunLivePartial text={partialText} testId="run-partial" />
       ) : null}
+      {isLive && streamChunk ? (
+        <RunLiveStreamChunk text={streamChunk} />
+      ) : null}
+
       {childRuns.length > 0 ? (
         <div className="run-trace-child-runs mt-3 mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md">
           <h4 className="text-xs font-semibold mb-2 text-gray-700">派生的子代理任务 (Child Subagents)</h4>
@@ -204,7 +250,7 @@ function RunEventViewRow({
   return <RunEventItem message={item.message} compact={compact} />;
 }
 
-/** G23：tool_start + tool_end 折叠为一组（默认收起） */
+/** G23 + Slice 73：tool_start + tool_end 折叠；header 工具名 + 一行 args + kind 色条 */
 function RunEventToolPair({
   start,
   end,
@@ -220,14 +266,17 @@ function RunEventToolPair({
   const startP = parseToolPayload(start.body);
   const endP = parseToolPayload(end.body);
   const name = toolName ?? startP.name ?? endP.name ?? 'tool';
+  const argsLine = pairArgsLinePreview(start, end, compact ? 72 : 96);
   const preview = pairCollapsedPreview(start, end, compact ? 100 : 140);
+  const tone = kindToneOf('tool_pair');
 
   return (
     <li
-      className="run-event-item run-event-item--tool-pair"
+      className={`run-event-item run-event-item--tool-pair run-event-item--${tone} run-event-kind-bar run-event-kind-bar--${tone}`}
       data-testid="run-event-tool-pair"
       data-kind="tool_pair"
       data-tool-name={name}
+      data-kind-tone={tone}
     >
       <button
         type="button"
@@ -236,7 +285,7 @@ function RunEventToolPair({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="run-event-chip run-event-chip--tool">工具</span>
+        <span className={`run-event-chip run-event-chip--${tone}`}>工具</span>
         <span className="run-event-tool-name" data-testid="run-event-tool-pair-name">
           {name}
         </span>
@@ -244,11 +293,12 @@ function RunEventToolPair({
           #{start.seq}–{end.seq}
         </code>
         <span
-          className="run-event-preview"
+          className="run-event-preview run-event-preview--args"
           data-testid="run-event-preview"
-          title={`${start.body.slice(0, 240)}\n---\n${end.body.slice(0, 240)}`}
+          data-preview-kind="args"
+          title={preview}
         >
-          {preview}
+          {argsLine || preview}
         </span>
         <span className="run-event-chevron" aria-hidden>
           {open ? '▾' : '▸'}
@@ -294,9 +344,10 @@ function RunEventItem({
 
   return (
     <li
-      className={`run-event-item run-event-item--${tone}`}
+      className={`run-event-item run-event-item--${tone} run-event-kind-bar run-event-kind-bar--${tone}`}
       data-testid="run-event-item"
       data-kind={message.kind}
+      data-kind-tone={tone}
       data-tool-name={tool ?? undefined}
     >
       <button
@@ -336,7 +387,7 @@ const DRAWER_FILTERS: { id: RunEventDrawerFilter; label: string }[] = [
   { id: 'assistant', label: '助手' },
 ];
 
-/** G23：全屏/抽屉事件时间线（Issue / Runs 共用） */
+/** G23 + Slice 73：drawer 同 inline 消费 partial / stream */
 export function RunEventTimelineDrawer({
   run,
   open,
@@ -351,10 +402,12 @@ export function RunEventTimelineDrawer({
   const retry = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
+  const partialByRun = useRunProgressStore((s) => s.partialByRunId);
   const progress =
     run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
   const streamChunk =
     run && run.status === 'running' ? streamChunksByRun[run.id]?.trim() : undefined;
+  const partialText = runId ? partialByRun[runId] : undefined;
   const isLive =
     run?.status === 'queued' ||
     run?.status === 'waiting_local_directory' ||
@@ -363,7 +416,9 @@ export function RunEventTimelineDrawer({
   const [stickToBottom, setStickToBottom] = useState(true);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const lastScrollLenRef = useRef(0);
+  const stickThrottleRef = useRef(0);
 
   const viewItems = useMemo(() => pairRunToolEvents(messages), [messages]);
   const filteredItems = useMemo(
@@ -389,6 +444,7 @@ export function RunEventTimelineDrawer({
       setFilter('all');
       setStickToBottom(true);
       lastScrollLenRef.current = 0;
+      stickThrottleRef.current = 0;
     }
   }, [open, runId]);
 
@@ -398,22 +454,35 @@ export function RunEventTimelineDrawer({
     setStickToBottom(isNearBottom(el, NEAR_BOTTOM_PX));
   }, []);
 
-  // 近底才吸底：用户上滑后不再强制滚到底
+  // Slice 73：live 时消息 / partial / stream 更新后 stick-bottom（throttle）
   useEffect(() => {
     if (!open) return;
     const el = bodyRef.current;
     if (!el) return;
     const prevHeight = lastScrollLenRef.current;
-    lastScrollLenRef.current = el.scrollHeight;
     const near = isNearBottom(el, NEAR_BOTTOM_PX);
-    if (shouldAutoStick(stickToBottom, near) || prevHeight === 0) {
-      el.scrollTop = el.scrollHeight;
-    }
+    const should = shouldAutoStick(stickToBottom, near) || prevHeight === 0;
+    if (!should) return;
+
+    const now = Date.now();
+    // partial/stream 高频：80ms throttle；首屏立即
+    if (prevHeight > 0 && now - stickThrottleRef.current < 80) return;
+    stickThrottleRef.current = now;
+    lastScrollLenRef.current = el.scrollHeight;
+
+	    el.scrollTop = el.scrollHeight;
+	    // jsdom 等环境可能无 scrollIntoView；仅有函数时调用
+	    const sentinelEl = bottomSentinelRef.current;
+	    if (sentinelEl && typeof sentinelEl.scrollIntoView === 'function') {
+	      sentinelEl.scrollIntoView({ block: 'end' });
+	    }
+
   }, [
     open,
     messages.length,
     filteredItems.length,
     streamChunk,
+    partialText,
     progress,
     stickToBottom,
     filter,
@@ -581,15 +650,14 @@ export function RunEventTimelineDrawer({
             进度：{progress}
           </p>
         ) : null}
+        {isLive && partialText ? (
+          <div className="mx-4" data-testid="run-event-drawer-partial-wrap">
+            <RunLivePartial text={partialText} testId="run-partial" />
+          </div>
+        ) : null}
         {isLive && streamChunk ? (
-          <div className="mx-4 mt-2 p-3 bg-white border border-gray-200 rounded-md shadow-sm relative">
-            <div className="text-xs text-blue-600 font-semibold mb-2 flex items-center">
-              <span className="mr-1">⚡</span> Agent 正在实时响应中...
-            </div>
-            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">
-              {streamChunk}
-              <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 align-middle" />
-            </pre>
+          <div className="mx-4">
+            <RunLiveStreamChunk text={streamChunk} />
           </div>
         ) : null}
 
@@ -597,6 +665,7 @@ export function RunEventTimelineDrawer({
           ref={bodyRef}
           className="run-event-drawer-body"
           data-testid="run-event-drawer-body"
+          data-stick-bottom={stickToBottom ? '1' : '0'}
           onScroll={handleBodyScroll}
         >
           {messages.length === 0 ? (
@@ -618,6 +687,12 @@ export function RunEventTimelineDrawer({
               ))}
             </ul>
           )}
+          <div
+            ref={bottomSentinelRef}
+            className="run-trace-bottom-sentinel"
+            data-testid="run-event-drawer-bottom"
+            aria-hidden
+          />
         </div>
       </div>
     </div>

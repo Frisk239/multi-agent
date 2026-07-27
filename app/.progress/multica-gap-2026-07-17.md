@@ -44,7 +44,15 @@
 
 **▶ Phase D 已收官：** [queue-55-62-phase-d-closeout-2026-07-27.md](./queue-55-62-phase-d-closeout-2026-07-27.md)（Slice **55–62 ✅**）  
 **▶ Phase E 已收官：** [queue-63-70-phase-e-closeout-2026-07-27.md](./queue-63-70-phase-e-closeout-2026-07-27.md)（Slice **63–70 ✅** · 失败可解释 + 恢复纵深）  
-**▶ Phase F 计划已立：** [slice-plan-2026-07-27-phase-f.md](./slice-plan-2026-07-27-phase-f.md) · Slice **71–74**（Activity 活数据 · 合并故事线 · 流式 · 可选 Tool 面板）
+**▶ Phase F 主路径已收官：** [queue-71-73-phase-f-closeout-2026-07-27.md](./queue-71-73-phase-f-closeout-2026-07-27.md)（Slice **71–73 ✅** · Activity 活数据 · 合并故事线 · 流式 partial/折叠）  
+计划（只读）：[slice-plan-2026-07-27-phase-f.md](./slice-plan-2026-07-27-phase-f.md) · **74 Tool 只读面板可选未开**
+
+| 波次 | 切片 | 主题 | 状态 |
+|---|---|---|---|
+| **F 故事线/活数据** | 71 | Activity RQ + `activity:created` WS | ✅ |
+| | 72 | Issue 客户端合并故事线（默认 tab） | ✅ |
+| | 73 | Run partial + denser pair + stick-bottom | ✅ |
+| | 74 | Tool 事件只读面板 | ⏸ 可选 |
 
 ## 刻意不做（非债 · 勿当完成态 blocker）
 
@@ -56,13 +64,14 @@
 | 密钥入库 / UI 写密钥 | ADR 0003 |
 | 大规模生产运营 BI | 非本产品阶段 |
 | TipTap 全量 / Wiki 图谱优先 | Phase C 薄版 chips；图谱低频 |
+| 后端强制 storyline merge API | 客户端 merge 已够（Phase F） |
 
 ## 达标判断
 
 | 维度 | 判断 |
 |---|---|
 | **主航道日常可用** | **是** |
-| **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环 |
+| **本地 Multica 控制台完成态** | **是（体验边界内）** — 派活→执行→观测→恢复→Wiki/Memory→Settings 可闭环；Issue 故事线 + Activity 活数据 + Run partial 已加深 |
 | **Multica 源码级克隆完成态** | **否（刻意）** |
 
-**继续策略：** Phase E 已收官；新会话可开 Phase F 或 gap 审计选题，勿把 7/26 全量表当未开工清单。
+**继续策略：** Phase F 主路径 71–73 已收官；可选开 74 Tool 面板，或 gap 审计 / 新阶段选题。勿把 7/26 全量表当未开工清单。

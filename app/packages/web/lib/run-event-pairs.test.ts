@@ -5,6 +5,9 @@ import {
   previewBody,
   pairRunToolEvents,
   filterRunEventView,
+  pairCollapsedPreview,
+  pairArgsLinePreview,
+  kindToneOf,
 } from './run-event-pairs';
 import type { RunMessage } from '@ma/shared';
 
@@ -148,6 +151,53 @@ describe('run-event-pairs', () => {
 
       const toolOnly = filterRunEventView(items, 'tool');
       expect(toolOnly.length).toBe(1);
+    });
+  });
+
+  describe('pairCollapsedPreview / pairArgsLinePreview', () => {
+    const start: RunMessage = {
+      id: 's1',
+      runId: 'r1',
+      seq: 1,
+      kind: 'tool_start',
+      body: JSON.stringify({
+        name: 'read_file',
+        args: { path: '/tmp/a.txt', mode: 'r' },
+      }),
+      createdAt: new Date(1000).toISOString(),
+    };
+    const end: RunMessage = {
+      id: 'e1',
+      runId: 'r1',
+      seq: 2,
+      kind: 'tool_end',
+      body: JSON.stringify({
+        name: 'read_file',
+        result: 'hello world content',
+      }),
+      createdAt: new Date(2000).toISOString(),
+    };
+
+    it('pairArgsLinePreview prefers truncated args on one line', () => {
+      const line = pairArgsLinePreview(start, end, 40);
+      expect(line).toContain('path');
+      expect(line.includes('\n')).toBe(false);
+      expect(line.length).toBeLessThanOrEqual(43);
+    });
+
+    it('pairCollapsedPreview densifies args → result', () => {
+      const prev = pairCollapsedPreview(start, end, 80);
+      expect(prev).toContain('→');
+      expect(prev).toMatch(/path|tmp|a\.txt/);
+      expect(prev).toMatch(/hello|content/);
+    });
+
+    it('kindToneOf maps pair and kinds', () => {
+      expect(kindToneOf('tool_pair')).toBe('tool');
+      expect(kindToneOf('tool_start')).toBe('tool');
+      expect(kindToneOf('tool_end')).toBe('tool-end');
+      expect(kindToneOf('assistant')).toBe('assistant');
+      expect(kindToneOf('system')).toBe('system');
     });
   });
 });
