@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -21,6 +21,12 @@ import {
 } from '@/lib/api';
 import { KanbanColumn } from './KanbanColumn';
 import { IssueCard } from './IssueCard';
+import { IssueListView, type IssueListSortCol } from './IssueListView';
+import {
+  IssueSideSheet,
+  buildIssueSheetHref,
+  withIssueSearchParam,
+} from './IssueSideSheet';
 import { NewIssueForm } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
 import { PageSkeleton } from './Skeleton';
@@ -89,6 +95,8 @@ function KanbanBoardInner() {
   // DS2：列表 sort=manual|updated（默认 manual 与看板一致）
   const sortMode =
     searchParams.get('sort') === 'updated' ? 'updated' : 'manual';
+  // Slice 32：?issue= 打开右侧详情 Sheet（保留筛选等其它 query）
+  const issueFromUrl = searchParams.get('issue') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
@@ -252,6 +260,24 @@ function KanbanBoardInner() {
     [pathname, router, searchParams],
   );
 
+  const openIssueSheet = useCallback(
+    (issueId: string, hash?: string) => {
+      const href = buildIssueSheetHref(
+        pathname,
+        searchParams.toString(),
+        issueId,
+        hash,
+      );
+      router.replace(href, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const closeIssueSheet = useCallback(() => {
+    const qs = withIssueSearchParam(searchParams.toString(), null);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const assigneeQuery = useMemo(
     () => parseAssigneeParam(assigneeFromUrl || null),
     [assigneeFromUrl],
@@ -328,6 +354,27 @@ function KanbanBoardInner() {
     return s;
   }, [runningRuns, queuedRuns]);
 
+  const getIssueSheetHref = useCallback(
+    (issue: Issue) => {
+      const active = activeIssueIds.has(issue.id);
+      return buildIssueSheetHref(
+        pathname,
+        searchParams.toString(),
+        issue.id,
+        active ? '#run-trace' : undefined,
+      );
+    },
+    [pathname, searchParams, activeIssueIds],
+  );
+
+  const handleOpenIssueDetail = useCallback(
+    (issueId: string, _e?: React.MouseEvent) => {
+      const hash = activeIssueIds.has(issueId) ? '#run-trace' : undefined;
+      openIssueSheet(issueId, hash);
+    },
+    [activeIssueIds, openIssueSheet],
+  );
+
   const statusQuery = useMemo(() => {
     if (!statusFromUrl) return undefined;
     const ok = (IssueStatusEnum.options as string[]).includes(statusFromUrl);
@@ -335,10 +382,10 @@ function KanbanBoardInner() {
   }, [statusFromUrl]);
 
   const updateIssue = useUpdateIssue();
-  const [sortCol, setSortCol] = useState<'identifier' | 'title' | 'status' | 'priority' | 'assignee' | 'updatedAt' | null>(null);
+  const [sortCol, setSortCol] = useState<IssueListSortCol | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const handleHeaderSort = useCallback((col: 'identifier' | 'title' | 'status' | 'priority' | 'assignee' | 'updatedAt') => {
+  const handleHeaderSort = useCallback((col: IssueListSortCol) => {
     if (sortCol === col) {
       if (sortDir === 'asc') setSortDir('desc');
       else {
@@ -350,6 +397,19 @@ function KanbanBoardInner() {
       setSortDir('asc');
     }
   }, [sortCol, sortDir]);
+
+  const projectTitleById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) m.set(p.id, p.title);
+    return m;
+  }, [projects]);
+
+  const handleListStatusChange = useCallback(
+    (id: string, status: IssueStatus) => {
+      updateIssue.mutate({ id, input: { status } });
+    },
+    [updateIssue],
+  );
 
   // 服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤（含 cancelled 列）
   const visible = useMemo(() => {
@@ -1003,179 +1063,8 @@ function KanbanBoardInner() {
         </div>
       ) : null}
       {viewMode === 'list' ? (
-        <div className="issue-list-view overflow-x-auto" data-testid="issue-list-view">
-          <table className="issue-list-table" data-testid="issue-list-table">
-            <thead>
-              <tr>
-                <th style={{ width: 40 }}>
-                  <input
-                    type="checkbox"
-                    checked={sortedVisible.length > 0 && selectedIds.size === sortedVisible.length}
-                    onChange={(e) => {
-                      if (e.target.checked) handleSelectAll(sortedVisible.map(i => i.id));
-                      else handleClearSelection();
-                    }}
-                  />
-                </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('identifier')}
-                  data-testid="issue-list-sort-header-identifier"
-                  title="按标识排序"
-                >
-                  标识 {sortCol === 'identifier' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('title')}
-                  data-testid="issue-list-sort-header-title"
-                  title="按标题排序"
-                >
-                  标题 {sortCol === 'title' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('status')}
-                  data-testid="issue-list-sort-header-status"
-                  title="按状态排序"
-                >
-                  状态 {sortCol === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('priority')}
-                  data-testid="issue-list-sort-header-priority"
-                  title="按优先级排序"
-                >
-                  优先级 {sortCol === 'priority' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('assignee')}
-                  data-testid="issue-list-sort-header-assignee"
-                  title="按指派排序"
-                >
-                  指派 {sortCol === 'assignee' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th>项目</th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => handleHeaderSort('updatedAt')}
-                  data-testid="issue-list-sort-header-updatedAt"
-                  title="按更新时间排序"
-                >
-                  更新时间 {sortCol === 'updatedAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedVisible.map((iss) => {
-                const stLabel =
-                  COLUMNS.find((c) => c.status === iss.status)?.title ?? iss.status;
-                const pri =
-                  PRIORITY_OPTIONS.find((p) => p.value === iss.priority)?.label ??
-                  iss.priority ??
-                  '—';
-                const assignee =
-                  iss.assignee?.label ??
-                  (iss.assignee ? `${iss.assignee.type}:${iss.assignee.id.slice(0, 6)}` : '未指派');
-                const proj =
-                  iss.projectTitle ??
-                  (iss.projectId
-                    ? projects.find((p) => p.id === iss.projectId)?.title
-                    : null) ??
-                  '—';
-                return (
-                  <tr
-                    key={iss.id}
-                    data-testid="issue-list-row"
-                    data-issue-id={iss.id}
-                    className={
-                      failedIssueIds.has(iss.id)
-                        ? 'issue-list-row is-failed'
-                        : activeIssueIds.has(iss.id)
-                          ? 'issue-list-row is-active'
-                          : 'issue-list-row'
-                    }
-                  >
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(iss.id)}
-                        onChange={(e) => handleToggleSelect(iss.id, e.target.checked)}
-                      />
-                    </td>
-                    <td>
-                      <Link
-                        href={`/issues/${iss.id}`}
-                        className="issue-list-id"
-                      >
-                        {iss.identifier}
-                      </Link>
-                    </td>
-                    <td className="issue-list-title">
-                      <Link href={`/issues/${iss.id}`}>{iss.title}</Link>
-                    </td>
-                    <td>
-                      <select
-                        className="btn-ghost btn-xs"
-                        style={{
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontSize: '12px',
-                          fontWeight: 500,
-                        }}
-                        value={iss.status}
-                        onChange={(e) =>
-                          updateIssue.mutate({
-                            id: iss.id,
-                            input: { status: e.target.value as IssueStatus },
-                          })
-                        }
-                        data-testid="issue-list-status-select"
-                        aria-label={`修改 ${iss.identifier} 状态`}
-                      >
-                        {COLUMNS.map((col) => (
-                          <option key={col.status} value={col.status}>
-                            {col.title}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="text-sm">
-                      <span
-                        className={`priority-badge priority-${iss.priority || 'none'}`}
-                        style={{ fontSize: '11px', padding: '2px 6px', borderRadius: 4 }}
-                      >
-                        {pri}
-                      </span>
-                    </td>
-                    <td className="text-sm text-dim">{assignee}</td>
-                    <td className="text-dim text-sm">{proj}</td>
-                    <td className="text-dim text-sm" style={{ whiteSpace: 'nowrap' }}>
-                      {iss.updatedAt
-                        ? new Date(iss.updatedAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                    </td>
-                    <td>
-                      <Link
-                        href={`/issues/${iss.id}`}
-                        className="btn-ghost btn-xs"
-                        style={{ textDecoration: 'none' }}
-                      >
-                        详情
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {sortedVisible.length === 0 ? (
+        sortedVisible.length === 0 ? (
+          <div className="issue-list-view" data-testid="issue-list-view" data-virtualized="0">
             <div style={{ padding: 24 }}>
               <EmptyState
                 title="列表中无符合条件的 Issue"
@@ -1183,8 +1072,26 @@ function KanbanBoardInner() {
                 description="请尝试调整筛选条件或重置视图。"
               />
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <IssueListView
+            issues={sortedVisible}
+            density={density}
+            selectedIds={selectedIds}
+            failedIssueIds={failedIssueIds}
+            activeIssueIds={activeIssueIds}
+            projectTitleById={projectTitleById}
+            sortCol={sortCol}
+            sortDir={sortDir}
+            onHeaderSort={handleHeaderSort}
+            onToggleSelect={handleToggleSelect}
+            onSelectAll={handleSelectAll}
+            onClearSelection={handleClearSelection}
+            onStatusChange={handleListStatusChange}
+            getDetailHref={getIssueSheetHref}
+            onOpenDetail={handleOpenIssueDetail}
+          />
+        )
       ) : (
       <DndContext
         sensors={sensors}
@@ -1206,6 +1113,8 @@ function KanbanBoardInner() {
               assigneeAgentByIssueId={assigneeAgentByIssueId}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
+              getDetailHref={getIssueSheetHref}
+              onOpenDetail={handleOpenIssueDetail}
             />
           ))}
         </div>
@@ -1296,6 +1205,11 @@ function KanbanBoardInner() {
           <button className="btn-ghost btn-sm" onClick={handleClearSelection}>取消选择</button>
         </div>
       )}
+
+      <IssueSideSheet
+        issueId={issueFromUrl || null}
+        onClose={closeIssueSheet}
+      />
     </div>
   );
 }

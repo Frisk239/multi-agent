@@ -51,9 +51,10 @@
 - **工程：** 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
 - **滚动计划（真源）：** [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md) — Slice **23–32** 三轨十刀  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)（S1–S8 多数已落地，勿当未开工清单）
-- **已交（近）：** **Slice 28 模型价表** · 27 手感 · 26 WS · 25 委派 · 24 Memory · 23 关停 · …
-- **▶ 下一刀（默认选项 A）：** **Slice 29 虚拟滚动** → 30 模板库 → 31 Wiki 复利 → 32 侧滑
-- **上一刀 closeout：** [slice28-model-rates-impl-1.md](app/.progress/slice28-model-rates-impl-1.md)
+- **已交（近）：** **Slice 23–32 整队**（关停·Memory 断路器·委派边界·WS 订阅·手感·价表·列表 virtual·模板库·Wiki 复利·Issue 侧滑）
+- **▶ 下一阶段：** 全栈 live Playwright 补验 + 穿插债（Kanban 列 virtual / 窄屏抽屉等）；新主题另开 gap 审计
+- **上一刀 closeout：** [slice32-issue-sheet-impl-1.md](app/.progress/slice32-issue-sheet-impl-1.md) · 计划 [slice-plan-2026-07-27-next.md](app/.progress/slice-plan-2026-07-27-next.md)
+
 - **刻意不做：** 云 webhook / daemon 1:1 / 密钥入库 / 大规模 BI / Redis 房间
 - **历史流水：** `git log` / `app/.progress/*-impl-*.md`
 

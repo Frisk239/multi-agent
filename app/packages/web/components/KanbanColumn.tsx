@@ -20,6 +20,9 @@ interface Props {
   assigneeAgentByIssueId?: Record<string, string | undefined>;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string, checked: boolean) => void;
+  /** Slice 32：卡片主链 → 侧滑 */
+  getDetailHref?: (issue: Issue) => string;
+  onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
 }
 
 /**
@@ -39,6 +42,8 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   assigneeAgentByIssueId,
   selectedIds,
   onToggleSelect,
+  getDetailHref,
+  onOpenDetail,
 }: Props) {
   const { setNodeRef } = useDroppable({
     id: status,
@@ -98,6 +103,8 @@ export const KanbanColumn = React.memo(function KanbanColumn({
                     runActive={activeIssueIds?.has(iss.id)}
                     selected={selectedIds?.has(iss.id)}
                     onToggleSelect={onToggleSelect}
+                    detailHref={getDetailHref?.(iss)}
+                    onOpenDetail={onOpenDetail}
                   />
                 </div>
               );

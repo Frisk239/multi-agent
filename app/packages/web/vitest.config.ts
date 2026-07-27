@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
+const rootDir = fileURLToPath(new URL('.', import.meta.url));
 const setupFile = fileURLToPath(new URL('./lib/__test-helpers__/setup.ts', import.meta.url));
 
 export default defineConfig({
@@ -10,6 +11,11 @@ export default defineConfig({
       include: /\.(jsx|js|tsx|ts)$/,
     }),
   ],
+  resolve: {
+    alias: {
+      '@': rootDir,
+    },
+  },
   esbuild: {
     jsx: 'automatic',
     loader: 'tsx',

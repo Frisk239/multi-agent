@@ -92,6 +92,13 @@ interface Props {
   selected?: boolean;
   /** 选中状态改变 */
   onToggleSelect?: (id: string, checked: boolean) => void;
+  /**
+   * Slice 32：主标题点击打开侧滑时的 href（`?issue=`）。
+   * 不传则仍走全页 `/issues/[id]`。
+   */
+  detailHref?: string;
+  /** 主标题点击（侧滑打开）；不传则走默认 Link 导航 */
+  onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
 }
 
 /**
@@ -111,6 +118,8 @@ export const IssueCard = React.memo(function IssueCard({
   runActive,
   selected,
   onToggleSelect,
+  detailHref: detailHrefProp,
+  onOpenDetail,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: issue.id,
@@ -124,9 +133,11 @@ export const IssueCard = React.memo(function IssueCard({
   const showFail = Boolean(lastRunFailed) && !runActive;
   const desc = descriptionPreview(issue.description);
   const updated = updatedAgo(issue.updatedAt);
-  const detailHref = runActive
+  const fullPageHref = runActive
     ? `/issues/${issue.id}#run-trace`
     : `/issues/${issue.id}`;
+  // 默认全页深链；看板传入 detailHref/onOpenDetail 走侧滑
+  const detailHref = detailHrefProp ?? fullPageHref;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -249,7 +260,18 @@ export const IssueCard = React.memo(function IssueCard({
         <div className="issue-card-title">
           <Link
             href={detailHref}
-            onClick={(e) => e.stopPropagation()}
+            data-testid="issue-card-title-link"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onOpenDetail) {
+                // 保留修饰键新标签 / 中键默认行为
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+                  return;
+                }
+                e.preventDefault();
+                onOpenDetail(issue.id, e);
+              }
+            }}
             draggable={false}
           >
             {issue.title}
@@ -368,9 +390,11 @@ export const IssueCard = React.memo(function IssueCard({
     </IssueCardMenu>
   );
 }, (prev, next) => {
-  return prev.issue.id === next.issue.id && 
-         prev.issue.updatedAt === next.issue.updatedAt && 
-         prev.selected === next.selected && 
-         prev.runActive === next.runActive && 
-         prev.lastRunFailed === next.lastRunFailed;
+  return prev.issue.id === next.issue.id &&
+         prev.issue.updatedAt === next.issue.updatedAt &&
+         prev.selected === next.selected &&
+         prev.runActive === next.runActive &&
+         prev.lastRunFailed === next.lastRunFailed &&
+         prev.detailHref === next.detailHref &&
+         prev.onOpenDetail === next.onOpenDetail;
 });

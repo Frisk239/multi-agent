@@ -14,6 +14,7 @@ import { inboxRoutes } from './routes/inbox.js';
 import { quickRunRoutes } from './routes/quick-runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { automationRoutes } from './routes/automation.js';
+import { agentTemplateRoutes } from './routes/agent-templates.js';
 import { labelRoutes } from './routes/labels.js';
 import { chatRoutes } from './routes/chat.js';
 import { usageRoutes } from './routes/usage.js';
@@ -38,6 +39,7 @@ export async function buildApp() {
   await app.register(labelRoutes);
   await app.register(commentRoutes);
   await app.register(rosterRoutes);
+  await app.register(agentTemplateRoutes);
   await app.register(skillRoutes);
   await app.register(runRoutes);
   await app.register(quickRunRoutes);

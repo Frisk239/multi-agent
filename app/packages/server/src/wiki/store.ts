@@ -1,6 +1,8 @@
 // S06 Wiki 存储层（spec §3）+ DS3 按 project 轻量分根（ADR 0005）
+// Slice 31：content-hash sidecar 跳过重复 ingest；index 幂等；skip/query-save log 可 grep
 // 文件系统 markdown 存储：wiki/ 目录（index.md + log.md + raw/ + *.md）
 // 照 concepts llm-wiki-pattern.md 的 raw/wiki 三层 + index/log 导航
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -158,32 +160,41 @@ export function writeWikiPage(slug: string, content: string, opts?: WikiRootOpts
   writeFileSync(filePath, content, 'utf-8');
 }
 
-// 追加 index 条目（spec §3.2）：读现有 index → 追加 → 重写
+// 追加 index 条目（spec §3.2）：同 slug 已存在则不重复 append（Slice 31 幂等）
+// @returns true=新写入；false=已有同 slug 跳过
 export function appendIndex(
   entry: { slug: string; title: string; identifier: string },
   opts?: WikiRootOpts,
-): void {
+): boolean {
   ensureWikiDir(opts);
   const indexPath = join(wikiPath(opts), 'index.md');
+  if (!existsSync(indexPath)) {
+    writeFileSync(indexPath, '# Wiki Index\n\n## Pages\n', 'utf-8');
+  }
+  // 同 slug 不重复 append（链接目标 `(slug.md)` 是稳定锚）
+  const existing = readFileSync(indexPath, 'utf-8');
+  const linkNeedle = `(${entry.slug}.md)`;
+  if (existing.includes(linkNeedle)) {
+    return false;
+  }
   const date = new Date().toISOString().slice(0, 10);
   // index.md 条目格式：- [标题](slug.md) — 摘要（日期）
   // slug 在 index 里带 .md 后缀（markdown 链接标准格式）
   const line = `- [${entry.title}](${entry.slug}.md) — ${entry.identifier}（${date}）\n`;
-  if (!existsSync(indexPath)) {
-    writeFileSync(indexPath, '# Wiki Index\n\n## Pages\n', 'utf-8');
-  }
   appendFileSync(indexPath, line, 'utf-8');
+  return true;
 }
 
 // 追加 log（spec §3.3）：append-only，前缀可 grep
-// S07 扩展：从 if/else 改 switch，加 query/health/lint 分支（原 ingest/ingest-failed 行为不变）
+// S07 扩展：query/health/lint；Slice 31：skip / query-save
 export function appendLog(
   entry: {
-    type: string; // 'ingest' | 'ingest-failed' | 'query' | 'health' | 'lint'
+    type: string; // 'ingest' | 'ingest-failed' | 'skip' | 'query' | 'query-save' | 'health' | 'lint'
     identifier: string;
     issueId: string;
     slug?: string;
     error?: string;
+    reason?: string;
   },
   opts?: WikiRootOpts,
 ): void {
@@ -198,8 +209,14 @@ export function appendLog(
     case 'ingest-failed':
       block = `## [${date}] ingest-failed | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Error: ${entry.error ?? 'unknown'}\n\n`;
       break;
+    case 'skip':
+      block = `## [${date}] skip | ${entry.identifier}\n- Source: issue/${entry.issueId}\n- Reason: ${entry.reason ?? 'content-hash-unchanged'}\n${entry.slug ? `- Page: ${entry.slug}.md\n` : ''}\n`;
+      break;
+    case 'query-save':
+      block = `## [${date}] query-save | ${entry.identifier}\n- Question stored: ${entry.slug ?? ''}.md\n\n`;
+      break;
     case 'query':
-      block = `## [${date}] query | ${entry.identifier}\n- Question stored: ${entry.slug}.md\n\n`;
+      block = `## [${date}] query | ${entry.identifier}\n- Question stored: ${entry.slug ?? ''}.md\n\n`;
       break;
     case 'health':
       block = `## [${date}] health | 结构检查\n\n`;
@@ -214,6 +231,34 @@ export function appendLog(
     writeFileSync(logPath, '# Wiki Log\n', 'utf-8');
   }
   appendFileSync(logPath, block, 'utf-8');
+}
+
+// —— Slice 31 content hash（raw 旁 sidecar，少迁 schema）——
+// 文件：wiki/raw/issue-{issueId}.sha256；内容 = sha256 hex of raw source snapshot
+export function hashWikiContent(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
+function issueHashPath(issueId: string, opts?: WikiRootOpts): string {
+  return join(wikiPath(opts), 'raw', `issue-${issueId}.sha256`);
+}
+
+/** 读 issue 上次成功 ingest 的 content hash；无 sidecar 则 null */
+export function readIssueContentHash(issueId: string, opts?: WikiRootOpts): string | null {
+  const p = issueHashPath(issueId, opts);
+  if (!existsSync(p)) return null;
+  const v = readFileSync(p, 'utf-8').trim();
+  return v.length > 0 ? v : null;
+}
+
+/** 写 issue content hash sidecar（成功 ingest 后） */
+export function writeIssueContentHash(issueId: string, hash: string, opts?: WikiRootOpts): void {
+  ensureWikiDir(opts);
+  const rawDir = join(wikiPath(opts), 'raw');
+  if (!existsSync(rawDir)) {
+    mkdirSync(rawDir, { recursive: true });
+  }
+  writeFileSync(issueHashPath(issueId, opts), hash, 'utf-8');
 }
 
 // 存 raw 快照（spec §3.4）：不可变，文件名含 timestamp 防覆盖

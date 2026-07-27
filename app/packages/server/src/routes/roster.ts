@@ -103,6 +103,10 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       input.thinkingLevel == null || !String(input.thinkingLevel).trim()
         ? null
         : String(input.thinkingLevel).trim();
+    const allowedPaths =
+      input.allowedPaths == null || !String(input.allowedPaths).trim()
+        ? null
+        : String(input.allowedPaths).trim();
     db.insert(agents)
       .values({
         id,
@@ -113,6 +117,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         category: input.category ?? null,
         concurrency: input.concurrency ?? 1,
         instructions: input.instructions ?? '',
+        allowedPaths,
         mcpServers: input.mcpServers ?? null,
         createdAt: now,
       })
@@ -150,6 +155,12 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     if (patch.category !== undefined) updates.category = patch.category;
     if (patch.concurrency !== undefined) updates.concurrency = patch.concurrency;
     if (patch.instructions !== undefined) updates.instructions = patch.instructions;
+    if (patch.allowedPaths !== undefined) {
+      updates.allowedPaths =
+        patch.allowedPaths == null || !String(patch.allowedPaths).trim()
+          ? null
+          : String(patch.allowedPaths).trim();
+    }
     if (patch.mcpServers !== undefined) updates.mcpServers = patch.mcpServers;
     if (patch.archived !== undefined) {
       updates.archivedAt = patch.archived ? Date.now() : null;

@@ -130,8 +130,10 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     const { title, content } = parsed.data;
     const slug = generateSlug('query', title);
     writeWikiPage(slug, content, opts);
+    // index 幂等：同 slug 不重复 append
     appendIndex({ slug, title, identifier: 'query' }, opts);
-    appendLog({ type: 'query', identifier: 'query', issueId: 'query', slug }, opts);
+    // Slice 31：query-save 可 grep（保留 type=query 兼容旧消费方时用 query-save 专名）
+    appendLog({ type: 'query-save', identifier: 'query', issueId: 'query', slug }, opts);
     eventBus.publish({ type: 'wiki:page-created', slug, title });
     return reply.status(201).send({ slug, title });
   });

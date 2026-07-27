@@ -62,6 +62,7 @@ import type {
   PaginatedResponse,
   TokenUsageAnalyticsResponse,
   TokenUsageGroupItem,
+  AgentTemplate,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 
@@ -1424,6 +1425,63 @@ export function useAgent(id: string) {
 }
 
 // —— bu02 Agent / Squad 运营 hooks ——
+
+// Slice 30：Agent 模板库
+export function useAgentTemplates() {
+  return useQuery<AgentTemplate[]>({
+    queryKey: ['agent-templates'],
+    queryFn: async () => {
+      const res = await fetch(`${API}/agent-templates`);
+      if (!res.ok) throw new Error(await apiError(res, '加载 Agent 模板失败'));
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateAgentFromTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      templateId: string;
+      overrides?: Partial<
+        Pick<
+          CreateAgentInput,
+          | 'name'
+          | 'runtime'
+          | 'model'
+          | 'thinkingLevel'
+          | 'category'
+          | 'concurrency'
+          | 'instructions'
+          | 'allowedPaths'
+          | 'mcpServers'
+          | 'id'
+        >
+      >;
+    }) => {
+      const res = await fetch(
+        `${API}/agent-templates/${encodeURIComponent(input.templateId)}/create`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(input.overrides ?? {}),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '从模板创建智能体失败'));
+      return res.json() as Promise<AgentDetail>;
+    },
+    onSuccess: (agent) => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.setQueryData(['agent', agent.id], agent);
+      toastSuccess(`已从模板创建 ${agent.name}`, {
+        action: { label: '打开', href: `/agents/${agent.id}` },
+        durationMs: 6000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '从模板创建智能体失败')),
+  });
+}
 
 export function useCreateAgent() {
   const qc = useQueryClient();

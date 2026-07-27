@@ -7,12 +7,30 @@ import { db } from '../db/client.js';
 import { issues, comments, projects } from '../db/schema.js';
 import { toIssue, toComment } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
-import { saveRaw, writeWikiPage, appendIndex, appendLog, listWikiPages, readWikiPage, type WikiRootOpts } from './store.js';
+import {
+  saveRaw,
+  writeWikiPage,
+  appendIndex,
+  appendLog,
+  listWikiPages,
+  readWikiPage,
+  hashWikiContent,
+  readIssueContentHash,
+  writeIssueContentHash,
+  type WikiRootOpts,
+} from './store.js';
 import { createLlm, buildIngestPrompt, generateWikiPage } from './llm.js';
 import { generateSlug } from './slug.js';
 import { updateAgentsMdBridge } from './agents-bridge.js';
 
 const K = 20; // 最近 K 条 comments（spec §4.4）
+
+export type IngestIssueResult = {
+  /** true = content hash 未变，跳过 LLM/写页 */
+  skipped: boolean;
+  slug?: string;
+  reason?: string;
+};
 
 // 格式化 Issue + comments 为 sourceText（给 LLM 的输入）
 function formatSource(
@@ -42,9 +60,9 @@ export function wikiRootOptsForIssue(issue: {
   return { projectId, projectLocalPath: localPath };
 }
 
-// 完整 ingest 管线（spec §4.2 + S08 §3.4 + ADR 0005）
-// 失败 throw；成功末尾 updateAgentsMdBridge。重试/状态由 ingest-worker 管。
-export async function ingestIssue(issueId: string): Promise<void> {
+// 完整 ingest 管线（spec §4.2 + S08 §3.4 + ADR 0005 + Slice 31 content-hash skip）
+// 失败 throw；成功（含 skip）由 worker complete job。重试/状态由 ingest-worker 管。
+export async function ingestIssue(issueId: string): Promise<IngestIssueResult> {
   // 1. 读 Issue 内容
   const issueRow = db.select().from(issues).where(eq(issues.id, issueId)).get();
   if (!issueRow) throw new Error(`issue ${issueId} 不存在`);
@@ -65,11 +83,30 @@ export async function ingestIssue(issueId: string): Promise<void> {
     return { type: c.type, authorLabel: c.authorLabel, body: c.body, createdAt: new Date(c.createdAt).getTime() };
   });
   const sourceText = formatSource(issue, commentApis);
+  const rawContent = `# ${issue.identifier}: ${issue.title}\n\n${sourceText}`;
+  const contentHash = hashWikiContent(rawContent);
+  const slug = generateSlug(issue.identifier, issue.title);
 
-  // 2. 存 raw 快照（进 project 或 global wiki）
-  saveRaw(issueId, `# ${issue.identifier}: ${issue.title}\n\n${sourceText}`, rootOpts);
+  // 2. Slice 31：同内容 hash → skip LLM / 写页 / index（job 仍 completed + skip log）
+  const prevHash = readIssueContentHash(issueId, rootOpts);
+  if (prevHash && prevHash === contentHash) {
+    appendLog(
+      {
+        type: 'skip',
+        identifier: issue.identifier,
+        issueId,
+        slug,
+        reason: 'content-hash-unchanged',
+      },
+      rootOpts,
+    );
+    return { skipped: true, slug, reason: 'content-hash-unchanged' };
+  }
 
-  // 3. 找出可能重叠的现有 Wiki 页面（增量 Ingest 模式）
+  // 3. 存 raw 快照（进 project 或 global wiki）——仅有效 ingest 才写新 raw
+  saveRaw(issueId, rawContent, rootOpts);
+
+  // 4. 找出可能重叠的现有 Wiki 页面（增量 Ingest 模式）
   const allPages = listWikiPages(rootOpts);
   let existingContext = '';
   const isIncremental = allPages.length > 0;
@@ -80,7 +117,7 @@ export async function ingestIssue(issueId: string): Promise<void> {
         return sourceText.toLowerCase().includes(titleLower) || issue.title.toLowerCase().includes(titleLower);
       })
       .slice(0, 3); // 截取前 3 个相关页面
-    
+
     if (relevantPages.length > 0) {
       existingContext = relevantPages
         .map((p) => {
@@ -92,26 +129,27 @@ export async function ingestIssue(issueId: string): Promise<void> {
     }
   }
 
-  // 4. LLM 生成 wiki 页
+  // 5. LLM 生成 wiki 页
   const llm = createLlm();
   const prompt = buildIngestPrompt(issue, sourceText, existingContext);
   const wikiContent = await generateWikiPage(llm, prompt);
 
-  // 4. 写 wiki 页
-  const slug = generateSlug(issue.identifier, issue.title);
+  // 6. 写 wiki 页
   writeWikiPage(slug, wikiContent, rootOpts);
 
-  // 5. 更新 index + log
+  // 7. 更新 index + log（index 幂等：同 slug 不重复 append）
   appendIndex({ slug, title: issue.title, identifier: issue.identifier }, rootOpts);
   appendLog({ type: 'ingest', identifier: issue.identifier, issueId, slug }, rootOpts);
+  writeIssueContentHash(issueId, contentHash, rootOpts);
 
-  // 6. WS 通知（spec §4.2 step 6）
+  // 8. WS 通知（spec §4.2 step 6）
   eventBus.publish({
     type: 'wiki:page-created',
     slug,
     title: issue.title,
   });
 
-  // 7. S08 / ADR 0005：更新对应根的 AGENTS.md managed 块
+  // 9. S08 / ADR 0005：更新对应根的 AGENTS.md managed 块
   updateAgentsMdBridge(rootOpts);
+  return { skipped: false, slug };
 }
