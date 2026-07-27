@@ -1139,7 +1139,17 @@ export function useWorkspaceRuns(params?: {
       sp.set('limit', String(limit));
       const res = await fetch(`${API}/runs?${sp.toString()}`);
       if (!res.ok) throw new Error(await apiError(res, '加载运行列表失败'));
-      return res.json();
+      // 服务端分页信封 { data, total, limit, offset }；兼容历史纯数组
+      const body: unknown = await res.json();
+      if (Array.isArray(body)) return body as AgentRun[];
+      if (
+        body &&
+        typeof body === 'object' &&
+        Array.isArray((body as { data?: unknown }).data)
+      ) {
+        return (body as { data: AgentRun[] }).data;
+      }
+      return [];
     },
     enabled,
     refetchInterval: refetchIntervalMs === undefined ? false : refetchIntervalMs,
