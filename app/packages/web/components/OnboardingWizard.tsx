@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { confirmDialog } from '@/lib/confirm-store';
 
 export function OnboardingWizard() {
   const [status, setStatus] = useState<{
@@ -132,7 +133,12 @@ export function OnboardingWizard() {
           className="btn-primary btn-sm"
           onClick={() => {
             if (!status.hasAgents || !status.hasRuntimes) {
-              alert('请先完成所有配置步骤');
+              void confirmDialog({
+                title: '尚未完成配置',
+                description: '请先完成所有配置步骤',
+                confirmLabel: '知道了',
+                hideCancel: true,
+              });
               return;
             }
             window.location.href = '/?new=1';

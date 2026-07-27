@@ -10,6 +10,7 @@ import {
   useSettingsStatus,
   useWikiJobs,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { ErrorState } from './ErrorState';
 import { TableSkeleton } from './Skeleton';
 
@@ -127,8 +128,15 @@ export function WikiJobsPanel() {
                 data-testid="wiki-jobs-retry-all-dead"
                 disabled={retryAllDead.isPending}
                 onClick={() => {
-                  if (!window.confirm(`重试全部 ${deadCount} 条 dead Wiki 编译任务？`)) return;
-                  retryAllDead.mutate();
+                  void (async () => {
+                    const ok = await confirmDialog({
+                      title: '重试 dead Wiki 任务？',
+                      description: `重试全部 ${deadCount} 条 dead Wiki 编译任务？`,
+                      confirmLabel: '重试全部',
+                    });
+                    if (!ok) return;
+                    retryAllDead.mutate();
+                  })();
                 }}
               >
                 {retryAllDead.isPending ? '重试中…' : `全部重试 · ${deadCount}`}

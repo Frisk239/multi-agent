@@ -10,6 +10,7 @@ import {
   useProject,
   useUpdateProject,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -117,15 +118,23 @@ export function ProjectDetailPage({ id }: { id: string }) {
 
   function handleDelete() {
     if (!project) return;
-    const n = project.issueStats?.total ?? issues.length;
-    const msg =
-      n > 0
-        ? `删除项目「${project.title}」？其下 ${n} 个 Issue 会脱离项目（Issue 本身保留）。`
-        : `删除项目「${project.title}」？`;
-    if (!window.confirm(msg)) return;
-    del.mutate(project.id, {
-      onSuccess: () => router.push('/projects'),
-    });
+    void (async () => {
+      const n = project.issueStats?.total ?? issues.length;
+      const description =
+        n > 0
+          ? `删除项目「${project.title}」？其下 ${n} 个 Issue 会脱离项目（Issue 本身保留）。`
+          : `删除项目「${project.title}」？`;
+      const ok = await confirmDialog({
+        title: '删除项目？',
+        description,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(project.id, {
+        onSuccess: () => router.push('/projects'),
+      });
+    })();
   }
 
   if (isLoading) {

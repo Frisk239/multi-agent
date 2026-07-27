@@ -12,6 +12,7 @@ import {
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import {
   clearDraft,
   draftKey,
@@ -249,9 +250,12 @@ export function NewIssueForm() {
         selectedAssignee.status === 'runtime_missing' ||
         selectedAssignee.status === 'error')
     ) {
-      window.alert(
-        `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时，或清空指派后再创建。`,
-      );
+      void confirmDialog({
+        title: '无法开工',
+        description: `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时，或清空指派后再创建。`,
+        confirmLabel: '知道了',
+        hideCancel: true,
+      });
       return;
     }
 

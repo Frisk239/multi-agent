@@ -11,6 +11,7 @@ import {
   useSquad,
   useUpdateSquad,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageBreadcrumb } from './PageBreadcrumb';
@@ -155,10 +156,18 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
 
   function handleDelete() {
     if (!squad) return;
-    if (!window.confirm(`确定删除小队「${squad.name}」？`)) return;
-    del.mutate(squadId, {
-      onSuccess: () => router.push('/squads'),
-    });
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '删除小队？',
+        description: `确定删除小队「${squad.name}」？`,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(squadId, {
+        onSuccess: () => router.push('/squads'),
+      });
+    })();
   }
 
   const leaderName =

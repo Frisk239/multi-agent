@@ -12,6 +12,7 @@ import {
   useRuntimeModels,
   useUnarchiveAgent,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -172,13 +173,29 @@ function AgentsPageInner() {
   }, [data, qFromUrl, runtimeFilter, readyFromUrl, readinessMap]);
 
   function handleArchive(id: string, label: string) {
-    if (!window.confirm(`归档智能体「${label}」？可从「已归档」Tab 恢复。`)) return;
-    del.mutate(id);
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '归档智能体？',
+        description: `归档智能体「${label}」？可从「已归档」Tab 恢复。`,
+        confirmLabel: '归档',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(id);
+    })();
   }
 
   function handleHardDelete(id: string, label: string) {
-    if (!window.confirm(`永久删除智能体「${label}」？不可恢复。`)) return;
-    del.mutate({ id, hard: true });
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '永久删除智能体？',
+        description: `永久删除智能体「${label}」？不可恢复。`,
+        confirmLabel: '永久删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate({ id, hard: true });
+    })();
   }
 
   function setScope(next: ScopeTab) {

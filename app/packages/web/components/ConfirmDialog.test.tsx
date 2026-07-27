@@ -67,4 +67,54 @@ describe('ConfirmDialog', () => {
     expect(screen.queryByTestId('confirm-dialog-cancel')).toBeNull();
     fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
   });
+
+  // Slice 56 · 迁移后仍用同一 API：危险删除 / 信息闸 / 派活 dirty 文案
+  it('danger delete path cancels without side effects', async () => {
+    render(<ConfirmDialog />);
+    const p = confirmDialog({
+      title: '删除记忆？',
+      description: '删除这条记忆？不可恢复。',
+      confirmLabel: '删除',
+      variant: 'danger',
+    });
+    const dlg = await screen.findByTestId('confirm-dialog');
+    expect(dlg.getAttribute('data-variant')).toBe('danger');
+    expect(screen.getByTestId('confirm-dialog-title').textContent).toContain(
+      '删除记忆',
+    );
+    fireEvent.click(screen.getByTestId('confirm-dialog-cancel'));
+    await expect(p).resolves.toBe(false);
+  });
+
+  it('info gate (hideCancel) for hard-block assignee', async () => {
+    render(<ConfirmDialog />);
+    const p = confirmDialog({
+      title: '无法开工',
+      description: 'Agent X 当前不可开工（cwd_missing）。请先修复环境/运行时。',
+      confirmLabel: '知道了',
+      hideCancel: true,
+    });
+    await screen.findByTestId('confirm-dialog');
+    expect(screen.queryByTestId('confirm-dialog-cancel')).toBeNull();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await expect(p).resolves.toBe(true);
+  });
+
+  it('git dirty dispatch confirm uses danger variant', async () => {
+    render(<ConfirmDialog />);
+    const p = confirmDialog({
+      title: '工作区有未提交修改',
+      description:
+        '本地代码仓库存在未提交修改（3 个文件），派发 Agent 可能会修改/覆写相关代码。是否继续？',
+      confirmLabel: '仍要派发',
+      variant: 'danger',
+    });
+    const dlg = await screen.findByTestId('confirm-dialog');
+    expect(dlg.getAttribute('data-variant')).toBe('danger');
+    expect(screen.getByTestId('confirm-dialog-confirm').textContent).toContain(
+      '仍要派发',
+    );
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await expect(p).resolves.toBe(true);
+  });
 });

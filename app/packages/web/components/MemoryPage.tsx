@@ -13,6 +13,7 @@ import {
   useSettingsStatus,
   type MemoryItem,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -454,16 +455,18 @@ function MemoryPageInner() {
             data-testid="memory-bulk-delete"
             disabled={delMany.isPending}
             onClick={() => {
-              if (
-                !window.confirm(
-                  `删除所选 ${selectedIds.length} 条记忆？不可恢复。`,
-                )
-              ) {
-                return;
-              }
-              delMany.mutate(selectedIds, {
-                onSuccess: () => setSelected({}),
-              });
+              void (async () => {
+                const ok = await confirmDialog({
+                  title: '批量删除记忆？',
+                  description: `删除所选 ${selectedIds.length} 条记忆？不可恢复。`,
+                  confirmLabel: '删除',
+                  variant: 'danger',
+                });
+                if (!ok) return;
+                delMany.mutate(selectedIds, {
+                  onSuccess: () => setSelected({}),
+                });
+              })();
             }}
           >
             {delMany.isPending ? '删除中…' : `删除所选 · ${selectedIds.length}`}
@@ -607,14 +610,22 @@ function MemoryPageInner() {
                         data-testid="memory-delete"
                         disabled={del.isPending && deletingId === m.id}
                         onClick={() => {
-                          if (!window.confirm('删除这条记忆？不可恢复。')) return;
-                          setDeletingId(m.id);
-                          del.mutate(m.id, {
-                            onSettled: () => setDeletingId(null),
-                            onSuccess: () => {
-                              if (detailId === m.id) closeDetail();
-                            },
-                          });
+                          void (async () => {
+                            const ok = await confirmDialog({
+                              title: '删除记忆？',
+                              description: '删除这条记忆？不可恢复。',
+                              confirmLabel: '删除',
+                              variant: 'danger',
+                            });
+                            if (!ok) return;
+                            setDeletingId(m.id);
+                            del.mutate(m.id, {
+                              onSettled: () => setDeletingId(null),
+                              onSuccess: () => {
+                                if (detailId === m.id) closeDetail();
+                              },
+                            });
+                          })();
                         }}
                       >
                         {del.isPending && deletingId === m.id ? '删除中…' : '删除'}
@@ -839,12 +850,20 @@ function MemoryPageInner() {
                     data-testid="memory-detail-delete"
                     disabled={del.isPending}
                     onClick={() => {
-                      if (!window.confirm('删除这条记忆？不可恢复。')) return;
-                      setDeletingId(detail.id);
-                      del.mutate(detail.id, {
-                        onSettled: () => setDeletingId(null),
-                        onSuccess: () => closeDetail(),
-                      });
+                      void (async () => {
+                        const ok = await confirmDialog({
+                          title: '删除记忆？',
+                          description: '删除这条记忆？不可恢复。',
+                          confirmLabel: '删除',
+                          variant: 'danger',
+                        });
+                        if (!ok) return;
+                        setDeletingId(detail.id);
+                        del.mutate(detail.id, {
+                          onSettled: () => setDeletingId(null),
+                          onSuccess: () => closeDetail(),
+                        });
+                      })();
                     }}
                   >
                     删除

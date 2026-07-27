@@ -20,6 +20,7 @@ import {
   useRetryRun,
   useRuntimeModels,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageBreadcrumb } from './PageBreadcrumb';
@@ -108,10 +109,18 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
   function handleDelete() {
     if (!agent) return;
-    if (!window.confirm(`确定删除智能体「${agent.name}」？`)) return;
-    del.mutate(agentId, {
-      onSuccess: () => router.push('/agents'),
-    });
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '删除智能体？',
+        description: `确定删除智能体「${agent.name}」？`,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(agentId, {
+        onSuccess: () => router.push('/agents'),
+      });
+    })();
   }
 
   return (

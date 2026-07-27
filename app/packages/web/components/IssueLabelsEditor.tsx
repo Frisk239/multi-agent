@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import type { Issue, IssueLabel } from '@ma/shared';
 import { useCreateLabel, useDeleteLabel, useLabels, useSetIssueLabels } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 
 const PRESET_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#6b7280'];
 
@@ -46,14 +47,16 @@ export function IssueLabelsEditor({ issue }: { issue: Issue }) {
   }
 
   function handleArchive(label: IssueLabel) {
-    if (
-      !window.confirm(
-        `归档标签「${label.name}」？将从所有 Issue 上移除该标签（可之后用新名重建）。`,
-      )
-    ) {
-      return;
-    }
-    archiveLabel.mutate(label.id);
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '归档标签？',
+        description: `归档标签「${label.name}」？将从所有 Issue 上移除该标签（可之后用新名重建）。`,
+        confirmLabel: '归档',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      archiveLabel.mutate(label.id);
+    })();
   }
 
   return (

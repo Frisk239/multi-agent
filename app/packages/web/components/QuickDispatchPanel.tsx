@@ -11,6 +11,7 @@ import {
   useSettingsStatus,
   useSquads,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { toastSuccess } from '@/lib/toast';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 
@@ -175,9 +176,12 @@ export function QuickDispatchPanel({
 
     // 与 Issue 硬闸一致：cwd_missing / runtime_missing / error 禁止提交
     if (hardAssigneeBlock && selectedAssignee) {
-      window.alert(
-        `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时。`,
-      );
+      await confirmDialog({
+        title: '无法开工',
+        description: `${selectedAssignee.name} 当前不可开工（${selectedAssignee.status}）。请先修复环境/运行时。`,
+        confirmLabel: '知道了',
+        hideCancel: true,
+      });
       return;
     }
 
@@ -186,8 +190,14 @@ export function QuickDispatchPanel({
         const res = await fetch(`http://localhost:3001/api/projects/${projectId}/git-status`);
         if (res.ok) {
           const { status, count } = await res.json() as { status: string; count: number };
-          if (status === 'dirty' && !window.confirm(`⚠️ 本地代码仓库存在未提交修改 (${count} 个文件)，派发 Agent 可能会修改/覆写相关代码。是否继续？`)) {
-            return;
+          if (status === 'dirty') {
+            const ok = await confirmDialog({
+              title: '工作区有未提交修改',
+              description: `本地代码仓库存在未提交修改（${count} 个文件），派发 Agent 可能会修改/覆写相关代码。是否继续？`,
+              confirmLabel: '仍要派发',
+              variant: 'danger',
+            });
+            if (!ok) return;
           }
         }
       } catch {

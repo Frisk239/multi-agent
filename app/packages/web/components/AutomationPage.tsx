@@ -21,6 +21,7 @@ import {
   useSquads,
   useUpdateAutomationRule,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -332,14 +333,20 @@ function AutomationPageInner() {
   }
 
   function handleDelete(rule: AutomationRule) {
-    if (!window.confirm(`确定删除规则「${rule.name}」？相关执行记录会一并删除。`)) {
-      return;
-    }
-    del.mutate(rule.id, {
-      onSuccess: () => {
-        if (expandedId === rule.id) setExpandedId(null);
-      },
-    });
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '删除自动化规则？',
+        description: `确定删除规则「${rule.name}」？相关执行记录会一并删除。`,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(rule.id, {
+        onSuccess: () => {
+          if (expandedId === rule.id) setExpandedId(null);
+        },
+      });
+    })();
   }
 
   const rules = data ?? [];

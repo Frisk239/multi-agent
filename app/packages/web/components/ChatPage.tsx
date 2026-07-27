@@ -20,6 +20,7 @@ import {
   useWorkspaceRuns,
 } from '@/lib/api';
 import { isNearBottom, NEAR_BOTTOM_PX } from '@/lib/chat-scroll';
+import { confirmDialog } from '@/lib/confirm-store';
 import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
 import { useRunProgressStore } from '@/lib/ws';
 import { MarkdownBody } from './MarkdownBody';
@@ -280,8 +281,14 @@ export function ChatPage() {
       const res = await fetch(`http://localhost:3001/api/projects/${projectId}/git-status`);
       if (res.ok) {
         const { status, count } = await res.json() as { status: string; count: number };
-        if (status === 'dirty' && !window.confirm(`⚠️ 本地代码仓库存在未提交修改 (${count} 个文件)，派发 Agent 可能会修改/覆写相关代码。是否继续？`)) {
-          return false;
+        if (status === 'dirty') {
+          const ok = await confirmDialog({
+            title: '工作区有未提交修改',
+            description: `本地代码仓库存在未提交修改（${count} 个文件），派发 Agent 可能会修改/覆写相关代码。是否继续？`,
+            confirmLabel: '仍要派发',
+            variant: 'danger',
+          });
+          if (!ok) return false;
         }
       }
     } catch {
@@ -771,8 +778,16 @@ export function ChatPage() {
                       title="停止当前聊天运行"
                       aria-label="停止"
                       onClick={() => {
-                        if (!window.confirm('停止当前回复？可稍后重发上一条。')) return;
-                        cancelRun.mutate(liveRun.id);
+                        void (async () => {
+                          const ok = await confirmDialog({
+                            title: '停止当前回复？',
+                            description: '可稍后重发上一条。',
+                            confirmLabel: '停止',
+                            variant: 'danger',
+                          });
+                          if (!ok) return;
+                          cancelRun.mutate(liveRun.id);
+                        })();
                       }}
                     >
                       {cancelRun.isPending ? '…' : '停止'}

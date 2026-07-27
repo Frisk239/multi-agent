@@ -9,6 +9,7 @@ import {
   useProjects,
   useUpdateProject,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 
@@ -90,13 +91,21 @@ export function ProjectsPage() {
   }
 
   function handleDelete(p: Project) {
-    const n = p.issueStats?.total ?? 0;
-    const msg =
-      n > 0
-        ? `删除项目「${p.title}」？其下 ${n} 个 Issue 会脱离项目（Issue 本身保留）。`
-        : `删除项目「${p.title}」？`;
-    if (!window.confirm(msg)) return;
-    del.mutate(p.id);
+    void (async () => {
+      const n = p.issueStats?.total ?? 0;
+      const description =
+        n > 0
+          ? `删除项目「${p.title}」？其下 ${n} 个 Issue 会脱离项目（Issue 本身保留）。`
+          : `删除项目「${p.title}」？`;
+      const ok = await confirmDialog({
+        title: '删除项目？',
+        description,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(p.id);
+    })();
   }
 
   if (isLoading) {

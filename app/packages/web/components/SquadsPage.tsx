@@ -11,6 +11,7 @@ import {
   useDeleteSquad,
   useSquads,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
@@ -194,8 +195,16 @@ function SquadsPageInner() {
   }
 
   function handleDelete(id: string, label: string) {
-    if (!window.confirm(`确定删除小队「${label}」？`)) return;
-    del.mutate(id);
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '删除小队？',
+        description: `确定删除小队「${label}」？`,
+        confirmLabel: '删除',
+        variant: 'danger',
+      });
+      if (!ok) return;
+      del.mutate(id);
+    })();
   }
 
   function clearAllFilters() {

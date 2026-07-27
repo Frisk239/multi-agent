@@ -11,6 +11,7 @@ import {
   useMarkInboxReadMany,
   useRetryRun,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import type { InboxItem } from '@ma/shared';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
@@ -576,10 +577,17 @@ function InboxPageInner() {
                 data-testid="inbox-archive-visible"
                 disabled={archiveMany.isPending || markReadMany.isPending}
                 onClick={() => {
-                  const ids = filteredActive.map((i) => i.id);
-                  if (ids.length === 0) return;
-                  if (!window.confirm(`归档当前筛选 ${ids.length} 条通知？`)) return;
-                  archiveMany.mutate(ids);
+                  void (async () => {
+                    const ids = filteredActive.map((i) => i.id);
+                    if (ids.length === 0) return;
+                    const ok = await confirmDialog({
+                      title: '批量归档通知？',
+                      description: `归档当前筛选 ${ids.length} 条通知？`,
+                      confirmLabel: '归档',
+                    });
+                    if (!ok) return;
+                    archiveMany.mutate(ids);
+                  })();
                 }}
               >
                 {archiveMany.isPending ? '归档中…' : `归档筛选 · ${filteredActive.length}`}

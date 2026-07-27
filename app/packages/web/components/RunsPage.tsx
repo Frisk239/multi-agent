@@ -12,6 +12,7 @@ import {
   useSquads,
   useWorkspaceRuns,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import {
   chatThreadHref,
   qcRetryHref,
@@ -388,14 +389,16 @@ function RunsPageInner() {
                 data-testid="runs-cancel-visible-active-banner"
                 disabled={cancelMany.isPending}
                 onClick={() => {
-                  if (
-                    !window.confirm(
-                      `取消当前列表中 ${activeVisibleIds.length} 条在途 run？`,
-                    )
-                  ) {
-                    return;
-                  }
-                  cancelMany.mutate(activeVisibleIds);
+                  void (async () => {
+                    const ok = await confirmDialog({
+                      title: '批量取消运行？',
+                      description: `取消当前列表中 ${activeVisibleIds.length} 条在途 run？`,
+                      confirmLabel: '取消运行',
+                      variant: 'danger',
+                    });
+                    if (!ok) return;
+                    cancelMany.mutate(activeVisibleIds);
+                  })();
                 }}
               >
                 {cancelMany.isPending

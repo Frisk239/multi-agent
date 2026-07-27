@@ -18,6 +18,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from '@/lib/api';
+import { confirmDialog } from '@/lib/confirm-store';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { CliHealthInspector } from './CliHealthInspector';
@@ -502,9 +503,17 @@ export function SettingsPage() {
             type="button"
             className="btn-secondary btn-sm"
             onClick={() => {
-              if (!window.confirm('清空工作区路径？')) return;
-              setCwdDraft('');
-              setCwd.mutate('');
+              void (async () => {
+                const ok = await confirmDialog({
+                  title: '清空工作区路径？',
+                  description: '清空后 Agent 可能因 cwd 缺失而无法开工，可稍后重新设置。',
+                  confirmLabel: '清空',
+                  variant: 'danger',
+                });
+                if (!ok) return;
+                setCwdDraft('');
+                setCwd.mutate('');
+              })();
             }}
           >
             重置工作区 Path
@@ -691,14 +700,17 @@ export function SettingsPage() {
               data-testid="settings-isolated-cleanup-7d"
               disabled={cleanupIsolated.isPending}
               onClick={() => {
-                if (
-                  !window.confirm(
-                    '删除超过 7 天未修改的隔离 workdir（run-workspaces / chat-sessions）？不可恢复。',
-                  )
-                ) {
-                  return;
-                }
-                cleanupIsolated.mutate({ olderThanDays: 7 });
+                void (async () => {
+                  const ok = await confirmDialog({
+                    title: '清理隔离目录？',
+                    description:
+                      '删除超过 7 天未修改的隔离 workdir（run-workspaces / chat-sessions）？不可恢复。',
+                    confirmLabel: '清理',
+                    variant: 'danger',
+                  });
+                  if (!ok) return;
+                  cleanupIsolated.mutate({ olderThanDays: 7 });
+                })();
               }}
             >
               {cleanupIsolated.isPending ? '清理中…' : '清理 &gt;7 天'}
@@ -736,8 +748,16 @@ export function SettingsPage() {
                     data-testid="settings-isolated-delete-one"
                     disabled={cleanupIsolated.isPending}
                     onClick={() => {
-                      if (!window.confirm(`删除隔离目录 ${e.label}？`)) return;
-                      cleanupIsolated.mutate({ ids: [e.id] });
+                      void (async () => {
+                        const ok = await confirmDialog({
+                          title: '删除隔离目录？',
+                          description: `删除隔离目录 ${e.label}？`,
+                          confirmLabel: '删除',
+                          variant: 'danger',
+                        });
+                        if (!ok) return;
+                        cleanupIsolated.mutate({ ids: [e.id] });
+                      })();
                     }}
                   >
                     删
@@ -809,8 +829,15 @@ export function SettingsPage() {
                   data-testid="settings-wiki-dead-btn"
                   disabled={retryAllDeadWiki.isPending}
                   onClick={() => {
-                    if (!window.confirm('重试全部 dead Wiki 编译任务？')) return;
-                    retryAllDeadWiki.mutate();
+                    void (async () => {
+                      const ok = await confirmDialog({
+                        title: '重试 dead Wiki 任务？',
+                        description: '重试全部 dead Wiki 编译任务？',
+                        confirmLabel: '重试全部',
+                      });
+                      if (!ok) return;
+                      retryAllDeadWiki.mutate();
+                    })();
                   }}
                 >
                   {retryAllDeadWiki.isPending ? '重试中…' : '一键重试 dead 任务'}
@@ -1011,14 +1038,16 @@ export function SettingsPage() {
                 data-testid="settings-wiki-auto-retry-dead"
                 disabled={retryAllDeadWiki.isPending}
                 onClick={() => {
-                  if (
-                    !window.confirm(
-                      `重试全部 ${data.wikiHealth!.dead} 条 dead Wiki 编译任务？`,
-                    )
-                  ) {
-                    return;
-                  }
-                  retryAllDeadWiki.mutate();
+                  void (async () => {
+                    const dead = data.wikiHealth!.dead;
+                    const ok = await confirmDialog({
+                      title: '重试 dead Wiki 任务？',
+                      description: `重试全部 ${dead} 条 dead Wiki 编译任务？`,
+                      confirmLabel: '重试全部',
+                    });
+                    if (!ok) return;
+                    retryAllDeadWiki.mutate();
+                  })();
                 }}
               >
                 {retryAllDeadWiki.isPending
