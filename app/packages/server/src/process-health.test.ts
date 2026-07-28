@@ -87,4 +87,13 @@ describe('buildProcessHealth', () => {
       false,
     );
   });
+
+  it('passes through treeKilled when provided (Slice 75)', () => {
+    const h = buildProcessHealth({
+      now: 1_000,
+      db: { ok: true, latencyMs: 1 },
+      treeKilled: 3,
+    });
+    expect(h.treeKilled).toBe(3);
+  });
 });

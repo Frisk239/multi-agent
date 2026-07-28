@@ -379,6 +379,10 @@ export function buildOpsSnapshot(opts?: {
       status: processHealth.status,
       uptimeMs: processHealth.uptimeMs,
       db: processHealth.db,
+      // Slice 75：上次关停 residual tree kill 计数（无则为 undefined）
+      ...(processHealth.treeKilled != null
+        ? { treeKilled: processHealth.treeKilled }
+        : {}),
     },
     automation,
     sqlite: sqliteSnap,

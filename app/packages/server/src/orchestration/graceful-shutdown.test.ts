@@ -3,11 +3,14 @@ import {
   cancelAllActiveRuns,
   shutdownServer,
   DEFAULT_SHUTDOWN_GRACE_MS,
+  getLastShutdownSnapshot,
+  __resetLastShutdownForTests,
 } from './graceful-shutdown';
 
 describe('graceful-shutdown', () => {
   beforeEach(() => {
     vi.useRealTimers();
+    __resetLastShutdownForTests();
   });
 
   it('cancelAllActiveRuns: cancel DB ACTIVE → abort residual → empty', async () => {
@@ -137,5 +140,94 @@ describe('graceful-shutdown', () => {
   it('exports a sensible default grace window', () => {
     expect(DEFAULT_SHUTDOWN_GRACE_MS).toBeGreaterThanOrEqual(5_000);
     expect(DEFAULT_SHUTDOWN_GRACE_MS).toBeLessThanOrEqual(30_000);
+  });
+
+  it('cancelAllActiveRuns: residual tree kill when tracked children remain', async () => {
+    const killAllTrackedTrees = vi.fn(() => ({
+      attempted: 2,
+      pids: [101, 202],
+      results: [
+        { pid: 101, platform: 'linux' as const, attempted: true, taskkill: false },
+        { pid: 202, platform: 'linux' as const, attempted: true, taskkill: false },
+      ],
+    }));
+    const deps = {
+      listDbActiveRunIds: vi.fn(() => []),
+      cancelRunsMany: vi.fn(() => ({ cancelled: 0 })),
+      listActiveRunIds: vi.fn(() => []),
+      abortRun: vi.fn(() => false),
+      sleep: vi.fn(async () => undefined),
+      now: vi.fn(() => 0),
+      trackedChildCount: vi.fn(() => 2),
+      killAllTrackedTrees,
+    };
+
+    const report = await cancelAllActiveRuns({ graceMs: 50, pollMs: 10, deps });
+
+    expect(report.treeKilled).toBe(2);
+    expect(report.treeKillPids).toEqual([101, 202]);
+    expect(report.timedOut).toBe(false);
+    expect(killAllTrackedTrees).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelAllActiveRuns: grace timeout triggers residual tree kill', async () => {
+    let t = 0;
+    const killAllTrackedTrees = vi.fn(() => ({
+      attempted: 1,
+      pids: [77],
+      results: [{ pid: 77, platform: 'win32' as const, attempted: true, taskkill: true }],
+    }));
+    const deps = {
+      listDbActiveRunIds: vi.fn(() => ['r1']),
+      cancelRunsMany: vi.fn(() => ({ cancelled: 1 })),
+      listActiveRunIds: vi.fn(() => ['r1']),
+      abortRun: vi.fn(() => false),
+      sleep: vi.fn(async (ms: number) => {
+        t += ms;
+      }),
+      now: vi.fn(() => t),
+      trackedChildCount: vi.fn(() => 1),
+      killAllTrackedTrees,
+    };
+
+    const report = await cancelAllActiveRuns({ graceMs: 100, pollMs: 40, deps });
+
+    expect(report.timedOut).toBe(true);
+    expect(report.treeKilled).toBe(1);
+    expect(report.treeKillPids).toEqual([77]);
+    expect(killAllTrackedTrees).toHaveBeenCalledTimes(1);
+  });
+
+  it('shutdownServer: stores lastShutdown snapshot with treeKilled', async () => {
+    const killAllTrackedTrees = vi.fn(() => ({
+      attempted: 1,
+      pids: [9],
+      results: [{ pid: 9, platform: 'linux' as const, attempted: true, taskkill: false }],
+    }));
+    const report = await shutdownServer({
+      graceMs: 50,
+      walCheckpoint: false,
+      deps: {
+        stopWorkers: vi.fn(),
+        listDbActiveRunIds: vi.fn(() => []),
+        cancelRunsMany: vi.fn(() => ({ cancelled: 0 })),
+        listActiveRunIds: vi.fn(() => []),
+        abortRun: vi.fn(() => false),
+        sleep: vi.fn(async () => undefined),
+        now: vi.fn(() => 1234),
+        trackedChildCount: vi.fn(() => 1),
+        killAllTrackedTrees,
+      },
+    });
+
+    expect(report.treeKilled).toBe(1);
+    const snap = getLastShutdownSnapshot();
+    expect(snap).toMatchObject({
+      at: 1234,
+      treeKilled: 1,
+      treeKillPids: [9],
+      timedOut: false,
+      walCheckpointOk: null,
+    });
   });
 });

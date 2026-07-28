@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { AgentEvent, ExecutionResult, TokenUsage } from './types.js';
+import { killProcessTree, trackChildPid, untrackChildPid } from './process-tree.js';
 
 // ANSI 转义序列剥离（opencode 等 CLI 输出含 \x1b[0m 色码，进 finalText 前清掉）
 export function stripAnsi(s: string): string {
@@ -24,7 +25,7 @@ export type LineHandler = (
 ) => void;
 
 // spawnLineProcess —— 三 Backend 共用的子进程驱动。
-// Windows 进程树 kill 对齐 plan：AbortSignal → child.kill + taskkill /T /F 双保险。
+// Slice 75：AbortSignal → killProcessTree（Windows taskkill /T /F）；pid 登记供关停 residual 强杀。
 // Windows .cmd 处理：cursor-agent 经 where 解析出 .cmd，spawn 必须 shell:true 才能执行。
 // opts.timeoutMs：chat 等短任务硬超时，避免 CLI 挂起 → orphan after restart。
 export function spawnLineProcess(
@@ -50,6 +51,7 @@ export function spawnLineProcess(
       windowsHide: true,
       env: process.env,
     });
+    if (child.pid) trackChildPid(child.pid);
     // S05：stdin pipe 传 prompt。claude-code 的 -p 无 prompt 参数时从 stdin 读
     // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose）。
     // opencode/cursor 不传 stdinInput，保持 argv prompt 模式。
@@ -74,6 +76,7 @@ export function spawnLineProcess(
       if (settled) return;
       settled = true;
       if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (child.pid) untrackChildPid(child.pid);
       // 终态结果带上 line 解析到的 usage（若调用方未显式传入）
       if (result.usage === undefined && lineCtx.usage) {
         result = { ...result, usage: lineCtx.usage };
@@ -88,16 +91,13 @@ export function spawnLineProcess(
     };
 
     const killTree = () => {
-      try {
-        child.kill('SIGTERM');
-        if (process.platform === 'win32' && child.pid) {
-          // /T 杀整棵进程树（对齐 plan + multica deep §5）
-          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-            windowsHide: true,
-          });
+      if (child.pid) killProcessTree(child.pid);
+      else {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
       }
     };
 

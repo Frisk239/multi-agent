@@ -1,10 +1,15 @@
 // Slice 23：进程优雅退出 —— 停 worker → cancel ACTIVE DB runs → abort 残留 → 等 empty 或 grace。
-// 复用 cancelRunsMany / abortRun / listActiveRunIds；不重写 killTree（spawn-line 走 AbortSignal）。
+// Slice 75：grace 后 residual 进程树强杀（killAllTrackedTrees）；最后一次关停报告供 Settings 观测。
 // Slice 57：关停末尾可选 WAL checkpoint（PASSIVE，失败仅 warn）。
 import { inArray } from 'drizzle-orm';
 import { db, sqlite, walCheckpoint } from '../db/client.js';
 import { agentRuns } from '../db/schema.js';
 import { logger } from '../logger.js';
+import {
+  killAllTrackedTrees,
+  trackedChildCount,
+  type KillAllTrackedTreesReport,
+} from '../runtime/process-tree.js';
 import { stopAutomationWorker } from './automation-worker.js';
 import { abortRun, listActiveRunIds } from './run-control.js';
 import { cancelRunsMany } from './run-service.js';
@@ -23,6 +28,9 @@ export type CancelAllActiveRunsReport = {
   abortedResidual: number;
   stillActive: string[];
   timedOut: boolean;
+  /** Slice 75：grace 后强杀的 tracked CLI 子进程数 */
+  treeKilled: number;
+  treeKillPids: number[];
 };
 
 export type ShutdownServerReport = CancelAllActiveRunsReport & {
@@ -30,6 +38,28 @@ export type ShutdownServerReport = CancelAllActiveRunsReport & {
   /** Slice 57：wal_checkpoint(PASSIVE) 是否执行成功；跳过则为 null */
   walCheckpointOk: boolean | null;
 };
+
+export type LastShutdownSnapshot = {
+  at: number;
+  cancelled: number;
+  abortedResidual: number;
+  stillActive: number;
+  timedOut: boolean;
+  treeKilled: number;
+  treeKillPids: number[];
+  walCheckpointOk: boolean | null;
+};
+
+let lastShutdown: LastShutdownSnapshot | null = null;
+
+export function getLastShutdownSnapshot(): LastShutdownSnapshot | null {
+  return lastShutdown;
+}
+
+/** 测试用 */
+export function __resetLastShutdownForTests(): void {
+  lastShutdown = null;
+}
 
 export type ShutdownServerOptions = {
   /** 等 in-memory abort 清空 / 子进程收尾 的 grace 窗口 */
@@ -51,6 +81,8 @@ type ShutdownDeps = {
   sleep: (ms: number) => Promise<void>;
   now: () => number;
   walCheckpoint: () => void;
+  killAllTrackedTrees: () => KillAllTrackedTreesReport;
+  trackedChildCount: () => number;
 };
 
 function defaultStopWorkers(): void {
@@ -87,12 +119,14 @@ function resolveDeps(partial?: Partial<ShutdownDeps>): ShutdownDeps {
     sleep: partial?.sleep ?? sleep,
     now: partial?.now ?? (() => Date.now()),
     walCheckpoint: partial?.walCheckpoint ?? defaultWalCheckpoint,
+    killAllTrackedTrees: partial?.killAllTrackedTrees ?? killAllTrackedTrees,
+    trackedChildCount: partial?.trackedChildCount ?? trackedChildCount,
   };
 }
 
 /**
  * 取消 DB 中全部 ACTIVE run，并对内存 abort 表残留再 abort 一次。
- * 随后轮询直到 listActiveRunIds 空或 grace 超时。
+ * 随后轮询直到 listActiveRunIds 空或 grace 超时；超时后 residual 进程树强杀。
  */
 export async function cancelAllActiveRuns(
   opts: {
@@ -121,10 +155,30 @@ export async function cancelAllActiveRuns(
     stillActive = d.listActiveRunIds();
   }
 
-  const timedOut = stillActive.length > 0;
+  let timedOut = stillActive.length > 0;
+  let treeKilled = 0;
+  let treeKillPids: number[] = [];
+
+  // Slice 75：grace 后或仍有 tracked CLI 子进程时 residual tree kill
+  const trackedBefore = d.trackedChildCount();
+  if (timedOut || trackedBefore > 0) {
+    const killed = d.killAllTrackedTrees();
+    treeKilled = killed.attempted;
+    treeKillPids = killed.pids;
+    if (treeKilled > 0) {
+      logger.warn(
+        { treeKilled, treeKillPids, stillActive, graceMs },
+        '[shutdown] residual process trees killed after grace',
+      );
+    }
+    // 再扫一轮 abort 表（tree kill 后可能仍挂 key 直至 finish）
+    stillActive = d.listActiveRunIds();
+    timedOut = stillActive.length > 0;
+  }
+
   if (timedOut) {
     logger.warn(
-      { stillActive, graceMs },
+      { stillActive, graceMs, treeKilled },
       '[shutdown] grace elapsed with residual active aborts',
     );
   }
@@ -134,11 +188,13 @@ export async function cancelAllActiveRuns(
     abortedResidual,
     stillActive,
     timedOut,
+    treeKilled,
+    treeKillPids,
   };
 }
 
 /**
- * 完整关停序列：停 timers → cancel ACTIVE → 等 grace。
+ * 完整关停序列：停 timers → cancel ACTIVE → residual tree kill → WAL。
  * 调用方负责 app.close() 与 hard process.exit 超时。
  */
 export async function shutdownServer(
@@ -160,6 +216,7 @@ export async function shutdownServer(
       abortedResidual: report.abortedResidual,
       stillActive: report.stillActive.length,
       timedOut: report.timedOut,
+      treeKilled: report.treeKilled,
     },
     '[shutdown] cancelAllActiveRuns done',
   );
@@ -178,6 +235,17 @@ export async function shutdownServer(
       );
     }
   }
+
+  lastShutdown = {
+    at: d.now(),
+    cancelled: report.cancelled,
+    abortedResidual: report.abortedResidual,
+    stillActive: report.stillActive.length,
+    timedOut: report.timedOut,
+    treeKilled: report.treeKilled,
+    treeKillPids: report.treeKillPids,
+    walCheckpointOk,
+  };
 
   return { ...report, workersStopped: true, walCheckpointOk };
 }

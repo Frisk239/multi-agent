@@ -20,6 +20,8 @@ export type ProcessHealthResponse = {
   uptimeMs: number;
   db: { ok: boolean; latencyMs: number | null; error?: string };
   workers: Record<WorkerHealthKey, WorkerHealthSnapshot>;
+  /** Slice 75：残留进程树强杀计数（shutdownServer 残留树 kill 后报告） */
+  treeKilled?: number;
 };
 
 const startedAt = Date.now();
@@ -76,6 +78,7 @@ const DB_SKIPPED: DbPingResult = { ok: true, latencyMs: null };
 export function buildProcessHealth(opts?: {
   now?: number;
   db?: DbPingResult;
+  treeKilled?: number;
 }): ProcessHealthResponse {
   const now = opts?.now ?? Date.now();
   // 路由层注入真实 DB ping；单测可传 mock；缺省视为 skipped/ok
@@ -108,6 +111,7 @@ export function buildProcessHealth(opts?: {
     uptimeMs: Math.max(0, now - startedAt),
     db,
     workers,
+    treeKilled: opts?.treeKilled,
   };
 }
 

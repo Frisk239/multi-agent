@@ -1,6 +1,8 @@
 // Slice 38：进程级存活探针（非产品 Settings 诊断）
+// Slice 75：附带上次关停 residual treeKilled（若有）
 import type { FastifyInstance } from 'fastify';
 import { sqlite } from '../db/client.js';
+import { getLastShutdownSnapshot } from '../orchestration/graceful-shutdown.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
 
 function pingSqlite(): DbPingResult {
@@ -18,5 +20,11 @@ function pingSqlite(): DbPingResult {
 }
 
 export async function healthzRoutes(app: FastifyInstance) {
-  app.get('/healthz', async () => buildProcessHealth({ db: pingSqlite() }));
+  app.get('/healthz', async () => {
+    const last = getLastShutdownSnapshot();
+    return buildProcessHealth({
+      db: pingSqlite(),
+      treeKilled: last?.treeKilled,
+    });
+  });
 }

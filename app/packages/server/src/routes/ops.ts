@@ -2,6 +2,7 @@
 // Slice 58：DB backup / list
 import type { FastifyInstance } from 'fastify';
 import { sqlite } from '../db/client.js';
+import { getLastShutdownSnapshot } from '../orchestration/graceful-shutdown.js';
 import { buildOpsSnapshot } from '../ops-snapshot.js';
 import { createDbBackup, listDbBackups } from '../ops-backup.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
@@ -23,7 +24,12 @@ function pingSqlite(): DbPingResult {
 export async function opsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/ops/snapshot', async () => {
     const now = Date.now();
-    const processHealth = buildProcessHealth({ now, db: pingSqlite() });
+    const last = getLastShutdownSnapshot();
+    const processHealth = buildProcessHealth({
+      now,
+      db: pingSqlite(),
+      treeKilled: last?.treeKilled,
+    });
     return buildOpsSnapshot({ now, processHealth });
   });
 
