@@ -32,7 +32,6 @@ import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
-import { OnboardingWizard } from './OnboardingWizard';
 import { useDensity } from '@/lib/density';
 import {
   collectActiveIssueIds,
@@ -646,7 +645,6 @@ function KanbanBoardInner() {
       data-visible-count={visibleCount}
       data-testid="kanban-board"
     >
-      <OnboardingWizard />
       <AgentsWorkingBanner />
       <div className="kanban-toolbar" data-testid="kanban-toolbar">
         <div className="kanban-toolbar-primary">

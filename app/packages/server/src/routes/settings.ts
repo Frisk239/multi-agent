@@ -22,6 +22,7 @@ import {
   agentRuns,
   agents,
   issues,
+  projects,
   automationRules,
   automationRuns,
   memoryItems,
@@ -42,10 +43,48 @@ import {
   setWorkspaceRootPath,
 } from '../workspace-cwd.js';
 import { resolveListenHost } from '../bind.js';
+import { isUsableLocalDirectory } from '../runtime/resolve-run-cwd.js';
 
 function envNonEmpty(name: string): boolean {
   const v = process.env[name];
   return Boolean(v && v.trim());
+}
+
+export function calculateDay0Progress(input: {
+  agents: Array<{ archivedAt: number | null }>;
+  projects: Array<{ localPath: string | null }>;
+  issues: Array<{ id: string; identifier: string; assigneeType: string | null; assigneeId: string | null }>;
+  runs: Array<{ id: string; issueId: string | null; status: string; createdAt: number }>;
+  hasRuntimes: boolean;
+  isUsableProjectPath: (path: string) => boolean;
+}) {
+  const activeAgentCount = input.agents.filter((agent) => agent.archivedAt == null).length;
+  const validProjectCount = input.projects.filter(
+    (project) => project.localPath && input.isUsableProjectPath(project.localPath),
+  ).length;
+  const linked = input.issues
+    .filter((issue) => issue.assigneeType != null && issue.assigneeId != null)
+    .flatMap((issue) => input.runs.filter((run) => run.issueId === issue.id).map((run) => ({ issue, run })))
+    .sort((a, b) => {
+      const active = (status: string) =>
+        status === 'queued' || status === 'waiting_local_directory' || status === 'running' ? 1 : 0;
+      return active(b.run.status) - active(a.run.status) || b.run.createdAt - a.run.createdAt;
+    })[0];
+  const hasAgents = activeAgentCount > 0;
+  const hasValidProject = validProjectCount > 0;
+  const hasAssignedIssueRun = Boolean(linked);
+  return {
+    activeAgentCount,
+    validProjectCount,
+    hasAgents,
+    hasValidProject,
+    hasAssignedIssueRun,
+    firstIssueId: linked?.issue.id ?? null,
+    firstIssueIdentifier: linked?.issue.identifier ?? null,
+    firstRunId: linked?.run.id ?? null,
+    firstRunStatus: linked?.run.status ?? null,
+    completed: input.hasRuntimes && hasValidProject && hasAgents && hasAssignedIssueRun,
+  };
 }
 
 function buildRunHealth(now = Date.now()): SettingsRunHealth {
@@ -719,8 +758,10 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   // GAP-02: 首启 Onboarding 状态 API
   app.get('/api/settings/onboarding-status', async () => {
     const cwd = resolveWorkspaceCwd();
-    const agentCount = db.select().from(agents).all().length;
-    const issueCount = db.select().from(issues).all().length;
+    const agentRows = db.select().from(agents).all();
+    const issueRows = db.select().from(issues).all();
+    const projectRows = db.select().from(projects).all();
+    const runRows = db.select().from(agentRuns).all();
 
     let installedRuntimesCount = 0;
     for (const b of allBackends()) {
@@ -729,8 +770,16 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const hasCwd = Boolean(cwd.configured && cwd.exists);
-    const hasAgents = agentCount > 0;
-    const hasIssues = issueCount > 0;
+    const progress = calculateDay0Progress({
+      agents: agentRows,
+      projects: projectRows,
+      issues: issueRows,
+      runs: runRows,
+      hasRuntimes: installedRuntimesCount > 0,
+      isUsableProjectPath: isUsableLocalDirectory,
+    });
+    const hasAgents = progress.hasAgents;
+    const hasIssues = issueRows.length > 0;
     const hasRuntimes = installedRuntimesCount > 0;
 
     return {
@@ -739,9 +788,17 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
       hasAgents,
       hasIssues,
       installedRuntimesCount,
-      agentCount,
-      issueCount,
-      completed: hasCwd && hasAgents && hasRuntimes,
+      agentCount: agentRows.length,
+      activeAgentCount: progress.activeAgentCount,
+      issueCount: issueRows.length,
+      validProjectCount: progress.validProjectCount,
+      hasValidProject: progress.hasValidProject,
+      hasAssignedIssueRun: progress.hasAssignedIssueRun,
+      firstIssueId: progress.firstIssueId,
+      firstIssueIdentifier: progress.firstIssueIdentifier,
+      firstRunId: progress.firstRunId,
+      firstRunStatus: progress.firstRunStatus,
+      completed: progress.completed,
     };
   });
 }

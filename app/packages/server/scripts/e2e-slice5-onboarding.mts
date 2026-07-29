@@ -26,18 +26,19 @@ async function runSlice5Test() {
     }
 
     // 2. 访问 首页 并检查 / 清除 localStorage 验证 Onboarding UI 交互
-    console.log('📍 2. 访问首页验证 Onboarding 向导 UI (onboarding-wizard)...');
+    console.log('📍 2. 访问首页验证单入口 Day-0 Onboarding...');
     await page.goto('http://localhost:3000/', { waitUntil: 'domcontentloaded', timeout: 15000 });
     await page.evaluate(() => {
-      window.localStorage.removeItem('ma-onboarding-dismissed');
+      window.localStorage.removeItem('ma.day0-onboarding.v2');
+      window.sessionStorage.removeItem('ma.day0-onboarding.v2.dismissed');
     });
     await page.reload();
     await page.waitForTimeout(1000);
 
-    const wizard = page.locator('[data-testid="onboarding-wizard"]');
+    const wizard = page.locator('[data-testid="onboarding-card"], [data-testid="onboarding-success"]');
     // 如果系统已完成基础配置 completed=true，向导按规则自动隐藏，亦可测试 API/UI 逻辑
     const isVisible = await wizard.isVisible();
-    console.log(`  ℹ️ OnboardingWizard UI 可见状态: ${isVisible}`);
+    console.log(`  ℹ️ Day-0 Onboarding UI 可见状态: ${isVisible}`);
     results.push({ action: 'Onboarding 向导组件流程', status: 'PASS', note: `已整合至首页 (Visible: ${isVisible})` });
   } catch (err: any) {
     console.error('❌ E2E 验证抛出异常:', err.message);

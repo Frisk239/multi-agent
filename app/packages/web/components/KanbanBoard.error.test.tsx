@@ -94,9 +94,6 @@ vi.mock('./Skeleton', () => ({
 vi.mock('./AgentsWorkingBanner', () => ({
   AgentsWorkingBanner: () => null,
 }));
-vi.mock('./OnboardingWizard', () => ({
-  OnboardingWizard: () => null,
-}));
 vi.mock('./Select', () => ({
   Select: ({
     children,
