@@ -13,6 +13,12 @@ import { createIssueCore } from './issue-create.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
+export function automationStatusForEnqueue(
+  status: 'queued' | 'skipped' | 'not_applicable' | undefined,
+): 'issue_created' | 'pending_dispatch' {
+  return status === 'skipped' ? 'pending_dispatch' : 'issue_created';
+}
+
 /** @deprecated 请用 @ma/shared renderAutomationTemplate；保留 re-export 兼容 */
 export function renderTemplate(
   tpl: string,
@@ -149,6 +155,7 @@ function insertFailedRun(
         issueId: null,
         error,
         createdAt,
+        updatedAt: createdAt,
       })
       .run();
   } catch (e) {
@@ -245,7 +252,7 @@ export async function dispatchAutomationRule(
     );
   }
 
-  // B3：建卡成功但 enqueue 跳过 → success + error 注明（UI toast 可解释）
+  // 建卡成功不等于执行成功：待派发/已排队均保持非终态。
   let enqueueNote: string | null = null;
   const enq = created.enqueue;
   if (enq?.status === 'skipped') {
@@ -269,10 +276,12 @@ export async function dispatchAutomationRule(
         ruleId,
         plannedAt,
         source,
-        status: 'success',
+        status: automationStatusForEnqueue(enq?.status),
         issueId: created.issue.id,
+        linkedRunId: enq?.runId ?? null,
         error: enqueueNote,
         createdAt,
+        updatedAt: createdAt,
       })
       .run();
   } catch (e) {

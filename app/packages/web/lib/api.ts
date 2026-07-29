@@ -2825,7 +2825,7 @@ export function useRunAutomationNow() {
       qc.invalidateQueries({ queryKey: ['automation-rules'] });
       qc.invalidateQueries({ queryKey: ['automation-runs', run.ruleId] });
       qc.invalidateQueries({ queryKey: ['issues'] });
-      if (run.status === 'success') {
+      if (run.status === 'issue_created' || run.status === 'running') {
         const label = run.issueId ? run.issueId.slice(0, 8) : '—';
         const issueAction = run.issueId
           ? {
@@ -2836,22 +2836,17 @@ export function useRunAutomationNow() {
               label: '看板 · 自动化',
               href: '/?origin=automation',
             };
-        // B3：error 非空 = 建卡成功但 enqueue 跳过（见 automation-dispatch）
-        if (run.error) {
-          toastError(run.error, {
-            action: run.error.includes('无 leader')
-              ? { label: '小队列表', href: '/squads' }
-              : /runtime|PATH|CLI/i.test(run.error)
-                ? { label: '运行时', href: '/runtimes' }
-                : issueAction,
-            durationMs: 9000,
-          });
-        } else {
-          toastSuccess(`已创建 Issue · ${label}…`, {
-            action: issueAction,
-            durationMs: 8000,
-          });
-        }
+        toastSuccess(`已创建 Issue · ${label}…，等待执行结果`, {
+          action: issueAction,
+          durationMs: 8000,
+        });
+      } else if (run.status === 'pending_dispatch') {
+        toastError(run.error || 'Issue 已创建，但尚未派发', {
+          action: run.issueId
+            ? { label: '打开 Issue', href: `/issues/${run.issueId}` }
+            : { label: '环境诊断', href: '/settings' },
+          durationMs: 9000,
+        });
       } else if (run.status === 'failed') {
         const err = run.error || '执行失败';
         const cwdish = /MA_WORKSPACE_CWD|cwd|工作区/i.test(err);
@@ -2887,6 +2882,30 @@ export function useAutomationRuns(ruleId: string | null | undefined, limit = 10)
   });
 }
 
+export function useReconcileAutomationRun(ruleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      const res = await apiFetch(
+        `${API}/automation/runs/${encodeURIComponent(runId)}/reconcile`,
+        { method: 'POST' },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '恢复派发失败'));
+      return res.json() as Promise<{ run: AutomationRun; created: boolean }>;
+    },
+    onSuccess: ({ run, created }) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      qc.invalidateQueries({ queryKey: ['automation-runs', ruleId] });
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['runs'] });
+      if (created) toastSuccess('已恢复派发');
+      else if (run.status === 'pending_dispatch') toastError(run.error || '当前仍无法派发');
+      else toastSuccess('已绑定现有运行');
+    },
+    onError: (err) => toastError(errMessage(err, '恢复派发失败')),
+  });
+}
+
 // —— Slice 15 (S3) + Slice 28: Token 成本归因 hooks ——
 export function useTokenUsageAnalytics(
   days = 30,
@@ -2901,4 +2920,3 @@ export function useTokenUsageAnalytics(
     },
   });
 }
-

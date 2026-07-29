@@ -98,6 +98,8 @@ export function eventMatchesTopics(
       return hasKind(topics, 'inbox');
     case 'wiki:page-created':
       return hasKind(topics, 'wiki');
+    case 'automation:updated':
+      return hasKind(topics, 'automation');
     default:
       return false;
   }

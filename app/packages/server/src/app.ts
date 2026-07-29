@@ -28,6 +28,7 @@ import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
 import { resolveListenHost } from './bind.js';
 import { registerLocalTokenGuard } from './local-token.js';
+import { syncAutomationRunFromAgentRun } from './orchestration/automation-execution.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -43,7 +44,19 @@ export async function buildApp() {
   registerLocalTokenGuard(app, { listenHost: resolveListenHost() });
 
   // 接线（spec §6.5）：eventBus → wsBroadcaster
-  eventBus.on((e) => wsBroadcaster.broadcast(e));
+  eventBus.on((e) => {
+    if (
+      e.type === 'run:queued' ||
+      e.type === 'run:waiting_local_directory' ||
+      e.type === 'run:running' ||
+      e.type === 'run:completed' ||
+      e.type === 'run:failed' ||
+      e.type === 'run:cancelled'
+    ) {
+      syncAutomationRunFromAgentRun(e.run);
+    }
+    wsBroadcaster.broadcast(e);
+  });
 
   await app.register(healthzRoutes);
   await app.register(opsRoutes);

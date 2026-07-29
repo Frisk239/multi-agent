@@ -460,7 +460,9 @@ export function toAutomationRun(row: AutomationRunRow): AutomationRun {
     source: row.source,
     status: row.status,
     issueId: row.issueId ?? null,
+    linkedRunId: row.linkedRunId ?? null,
     error: row.error ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
   };
 }

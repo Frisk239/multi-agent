@@ -113,6 +113,9 @@ export function topicsForPath(pathname: string | null | undefined): string[] {
   if (head === 'wiki') {
     return ['wiki:', 'inbox:'];
   }
+  if (head === 'automation') {
+    return ['automation:', 'issue:', 'run:', 'agent:', 'inbox:'];
+  }
   if (head === 'agents' && id) {
     return ['agent:', `agent:${id}`, 'inbox:', 'issue:'];
   }
@@ -326,6 +329,13 @@ export function useWsEvents() {
         });
         // 无 cache 时也 invalidate，确保挂载后能拉到新数据
         qc.invalidateQueries({ queryKey: ['activities', issueId] });
+      }
+
+      if (event.type === 'automation:updated') {
+        qc.invalidateQueries({ queryKey: ['automation-rules'] });
+        qc.invalidateQueries({
+          queryKey: ['automation-runs', event.automationRun.ruleId],
+        });
       }
 
       // S03 run 生命周期：更新 ['runs', issueId] cache

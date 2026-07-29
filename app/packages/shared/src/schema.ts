@@ -1708,7 +1708,8 @@ export type DomainEvent =
   | WikiPageCreatedEvent
   | InboxItemEvent
   | RuntimeEventEvent
-  | AgentStatusChangedEvent;
+  | AgentStatusChangedEvent
+  | { type: 'automation:updated'; automationRun: AutomationRun };
 
 // —— Slice 26：WS 轻量订阅（客户端 → 服务端）——
 // topics=null：旧客户端兼容，全量 fanout
@@ -2049,7 +2050,14 @@ export type AutomationScheduleKind = z.infer<typeof AutomationScheduleKind>;
 export const AutomationRunSource = z.enum(['schedule', 'manual']);
 export type AutomationRunSource = z.infer<typeof AutomationRunSource>;
 
-export const AutomationRunStatus = z.enum(['success', 'failed', 'skipped']);
+export const AutomationRunStatus = z.enum([
+  'issue_created',
+  'pending_dispatch',
+  'running',
+  'success',
+  'failed',
+  'skipped',
+]);
 export type AutomationRunStatus = z.infer<typeof AutomationRunStatus>;
 
 export const AutomationRule = z.object({
@@ -2156,8 +2164,10 @@ export const AutomationRun = z.object({
   source: AutomationRunSource,
   status: AutomationRunStatus,
   issueId: BusinessId.nullable(),
+  linkedRunId: BusinessId.nullable(),
   error: z.string().nullable(),
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 export type AutomationRun = z.infer<typeof AutomationRun>;
 

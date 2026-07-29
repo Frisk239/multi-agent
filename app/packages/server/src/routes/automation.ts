@@ -10,6 +10,7 @@ import { db } from '../db/client.js';
 import { automationRules, automationRuns } from '../db/schema.js';
 import { toAutomationRule, toAutomationRun } from '../db/reshape.js';
 import { dispatchAutomationRule } from '../orchestration/automation-dispatch.js';
+import { reconcileAutomationRun } from '../orchestration/automation-execution.js';
 
 function normalizeScheduleFields(input: {
   scheduleKind?: 'interval_minutes' | 'daily_at' | 'cron';
@@ -257,5 +258,14 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
       .limit(limit)
       .all();
     return rows.map(toAutomationRun);
+  });
+
+  app.post('/api/automation/runs/:id/reconcile', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const result = await reconcileAutomationRun(id);
+    if (!result.ok) {
+      return reply.status(result.status).send({ success: false, error: result.error });
+    }
+    return result;
   });
 }

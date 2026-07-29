@@ -503,10 +503,14 @@ export const automationRuns = sqliteTable(
       .references(() => automationRules.id, { onDelete: 'cascade' }),
     plannedAt: integer('planned_at').notNull(),
     source: text('source', { enum: ['schedule', 'manual'] }).notNull(),
-    status: text('status', { enum: ['success', 'failed', 'skipped'] }).notNull(),
+    status: text('status', {
+      enum: ['issue_created', 'pending_dispatch', 'running', 'success', 'failed', 'skipped'],
+    }).notNull(),
     issueId: text('issue_id'),
+    linkedRunId: text('linked_run_id'),
     error: text('error'),
     createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
   },
   (t) => ({
     uqRulePlanned: uniqueIndex('uq_automation_run_rule_planned').on(t.ruleId, t.plannedAt),

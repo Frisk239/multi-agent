@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-29）
 
-- **最新关刀：** R4 mention 闭环完整性——补齐 `mention_delegated` activity、ActivityTimeline Run 深链，以及 fresh DB 缺失 `activity_log` 的 `0039` migration；证据见 [r4 closeout](app/.progress/r4-mention-closure-closeout-2026-07-29.md)。
+- **最新关刀：** Automation execution truth——Automation 建卡、待派发、running/terminal 真相、幂等 reconcile 与 UI 深链已闭环；证据见 [closeout](app/.progress/automation-execution-truth-closeout-2026-07-29.md)。上一刀 R4 见 [r4 closeout](app/.progress/r4-mention-closure-closeout-2026-07-29.md)。
 - **当前审计结论：** 普通 Run 主链已闭环；下一后端硬缺口是 **Automation execution truth**（建卡成功不能等同实际执行成功），下一前端硬缺口是统一两套冲突的 **Day-0 Onboarding**。
-- **下一刀默认：** Automation execution truth（automation_run 与 linked agent_run terminal 同步、skipped 不假绿、可恢复补派）；随后统一 Onboarding。
+- **下一刀默认：** 统一 Day-0 Onboarding；随后评估基于 `failureReason` 白名单的有限 infra 自动重试。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开

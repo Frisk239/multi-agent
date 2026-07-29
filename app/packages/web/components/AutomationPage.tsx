@@ -20,6 +20,7 @@ import {
   useCreateAutomationRule,
   useDeleteAutomationRule,
   useRunAutomationNow,
+  useReconcileAutomationRun,
   useSquads,
   useUpdateAutomationRule,
 } from '@/lib/api';
@@ -28,6 +29,7 @@ import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
+import { automationRunHref } from '@/lib/automation-run-link';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
@@ -69,6 +71,7 @@ function nextPlanTitle(rule: AutomationRule): string {
 
 function RuleRuns({ ruleId }: { ruleId: string }) {
   const { data: runs, isLoading, isError } = useAutomationRuns(ruleId, 8);
+  const reconcile = useReconcileAutomationRun(ruleId);
 
   if (isLoading) {
     return <div className="automation-runs text-dim text-sm">加载执行记录…</div>;
@@ -89,7 +92,8 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
             <th>来源</th>
             <th>计划时刻</th>
             <th>Issue</th>
-            <th>错误</th>
+            <th>Run</th>
+            <th>原因 / 操作</th>
           </tr>
         </thead>
         <tbody>
@@ -113,8 +117,29 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
                   <span className="text-dim">—</span>
                 )}
               </td>
+              <td className="text-sm">
+                {r.linkedRunId ? (
+                  <Link href={automationRunHref(r.linkedRunId)} data-testid="automation-linked-run">
+                    {r.linkedRunId.slice(0, 8)}…
+                  </Link>
+                ) : (
+                  <span className="text-dim">—</span>
+                )}
+              </td>
               <td className="text-dim text-sm" title={r.error ?? undefined}>
                 {r.error ? (r.error.length > 48 ? `${r.error.slice(0, 48)}…` : r.error) : '—'}
+                {r.status === 'pending_dispatch' ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginLeft: 8 }}
+                    disabled={reconcile.isPending}
+                    data-testid={`automation-reconcile-${r.id}`}
+                    onClick={() => reconcile.mutate(r.id)}
+                  >
+                    {reconcile.isPending ? '恢复中…' : '重新派发'}
+                  </button>
+                ) : null}
               </td>
             </tr>
           ))}

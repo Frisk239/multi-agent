@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { computeNextPlannedAt, computeDuePlannedAt } from '../orchestration/automation-dispatch.js';
+import {
+  automationStatusForEnqueue,
+  computeNextPlannedAt,
+  computeDuePlannedAt,
+} from '../orchestration/automation-dispatch.js';
 
 describe('cron schedule computations', () => {
+  it('does not report skipped enqueue as success', () => {
+    expect(automationStatusForEnqueue('skipped')).toBe('pending_dispatch');
+    expect(automationStatusForEnqueue('queued')).toBe('issue_created');
+  });
   it('should compute next run for cron correctly', () => {
     // 2026-07-26 15:00:00 (some fixed time)
     const now = new Date('2026-07-26T15:00:00Z').getTime();
