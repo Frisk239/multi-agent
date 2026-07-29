@@ -9,15 +9,20 @@ import {
 
 const run: AgentRun = {
   id: 'run-slice73',
-  workspaceId: 'ws-1',
   issueId: 'iss-1',
   agentId: 'ag-1',
   status: 'running',
   runtime: 'opencode',
-  trigger: 'manual',
+  kind: 'issue',
+  quickPrompt: null,
+  error: null,
+  startedAt: '2026-07-27T00:00:00.000Z',
+  finishedAt: null,
+  lastHeartbeatAt: '2026-07-27T00:00:00.000Z',
+  isLeader: false,
+  squadId: null,
   createdAt: '2026-07-27T00:00:00.000Z',
-  updatedAt: '2026-07-27T00:00:00.000Z',
-} as AgentRun;
+};
 
 const toolMessages: RunMessage[] = [
   {

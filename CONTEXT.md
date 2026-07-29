@@ -44,7 +44,12 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-07-27）
+## 当前方位（2026-07-29）
+
+- **最新关刀：** R4 mention 闭环完整性——补齐 `mention_delegated` activity、ActivityTimeline Run 深链，以及 fresh DB 缺失 `activity_log` 的 `0039` migration；证据见 [r4 closeout](app/.progress/r4-mention-closure-closeout-2026-07-29.md)。
+- **当前审计结论：** 普通 Run 主链已闭环；下一后端硬缺口是 **Automation execution truth**（建卡成功不能等同实际执行成功），下一前端硬缺口是统一两套冲突的 **Day-0 Onboarding**。
+- **下一刀默认：** Automation execution truth（automation_run 与 linked agent_run terminal 同步、skipped 不假绿、可恢复补派）；随后统一 Onboarding。
+- **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md)

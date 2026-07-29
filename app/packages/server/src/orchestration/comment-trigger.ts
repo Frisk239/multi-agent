@@ -6,6 +6,7 @@ import { toComment } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { enqueueAgentRun, enqueueLeaderRun } from './run-service.js';
 import { getSquadLeaderId, loadSquadDetail } from '../db/squad-loader.js';
+import { recordActivityLog } from './activity-logger.js';
 
 // comment-trigger —— comment 创建后解析 mention link 派任务（spec §7）。
 // 挂接点：人工 comment（comments.ts POST）+ agent 终态 comment（run-worker.ts completed）。
@@ -77,6 +78,19 @@ function publishDispatchSummary(issueId: string, dispatches: MentionDispatch[]):
     .run();
   const cRow = db.select().from(comments).where(eq(comments.id, cid)).get();
   if (cRow) eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+
+  // R4: mention_delegated activity for full WS/activity/mention pill closure
+  dispatches.forEach((d) => {
+    if (d.runId) {
+      recordActivityLog({
+        issueId,
+        actorType: 'system',
+        actorId: null,
+        eventType: 'mention_delegated',
+        payload: { targetId: d.targetId, targetKind: d.kind, runId: d.runId },
+      });
+    }
+  });
 }
 
 // triggerFromComment —— 解析 mention 并 enqueue；返回派发结果（UI/API 可感知）

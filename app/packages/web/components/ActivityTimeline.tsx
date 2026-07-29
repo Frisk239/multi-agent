@@ -61,6 +61,8 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
         return { icon: '⏳', title: 'Deferred · 排队未 claim', color: 'var(--color-orange)' };
       case 'squad_escalated':
         return { icon: '🚨', title: '小队升级告警', color: 'var(--color-red)' };
+      case 'mention_delegated':
+        return { icon: '📣', title: '提及委派', color: 'var(--color-purple)' };
       default:
         return { icon: '📌', title: event.eventType, color: 'var(--text-dim)' };
     }
@@ -107,22 +109,25 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
                       act.eventType === 'run_completed' ||
                       act.eventType === 'run_failed' ||
                       act.eventType === 'run_deferred' ||
-                      act.eventType === 'squad_escalated') && (
+                      act.eventType === 'squad_escalated' ||
+                      act.eventType === 'mention_delegated') && (
                       <div>
-                        <Link href={`/runs?run=${act.payload.runId}`} className="text-sm" style={{ textDecoration: 'underline' }}>
-                          查看 Run {act.payload.runId?.slice(0, 8)}
-                        </Link>
-                        {act.payload.error ? <span className="text-red" style={{ marginLeft: 8 }}>({act.payload.error})</span> : null}
-                        {act.eventType === 'run_deferred' && act.payload.reason ? (
+                        {act.payload?.runId ? (
+                          <Link href={`/runs?run=${act.payload.runId}`} className="text-sm" style={{ textDecoration: 'underline' }}>
+                            查看 Run {act.payload.runId.slice(0, 8)}
+                          </Link>
+                        ) : null}
+                        {act.payload?.error ? <span className="text-red" style={{ marginLeft: 8 }}>({act.payload?.error})</span> : null}
+                        {act.eventType === 'run_deferred' && act.payload?.reason ? (
                           <span className="text-dim" style={{ marginLeft: 8 }}>
-                            ({act.payload.reason})
+                            ({act.payload?.reason})
                           </span>
                         ) : null}
                         {act.eventType === 'run_deferred' &&
-                        act.payload.reassignDraft?.note ? (
+                        act.payload?.reassignDraft?.note ? (
                           <span className="text-dim" style={{ marginLeft: 8 }} data-testid="activity-reassign-draft">
-                            · {String(act.payload.reassignDraft.note)}
-                            {act.payload.reassignDraft.applied === false ? '（未自动执行）' : ''}
+                            · {String(act.payload?.reassignDraft.note)}
+                            {act.payload?.reassignDraft.applied === false ? '（未自动执行）' : ''}
                           </span>
                         ) : null}
                       </div>

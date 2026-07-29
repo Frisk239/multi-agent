@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import {
+  activityLogs,
   agents,
   agentRuns,
   automationRules,
@@ -54,6 +55,39 @@ describe('schema migrator drift gate (Slice 41)', () => {
     // 0035 已在 journal
     const wikiJob = colNames(sqlite, 'wiki_ingest_job');
     expect(wikiJob.has('next_attempt_at')).toBe(true);
+
+    // R4：fresh DB 必须可读取 activity timeline，而不是运行时 500 no such table。
+    const activityLog = colNames(sqlite, 'activity_log');
+    expect(activityLog).toEqual(
+      new Set([
+        'id',
+        'issue_id',
+        'actor_type',
+        'actor_id',
+        'actor_name',
+        'event_type',
+        'payload',
+        'created_at',
+      ]),
+    );
+    const activityIndexes = sqlite.pragma('index_list(activity_log)') as Array<{ name: string }>;
+    expect(activityIndexes.some((index) => index.name === 'idx_activity_log_issue')).toBe(true);
+    const activityFks = sqlite.pragma('foreign_key_list(activity_log)') as Array<{
+      table: string;
+      from: string;
+      to: string;
+      on_delete: string;
+    }>;
+    expect(activityFks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          table: 'issue',
+          from: 'issue_id',
+          to: 'id',
+          on_delete: 'CASCADE',
+        }),
+      ]),
+    );
   });
 
   it('can insert/read gap columns via drizzle without runtime ALTER', () => {
@@ -136,6 +170,19 @@ describe('schema migrator drift gate (Slice 41)', () => {
       })
       .run();
 
+    db.insert(activityLogs)
+      .values({
+        id: 'act-gap-1',
+        issueId: 'iss-gap-1',
+        actorType: 'system',
+        actorId: null,
+        actorName: '系统',
+        eventType: 'mention_delegated',
+        payload: JSON.stringify({ runId: 'run-gap-1' }),
+        createdAt: now,
+      })
+      .run();
+
     const agent = db.select().from(agents).where(eq(agents.id, 'agt-gap-1')).get();
     expect(agent?.allowedPaths).toBe('["/tmp"]');
 
@@ -147,5 +194,13 @@ describe('schema migrator drift gate (Slice 41)', () => {
 
     const mem = db.select().from(memoryItems).where(eq(memoryItems.id, 'mem-gap-1')).get();
     expect(mem?.validAt).toBe(now);
+
+    const activity = db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.id, 'act-gap-1'))
+      .get();
+    expect(activity?.issueId).toBe('iss-gap-1');
+    expect(activity?.eventType).toBe('mention_delegated');
   });
 });
