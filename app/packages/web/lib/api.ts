@@ -1061,7 +1061,10 @@ export function useRuntimeModels(runtime: RuntimeId | '' | undefined) {
   });
 }
 
-export function useRuns(issueId: string) {
+export function useRuns(
+  issueId: string,
+  opts?: { refetchIntervalMs?: number | false; refetchActive?: boolean },
+) {
   return useQuery<AgentRun[]>({
     queryKey: ['runs', issueId],
     queryFn: async () => {
@@ -1071,6 +1074,22 @@ export function useRuns(issueId: string) {
       return json.data;
     },
     enabled: !!issueId,
+    refetchInterval:
+      opts?.refetchIntervalMs !== undefined
+        ? opts.refetchIntervalMs
+        : opts?.refetchActive
+          ? (q) => {
+              const rows = q.state.data ?? [];
+              return rows.some(
+                (run) =>
+                  run.status === 'queued' ||
+                  run.status === 'waiting_local_directory' ||
+                  run.status === 'running',
+              )
+                ? 2500
+                : false;
+            }
+          : false,
   });
 }
 
@@ -1170,6 +1189,8 @@ export function useWorkspaceRuns(params?: {
   limit?: number;
   /** 聊天页在途轮询 */
   refetchIntervalMs?: number | false;
+  /** 在途时轮询；无 active run 时自动停止 */
+  refetchActive?: boolean;
   enabled?: boolean;
 }) {
   const status = params?.status;
@@ -1180,6 +1201,7 @@ export function useWorkspaceRuns(params?: {
   const isLeader = params?.isLeader;
   const limit = params?.limit ?? 50;
   const refetchIntervalMs = params?.refetchIntervalMs;
+  const refetchActive = params?.refetchActive ?? false;
   const enabled = params?.enabled ?? true;
   return useQuery<AgentRun[]>({
     queryKey: [
@@ -1218,7 +1240,22 @@ export function useWorkspaceRuns(params?: {
       return [];
     },
     enabled,
-    refetchInterval: refetchIntervalMs === undefined ? false : refetchIntervalMs,
+    refetchInterval:
+      refetchIntervalMs !== undefined
+        ? refetchIntervalMs
+        : refetchActive
+          ? (q) => {
+              const rows = q.state.data ?? [];
+              return rows.some(
+                (run) =>
+                  run.status === 'queued' ||
+                  run.status === 'waiting_local_directory' ||
+                  run.status === 'running',
+              )
+                ? 2500
+                : false;
+            }
+          : false,
   });
 }
 

@@ -126,7 +126,7 @@ export function IssueDetail({
   } = useIssue(id);
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: activities = [] } = useActivities(id);
-  const { data: runs = [] } = useRuns(id);
+  const { data: runs = [] } = useRuns(id, { refetchActive: true });
   const { data: usage } = useIssueRunUsage(isSheet ? '' : id);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [execOpen, setExecOpen] = useState(false);

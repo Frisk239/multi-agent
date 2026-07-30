@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun, IssueRunUsage } from '@ma/shared';
+import { useCancelRun, useRetryRun } from '@/lib/api';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -40,6 +42,46 @@ function runDurationMs(r: AgentRun): number | null {
   return b - a;
 }
 
+const ACTIVE_STATUSES = new Set<AgentRun['status']>([
+  'queued',
+  'waiting_local_directory',
+  'running',
+]);
+
+function isActiveRun(r: AgentRun): boolean {
+  return ACTIVE_STATUSES.has(r.status);
+}
+
+function isRetryableRun(r: AgentRun): boolean {
+  return r.status === 'failed' || r.status === 'cancelled' || r.status === 'timed_out';
+}
+
+function activeElapsedMs(r: AgentRun, now: number): number | null {
+  const waitingStarted =
+    r.status === 'waiting_local_directory' &&
+    typeof r.waitingLocalEnteredAt === 'number'
+      ? r.waitingLocalEnteredAt
+      : null;
+  const started =
+    waitingStarted ?? (r.status === 'running' ? r.startedAt : null) ?? r.createdAt;
+  const t = new Date(started).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, now - t);
+}
+
+function useLiveClock(enabled: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!enabled) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
+
+  return now;
+}
+
 const STATUS_ZH: Record<string, string> = {
   queued: '排队',
   waiting_local_directory: '等待目录锁',
@@ -47,6 +89,7 @@ const STATUS_ZH: Record<string, string> = {
   completed: '完成',
   failed: '失败',
   cancelled: '取消',
+  timed_out: '超时',
 };
 
 function cwdModeShort(mode: string | null | undefined): string | null {
@@ -59,9 +102,7 @@ function cwdModeShort(mode: string | null | undefined): string | null {
   return mode;
 }
 
-/**
- * Multica「显示历史运行」密度：表精简；时间线为主操作。
- */
+/** Multica「显示历史运行」密度：在途/历史分组，时间线与运行页为深链。 */
 export function IssueRunHistory({
   runs,
   selectedRunId,
@@ -75,6 +116,14 @@ export function IssueRunHistory({
   usage?: IssueRunUsage | null;
   onOpenTimeline?: (runId: string) => void;
 }) {
+  const activeRuns = runs.filter(isActiveRun);
+  const pastRuns = runs.filter((r) => !isActiveRun(r));
+  const now = useLiveClock(activeRuns.length > 0);
+  const cancel = useCancelRun();
+  const retry = useRetryRun();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
   if (runs.length === 0) return null;
 
   const failedCount = runs.filter((r) => r.status === 'failed').length;
@@ -93,6 +142,109 @@ export function IssueRunHistory({
       : isolatedPaths.length === 1
         ? isolatedPaths[0]
         : null;
+
+  function runHref(runId: string): string {
+    return `/runs?run=${encodeURIComponent(runId)}&timeline=1&status=all`;
+  }
+
+  function renderRow(r: AgentRun, live: boolean) {
+    const selected = r.id === selectedRunId;
+    const dur = runDurationMs(r);
+    const elapsed = live ? activeElapsedMs(r, now) : null;
+    return (
+      <li
+        key={r.id}
+        className={`issue-run-row${selected ? ' is-selected' : ''}${live ? ' is-live' : ''}`}
+        data-testid="issue-run-history-row"
+        data-run-id={r.id}
+        data-run-status={r.status}
+        data-selected={selected ? '1' : '0'}
+      >
+        <button
+          type="button"
+          className="issue-run-row-main"
+          onClick={() => onSelect(r.id)}
+          aria-pressed={selected}
+          title="选中并查看轨迹"
+        >
+          {live ? <span className="run-live-dot" aria-hidden /> : null}
+          <code className={`run-pill run-pill--${r.status}`}>
+            {STATUS_ZH[r.status] ?? r.status}
+          </code>
+          {r.isLeader ? <span className="leader-badge">队长</span> : null}
+          <span className="issue-run-row-runtime text-sm">{r.runtime}</span>
+          {cwdModeShort(r.cwdMode) ? (
+            <span
+              className="issue-run-row-cwd text-dim text-sm"
+              data-testid="issue-run-history-cwd"
+              data-cwd-mode={r.cwdMode ?? ''}
+              title={r.cwdPath ?? undefined}
+            >
+              {cwdModeShort(r.cwdMode)}
+            </span>
+          ) : null}
+          <span className="issue-run-row-id text-dim text-sm">{shortId(r.id)}</span>
+          <span
+            className="issue-run-row-dur text-dim text-sm"
+            data-testid="issue-run-history-duration"
+          >
+            {elapsed != null
+              ? `${r.status === 'running' ? '已运行' : '已等待'} ${formatDurationMs(elapsed)}`
+              : formatDurationMs(dur)}
+          </span>
+          <span className="issue-run-row-time text-dim text-sm">
+            {relativeTime(r.createdAt)}
+          </span>
+        </button>
+        <div className="issue-run-row-actions" onClick={(e) => e.stopPropagation()}>
+          {live ? (
+            <button
+              type="button"
+              className="btn btn-stop btn-sm"
+              data-testid="issue-run-history-cancel"
+              data-run-id={r.id}
+              disabled={cancel.isPending && cancellingId === r.id}
+              onClick={() => {
+                setCancellingId(r.id);
+                cancel.mutate(r.id, { onSettled: () => setCancellingId(null) });
+              }}
+            >
+              {cancel.isPending && cancellingId === r.id ? '停止中…' : '停止'}
+            </button>
+          ) : null}
+          {!live && isRetryableRun(r) ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              data-testid="issue-run-history-retry"
+              data-run-id={r.id}
+              disabled={retry.isPending && retryingId === r.id}
+              onClick={() => {
+                setRetryingId(r.id);
+                retry.mutate(r.id, { onSettled: () => setRetryingId(null) });
+              }}
+            >
+              {retry.isPending && retryingId === r.id ? '重试中…' : '重试此 run'}
+            </button>
+          ) : null}
+          {onOpenTimeline ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              data-testid="issue-run-history-timeline"
+              data-run-id={r.id}
+              onClick={() => onOpenTimeline(r.id)}
+            >
+              时间线
+            </button>
+          ) : null}
+          <Link href={runHref(r.id)} className="btn btn-ghost btn-sm" data-testid="issue-run-history-transcript">
+            运行页
+          </Link>
+        </div>
+      </li>
+    );
+  }
 
   return (
     <section
@@ -118,25 +270,17 @@ export function IssueRunHistory({
             data-testid="issue-run-workdir-reuse"
             title={reusePath}
           >
-            隔离工作目录沿用 ·{' '}
-            <code className="issue-run-workdir-path">{reusePath}</code>
+            隔离工作目录沿用 · <code className="issue-run-workdir-path">{reusePath}</code>
           </p>
         ) : null}
         {usage ? (
           <div className="issue-run-usage issue-run-usage--compact" data-testid="issue-run-usage">
-            <span>
-              <strong data-testid="issue-usage-total">{usage.total}</strong> 次
-            </span>
+            <span><strong data-testid="issue-usage-total">{usage.total}</strong> 次</span>
+            <span className="text-dim">·</span>
+            <span>成功 <strong data-testid="issue-usage-rate">{rateLabel ?? '—'}</strong></span>
             <span className="text-dim">·</span>
             <span>
-              成功 <strong data-testid="issue-usage-rate">{rateLabel ?? '—'}</strong>
-            </span>
-            <span className="text-dim">·</span>
-            <span>
-              均耗{' '}
-              <strong data-testid="issue-usage-avg">
-                {formatDurationMs(usage.avgDurationMs)}
-              </strong>
+              均耗 <strong data-testid="issue-usage-avg">{formatDurationMs(usage.avgDurationMs)}</strong>
             </span>
             <span className="text-dim">·</span>
             <span data-testid="issue-usage-cost-chip" title="按本地 model 价表推估；无价表为 uncosted">
@@ -146,82 +290,25 @@ export function IssueRunHistory({
             </span>
           </div>
         ) : (
-          <Link
-            href="/runs?status=all"
-            className="btn btn-ghost btn-sm"
-            data-testid="issue-run-history-workspace"
-          >
+          <Link href="/runs?status=all" className="btn btn-ghost btn-sm" data-testid="issue-run-history-workspace">
             全部运行
           </Link>
         )}
       </div>
 
       <ul className="issue-run-rows" data-testid="issue-run-rows">
-        {runs.map((r) => {
-          const selected = r.id === selectedRunId;
-          const live =
-            r.status === 'queued' ||
-            r.status === 'waiting_local_directory' ||
-            r.status === 'running';
-          const dur = runDurationMs(r);
-          return (
-            <li
-              key={r.id}
-              className={`issue-run-row${selected ? ' is-selected' : ''}${live ? ' is-live' : ''}`}
-              data-testid="issue-run-history-row"
-              data-run-id={r.id}
-              data-run-status={r.status}
-              data-selected={selected ? '1' : '0'}
-            >
-              <button
-                type="button"
-                className="issue-run-row-main"
-                onClick={() => onSelect(r.id)}
-                aria-pressed={selected}
-                title="选中并查看轨迹"
-              >
-                {live ? <span className="run-live-dot" aria-hidden /> : null}
-                <code className={`run-pill run-pill--${r.status}`}>
-                  {STATUS_ZH[r.status] ?? r.status}
-                </code>
-                {r.isLeader ? <span className="leader-badge">队长</span> : null}
-                <span className="issue-run-row-runtime text-sm">{r.runtime}</span>
-                {cwdModeShort(r.cwdMode) ? (
-                  <span
-                    className="issue-run-row-cwd text-dim text-sm"
-                    data-testid="issue-run-history-cwd"
-                    data-cwd-mode={r.cwdMode ?? ''}
-                    title={r.cwdPath ?? undefined}
-                  >
-                    {cwdModeShort(r.cwdMode)}
-                  </span>
-                ) : null}
-                <span className="issue-run-row-id text-dim text-sm">{shortId(r.id)}</span>
-                <span
-                  className="issue-run-row-dur text-dim text-sm"
-                  data-testid="issue-run-history-duration"
-                >
-                  {formatDurationMs(dur)}
-                </span>
-                <span className="issue-run-row-time text-dim text-sm">
-                  {relativeTime(r.createdAt)}
-                </span>
-              </button>
-              <div className="issue-run-row-actions" onClick={(e) => e.stopPropagation()}>
-                {onOpenTimeline ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    data-testid="issue-run-history-timeline"
-                    onClick={() => onOpenTimeline(r.id)}
-                  >
-                    时间线
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
+        {activeRuns.length > 0 ? (
+          <li className="issue-run-group-heading" data-testid="issue-run-history-active-group">
+            在途 · {activeRuns.length}
+          </li>
+        ) : null}
+        {activeRuns.map((run) => renderRow(run, true))}
+        {pastRuns.length > 0 ? (
+          <li className="issue-run-group-heading" data-testid="issue-run-history-past-group">
+            历史 · {pastRuns.length}
+          </li>
+        ) : null}
+        {pastRuns.map((run) => renderRow(run, false))}
       </ul>
     </section>
   );

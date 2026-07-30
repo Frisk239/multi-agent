@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-30）
 
-- **最新关刀：** Disaster recovery isolated staging——Settings 可把已校验快照解包到带过期时间的隔离目录，做 SQLite integrity/schema 检查并显式清理；仍不写线上 DB/Wiki，证据见 [closeout](app/.progress/disaster-recovery-staged-closeout-2026-07-30.md)。上一刀 snapshot v1 见 [closeout](app/.progress/disaster-recovery-snapshot-closeout-2026-07-30.md)。
-- **当前审计结论：** 普通 Run、Automation Run 与 bounded retry lineage 主链均已闭环；灾备已具备可校验快照和隔离 staging，但仍没有 live swap/quiesce/rollback journal、项目级 Wiki 映射、保留策略和下载/审计。前端更高频的硬缺口是 Issue/Squad execution log 缺少行内 cancel/retry/transcript 与 live elapsed。
-- **下一刀默认：** 做 Issue/Squad execution log 厚切片（active/past 分组、行内 cancel/retry、live elapsed、transcript 深链），再回到 staged restore 的 maintenance gate/rollback journal；继续对照 Multica 的恢复与 execution-log 语义。
+- **最新关刀：** Issue/Squad execution log——详情页现在有 active/past 分组、live elapsed、行内停止、原 run 定向重试和 transcript/运行页入口；证据见 [closeout](app/.progress/issue-execution-log-closeout-2026-07-30.md)。上一刀灾备 isolated staging 见 [closeout](app/.progress/disaster-recovery-staged-closeout-2026-07-30.md)。
+- **当前审计结论：** 普通 Run、Automation Run 与 bounded retry lineage 主链均已闭环；Issue/Squad 高频恢复路径已补齐，但后端仍缺统一 queue-age sample/terminal-reason 聚合 API，灾备仍没有 live swap/quiesce/rollback journal、项目级 Wiki 映射、保留策略和下载/审计。
+- **下一刀默认：** 先补 queue-age/terminal-reason 统一 API 与跨页面可操作反馈，再回到 staged restore 的 maintenance gate/rollback journal；继续对照 Multica 的 recovery、execution-log 和 transcript 语义。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开

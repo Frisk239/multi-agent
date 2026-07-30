@@ -11141,6 +11141,16 @@ a.issue-card-run-fail--link:hover {
   gap: 4px;
 }
 
+.issue-run-group-heading,
+.squad-run-group-heading {
+  padding: 6px 8px 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .issue-run-row {
   display: flex;
   align-items: center;
@@ -11180,6 +11190,10 @@ a.issue-card-run-fail--link:hover {
   display: inline-flex;
   flex-shrink: 0;
   gap: 2px;
+}
+
+.squad-run-actions {
+  white-space: nowrap;
 }
 
 .issue-run-row-id,
