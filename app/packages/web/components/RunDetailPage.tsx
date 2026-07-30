@@ -659,7 +659,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
             ) : null}
             {run.sessionResumeStatus === 'unsupported' ? (
               <p className="run-path-lock-note text-dim" data-testid="run-session-unsupported">
-                仅 claude-code 支持真 session resume；其它 runtime 可能仍复用隔离目录或塞 prompt 历史。
+                claude-code / opencode / cursor / Grok 支持真 session resume；Pi 仍不支持（honest stub）。
               </p>
             ) : null}
             {run.sessionResumeStatus === 'force_fresh' ? (

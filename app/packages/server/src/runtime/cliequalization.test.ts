@@ -133,7 +133,7 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
   });
 
   describe('Grok Line Parsing & Args', () => {
-    it('buildsGrokAgentArgs ignores resumeSessionId (Slice 50: supportsSessionResume=false)', () => {
+    it('buildsGrokAgentArgs now supports --resume injection (A9: supportsSessionResume=true)', () => {
       const args = buildGrokAgentArgs(
         {
           prompt: 'do work',
@@ -149,9 +149,8 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
       expect(args).toContain('grok-3');
       expect(args).toContain('--effort');
       expect(args).toContain('high');
-      // Slice 50：不装会 — 忽略 resume，不传假 --resume
-      expect(args).not.toContain('--resume');
-      expect(args).not.toContain('grok-sess-456');
+      expect(args).toContain('--resume');
+      expect(args).toContain('grok-sess-456');
     });
   });
 });

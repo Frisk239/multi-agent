@@ -16,7 +16,7 @@ describe('Slice 50 session resume capability matrix', () => {
       { runtime: 'claude-code', supportsSessionResume: true },
       { runtime: 'opencode', supportsSessionResume: true },
       { runtime: 'cursor', supportsSessionResume: true },
-      { runtime: 'grok', supportsSessionResume: false },
+      { runtime: 'grok', supportsSessionResume: true },
       { runtime: 'pi', supportsSessionResume: false },
     ]);
   });
