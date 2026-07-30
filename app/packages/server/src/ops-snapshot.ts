@@ -49,6 +49,8 @@ export type OpsQueueSample = {
   ageMs: number;
   createdAt: number;
   waitingLocalEnteredAt: number | null;
+  eligibleAt: number | null;
+  blockedReason: 'retry_backoff' | null;
 };
 
 export type OpsTerminalReason = {
@@ -64,15 +66,121 @@ export type OpsRunsSnapshot = {
     queued: number;
     running: number;
     waitingLocalDirectory: number;
+    /** Count of queued/waiting runs still in auto-retry backoff (not work-eligible). */
+    retryBackoff: number;
   };
-  /** queued 龄期摘要（createdAt → now） */
+  /** All queue ages (includes backoff rows; raw wall time in queue). */
   queueAge: OpsQueueAgeSummary;
+  /**
+   * Queue ages excluding retry_backoff rows — drives at-risk / degraded signals
+   * so auto-retry children waiting for nextAttemptAt do not look stuck.
+   */
+  eligibleQueueAge: OpsQueueAgeSummary;
   /** running 心跳龄摘要（lastHeartbeatAt/startedAt/createdAt → now） */
   runningHeartbeatAge: OpsQueueAgeSummary;
   queueSamples: OpsQueueSample[];
   terminalReasons: OpsTerminalReason[];
   terminalWindow: typeof TERMINAL_REASON_WINDOW;
 };
+
+/** Minimal run fields needed to project queue health (pure; unit-testable). */
+export type OpsQueueRunRow = {
+  id: string;
+  issueId: string | null;
+  agentId: string;
+  status: string;
+  createdAt: number;
+  startedAt?: number | null;
+  lastHeartbeatAt?: number | null;
+  waitingLocalEnteredAt?: number | null;
+  nextAttemptAt?: number | null;
+};
+
+export type OpsQueueMetrics = {
+  queued: number;
+  running: number;
+  waitingLocalDirectory: number;
+  retryBackoff: number;
+  queueAges: number[];
+  eligibleQueueAges: number[];
+  hbAges: number[];
+  queueSamples: OpsQueueSample[];
+};
+
+/**
+ * Project active-run rows into queue/heartbeat metrics.
+ * Pure helper: auto-retry backoff rows still count toward wall-clock queueAge,
+ * but are excluded from eligibleQueueAge and counted in retryBackoff.
+ */
+export function accumulateOpsQueueMetrics(
+  rows: OpsQueueRunRow[],
+  now: number,
+): OpsQueueMetrics {
+  let queued = 0;
+  let running = 0;
+  let waitingLocalDirectory = 0;
+  let retryBackoff = 0;
+  const queueAges: number[] = [];
+  const eligibleQueueAges: number[] = [];
+  const hbAges: number[] = [];
+  const queueSamples: OpsQueueSample[] = [];
+
+  for (const row of rows) {
+    if (row.status === 'queued') {
+      queued += 1;
+      const age = Math.max(0, now - row.createdAt);
+      queueAges.push(age);
+      const observed = deriveRunObservability(row, now);
+      if (observed.queueBlockedReason === 'retry_backoff') retryBackoff += 1;
+      else eligibleQueueAges.push(age);
+      queueSamples.push({
+        id: row.id,
+        issueId: row.issueId,
+        agentId: row.agentId,
+        status: 'queued',
+        ageMs: age,
+        createdAt: row.createdAt,
+        waitingLocalEnteredAt: null,
+        eligibleAt: observed.queueEligibleAt,
+        blockedReason: observed.queueBlockedReason,
+      });
+    } else if (row.status === 'waiting_local_directory') {
+      waitingLocalDirectory += 1;
+      const entered = row.waitingLocalEnteredAt ?? row.createdAt;
+      const age = Math.max(0, now - entered);
+      queueAges.push(age);
+      const observed = deriveRunObservability(row, now);
+      if (observed.queueBlockedReason === 'retry_backoff') retryBackoff += 1;
+      else eligibleQueueAges.push(age);
+      queueSamples.push({
+        id: row.id,
+        issueId: row.issueId,
+        agentId: row.agentId,
+        status: 'waiting_local_directory',
+        ageMs: age,
+        createdAt: row.createdAt,
+        waitingLocalEnteredAt: row.waitingLocalEnteredAt ?? null,
+        eligibleAt: observed.queueEligibleAt,
+        blockedReason: observed.queueBlockedReason,
+      });
+    } else if (row.status === 'running') {
+      running += 1;
+      const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
+      hbAges.push(Math.max(0, now - hb));
+    }
+  }
+
+  return {
+    queued,
+    running,
+    waitingLocalDirectory,
+    retryBackoff,
+    queueAges,
+    eligibleQueueAges,
+    hbAges,
+    queueSamples,
+  };
+}
 
 export type OpsWikiSnapshot = {
   dead: number;
@@ -177,6 +285,7 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
       lastHeartbeatAt: agentRuns.lastHeartbeatAt,
       // Slice 66：waiting 龄用进入时刻，避免用 createdAt 瞎猜
       waitingLocalEnteredAt: agentRuns.waitingLocalEnteredAt,
+      nextAttemptAt: agentRuns.nextAttemptAt,
       failureReason: agentRuns.failureReason,
       error: agentRuns.error,
       finishedAt: agentRuns.finishedAt,
@@ -191,49 +300,16 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
     )
     .all();
 
-  let queued = 0;
-  let running = 0;
-  let waitingLocalDirectory = 0;
-  const queueAges: number[] = [];
-  const hbAges: number[] = [];
-  const queueSamples: OpsQueueSample[] = [];
-
-  for (const row of rows) {
-    if (row.status === 'queued') {
-      queued += 1;
-      const age = Math.max(0, now - row.createdAt);
-      queueAges.push(age);
-      queueSamples.push({
-        id: row.id,
-        issueId: row.issueId,
-        agentId: row.agentId,
-        status: row.status,
-        ageMs: age,
-        createdAt: row.createdAt,
-        waitingLocalEnteredAt: null,
-      });
-    } else if (row.status === 'waiting_local_directory') {
-      waitingLocalDirectory += 1;
-      // 旧行 null → 回退 createdAt
-      const entered =
-        row.waitingLocalEnteredAt ?? row.createdAt;
-      const age = Math.max(0, now - entered);
-      queueAges.push(age);
-      queueSamples.push({
-        id: row.id,
-        issueId: row.issueId,
-        agentId: row.agentId,
-        status: row.status,
-        ageMs: age,
-        createdAt: row.createdAt,
-        waitingLocalEnteredAt: row.waitingLocalEnteredAt,
-      });
-    } else if (row.status === 'running') {
-      running += 1;
-      const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
-      hbAges.push(Math.max(0, now - hb));
-    }
-  }
+  const {
+    queued,
+    running,
+    waitingLocalDirectory,
+    retryBackoff,
+    queueAges,
+    eligibleQueueAges,
+    hbAges,
+    queueSamples,
+  } = accumulateOpsQueueMetrics(rows, now);
 
   const terminalRows = db
     .select({
@@ -280,8 +356,10 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
       queued,
       running,
       waitingLocalDirectory,
+      retryBackoff,
     },
     queueAge: summarizeAgesMs(queueAges),
+    eligibleQueueAge: summarizeAgesMs(eligibleQueueAges),
     runningHeartbeatAge: summarizeAgesMs(hbAges),
     queueSamples: queueSamples.sort((a, b) => b.ageMs - a.ageMs).slice(0, OPS_QUEUE_SAMPLE_LIMIT),
     terminalReasons,
@@ -463,7 +541,7 @@ export function buildOpsSnapshot(opts?: {
     memory.breakerOpen ||
     wiki.dead > 0 ||
     automation.failedRules > 0 ||
-    (runs.queueAge.maxMs != null && runs.queueAge.maxMs > 60_000);
+    (runs.eligibleQueueAge.maxMs != null && runs.eligibleQueueAge.maxMs > 60_000);
 
   return {
     ts: now,

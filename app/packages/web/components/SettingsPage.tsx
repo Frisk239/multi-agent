@@ -1467,8 +1467,11 @@ function OpsSnapshotCard() {
             {' · '}
             队列 p50/p95{' '}
             <strong>
-              {formatAgeMs(data.runs.queueAge.p50Ms)} / {formatAgeMs(data.runs.queueAge.p95Ms)}
+              {formatAgeMs(data.runs.eligibleQueueAge.p50Ms)} / {formatAgeMs(data.runs.eligibleQueueAge.p95Ms)}
             </strong>
+            {data.runs.active.retryBackoff > 0
+              ? ` · retry backoff ${data.runs.active.retryBackoff}`
+              : null}
           </li>
           <li>
             Wiki：dead <strong>{data.wiki.dead}</strong> · pending{' '}
@@ -1483,7 +1486,11 @@ function OpsSnapshotCard() {
                     <Link href={`/runs?status=${sample.status === 'queued' ? 'queued' : 'waiting_local_directory'}&run=${sample.id}`}>
                       {sample.status === 'queued' ? 'queued' : 'waiting'} · {sample.id.slice(0, 8)}
                     </Link>{' '}
-                    <span className="text-dim">{formatAgeMs(sample.ageMs)}</span>
+                    <span className="text-dim">
+                      {sample.blockedReason === 'retry_backoff'
+                        ? `retry backoff · ${sample.eligibleAt == null ? '待定' : new Date(sample.eligibleAt).toLocaleTimeString()}`
+                        : formatAgeMs(sample.ageMs)}
+                    </span>
                   </li>
                 ))}
               </ul>

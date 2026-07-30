@@ -89,6 +89,8 @@ export const AgentRun = z.object({
   failureReason: AgentRunFailureReason.nullable().optional(),
   /** Additive observability projection; computed from durable timestamps on read. */
   queueAgeMs: z.number().int().nonnegative().nullable().optional(),
+  queueEligibleAt: z.number().int().nonnegative().nullable().optional(),
+  queueBlockedReason: z.literal('retry_backoff').nullable().optional(),
   heartbeatAgeMs: z.number().int().nonnegative().nullable().optional(),
   terminalReason: z.string().min(1).nullable().optional(),
   // bu03 / agent-chat：issue | quick_create | chat
@@ -1889,6 +1891,10 @@ export const OpsQueueSample = z.object({
   ageMs: z.number().int().nonnegative(),
   createdAt: z.number().int().nonnegative(),
   waitingLocalEnteredAt: z.number().int().nonnegative().nullable(),
+  /** When the run becomes eligible again (auto-retry backoff). */
+  eligibleAt: z.number().int().nonnegative().nullable().optional(),
+  /** Why this sample is not yet work-eligible; null when free to claim. */
+  blockedReason: z.literal('retry_backoff').nullable().optional(),
 });
 export type OpsQueueSample = z.infer<typeof OpsQueueSample>;
 
@@ -1916,8 +1922,10 @@ export const OpsSnapshot = z.object({
       queued: z.number().int().nonnegative(),
       running: z.number().int().nonnegative(),
       waitingLocalDirectory: z.number().int().nonnegative(),
+      retryBackoff: z.number().int().nonnegative(),
     }),
     queueAge: OpsQueueAgeSummary,
+    eligibleQueueAge: OpsQueueAgeSummary,
     runningHeartbeatAge: OpsQueueAgeSummary,
     queueSamples: z.array(OpsQueueSample),
     terminalReasons: z.array(OpsTerminalReason),

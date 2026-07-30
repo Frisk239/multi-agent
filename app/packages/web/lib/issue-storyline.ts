@@ -50,11 +50,27 @@ function commentIdsFromPayload(payload: ActivityLog['payload']): string[] {
   return ids;
 }
 
+/** Run ids referenced by run lifecycle activities (for storyline de-dup). */
+function runIdsFromRunLifecycleActivity(a: ActivityLog): string[] {
+  if (typeof a.eventType !== 'string' || !a.eventType.startsWith('run_')) {
+    return [];
+  }
+  if (!a.payload || typeof a.payload !== 'object') return [];
+  const p = a.payload as Record<string, unknown>;
+  const ids: string[] = [];
+  for (const key of ['runId', 'run_id', 'agentRunId', 'agent_run_id'] as const) {
+    const v = p[key];
+    if (typeof v === 'string' && v.length > 0) ids.push(v);
+  }
+  return ids;
+}
+
 /**
  * 合并 comment + activity + run 锚点，按 createdAt 升序（故事线阅读序）。
  *
  * 去重：
  * - `comment_created` 且 payload 指向已存在 comment → 跳过该 activity
+ * - `run_*` activity 且 payload 指向已存在 run → 跳过该 activity（保留 run 锚点）
  * - 同 id 只保留一条（comments / activities / runs 各自 id 前缀隔离）
  */
 export function mergeIssueStoryline(
@@ -82,6 +98,9 @@ export function mergeIssueStoryline(
     });
   }
 
+  // Prefer the structured run anchor when both a run row and a run_* activity exist.
+  const runIdSet = new Set(runList.map((r) => r.id));
+
   for (const a of activityList) {
     if (a.eventType === 'comment_created') {
       const linked = commentIdsFromPayload(a.payload);
@@ -90,6 +109,12 @@ export function mergeIssueStoryline(
       }
       // 无 commentId 时：若同秒附近已有同 actor 评论，宽松跳过一次重复噪声
       // 单测钉的是显式 commentId 路径；此处仅在 payload 有 commentId 且命中时跳过
+    }
+
+    // Hard gap F3: skip run_* activities when a run row already anchors the storyline.
+    const runLinked = runIdsFromRunLifecycleActivity(a);
+    if (runLinked.some((id) => runIdSet.has(id))) {
+      continue;
     }
 
     const key = `activity:${a.id}`;

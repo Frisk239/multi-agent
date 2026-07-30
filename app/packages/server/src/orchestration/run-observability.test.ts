@@ -42,4 +42,23 @@ describe('deriveRunObservability', () => {
         .terminalReason,
     ).toBe('cancelled');
   });
+
+  it('marks an auto-retry child as blocked until nextAttemptAt', () => {
+    expect(
+      deriveRunObservability(
+        { status: 'queued', createdAt: 80_000, nextAttemptAt: 105_000 },
+        now,
+      ),
+    ).toMatchObject({
+      queueAgeMs: 20_000,
+      queueEligibleAt: 105_000,
+      queueBlockedReason: 'retry_backoff',
+    });
+    expect(
+      deriveRunObservability(
+        { status: 'queued', createdAt: 80_000, nextAttemptAt: 99_000 },
+        now,
+      ),
+    ).toMatchObject({ queueBlockedReason: null, queueEligibleAt: 99_000 });
+  });
 });

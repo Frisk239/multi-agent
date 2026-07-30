@@ -7,6 +7,7 @@ type RunLike = {
   waitingLocalEnteredAt?: number | null;
   lastHeartbeatAt?: number | null;
   startedAt?: number | null;
+  nextAttemptAt?: number | null;
   failureReason?: string | null;
   error?: string | null;
 };
@@ -15,6 +16,8 @@ export type RunTerminalReason = AgentRunFailureReasonType | 'completed' | 'faile
 
 export type RunObservability = {
   queueAgeMs: number | null;
+  queueEligibleAt: number | null;
+  queueBlockedReason: 'retry_backoff' | null;
   heartbeatAgeMs: number | null;
   terminalReason: RunTerminalReason | null;
 };
@@ -44,6 +47,11 @@ function terminalReason(row: RunLike): RunTerminalReason | null {
 }
 
 export function deriveRunObservability(row: RunLike, now = Date.now()): RunObservability {
+  const queueStatus = row.status === 'queued' || row.status === 'waiting_local_directory';
+  const queueBlockedReason: 'retry_backoff' | null =
+    queueStatus && row.nextAttemptAt != null && row.nextAttemptAt > now
+      ? 'retry_backoff'
+      : null;
   return {
     queueAgeMs:
       row.status === 'queued'
@@ -51,6 +59,8 @@ export function deriveRunObservability(row: RunLike, now = Date.now()): RunObser
         : row.status === 'waiting_local_directory'
           ? ageMs(now, row.waitingLocalEnteredAt ?? row.createdAt)
           : null,
+    queueEligibleAt: queueStatus ? (row.nextAttemptAt ?? null) : null,
+    queueBlockedReason,
     heartbeatAgeMs:
       row.status === 'running'
         ? ageMs(now, row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt)

@@ -115,6 +115,55 @@ describe('mergeIssueStoryline', () => {
     expect(items[0]).toMatchObject({ kind: 'activity', id: 'a-orphan' });
   });
 
+  it('skips run_* activity when matching run row is present', () => {
+    const runs = [
+      run({
+        id: 'run-1',
+        createdAt: '2026-07-01T01:00:00.000Z',
+        status: 'failed',
+        error: 'timeout',
+      }),
+    ];
+    const activities = [
+      activity({
+        id: 'a-run-started',
+        createdAt: '2026-07-01T01:00:00.000Z',
+        eventType: 'run_started',
+        payload: { runId: 'run-1' },
+      }),
+      activity({
+        id: 'a-run-failed',
+        createdAt: '2026-07-01T01:05:00.000Z',
+        eventType: 'run_failed',
+        payload: { run_id: 'run-1', error: 'timeout' },
+      }),
+      activity({
+        id: 'a-status',
+        createdAt: '2026-07-01T01:06:00.000Z',
+        eventType: 'status_changed',
+        payload: { from: 'in_progress', to: 'todo' },
+      }),
+    ];
+
+    const items = mergeIssueStoryline([], activities, runs);
+    expect(items.map((i) => i.id)).toEqual(['run-1', 'a-status']);
+    expect(items.some((i) => i.kind === 'activity' && i.id.startsWith('a-run'))).toBe(false);
+  });
+
+  it('keeps run_* activity when run row is absent', () => {
+    const activities = [
+      activity({
+        id: 'a-orphan-run',
+        createdAt: '2026-07-01T01:00:00.000Z',
+        eventType: 'run_completed',
+        payload: { runId: 'run-missing' },
+      }),
+    ];
+    const items = mergeIssueStoryline([], activities, []);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: 'activity', id: 'a-orphan-run' });
+  });
+
   it('handles empty / null inputs', () => {
     expect(mergeIssueStoryline(null, undefined, null)).toEqual([]);
     expect(mergeIssueStorylineFrom({})).toEqual([]);

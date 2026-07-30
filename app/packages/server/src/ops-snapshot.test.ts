@@ -42,6 +42,7 @@ vi.mock('./memory/manager.js', () => ({
 }));
 
 import {
+  accumulateOpsQueueMetrics,
   buildOpsResumeStats,
   buildOpsSnapshot,
   summarizeAgesMs,
@@ -101,8 +102,15 @@ describe('ops snapshot', () => {
       queued: expect.any(Number),
       running: expect.any(Number),
       waitingLocalDirectory: expect.any(Number),
+      retryBackoff: expect.any(Number),
     });
     expect(snap.runs.queueAge).toMatchObject({
+      count: expect.any(Number),
+      maxMs: null,
+      p50Ms: null,
+      p95Ms: null,
+    });
+    expect(snap.runs.eligibleQueueAge).toMatchObject({
       count: expect.any(Number),
       maxMs: null,
       p50Ms: null,
@@ -150,5 +158,76 @@ describe('ops snapshot', () => {
       deferredUnclaimed: 0,
       window: '7d',
     });
+  });
+
+  it('accumulateOpsQueueMetrics excludes retry_backoff from eligibleQueueAge', () => {
+    const now = 100_000;
+    const metrics = accumulateOpsQueueMetrics(
+      [
+        {
+          id: 'run-ready',
+          issueId: 'iss-1',
+          agentId: 'ag-1',
+          status: 'queued',
+          createdAt: 40_000,
+          nextAttemptAt: null,
+        },
+        {
+          id: 'run-backoff',
+          issueId: 'iss-2',
+          agentId: 'ag-1',
+          status: 'queued',
+          createdAt: 10_000,
+          // still waiting for nextAttemptAt → not work-eligible
+          nextAttemptAt: 150_000,
+        },
+        {
+          id: 'run-waiting',
+          issueId: 'iss-3',
+          agentId: 'ag-2',
+          status: 'waiting_local_directory',
+          createdAt: 50_000,
+          waitingLocalEnteredAt: 80_000,
+          nextAttemptAt: null,
+        },
+        {
+          id: 'run-running',
+          issueId: 'iss-4',
+          agentId: 'ag-2',
+          status: 'running',
+          createdAt: 90_000,
+          startedAt: 95_000,
+          lastHeartbeatAt: 98_000,
+        },
+      ],
+      now,
+    );
+
+    expect(metrics.queued).toBe(2);
+    expect(metrics.waitingLocalDirectory).toBe(1);
+    expect(metrics.running).toBe(1);
+    expect(metrics.retryBackoff).toBe(1);
+    // wall-clock ages: ready 60s, backoff 90s, waiting 20s
+    expect(metrics.queueAges).toEqual([60_000, 90_000, 20_000]);
+    // eligible excludes backoff row
+    expect(metrics.eligibleQueueAges).toEqual([60_000, 20_000]);
+    expect(metrics.hbAges).toEqual([2_000]);
+
+    const backoffSample = metrics.queueSamples.find((s) => s.id === 'run-backoff');
+    expect(backoffSample).toMatchObject({
+      blockedReason: 'retry_backoff',
+      eligibleAt: 150_000,
+      ageMs: 90_000,
+    });
+    const readySample = metrics.queueSamples.find((s) => s.id === 'run-ready');
+    expect(readySample).toMatchObject({
+      blockedReason: null,
+      eligibleAt: null,
+      ageMs: 60_000,
+    });
+
+    // Pre-fix behavior would treat backoff max (90s) as at-risk; eligible max is 60s.
+    expect(summarizeAgesMs(metrics.queueAges).maxMs).toBe(90_000);
+    expect(summarizeAgesMs(metrics.eligibleQueueAges).maxMs).toBe(60_000);
   });
 });

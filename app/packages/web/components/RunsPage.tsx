@@ -836,7 +836,11 @@ function RunsPageInner() {
                         )}
                       </td>
                       <td className="runs-col-time text-dim text-sm">
-                        {r.queueAgeMs != null ? `排队 ${ageLabel(r.queueAgeMs)} · ` : null}
+                        {r.queueBlockedReason === 'retry_backoff'
+                          ? `退避至 ${r.queueEligibleAt == null ? '待定' : new Date(r.queueEligibleAt).toLocaleTimeString()} · `
+                          : r.queueAgeMs != null
+                            ? `排队 ${ageLabel(r.queueAgeMs)} · `
+                            : null}
                         {r.heartbeatAgeMs != null ? `心跳 ${ageLabel(r.heartbeatAgeMs)} · ` : null}
                         {relativeTime(r.createdAt)}
                       </td>
