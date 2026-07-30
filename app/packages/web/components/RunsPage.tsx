@@ -93,6 +93,14 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+function ageLabel(ms: number): string {
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ${sec % 60}s`;
+  return `${Math.floor(min / 60)}h ${min % 60}m`;
+}
+
 function parseStatus(raw: string | null): StatusFilter {
   if (raw === 'all') return '';
   if (raw && (STATUS_VALUES as string[]).includes(raw)) return raw as StatusFilter;
@@ -828,6 +836,8 @@ function RunsPageInner() {
                         )}
                       </td>
                       <td className="runs-col-time text-dim text-sm">
+                        {r.queueAgeMs != null ? `排队 ${ageLabel(r.queueAgeMs)} · ` : null}
+                        {r.heartbeatAgeMs != null ? `心跳 ${ageLabel(r.heartbeatAgeMs)} · ` : null}
                         {relativeTime(r.createdAt)}
                       </td>
                       <td className="runs-col-actions">

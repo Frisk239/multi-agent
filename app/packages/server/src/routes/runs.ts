@@ -13,6 +13,7 @@ import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-se
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 import { getRunTree, getDirectChildren } from '../orchestration/subagent-tree.js';
+import { deriveRunObservability } from '../orchestration/run-observability.js';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -20,7 +21,7 @@ const ACTIVE_STATUSES = [
   'running',
 ] as const;
 
-function withAutoRetrySummary(row: typeof agentRuns.$inferSelect) {
+function withAutoRetrySummary(row: typeof agentRuns.$inferSelect, now = Date.now()) {
   const child = db
     .select({ id: agentRuns.id, status: agentRuns.status, nextAttemptAt: agentRuns.nextAttemptAt })
     .from(agentRuns)
@@ -29,6 +30,7 @@ function withAutoRetrySummary(row: typeof agentRuns.$inferSelect) {
   const run = toAgentRun(row);
   return {
     ...run,
+    ...deriveRunObservability(row, now),
     // Surface the child's durable backoff on the source row so list/detail
     // consumers can render one retry status without a second request.
     nextAttemptAt: run.nextAttemptAt ??
@@ -83,7 +85,8 @@ export async function runRoutes(app: FastifyInstance) {
     const offset = q.offset;
 
     const rows = query.orderBy(desc(agentRuns.createdAt)).limit(limit).offset(offset).all();
-    const data = rows.map((row) => enrichRunRowWithPathLock(row, withAutoRetrySummary(row)));
+    const now = Date.now();
+    const data = rows.map((row) => enrichRunRowWithPathLock(row, withAutoRetrySummary(row, now)));
     return { data, total, limit, offset };
   });
 

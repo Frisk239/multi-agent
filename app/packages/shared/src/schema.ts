@@ -87,6 +87,10 @@ export const AgentRun = z.object({
   runtime: RuntimeId,
   status: AgentRunStatus,
   failureReason: AgentRunFailureReason.nullable().optional(),
+  /** Additive observability projection; computed from durable timestamps on read. */
+  queueAgeMs: z.number().int().nonnegative().nullable().optional(),
+  heartbeatAgeMs: z.number().int().nonnegative().nullable().optional(),
+  terminalReason: z.string().min(1).nullable().optional(),
   // bu03 / agent-chat：issue | quick_create | chat
   kind: AgentRunKind.default('issue'),
   // bu03 / chat：quick_create|chat 使用；issue run 为 null
@@ -1873,6 +1877,25 @@ export const OpsQueueAgeSummary = z.object({
 });
 export type OpsQueueAgeSummary = z.infer<typeof OpsQueueAgeSummary>;
 
+export const OpsQueueSample = z.object({
+  id: BusinessId,
+  issueId: BusinessId.nullable(),
+  agentId: BusinessId,
+  status: z.enum(['queued', 'waiting_local_directory']),
+  ageMs: z.number().int().nonnegative(),
+  createdAt: z.number().int().nonnegative(),
+  waitingLocalEnteredAt: z.number().int().nonnegative().nullable(),
+});
+export type OpsQueueSample = z.infer<typeof OpsQueueSample>;
+
+export const OpsTerminalReason = z.object({
+  reason: z.string().min(1),
+  count: z.number().int().positive(),
+  retryable: z.boolean(),
+  latestAt: z.number().int().nonnegative().nullable(),
+});
+export type OpsTerminalReason = z.infer<typeof OpsTerminalReason>;
+
 export const OpsWorkerHealthSnapshot = z.object({
   lastTickAt: z.number().int().nullable(),
   ageMs: z.number().int().nonnegative().nullable(),
@@ -1892,6 +1915,9 @@ export const OpsSnapshot = z.object({
     }),
     queueAge: OpsQueueAgeSummary,
     runningHeartbeatAge: OpsQueueAgeSummary,
+    queueSamples: z.array(OpsQueueSample),
+    terminalReasons: z.array(OpsTerminalReason),
+    terminalWindow: z.string().min(1),
   }),
   wiki: z.object({
     dead: z.number().int().nonnegative(),

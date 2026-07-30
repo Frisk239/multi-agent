@@ -1,7 +1,8 @@
 /** Slice 51：运维快照 — 一页 JSON 排障（runs / wiki / memory breaker / workers / automation） */
 /** Slice 69：resumeStats — poison / resume_miss / deferred 近窗计数 */
 
-import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
+import { isAutoRetryableFailureReason } from '@ma/shared';
 import {
   db,
   getSqliteHardeningInfo,
@@ -20,10 +21,17 @@ import {
   type WorkerHealthKey,
   type WorkerHealthSnapshot,
 } from './process-health.js';
+import {
+  deriveRunObservability,
+  type RunTerminalReason,
+} from './orchestration/run-observability.js';
 
 /** Slice 69 钉死：近 7 日（createdAt） */
 export const RESUME_STATS_WINDOW = '7d' as const;
 export const RESUME_STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const TERMINAL_REASON_WINDOW = '7d' as const;
+export const TERMINAL_REASON_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const OPS_QUEUE_SAMPLE_LIMIT = 8;
 
 export type OpsQueueAgeSummary = {
   count: number;
@@ -31,6 +39,23 @@ export type OpsQueueAgeSummary = {
   avgMs: number | null;
   p50Ms: number | null;
   p95Ms: number | null;
+};
+
+export type OpsQueueSample = {
+  id: string;
+  issueId: string | null;
+  agentId: string;
+  status: 'queued' | 'waiting_local_directory';
+  ageMs: number;
+  createdAt: number;
+  waitingLocalEnteredAt: number | null;
+};
+
+export type OpsTerminalReason = {
+  reason: RunTerminalReason;
+  count: number;
+  retryable: boolean;
+  latestAt: number | null;
 };
 
 export type OpsRunsSnapshot = {
@@ -44,6 +69,9 @@ export type OpsRunsSnapshot = {
   queueAge: OpsQueueAgeSummary;
   /** running 心跳龄摘要（lastHeartbeatAt/startedAt/createdAt → now） */
   runningHeartbeatAge: OpsQueueAgeSummary;
+  queueSamples: OpsQueueSample[];
+  terminalReasons: OpsTerminalReason[];
+  terminalWindow: typeof TERMINAL_REASON_WINDOW;
 };
 
 export type OpsWikiSnapshot = {
@@ -140,12 +168,18 @@ export function summarizeAgesMs(ages: number[]): OpsQueueAgeSummary {
 export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
   const rows = db
     .select({
+      id: agentRuns.id,
+      issueId: agentRuns.issueId,
+      agentId: agentRuns.agentId,
       status: agentRuns.status,
       createdAt: agentRuns.createdAt,
       startedAt: agentRuns.startedAt,
       lastHeartbeatAt: agentRuns.lastHeartbeatAt,
       // Slice 66：waiting 龄用进入时刻，避免用 createdAt 瞎猜
       waitingLocalEnteredAt: agentRuns.waitingLocalEnteredAt,
+      failureReason: agentRuns.failureReason,
+      error: agentRuns.error,
+      finishedAt: agentRuns.finishedAt,
     })
     .from(agentRuns)
     .where(
@@ -162,23 +196,83 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
   let waitingLocalDirectory = 0;
   const queueAges: number[] = [];
   const hbAges: number[] = [];
+  const queueSamples: OpsQueueSample[] = [];
 
   for (const row of rows) {
     if (row.status === 'queued') {
       queued += 1;
-      queueAges.push(Math.max(0, now - row.createdAt));
+      const age = Math.max(0, now - row.createdAt);
+      queueAges.push(age);
+      queueSamples.push({
+        id: row.id,
+        issueId: row.issueId,
+        agentId: row.agentId,
+        status: row.status,
+        ageMs: age,
+        createdAt: row.createdAt,
+        waitingLocalEnteredAt: null,
+      });
     } else if (row.status === 'waiting_local_directory') {
       waitingLocalDirectory += 1;
       // 旧行 null → 回退 createdAt
       const entered =
         row.waitingLocalEnteredAt ?? row.createdAt;
-      queueAges.push(Math.max(0, now - entered));
+      const age = Math.max(0, now - entered);
+      queueAges.push(age);
+      queueSamples.push({
+        id: row.id,
+        issueId: row.issueId,
+        agentId: row.agentId,
+        status: row.status,
+        ageMs: age,
+        createdAt: row.createdAt,
+        waitingLocalEnteredAt: row.waitingLocalEnteredAt,
+      });
     } else if (row.status === 'running') {
       running += 1;
       const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
       hbAges.push(Math.max(0, now - hb));
     }
   }
+
+  const terminalRows = db
+    .select({
+      status: agentRuns.status,
+      failureReason: agentRuns.failureReason,
+      error: agentRuns.error,
+      finishedAt: agentRuns.finishedAt,
+      createdAt: agentRuns.createdAt,
+    })
+    .from(agentRuns)
+    .where(
+      and(
+        inArray(agentRuns.status, ['completed', 'failed', 'cancelled', 'timed_out']),
+        or(
+          gte(agentRuns.finishedAt, now - TERMINAL_REASON_WINDOW_MS),
+          and(isNull(agentRuns.finishedAt), gte(agentRuns.createdAt, now - TERMINAL_REASON_WINDOW_MS)),
+        ),
+      ),
+    )
+    .all();
+  const terminalMap = new Map<RunTerminalReason, { count: number; latestAt: number | null }>();
+  for (const row of terminalRows) {
+    const reason = deriveRunObservability(row, now).terminalReason;
+    if (!reason) continue;
+    const at = row.finishedAt ?? row.createdAt;
+    const current = terminalMap.get(reason);
+    terminalMap.set(reason, {
+      count: (current?.count ?? 0) + 1,
+      latestAt: current?.latestAt == null ? at : Math.max(current.latestAt, at),
+    });
+  }
+  const terminalReasons: OpsTerminalReason[] = [...terminalMap.entries()]
+    .map(([reason, value]) => ({
+      reason,
+      count: value.count,
+      retryable: isAutoRetryableFailureReason(reason),
+      latestAt: value.latestAt,
+    }))
+    .sort((a, b) => b.count - a.count || (b.latestAt ?? 0) - (a.latestAt ?? 0));
 
   return {
     active: {
@@ -189,6 +283,9 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
     },
     queueAge: summarizeAgesMs(queueAges),
     runningHeartbeatAge: summarizeAgesMs(hbAges),
+    queueSamples: queueSamples.sort((a, b) => b.ageMs - a.ageMs).slice(0, OPS_QUEUE_SAMPLE_LIMIT),
+    terminalReasons,
+    terminalWindow: TERMINAL_REASON_WINDOW,
   };
 }
 

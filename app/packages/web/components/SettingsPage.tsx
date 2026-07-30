@@ -38,6 +38,7 @@ import {
   settingsCheckAnchorId,
   settingsCheckTab,
 } from '@/lib/settings-first-steps';
+import { resolveFailureActionUi } from '@/lib/failure-action-map';
 
 const STATUS_RANK: Record<SettingsCheck['status'], number> = {
   error: 0,
@@ -1459,6 +1460,36 @@ function OpsSnapshotCard() {
             Wiki：dead <strong>{data.wiki.dead}</strong> · pending{' '}
             <strong>{data.wiki.pending}</strong> · running <strong>{data.wiki.running}</strong>
           </li>
+          {data.runs.queueSamples.length > 0 ? (
+            <li data-testid="settings-ops-queue-samples">
+              <span>最久队列样本：</span>
+              <ul className="settings-ops-inline-list">
+                {data.runs.queueSamples.map((sample) => (
+                  <li key={sample.id}>
+                    <Link href={`/runs?status=${sample.status === 'queued' ? 'queued' : 'waiting_local_directory'}&run=${sample.id}`}>
+                      {sample.status === 'queued' ? 'queued' : 'waiting'} · {sample.id.slice(0, 8)}
+                    </Link>{' '}
+                    <span className="text-dim">{formatAgeMs(sample.ageMs)}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ) : null}
+          {data.runs.terminalReasons.length > 0 ? (
+            <li data-testid="settings-ops-terminal-reasons">
+              <span>终态原因（{data.runs.terminalWindow}）：</span>
+              <ul className="settings-ops-inline-list">
+                {data.runs.terminalReasons.slice(0, 6).map((entry) => (
+                  <li key={entry.reason}>
+                    <Link href={`/runs?status=${terminalReasonStatus(entry.reason)}`}>
+                      {terminalReasonLabel(entry.reason)} · {entry.count}
+                    </Link>{' '}
+                    <span className="text-dim">{entry.retryable ? '可自动重试' : '需人工处理'}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ) : null}
           <li data-testid="settings-ops-memory-breaker">
             Memory 断路器：{' '}
             <strong>{data.memory.breakerOpen ? '打开' : '关闭'}</strong>
@@ -1520,6 +1551,19 @@ function OpsSnapshotCard() {
       </div>
     </section>
   );
+}
+
+function terminalReasonLabel(reason: string): string {
+  if (reason === 'completed') return '已完成';
+  if (reason === 'failed') return '执行失败（未分类）';
+  if (reason === 'timed_out') return '超时（未分类）';
+  return resolveFailureActionUi({ failureReason: reason }).label;
+}
+
+function terminalReasonStatus(reason: string): string {
+  if (reason === 'completed') return 'completed';
+  if (reason === 'cancelled') return 'cancelled';
+  return 'failed';
 }
 
 function SnapshotRecoverySection() {

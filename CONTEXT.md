@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-30）
 
-- **最新关刀：** Issue/Squad execution log——详情页现在有 active/past 分组、live elapsed、行内停止、原 run 定向重试和 transcript/运行页入口；证据见 [closeout](app/.progress/issue-execution-log-closeout-2026-07-30.md)。上一刀灾备 isolated staging 见 [closeout](app/.progress/disaster-recovery-staged-closeout-2026-07-30.md)。
-- **当前审计结论：** 普通 Run、Automation Run 与 bounded retry lineage 主链均已闭环；Issue/Squad 高频恢复路径已补齐，但后端仍缺统一 queue-age sample/terminal-reason 聚合 API，灾备仍没有 live swap/quiesce/rollback journal、项目级 Wiki 映射、保留策略和下载/审计。
-- **下一刀默认：** 先补 queue-age/terminal-reason 统一 API 与跨页面可操作反馈，再回到 staged restore 的 maintenance gate/rollback journal；继续对照 Multica 的 recovery、execution-log 和 transcript 语义。
+- **最新关刀：** Queue/terminal observability——`/api/runs` list/detail 统一返回 queue/heartbeat age 和 terminal reason，`/api/ops/snapshot` 提供有限队列样本与近 7 天终态聚合，Settings 可直接跳转具体 run；证据见 [closeout](app/.progress/queue-terminal-observability-closeout-2026-07-30.md)。上一刀 Issue/Squad execution log 见 [closeout](app/.progress/issue-execution-log-closeout-2026-07-30.md)。
+- **当前审计结论：** 普通 Run、Automation Run、bounded retry lineage、Issue/Squad 高频恢复和运维观测主链已闭环；非 `/api/runs` 入口仍保留旧 `toAgentRun` shape，Settings runHealth 仍缺逐条 sample；灾备仍没有 live swap/quiesce/rollback journal、项目级 Wiki 映射、保留策略和下载/审计。
+- **下一刀默认：** 先评估把 observability projection 复用到 settings runHealth、quick-run/chat/event stream 等读入口，再回到 staged restore 的 maintenance gate/rollback journal；继续对照 Multica 的 recovery、execution-log 和 transcript 语义。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开
