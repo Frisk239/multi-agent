@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { classifyRunFailure, type AgentRun } from '@ma/shared';
+import type { AgentRun } from '@ma/shared';
 import {
   API,
   apiFetch,
@@ -17,14 +17,12 @@ import {
   usePinChatThread,
   usePostChatMessage,
   useProjects,
-  useRunMessages,
   useUpdateChatThreadProject,
-  useWorkspaceRuns,
 } from '@/lib/api';
 import { isNearBottom, NEAR_BOTTOM_PX } from '@/lib/chat-scroll';
 import { confirmDialog } from '@/lib/confirm-store';
 import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
-import { useRunProgressStore } from '@/lib/ws';
+import { useChatLiveState } from '@/lib/chat-live-state';
 import { MarkdownBody } from './MarkdownBody';
 import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -106,18 +104,14 @@ export function ChatPage() {
   const postMessage = usePostChatMessage(threadId || undefined);
   const cancelRun = useCancelRun();
 
-  const { data: threadRuns = [] } = useWorkspaceRuns({
-    chatThreadId: threadId || undefined,
-    kind: 'chat',
-    limit: 20,
-    enabled: Boolean(threadId),
-    // 在途时加快轮询，补 WS 丢包 / 页面未订阅
-    refetchIntervalMs: 2500,
-  });
-
-  const progressByRun = useRunProgressStore((s) => s.byRunId);
-  const toolByRun = useRunProgressStore((s) => s.toolByRunId);
-  const partialByRun = useRunProgressStore((s) => s.partialByRunId);
+  const {
+    liveRun,
+    failedRun: lastFailedRun,
+    failure,
+    progress: liveProgress,
+    tool: liveTool,
+    partial: livePartial,
+  } = useChatLiveState(threadId || undefined);
 
   const agentFromUrl = searchParams.get('agent') ?? '';
   const [agentId, setAgentId] = useState('');
@@ -162,63 +156,6 @@ export function ChatPage() {
 
   const agentName = (id: string) => agentById.get(id)?.name ?? id;
 
-  const liveRun = useMemo(() => {
-    return (
-      threadRuns.find((r) => r.status === 'queued' || r.status === 'running') ?? null
-    );
-  }, [threadRuns]);
-
-  const lastFailedRun = useMemo(() => {
-    if (liveRun) return null;
-    return (
-      threadRuns.find(
-        (r) =>
-          r.status === 'failed' ||
-          r.status === 'cancelled' ||
-          r.status === 'timed_out',
-      ) ?? null
-    );
-  }, [threadRuns, liveRun]);
-
-  // D1：订阅 run-messages（WS 写入 cache；在途轮询补丢包）
-  const { data: liveRunMessages = [] } = useRunMessages(liveRun?.id, {
-    refetchIntervalMs: liveRun ? 2000 : false,
-  });
-
-  const derivedFromTrace = useMemo(() => {
-    let tool: string | undefined;
-    const assistantParts: string[] = [];
-    for (const m of liveRunMessages) {
-      if (m.kind === 'tool_start') {
-        try {
-          const j = JSON.parse(m.body) as { name?: string };
-          if (j?.name?.trim()) tool = j.name.trim();
-        } catch {
-          if (m.body.trim()) tool = m.body.trim().slice(0, 80);
-        }
-      }
-      if (m.kind === 'assistant' && m.body?.trim()) {
-        assistantParts.push(m.body.trim());
-      }
-    }
-    return {
-      tool,
-      partial: assistantParts.length ? assistantParts.join('\n\n') : undefined,
-    };
-  }, [liveRunMessages]);
-
-  const liveProgress =
-    liveRun && (liveRun.status === 'running' || liveRun.status === 'queued')
-      ? progressByRun[liveRun.id]?.trim()
-      : undefined;
-  const liveTool =
-    liveRun && liveRun.status === 'running'
-      ? toolByRun[liveRun.id]?.trim() || derivedFromTrace.tool
-      : undefined;
-  const livePartial =
-    liveRun && liveRun.status === 'running'
-      ? partialByRun[liveRun.id]?.trim() || derivedFromTrace.partial
-      : undefined;
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const el = messagesRef.current;
@@ -343,17 +280,6 @@ export function ChatPage() {
 
   const selectedAgent = selectedThread
     ? agentById.get(selectedThread.agentId)
-    : null;
-
-  const failure = lastFailedRun
-    ? lastFailedRun.status === 'cancelled' && !(lastFailedRun.error ?? '').trim()
-      ? {
-          code: 'generic' as const,
-          title: '运行已取消',
-          hint: '可点「重发上一条」用同一用户消息再开一轮。',
-          settingsHref: null as string | null,
-        }
-      : classifyRunFailure(lastFailedRun.error)
     : null;
 
   return (

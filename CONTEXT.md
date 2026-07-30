@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-30）
 
-- **最新关刀：** Run observability consistency——Settings runHealth 纳入 `waiting_local_directory` 计数/年龄/墙钟阈值，Issue/Agent usage 不再漏计 waiting，Agent/Quick-create/Chat/Issue rerun 读入口复用 `toObservedAgentRun`，Live Runtime Probes 按状态区分排队龄与心跳龄；上一刀 queue/terminal 聚合见 [closeout](app/.progress/queue-terminal-observability-closeout-2026-07-30.md)。
+- **最新关刀：** Helper live parity——HelperRail 与 ChatPage 复用 `useChatLiveState`，浮窗可显示 queued/running、progress/tool/partial，并在失败或取消后提供重发、查看 Run、环境诊断；证据见 [closeout](app/.progress/helper-live-parity-closeout-2026-07-30.md)。上一刀 Run observability consistency intake 为有条件通过，主线重复 `handlePaste` 已修复并恢复 typecheck。
 - **当前审计结论：** 普通 Run、Automation Run、bounded retry lineage、Issue/Squad 高频恢复和 observability 主链已闭环；仍有 auto-retry backoff queued 被老队列聚合、Run tree/children 缺 terminal reason、路径等待样本缺 holder、灾备 live swap/quiesce/rollback journal 和项目级 Wiki 映射等缺口。
-- **下一刀默认：** 先修 auto-retry `nextAttemptAt` 的 queue eligibility/at-risk 语义，再补 Run tree/children 与 path holder 反馈；之后回到 staged restore 的 maintenance gate/rollback journal，继续对照 Multica 的 recovery、execution-log 和 transcript 语义。
+- **下一刀默认：** staged restore 的安全 live restore 闭环：maintenance/quiesce、恢复前快照、rollback journal、active run 收尸、原子换入与失败回滚；禁止在这些安全条件未齐时直接开放覆盖 live 状态的按钮。之后处理 Grok ACP/fail-closed、真实本地附件与可搜索指派器。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开
@@ -61,7 +61,7 @@
 - **Phase D 整队 closeout：** [queue-55-62-phase-d-closeout-2026-07-27.md](app/.progress/queue-55-62-phase-d-closeout-2026-07-27.md)  
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md)
 - **已交（近）：** Phase F **71–73** · Phase E **63–70**
-- **▶ 下一刀默认：** Automation linked Run retry convergence，之后再评估 Slice 74 Tool 只读面板或灾难恢复
+- **▶ 下一刀默认：** 安全 live restore 闭环；之后处理 Grok ACP/fail-closed 与真实本地附件。
 - **上一刀 closeout：** [slice73-stream-partial-closeout.md](app/.progress/slice73-stream-partial-closeout.md) · 整队 [queue-71-73-phase-f-closeout-2026-07-27.md](app/.progress/queue-71-73-phase-f-closeout-2026-07-27.md)
 - **验收证据：** 各刀 unit + e2e（73：vitest 17 + e2e PASS=8；部分 live SKIP 无服）
 

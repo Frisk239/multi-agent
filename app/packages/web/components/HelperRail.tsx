@@ -17,6 +17,7 @@ import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { Select } from './Select';
 import { buildHelperFailCta } from '@/lib/helper-chat-path';
+import { useChatLiveState } from '@/lib/chat-live-state';
 
 const STORAGE_OPEN = 'ma-helper-open';
 const STORAGE_AGENT = 'ma-helper-agent-id';
@@ -97,6 +98,7 @@ export function HelperRail() {
   const { data: messages = [], isFetching: msgsFetching } = useChatMessages(
     open && threadId ? threadId : undefined,
   );
+  const live = useChatLiveState(open && threadId ? threadId : undefined);
   const { data: readiness } = useAgentReadiness(agentId || '');
 
   const agentName = useMemo(() => {
@@ -180,6 +182,8 @@ export function HelperRail() {
       if (!res.ok) throw new Error(await res.text());
       setThreadId(tid);
       writeStored(STORAGE_THREAD, tid);
+      // POST 返回时 run 已 queued；不要只等 WS，立即拉取该 thread 的 run 投影。
+      await qc.invalidateQueries({ queryKey: ['runs', 'workspace'] });
       await qc.invalidateQueries({ queryKey: ['chat-messages', tid] });
       await qc.invalidateQueries({ queryKey: ['chat-threads'] });
       await qc.invalidateQueries({ queryKey: ['runs-active-count'] });
@@ -229,6 +233,11 @@ export function HelperRail() {
     writeStored(STORAGE_THREAD, t.id);
     setDraft('');
   }
+
+  const lastUserBody = [...messages]
+    .reverse()
+    .find((message) => message.role === 'user' && message.body.trim())
+    ?.body.trim();
 
   return (
     <>
@@ -374,6 +383,63 @@ export function HelperRail() {
                     <div className="helper-msg-body">{m.body}</div>
                   </li>
                 ))}
+                {live.liveRun ? (
+                  <li
+                    className="helper-msg helper-msg--assistant"
+                    data-testid="helper-live-state"
+                    data-run-id={live.liveRun.id}
+                  >
+                    <div className="helper-msg-body">
+                      <strong>
+                        {live.liveRun.status === 'queued' ? '已排队' : '执行中'}
+                      </strong>
+                      {live.progress ? <p>{live.progress}</p> : null}
+                      {live.tool ? <p className="text-dim text-sm">工具：{live.tool}</p> : null}
+                      {live.partial ? (
+                        <p data-testid="helper-live-partial">{live.partial}</p>
+                      ) : null}
+                    </div>
+                  </li>
+                ) : null}
+                {!live.liveRun && live.failedRun && live.failure ? (
+                  <li
+                    className="helper-msg helper-msg--assistant helper-live-failure"
+                    data-testid="helper-live-failure"
+                  >
+                    <div className="helper-msg-body">
+                      <strong>{live.failure.title}</strong>
+                      <p className="text-dim text-sm">{live.failure.hint}</p>
+                      <div className="helper-live-actions">
+                        {lastUserBody ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={sending}
+                            data-testid="helper-live-resend"
+                            onClick={() => void sendBody(lastUserBody)}
+                          >
+                            重发上一条
+                          </button>
+                        ) : null}
+                        <Link
+                          href={`/runs/${encodeURIComponent(live.failedRun.id)}`}
+                          className="btn btn-secondary btn-sm"
+                          data-testid="helper-live-open-run"
+                        >
+                          查看运行
+                        </Link>
+                        {live.failure.settingsHref ? (
+                          <Link
+                            href={live.failure.settingsHref}
+                            className="btn btn-ghost btn-sm"
+                          >
+                            环境诊断
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  </li>
+                ) : null}
                 {msgsFetching ? (
                   <li className="text-dim text-sm" data-testid="helper-fetching">
                     同步中…
@@ -406,6 +472,7 @@ export function HelperRail() {
               aria-label="发送"
               disabled={
                 !draft.trim() || !agentId || sending || createThread.isPending
+                || Boolean(live.liveRun)
               }
               onClick={() => void handleSend()}
             >
