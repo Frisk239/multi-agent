@@ -252,6 +252,8 @@ export type CreateSnapshotOpts = {
   now?: Date;
   backupFn?: (filename: string) => Promise<unknown>;
   workspace?: ResolvedWorkspaceCwd;
+  /** Inject project wiki roots (tests / offline); default = listProjectWikiRoots(). */
+  projectWikiRoots?: import('./wiki/project-wiki-roots.js').ProjectWikiRoot[];
 };
 
 export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
@@ -276,11 +278,14 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
     const wikiRoot = wiki.path;
     const wikiFiles = collectFiles(wikiRoot);
     // A4 · pack project-scoped {localPath}/wiki when present
-    let projectRoots: ReturnType<typeof listProjectWikiRoots> = [];
-    try {
-      projectRoots = listProjectWikiRoots();
-    } catch {
-      projectRoots = [];
+    let projectRoots: ReturnType<typeof listProjectWikiRoots> =
+      opts.projectWikiRoots ?? [];
+    if (!opts.projectWikiRoots) {
+      try {
+        projectRoots = listProjectWikiRoots();
+      } catch {
+        projectRoots = [];
+      }
     }
     const includedProjectWikiRoots: NonNullable<
       SnapshotManifest['wiki']['includedProjectWikiRoots']

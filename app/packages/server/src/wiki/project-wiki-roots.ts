@@ -25,9 +25,10 @@ function isUsableDir(path: string): boolean {
 
 /**
  * Pure: map project rows to wiki roots under {localPath}/wiki.
+ * Schema uses projects.title (not name).
  */
 export function mapProjectsToWikiRoots(
-  rows: Array<{ id: string; name: string; localPath?: string | null }>,
+  rows: Array<{ id: string; title?: string | null; name?: string | null; localPath?: string | null }>,
 ): ProjectWikiRoot[] {
   const out: ProjectWikiRoot[] = [];
   for (const row of rows) {
@@ -36,12 +37,13 @@ export function mapProjectsToWikiRoots(
     const abs = isAbsolute(local) ? resolve(local) : '';
     if (!abs) continue;
     const wikiPath = join(abs, 'wiki');
+    const projectName = (row.title ?? row.name ?? row.id).trim() || row.id;
     out.push({
       projectId: row.id,
-      projectName: row.name,
+      projectName,
       localPath: abs,
       wikiPath,
-      exists: isUsableDir(wikiPath) || isUsableDir(abs),
+      exists: isUsableDir(wikiPath),
     });
   }
   return out;
@@ -52,7 +54,7 @@ export function listProjectWikiRoots(): ProjectWikiRoot[] {
   const rows = db
     .select({
       id: projects.id,
-      name: projects.name,
+      title: projects.title,
       localPath: projects.localPath,
     })
     .from(projects)

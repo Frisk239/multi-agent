@@ -75,4 +75,52 @@ describe('snapshot v1 disaster recovery', () => {
     const removed = removeSnapshotStage(staged.stageId, { backupDir });
     expect(removed).toEqual({ success: true, stageId: staged.stageId }); expect(existsSync(staged.stagePath)).toBe(false);
   });
+
+  it('packs project-scoped wiki under wiki/projects/<id>/ and reports coverage (A4)', async () => {
+    const r = root();
+    const dbPath = join(r, 'live.db');
+    const backupDir = join(r, 'backups');
+    const wikiDir = join(r, 'wiki');
+    const projectLocal = join(r, 'proj-alpha');
+    const projectWiki = join(projectLocal, 'wiki');
+    mkdirSync(wikiDir, { recursive: true });
+    mkdirSync(projectWiki, { recursive: true });
+    writeFileSync(join(wikiDir, 'global.md'), '# global\n');
+    writeFileSync(join(projectWiki, 'notes.md'), '# project notes\n');
+    const db = new Database(dbPath);
+    dbs.push(db);
+    db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY); INSERT INTO t VALUES (1)');
+    const made = await createSnapshot({
+      database: db,
+      liveDbPath: dbPath,
+      backupDir,
+      wikiDir,
+      now: new Date('2026-07-30T12:00:00Z'),
+      workspace: { path: r, source: 'db', configured: true, exists: true },
+      projectWikiRoots: [
+        {
+          projectId: 'proj-1',
+          projectName: 'Alpha',
+          localPath: projectLocal,
+          wikiPath: projectWiki,
+          exists: true,
+        },
+      ],
+    });
+    expect(made.success).toBe(true);
+    if (!made.success) return;
+    expect(made.manifest.wiki.projectScopedExcluded).toBe(false);
+    const paths = made.manifest.files.map((f) => f.path);
+    expect(paths).toContain('wiki/global.md');
+    expect(paths).toContain('wiki/projects/proj-1/notes.md');
+    expect(made.manifest.wiki.includedProjectWikiRoots).toEqual([
+      expect.objectContaining({
+        projectId: 'proj-1',
+        projectName: 'Alpha',
+        files: 1,
+      }),
+    ]);
+    const v = validateSnapshot(made.path);
+    expect(v.valid).toBe(true);
+  });
 });

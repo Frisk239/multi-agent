@@ -19,19 +19,26 @@ const SEVERITY_RANK: Record<BannerSeverity, number> = {
   low: 3,
 };
 
+type BannerPick = { id: string; rank: number; index: number };
+
 /**
  * Pick at most one active banner id by severity (stable by original order on ties).
  */
 export function pickTopBannerId(candidates: BannerCandidate[]): string | null {
-  let best: { id: string; rank: number; index: number } | null = null;
-  candidates.forEach((c, index) => {
-    if (!c.active) return;
+  let best: BannerPick | null = null;
+  for (let index = 0; index < candidates.length; index++) {
+    const c = candidates[index]!;
+    if (!c.active) continue;
     const rank = SEVERITY_RANK[c.severity] ?? 99;
-    if (!best || rank < best.rank || (rank === best.rank && index < best.index)) {
+    if (
+      best === null ||
+      rank < best.rank ||
+      (rank === best.rank && index < best.index)
+    ) {
       best = { id: c.id, rank, index };
     }
-  });
-  return best?.id ?? null;
+  }
+  return best === null ? null : best.id;
 }
 
 /** Known global banner ids + default severities (layout stack). */
