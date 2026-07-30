@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-30）
 
-- **最新关刀：** Bounded infrastructure auto-retry——普通 Issue Run 的可恢复基础设施失败会在持久化预算内生成 child Run，并在 Runs/Issue 活动流中可追踪；证据见 [closeout](app/.progress/infra-auto-retry-closeout-2026-07-30.md)。上一刀 Day-0 Onboarding 见 [closeout](app/.progress/day0-onboarding-closeout-2026-07-29.md)。
-- **当前审计结论：** 普通 Run 主链已闭环；Automation execution truth 已落地，但 Automation linked Run 尚未等待 retry lineage terminal；这成为下一处后端硬缺口。前端下一处体验缺口是 retry terminal reason / queue delay 的统一呈现。
-- **下一刀默认：** 让 Automation linked Run 等待自动重试 lineage 收敛后再判定规则结果；灾难恢复（DB + Wiki manifest/restore）为后续高价值候选。
+- **最新关刀：** Automation linked Run retry convergence——Automation execution truth 会在 bounded retry lineage 收敛前保持“自动重试中”，并把当前 child Run 深链暴露给页面；证据见 [closeout](app/.progress/automation-retry-convergence-closeout-2026-07-30.md)。上一刀 infra auto-retry 见 [closeout](app/.progress/infra-auto-retry-closeout-2026-07-30.md)。
+- **当前审计结论：** 普通 Run 与 Automation Run 主链均已闭环；剩余高价值后端硬缺口是灾难恢复（SQLite + Wiki manifest/restore）和 retry lineage 的统一 terminal reason。前端下一处体验缺口是恢复演练入口与队列延迟的可操作反馈。
+- **下一刀默认：** 评估灾难恢复演练与 Settings 运维入口；继续对照 Multica 的恢复/收尸语义，避免只做静态备份按钮。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开

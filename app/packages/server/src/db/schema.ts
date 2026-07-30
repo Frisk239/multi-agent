@@ -511,7 +511,7 @@ export const automationRuns = sqliteTable(
     plannedAt: integer('planned_at').notNull(),
     source: text('source', { enum: ['schedule', 'manual'] }).notNull(),
     status: text('status', {
-      enum: ['issue_created', 'pending_dispatch', 'running', 'success', 'failed', 'skipped'],
+      enum: ['issue_created', 'pending_dispatch', 'running', 'retrying', 'success', 'failed', 'skipped'],
     }).notNull(),
     issueId: text('issue_id'),
     linkedRunId: text('linked_run_id'),

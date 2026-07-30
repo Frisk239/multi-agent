@@ -43,8 +43,10 @@ function insertRetryChild(
     .from(issueTable)
     .where(eq(issueTable.id, source.issueId))
     .get();
-  // Automation/autopilot owns its own retry/terminal semantics for now.
-  if (!issue || issue.originType === 'automation') return null;
+  // Automation-linked issues use the same bounded infrastructure policy. The
+  // execution-truth synchronizer keeps the automation row retrying until the
+  // lineage reaches a terminal child.
+  if (!issue) return null;
 
   const configuredMax = Math.max(1, Number(source.maxAttempts ?? 2));
   const maxAttempts = autoRetryMaxAttempts(reason, configuredMax);

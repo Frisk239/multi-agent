@@ -63,6 +63,16 @@ function formatPlanned(iso: string | null | undefined): string {
   return new Date(iso).toLocaleString();
 }
 
+const AUTOMATION_RUN_STATUS_LABEL: Record<string, string> = {
+  issue_created: '已建 Issue',
+  pending_dispatch: '待派发',
+  running: '执行中',
+  retrying: '自动重试中',
+  success: '成功',
+  failed: '失败',
+  skipped: '已跳过',
+};
+
 function nextPlanTitle(rule: AutomationRule): string {
   if (!rule.enabled) return '规则已停用，定时不会触发';
   if (!rule.nextPlannedAt) return '无法计算下次计划（检查调度配置）';
@@ -101,7 +111,7 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
             <tr key={r.id}>
               <td>
                 <span className={`run-status-pill run-status-pill--${r.status}`}>
-                  {r.status}
+                  {AUTOMATION_RUN_STATUS_LABEL[r.status] ?? r.status}
                 </span>
               </td>
               <td className="text-dim text-sm">{r.source}</td>
@@ -993,7 +1003,9 @@ function AutomationPageInner() {
                         </Link>
                       ) : (
                         <span className="text-dim" data-testid="automation-fail-count" data-count="0">
-                          {rule.lastRunStatus ? `最近 ${rule.lastRunStatus}` : '—'}
+                          {rule.lastRunStatus
+                            ? `最近 ${AUTOMATION_RUN_STATUS_LABEL[rule.lastRunStatus] ?? rule.lastRunStatus}`
+                            : '—'}
                         </span>
                       )}
                       <div className="automation-row-links">

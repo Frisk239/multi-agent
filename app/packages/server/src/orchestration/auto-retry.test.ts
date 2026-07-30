@@ -164,7 +164,7 @@ describe('bounded infrastructure auto-retry', () => {
     expect(scheduleAutoRetryForFailedRun(exhausted, now)).toBeNull();
   });
 
-  it('excludes automation-linked Issues and non-allowlisted reasons', () => {
+  it('allows automation-linked Issues but excludes non-allowlisted reasons', () => {
     const automation = setup('automation');
     const autoRun = insertRun(automation.db, {
       id: 'run-automation',
@@ -172,7 +172,7 @@ describe('bounded infrastructure auto-retry', () => {
       status: 'failed',
       failureReason: 'timeout',
     });
-    expect(scheduleAutoRetryForFailedRun(autoRun, automation.now)).toBeNull();
+    expect(scheduleAutoRetryForFailedRun(autoRun, automation.now)?.attempt).toBe(2);
 
     automation.db
       .insert(issues)

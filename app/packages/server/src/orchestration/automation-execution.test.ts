@@ -126,4 +126,83 @@ describe('automation execution truth', () => {
     expect(automation.status).toBe('failed');
     expect(automation.error).toBe('boom');
   });
+
+  it('keeps automation retrying until the child reaches a terminal state', () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns).values([
+      {
+        id: 'automation-parent-retry',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        kind: 'issue',
+        status: 'failed',
+        failureReason: 'timeout',
+        error: 'timeout',
+        attempt: 1,
+        maxAttempts: 2,
+        createdAt: now,
+        finishedAt: now,
+      },
+      {
+        id: 'automation-child-retry',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        kind: 'issue',
+        status: 'queued',
+        attempt: 2,
+        maxAttempts: 2,
+        autoRetryOfRunId: 'automation-parent-retry',
+        createdAt: now,
+      },
+    ]).run();
+
+    const parent = state.db!.select().from(agentRuns).where(eq(agentRuns.id, 'automation-parent-retry')).get()!;
+    syncAutomationRunFromAgentRun({
+      ...toAgentRun(parent),
+      autoRetryStatus: 'scheduled',
+      autoRetryChildId: 'automation-child-retry',
+    });
+    let automation = state.db!.select().from(automationRuns).where(eq(automationRuns.id, 'auto-run-1')).get()!;
+    expect(automation.status).toBe('retrying');
+    expect(automation.linkedRunId).toBe('automation-child-retry');
+
+    // A late parent failure event must not downgrade the active retry.
+    syncAutomationRunFromAgentRun({ ...toAgentRun(parent), autoRetryStatus: 'none' });
+    automation = state.db!.select().from(automationRuns).where(eq(automationRuns.id, 'auto-run-1')).get()!;
+    expect(automation.status).toBe('retrying');
+    syncAutomationRunFromAgentRun({ ...toAgentRun(parent), status: 'completed', error: null });
+    automation = state.db!.select().from(automationRuns).where(eq(automationRuns.id, 'auto-run-1')).get()!;
+    expect(automation.status).toBe('retrying');
+
+    const child = state.db!.select().from(agentRuns).where(eq(agentRuns.id, 'automation-child-retry')).get()!;
+    syncAutomationRunFromAgentRun({ ...toAgentRun(child), status: 'completed', error: null });
+    automation = state.db!.select().from(automationRuns).where(eq(automationRuns.id, 'auto-run-1')).get()!;
+    expect(automation.status).toBe('success');
+  });
+
+  it('fails automation after a retry child exhausts its budget', () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns).values({
+      id: 'automation-final-child',
+      issueId: 'iss-test-1',
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      kind: 'issue',
+      status: 'failed',
+      failureReason: 'timeout',
+      error: 'timeout exhausted',
+      attempt: 2,
+      maxAttempts: 2,
+      autoRetryOfRunId: 'automation-parent-missing',
+      createdAt: now,
+      finishedAt: now,
+    }).run();
+    const child = state.db!.select().from(agentRuns).where(eq(agentRuns.id, 'automation-final-child')).get()!;
+    syncAutomationRunFromAgentRun(toAgentRun(child));
+    const automation = state.db!.select().from(automationRuns).where(eq(automationRuns.id, 'auto-run-1')).get()!;
+    expect(automation.status).toBe('failed');
+    expect(automation.error).toContain('timeout exhausted');
+  });
 });

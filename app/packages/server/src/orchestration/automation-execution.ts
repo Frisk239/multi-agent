@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { AgentRun } from '@ma/shared';
 import { db } from '../db/client.js';
 import {
@@ -15,7 +15,9 @@ const OPEN_AUTOMATION_STATUSES = [
   'issue_created',
   'pending_dispatch',
   'running',
+  'retrying',
 ] as const;
+const ACTIVE_RETRY_STATUSES = ['queued', 'waiting_local_directory', 'running'] as const;
 
 function publishAutomationRun(row: typeof automationRuns.$inferSelect): void {
   eventBus.publish({
@@ -42,26 +44,55 @@ export function syncAutomationRunFromAgentRun(run: AgentRun): void {
     .get();
   if (!automation) return;
 
+  const activeRetryChild =
+    !run.autoRetryOfRunId
+      ? db
+          .select({ id: agentRuns.id })
+          .from(agentRuns)
+          .where(
+            and(
+              eq(agentRuns.issueId, run.issueId),
+              isNotNull(agentRuns.autoRetryOfRunId),
+              inArray(agentRuns.status, [...ACTIVE_RETRY_STATUSES]),
+            ),
+          )
+          .get()
+      : null;
+  const retrying =
+    run.autoRetryStatus === 'scheduled' ||
+    Boolean(activeRetryChild) ||
+    (Boolean(run.autoRetryOfRunId) &&
+      (run.status === 'queued' ||
+        run.status === 'waiting_local_directory' ||
+        run.status === 'running'));
   const next =
-    run.status === 'completed'
-      ? 'success'
-      : run.status === 'failed' ||
-          run.status === 'timed_out' ||
-          run.status === 'cancelled'
-        ? 'failed'
-        : run.status === 'running' || run.status === 'waiting_local_directory'
-          ? 'running'
-          : 'issue_created';
+    retrying
+      ? 'retrying'
+      : run.status === 'completed'
+        ? 'success'
+        : run.status === 'failed' ||
+            run.status === 'timed_out' ||
+            run.status === 'cancelled'
+          ? 'failed'
+          : run.status === 'running' || run.status === 'waiting_local_directory'
+            ? 'running'
+            : 'issue_created';
+  const linkedRunId =
+    next === 'retrying'
+      ? run.autoRetryChildId ?? activeRetryChild?.id ?? run.id
+      : run.id;
   const error =
     next === 'failed'
       ? run.error ?? run.failureReason ?? `linked run ${run.status}`
-      : null;
+      : next === 'retrying'
+        ? `自动重试中${run.autoRetryNextAttemptAt ? `，下次 ${run.autoRetryNextAttemptAt}` : ''}`
+        : null;
 
   const changed = db
     .update(automationRuns)
     .set({
       status: next,
-      linkedRunId: run.id,
+      linkedRunId,
       error,
       updatedAt: Date.now(),
     })

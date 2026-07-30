@@ -2070,6 +2070,7 @@ export const AutomationRunStatus = z.enum([
   'issue_created',
   'pending_dispatch',
   'running',
+  'retrying',
   'success',
   'failed',
   'skipped',
