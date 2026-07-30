@@ -1224,11 +1224,6 @@ export function SettingsPage() {
               </li>
             )}
           </ul>
-          {data.runHealth.atRisk.waitingLocalNearStale > 0 ? (
-            <p className="settings-check-hint" data-testid="settings-run-health-waiting-risk">
-              waiting_local_directory 接近墙钟收尸：{data.runHealth.atRisk.waitingLocalNearStale}
-            </p>
-          ) : null}
           <div className="settings-cwd-recovery-links" data-testid="settings-run-health-actions">
             <Link className="btn-secondary btn-sm" href="/runs?status=waiting_local_directory" data-testid="settings-run-health-to-waiting">
               waiting runs
@@ -1773,10 +1768,10 @@ function LiveProbesSection() {
                       {p.inProcess ? ' · 本进程' : ''}
                     </span>
                     <span className="text-dim">
-                      状态: {p.status} · 心跳龄:{' '}
+                      状态: {p.status} · {p.status === 'running' ? '心跳龄' : '排队龄'}:{' '}
                       {p.status === 'running'
-                        ? `心跳龄 ${formatAgeMs(p.heartbeatAgeMs)}`
-                        : `排队龄 ${formatAgeMs(p.queueAgeMs)}`}
+                        ? formatAgeMs(p.heartbeatAgeMs)
+                        : formatAgeMs(p.queueAgeMs)}
                     </span>
                   </li>
                 ))}
