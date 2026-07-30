@@ -14,6 +14,7 @@ import type {
 import { CronExpressionParser } from 'cron-parser';
 import { inArray } from 'drizzle-orm';
 import { db } from './client.js';
+import { deriveRunObservability } from '../orchestration/run-observability.js';
 import {
   issues,
   comments,
@@ -474,5 +475,14 @@ export function toAutomationRun(row: AutomationRunRow): AutomationRun {
     error: row.error ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+/** Read-model projection for public run responses; internal state transitions
+ * continue using toAgentRun so dynamic ages never become durable state. */
+export function toObservedAgentRun(row: RunRow, now = Date.now()): AgentRun {
+  return {
+    ...toAgentRun(row),
+    ...deriveRunObservability(row, now),
   };
 }

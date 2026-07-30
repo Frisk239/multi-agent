@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { CreateQuickRunInput } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents, agentRuns, projects } from '../db/schema.js';
-import { toAgentRun } from '../db/reshape.js';
+import { toObservedAgentRun } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
@@ -107,7 +107,7 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       .run();
 
     const row = db.select().from(agentRuns).where(eq(agentRuns.id, id)).get()!;
-    const run = toAgentRun(row);
+    const run = toObservedAgentRun(row, Date.now());
     eventBus.publish({ type: 'run:queued', run });
     wakeRunWorker();
     return reply.status(201).send({ run });

@@ -9,7 +9,7 @@ import {
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
 import { agents, agentRuns, issues, squadMembers, squads } from '../db/schema.js';
-import { toAgentDetail, toAgentRun, toAgentSummary } from '../db/reshape.js';
+import { toAgentDetail, toObservedAgentRun, toAgentSummary } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
 
@@ -244,7 +244,8 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .orderBy(desc(agentRuns.createdAt))
       .limit(limit)
       .all();
-    return rows.map(toAgentRun);
+    const now = Date.now();
+    return rows.map((row) => toObservedAgentRun(row, now));
   });
 
   // G12：GET /api/agents/:id/work-stats?days=30
@@ -293,7 +294,11 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         failed += 1;
       } else if (r.status === 'cancelled') {
         cancelled += 1;
-      } else if (r.status === 'queued' || r.status === 'running') {
+      } else if (
+        r.status === 'queued' ||
+        r.status === 'waiting_local_directory' ||
+        r.status === 'running'
+      ) {
         active += 1;
       }
     }

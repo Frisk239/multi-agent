@@ -8,12 +8,11 @@ import {
 } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, runMessages } from '../db/schema.js';
-import { toAgentRun, toRunMessage } from '../db/reshape.js';
+import { toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-service.js';
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 import { getRunTree, getDirectChildren } from '../orchestration/subagent-tree.js';
-import { deriveRunObservability } from '../orchestration/run-observability.js';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -27,10 +26,9 @@ function withAutoRetrySummary(row: typeof agentRuns.$inferSelect, now = Date.now
     .from(agentRuns)
     .where(eq(agentRuns.autoRetryOfRunId, row.id))
     .get();
-  const run = toAgentRun(row);
+  const run = toObservedAgentRun(row, now);
   return {
     ...run,
-    ...deriveRunObservability(row, now),
     // Surface the child's durable backoff on the source row so list/detail
     // consumers can render one retry status without a second request.
     nextAttemptAt: run.nextAttemptAt ??

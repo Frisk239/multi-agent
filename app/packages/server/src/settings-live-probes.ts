@@ -28,6 +28,7 @@ export type LiveProbeRun = {
   lastHeartbeatAt: number | null;
   startedAt: number | null;
   createdAt: number;
+  queueAgeMs: number | null;
   /** 本进程 AbortController 是否仍持有（真在途） */
   inProcess: boolean;
   heartbeatAgeMs: number | null;
@@ -42,6 +43,45 @@ export type LiveProbesResponse = {
   probes: LiveProbeRun[];
   runtimes: LiveProbeRuntime[];
 };
+
+export function projectLiveProbeRun(
+  row: {
+    id: string;
+    runtime: string;
+    status: string;
+    kind: string | null;
+    agentId: string;
+    issueId: string | null;
+    lastHeartbeatAt: number | null;
+    startedAt: number | null;
+    createdAt: number;
+    waitingLocalEnteredAt: number | null;
+  },
+  now: number,
+  inProcessIds: ReadonlySet<string>,
+): LiveProbeRun {
+  const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
+  const queueAgeMs =
+    row.status === 'queued'
+      ? Math.max(0, now - row.createdAt)
+      : row.status === 'waiting_local_directory'
+        ? Math.max(0, now - (row.waitingLocalEnteredAt ?? row.createdAt))
+        : null;
+  return {
+    id: row.id,
+    runtime: row.runtime,
+    status: row.status,
+    kind: row.kind ?? null,
+    agentId: row.agentId,
+    issueId: row.issueId,
+    lastHeartbeatAt: row.lastHeartbeatAt,
+    startedAt: row.startedAt,
+    createdAt: row.createdAt,
+    queueAgeMs,
+    inProcess: inProcessIds.has(row.id),
+    heartbeatAgeMs: row.status === 'running' ? Math.max(0, now - hb) : null,
+  };
+}
 
 export async function buildLiveProbes(now = Date.now()): Promise<LiveProbesResponse> {
   const runtimes: LiveProbeRuntime[] = [];
@@ -73,6 +113,7 @@ export async function buildLiveProbes(now = Date.now()): Promise<LiveProbesRespo
       lastHeartbeatAt: agentRuns.lastHeartbeatAt,
       startedAt: agentRuns.startedAt,
       createdAt: agentRuns.createdAt,
+      waitingLocalEnteredAt: agentRuns.waitingLocalEnteredAt,
     })
     .from(agentRuns)
     .where(
@@ -95,22 +136,9 @@ export async function buildLiveProbes(now = Date.now()): Promise<LiveProbesRespo
     return bh - ah;
   });
 
-  const probes: LiveProbeRun[] = sorted.map((row) => {
-    const hb = row.lastHeartbeatAt ?? row.startedAt ?? row.createdAt;
-    return {
-      id: row.id,
-      runtime: row.runtime,
-      status: row.status,
-      kind: row.kind ?? null,
-      agentId: row.agentId,
-      issueId: row.issueId,
-      lastHeartbeatAt: row.lastHeartbeatAt,
-      startedAt: row.startedAt,
-      createdAt: row.createdAt,
-      inProcess: inProcessIds.has(row.id),
-      heartbeatAgeMs: Math.max(0, now - hb),
-    };
-  });
+  const probes: LiveProbeRun[] = sorted.map((row) =>
+    projectLiveProbeRun(row, now, inProcessIds),
+  );
 
   const activeRunning = probes.filter((p) => p.status === 'running').length;
 

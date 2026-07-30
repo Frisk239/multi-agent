@@ -1766,9 +1766,11 @@ export const SettingsRunHealth = z.object({
   active: z.object({
     total: z.number().int().nonnegative(),
     queued: z.number().int().nonnegative(),
+    waitingLocalDirectory: z.number().int().nonnegative(),
     running: z.number().int().nonnegative(),
   }),
   oldestQueuedAgeMs: z.number().int().nonnegative().nullable(),
+  oldestWaitingLocalDirectoryAgeMs: z.number().int().nonnegative().nullable(),
   oldestRunningAgeMs: z.number().int().nonnegative().nullable(),
   oldestRunningHeartbeatAgeMs: z.number().int().nonnegative().nullable(),
   thresholds: z.object({
@@ -1779,6 +1781,7 @@ export const SettingsRunHealth = z.object({
     /** issue/QC wall；0=不硬杀 */
     issueWallTimeoutMs: z.number().int().nonnegative().optional(),
     staleQueuedMs: z.number().int().positive(),
+    waitingLocalMaxMs: z.number().int().nonnegative(),
     sweepIntervalMs: z.number().int().positive(),
   }),
   atRisk: z.object({
@@ -1786,6 +1789,7 @@ export const SettingsRunHealth = z.object({
     runningNearStale: z.number().int().nonnegative(),
     /** queued 龄 ≥ 阈值的 70% */
     queuedNearStale: z.number().int().nonnegative(),
+    waitingLocalNearStale: z.number().int().nonnegative(),
   }),
 });
 export type SettingsRunHealth = z.infer<typeof SettingsRunHealth>;
@@ -2120,6 +2124,7 @@ export const SettingsLiveProbesResponse = z.object({
       startedAt: z.number().int().nullable(),
       createdAt: z.number().int(),
       inProcess: z.boolean(),
+      queueAgeMs: z.number().int().nonnegative().nullable(),
       heartbeatAgeMs: z.number().int().nonnegative().nullable(),
     }),
   ),

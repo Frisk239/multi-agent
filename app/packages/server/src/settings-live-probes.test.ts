@@ -45,7 +45,7 @@ vi.mock('./orchestration/run-control.js', () => ({
   listActiveRunIds: () => [],
 }));
 
-import { buildLiveProbes } from './settings-live-probes.js';
+import { buildLiveProbes, projectLiveProbeRun } from './settings-live-probes.js';
 
 describe('buildLiveProbes', () => {
   beforeEach(() => {
@@ -78,5 +78,29 @@ describe('buildLiveProbes', () => {
       ready: false,
       executionImplemented: false,
     });
+  });
+
+  it('labels waiting age as queue age and keeps heartbeat age for running only', () => {
+    const waiting = projectLiveProbeRun(
+      {
+        id: 'wait-1', runtime: 'opencode', status: 'waiting_local_directory', kind: 'issue',
+        agentId: 'a-1', issueId: 'i-1', lastHeartbeatAt: 9_500, startedAt: 9_000,
+        createdAt: 1_000, waitingLocalEnteredAt: 8_000,
+      },
+      10_000,
+      new Set(),
+    );
+    expect(waiting).toMatchObject({ queueAgeMs: 2_000, heartbeatAgeMs: null });
+
+    const running = projectLiveProbeRun(
+      {
+        id: 'run-1', runtime: 'opencode', status: 'running', kind: 'issue',
+        agentId: 'a-1', issueId: 'i-1', lastHeartbeatAt: 9_500, startedAt: 9_000,
+        createdAt: 1_000, waitingLocalEnteredAt: null,
+      },
+      10_000,
+      new Set(['run-1']),
+    );
+    expect(running).toMatchObject({ queueAgeMs: null, heartbeatAgeMs: 500, inProcess: true });
   });
 });

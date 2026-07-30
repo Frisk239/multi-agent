@@ -15,7 +15,7 @@ import {
 } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, agents, chatMessages, chatThreads, projects } from '../db/schema.js';
-import { toAgentRun } from '../db/reshape.js';
+import { toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
 import { resolveChatExecContext } from '../runtime/resolve-run-cwd.js';
@@ -334,7 +334,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 
     db.update(chatThreads).set({ updatedAt: now }).where(eq(chatThreads.id, threadId)).run();
 
-    const run = toAgentRun(db.select().from(agentRuns).where(eq(agentRuns.id, targetRunId)).get()!);
+    const run = toObservedAgentRun(
+      db.select().from(agentRuns).where(eq(agentRuns.id, targetRunId)).get()!,
+      Date.now(),
+    );
     eventBus.publish({ type: 'run:queued', run });
     wakeRunWorker();
 

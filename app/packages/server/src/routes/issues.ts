@@ -810,7 +810,11 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         failed += 1;
       } else if (r.status === 'cancelled') {
         cancelled += 1;
-      } else if (r.status === 'queued' || r.status === 'running') {
+      } else if (
+        r.status === 'queued' ||
+        r.status === 'waiting_local_directory' ||
+        r.status === 'running'
+      ) {
         active += 1;
       }
     }

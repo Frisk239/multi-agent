@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents, comments, issues, runMessages } from '../db/schema.js';
-import { toAgentRun, toComment, toRunMessage } from '../db/reshape.js';
+import { toComment, toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from './event-bus.js';
 import { abortRun } from './run-control.js';
@@ -123,7 +123,7 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
   });
   if (!tr.applied || !tr.row) return { ok: false };
   abortRun(runId); // 触发 AbortController → spawn-line kill 子进程
-  const run = toAgentRun(tr.row);
+  const run = toObservedAgentRun(tr.row, finishedAt);
   eventBus.publish({ type: 'run:cancelled', run });
   return { ok: true, run };
 }
@@ -347,7 +347,7 @@ async function checkAndEnqueue(
     appendForceFreshSystemNote(id, issueId);
   }
   const row = db.select().from(agentRuns).where(eq(agentRuns.id, id)).get()!;
-  const run = toAgentRun(row);
+  const run = toObservedAgentRun(row, createdAt);
   eventBus.publish({ type: 'run:queued', run });
   wakeRunWorker();
   return { run, skipped: false, reason: null, detail: null };

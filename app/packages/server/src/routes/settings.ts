@@ -34,6 +34,7 @@ import {
   STALE_SWEEP_INTERVAL_MS,
   getIssueIdleMs,
   getIssueWallTimeoutMs,
+  getWaitingLocalMaxMs,
 } from '../orchestration/stale-runs.js';
 import { allBackends } from '../runtime/registry.js';
 import { memoryManager } from '../memory/manager.js';
@@ -87,32 +88,37 @@ export function calculateDay0Progress(input: {
   };
 }
 
-function buildRunHealth(now = Date.now()): SettingsRunHealth {
-  const rows = db
-    .select()
-    .from(agentRuns)
-    .where(
-      inArray(agentRuns.status, [
-        'queued',
-        'waiting_local_directory',
-        'running',
-      ]),
-    )
-    .all();
+type RunHealthRow = Pick<
+  typeof agentRuns.$inferSelect,
+  'status' | 'createdAt' | 'startedAt' | 'lastHeartbeatAt' | 'waitingLocalEnteredAt' | 'kind'
+>;
 
+export function calculateRunHealth(
+  rows: RunHealthRow[],
+  now: number,
+  thresholds = {
+    issueIdleMs: getIssueIdleMs(),
+    issueWallTimeoutMs: getIssueWallTimeoutMs(),
+    waitingLocalMaxMs: getWaitingLocalMaxMs(),
+  },
+): SettingsRunHealth {
   let queued = 0;
+  let waitingLocalDirectory = 0;
   let running = 0;
   let oldestQueuedAgeMs: number | null = null;
+  let oldestWaitingLocalDirectoryAgeMs: number | null = null;
   let oldestRunningAgeMs: number | null = null;
   let oldestRunningHeartbeatAgeMs: number | null = null;
   let runningNearStale = 0;
   let queuedNearStale = 0;
-  const issueIdleMs = getIssueIdleMs();
-  const issueWallTimeoutMs = getIssueWallTimeoutMs();
+  let waitingLocalNearStale = 0;
+  const { issueIdleMs, issueWallTimeoutMs, waitingLocalMaxMs } = thresholds;
   const chatNear = Math.floor(STALE_RUNNING_MS * 0.7);
   const issueNear =
     issueIdleMs > 0 ? Math.floor(issueIdleMs * 0.7) : Number.POSITIVE_INFINITY;
   const queueNear = Math.floor(STALE_QUEUED_MS * 0.7);
+  const waitingLocalNear =
+    waitingLocalMaxMs > 0 ? Math.floor(waitingLocalMaxMs * 0.7) : Number.POSITIVE_INFINITY;
 
   for (const row of rows) {
     if (row.status === 'queued') {
@@ -120,6 +126,19 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
       const age = Math.max(0, now - row.createdAt);
       if (oldestQueuedAgeMs === null || age > oldestQueuedAgeMs) oldestQueuedAgeMs = age;
       if (age >= queueNear) queuedNearStale += 1;
+    } else if (row.status === 'waiting_local_directory') {
+      waitingLocalDirectory += 1;
+      const entered = row.waitingLocalEnteredAt ?? row.createdAt;
+      const age = Math.max(0, now - entered);
+      if (
+        oldestWaitingLocalDirectoryAgeMs === null ||
+        age > oldestWaitingLocalDirectoryAgeMs
+      ) {
+        oldestWaitingLocalDirectoryAgeMs = age;
+      }
+      if (Number.isFinite(waitingLocalNear) && age >= waitingLocalNear) {
+        waitingLocalNearStale += 1;
+      }
     } else if (row.status === 'running') {
       running += 1;
       const started = row.startedAt ?? row.createdAt;
@@ -142,19 +161,36 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
   }
 
   return {
-    active: { total: queued + running, queued, running },
+    active: { total: queued + waitingLocalDirectory + running, queued, waitingLocalDirectory, running },
     oldestQueuedAgeMs,
+    oldestWaitingLocalDirectoryAgeMs,
     oldestRunningAgeMs,
     oldestRunningHeartbeatAgeMs,
     thresholds: {
       staleRunningMs: STALE_RUNNING_MS,
       issueIdleMs,
       issueWallTimeoutMs,
+      waitingLocalMaxMs,
       staleQueuedMs: STALE_QUEUED_MS,
       sweepIntervalMs: STALE_SWEEP_INTERVAL_MS,
     },
-    atRisk: { runningNearStale, queuedNearStale },
+    atRisk: { runningNearStale, queuedNearStale, waitingLocalNearStale },
   };
+}
+
+function buildRunHealth(now = Date.now()): SettingsRunHealth {
+  const rows = db
+    .select()
+    .from(agentRuns)
+    .where(
+      inArray(agentRuns.status, [
+        'queued',
+        'waiting_local_directory',
+        'running',
+      ]),
+    )
+    .all();
+  return calculateRunHealth(rows, now);
 }
 
 function buildWikiHealth(llmConfigured: boolean): SettingsWikiHealth {

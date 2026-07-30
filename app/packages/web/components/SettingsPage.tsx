@@ -1161,12 +1161,21 @@ export function SettingsPage() {
             <strong>运行健康</strong>
             <span className="text-dim text-sm">
               在途 {data.runHealth.active.total}
-              {data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale > 0
-                ? ` · 近收尸 ${data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale}`
+              {data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale + data.runHealth.atRisk.waitingLocalNearStale > 0
+                ? ` · 近收尸 ${data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale + data.runHealth.atRisk.waitingLocalNearStale}`
                 : ''}
             </span>
           </div>
           <ul className="settings-cwd-steps" style={{ listStyle: 'disc' }} data-testid="settings-run-health-stats">
+            <li data-testid="settings-run-health-waiting">
+              waiting_local_directory <strong>{data.runHealth.active.waitingLocalDirectory}</strong> · oldest{' '}
+              <strong>{formatAgeMs(data.runHealth.oldestWaitingLocalDirectoryAgeMs)}</strong> · max{' '}
+              <code>
+                {data.runHealth.thresholds.waitingLocalMaxMs === 0
+                  ? '关闭'
+                  : `${Math.round(data.runHealth.thresholds.waitingLocalMaxMs / 60000)}min`}
+              </code>
+            </li>
             <li>
               在途：queued <strong>{data.runHealth.active.queued}</strong> · running{' '}
               <strong>{data.runHealth.active.running}</strong>
@@ -1205,15 +1214,25 @@ export function SettingsPage() {
               <code>{Math.round(data.runHealth.thresholds.sweepIntervalMs / 1000)}s</code>
             </li>
             {(data.runHealth.atRisk.runningNearStale > 0 ||
-              data.runHealth.atRisk.queuedNearStale > 0) && (
+              data.runHealth.atRisk.queuedNearStale > 0 ||
+              data.runHealth.atRisk.waitingLocalNearStale > 0) && (
               <li>
                 接近收尸：running{' '}
                 <strong>{data.runHealth.atRisk.runningNearStale}</strong> · queued{' '}
-                <strong>{data.runHealth.atRisk.queuedNearStale}</strong>
+                <strong>{data.runHealth.atRisk.queuedNearStale}</strong> 路 waiting{' '}
+                <strong>{data.runHealth.atRisk.waitingLocalNearStale}</strong>
               </li>
             )}
           </ul>
+          {data.runHealth.atRisk.waitingLocalNearStale > 0 ? (
+            <p className="settings-check-hint" data-testid="settings-run-health-waiting-risk">
+              waiting_local_directory 接近墙钟收尸：{data.runHealth.atRisk.waitingLocalNearStale}
+            </p>
+          ) : null}
           <div className="settings-cwd-recovery-links" data-testid="settings-run-health-actions">
+            <Link className="btn-secondary btn-sm" href="/runs?status=waiting_local_directory" data-testid="settings-run-health-to-waiting">
+              waiting runs
+            </Link>
             <Link
               className="btn-secondary btn-sm"
               href="/runs?status=active"
@@ -1755,7 +1774,9 @@ function LiveProbesSection() {
                     </span>
                     <span className="text-dim">
                       状态: {p.status} · 心跳龄:{' '}
-                      {formatAgeMs(p.heartbeatAgeMs)}
+                      {p.status === 'running'
+                        ? `心跳龄 ${formatAgeMs(p.heartbeatAgeMs)}`
+                        : `排队龄 ${formatAgeMs(p.queueAgeMs)}`}
                     </span>
                   </li>
                 ))}
