@@ -12,6 +12,7 @@ import {
   useUpdateIssue,
 } from '@/lib/api';
 import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
+import { isRuntimeAssignableForDispatch } from '@ma/shared';
 import { confirmDialog } from '@/lib/confirm-store';
 import { toastSuccess } from '@/lib/toast';
 import { Select } from './Select';
@@ -298,9 +299,17 @@ export function AssigneeSelect({
         <optgroup label="智能体">
           {agents.map((a) => {
             const hint = readinessHint(readinessMap[a.id]);
+            // A6: Pi (executionImplemented=false) surfaces as blocked via readiness error;
+            // also label options with unassignable runtime explicitly.
+            const unassignableRuntime = a.runtime === 'pi';
             return (
-              <option key={a.id} value={`agent:${a.id}`}>
+              <option
+                key={a.id}
+                value={`agent:${a.id}`}
+                disabled={unassignableRuntime || isHardBlocked(readinessMap[a.id])}
+              >
                 {a.name} · {a.runtime}
+                {unassignableRuntime ? ' · 未实现执行' : ''}
                 {hint ? ` · ${hint}` : ''}
               </option>
             );

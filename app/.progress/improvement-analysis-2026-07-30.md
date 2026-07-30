@@ -47,9 +47,9 @@ Multica daemon / Redis / 云 webhook / 密钥入库 / TipTap 全量 / Wiki 图�
 | **A1** | Session resume 跨 CLI | **已关** `c4d45d6`/`29c306b`：claude/opencode/cursor true | Multica opencode/cursor | — | — |
 | **A2** | 统一读投影残留 | 多数 GET 已 `toObservedAgentRun`；WS 内部仍可裸 shape | Multica failure/elapsed 分离 | 中 | 低 |
 | **A3** | Ops path-lock holder | **已关** `349b948` | Multica waiting/lease | — | — |
-| **A4** | **灾备含项目级 Wiki** | manifest 仍可排除 project-scoped | 本仓产品缺口 | 高 | 中 |
+| **A4** | 灾备含项目级 Wiki | **本相关** `wiki/projects/<id>/` + coverage report | 本仓 | — | — |
 | **A5** | Automation `run_only` | **本相关**：`executionMode` + quick_create 无 Issue + linkedRunId 同步 | Multica autopilot | — | — |
-| **A6** | Pi 真执行或产品隐藏 | 诚实 stub | Multica `pi.go` | 中 | 高/低 |
+| **A6** | Pi 真执行或产品隐藏 | **本相关** hard-block + UI disabled（不做真执行） | Multica | — | — |
 | **A7** | inline transcript preview | 仅深链 | execution-log 残留 | 中 | 低–中 |
 | **A8** | 子代理树 terminalReason | **本相关**：`projectTreeNodeTerminalReason` + RunTreeNode | Multica 父子 task failure | — | — |
 | **A9** | Grok ACP / 能力诚实 | print 优先 | 本仓 runtime | 中 | 高 |

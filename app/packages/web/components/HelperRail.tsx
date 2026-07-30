@@ -16,6 +16,7 @@ import {
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { Select } from './Select';
+import { buildHelperFailCta } from '@/lib/helper-chat-path';
 
 const STORAGE_OPEN = 'ma-helper-open';
 const STORAGE_AGENT = 'ma-helper-agent-id';
@@ -64,6 +65,7 @@ export function HelperRail() {
   const [draft, setDraft] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [sending, setSending] = useState(false);
+  const [lastSendError, setLastSendError] = useState<string | null>(null);
 
   useEffect(() => {
     setOpen(readStored(STORAGE_OPEN) === '1');
@@ -163,6 +165,7 @@ export function HelperRail() {
     const body = text.trim();
     if (!body || !agentId) return;
     setSending(true);
+    setLastSendError(null);
     try {
       const tid = await ensureThread();
       if (!tid) throw new Error('无会话');
@@ -180,10 +183,19 @@ export function HelperRail() {
       await qc.invalidateQueries({ queryKey: ['chat-messages', tid] });
       await qc.invalidateQueries({ queryKey: ['chat-threads'] });
       await qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+    } catch (e) {
+      setLastSendError(e instanceof Error ? e.message : String(e));
+      throw e;
     } finally {
       setSending(false);
     }
   }
+
+  const failCta = buildHelperFailCta({
+    readinessStatus: readiness?.status ?? null,
+    lastSendError,
+    threadId: threadId || null,
+  });
 
   async function handleSend() {
     const body = draft.trim();
@@ -309,6 +321,21 @@ export function HelperRail() {
               。消息仍会排队，环境就绪后由本机 CLI 执行。
               <Link href="/settings" className="table-link">
                 环境诊断
+              </Link>
+            </div>
+          ) : null}
+
+          {failCta.show ? (
+            <div
+              className="helper-fail-cta"
+              data-testid="helper-fail-cta"
+              role="status"
+            >
+              <span className="text-sm">
+                {lastSendError ? `发送失败：${lastSendError.slice(0, 120)}` : '助手未就绪'}
+              </span>
+              <Link href={failCta.href} className="btn btn-secondary btn-sm">
+                {failCta.label}
               </Link>
             </div>
           ) : null}

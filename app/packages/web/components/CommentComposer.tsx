@@ -11,6 +11,10 @@ import {
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { MarkdownBody } from './MarkdownBody';
+import {
+  appendAttachmentMarkdown,
+  validateImageDataUrl,
+} from '@/lib/comment-attachments';
 
 export function CommentComposer({ issueId }: { issueId: string }) {
   const {
@@ -21,6 +25,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [mentionQ, setMentionQ] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   
   const { data: agents = [] } = useAgents();
@@ -170,9 +175,35 @@ export function CommentComposer({ issueId }: { issueId: string }) {
         onSuccess: () => {
           clearDraftBody();
           setMode('edit');
+          setAttachError(null);
         },
       }
     );
+  }
+
+  /** F1 · paste image → markdown data URL embed (local, no cloud). */
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (!item.type.startsWith('image/')) continue;
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (!file) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        const v = validateImageDataUrl(dataUrl, { fileName: file.name || 'paste.png' });
+        if (!v.ok) {
+          setAttachError(v.error);
+          return;
+        }
+        setAttachError(null);
+        setBody((prev) => appendAttachmentMarkdown(prev, v.markdown));
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
   }
 
   return (
@@ -254,13 +285,19 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             <textarea
               ref={taRef}
               className="composer-input"
-              placeholder="留下评论… 输入 @ 提及 agent/小队，按 Ctrl+Enter 发送"
+              placeholder="留下评论… 输入 @ 提及 agent/小队；可粘贴图片；Ctrl+Enter 发送"
               value={body}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               rows={4}
               data-testid="comment-composer-textarea"
             />
+            {attachError ? (
+              <p className="text-sm" data-testid="comment-attach-error" role="alert">
+                {attachError}
+              </p>
+            ) : null}
 
             {/* Mention @ 自动补全菜单 */}
             {filtered.length > 0 && mentionQ !== null && (

@@ -24,6 +24,7 @@ import Database from 'better-sqlite3';
 import { getSqliteHardeningInfo, sqlite } from './db/client.js';
 import { resolveWorkspaceCwd, type ResolvedWorkspaceCwd } from './workspace-cwd.js';
 import { getWikiDirSource } from './wiki/store.js';
+import { listProjectWikiRoots } from './wiki/project-wiki-roots.js';
 import { buildBackupFileName, ensureBackupDirWritable, resolveBackupDir } from './ops-backup.js';
 
 export const SNAPSHOT_ARCHIVE_VERSION = 1 as const;
@@ -44,8 +45,16 @@ export type SnapshotManifest = {
   wiki: {
     root: string;
     source: 'env' | 'workspace' | 'cwd';
-    projectScopedExcluded: true;
+    /** false when project wiki roots are packed under wiki/projects/<id>/ */
+    projectScopedExcluded: boolean;
     excludedProjectWikiRoots: string[];
+    /** Included project wiki roots (A4). */
+    includedProjectWikiRoots?: Array<{
+      projectId: string;
+      projectName: string;
+      wikiPath: string;
+      files: number;
+    }>;
     exclusions: string[];
   };
   files: SnapshotManifestFile[];
@@ -78,7 +87,7 @@ export type SnapshotDryRun = SnapshotValidation & {
   mutatesLiveState: false;
   report: {
     database: { included: boolean; bytes: number; target: string };
-    wiki: { includedFiles: number; root: string; projectScopedExcluded: true };
+    wiki: { includedFiles: number; root: string; projectScopedExcluded: boolean };
     wouldOverwrite: string[];
     actions: string[];
   };
@@ -100,7 +109,7 @@ export type SnapshotStage = {
   wiki: {
     path: string;
     includedFiles: number;
-    projectScopedExcluded: true;
+    projectScopedExcluded: boolean;
   };
 };
 
@@ -266,9 +275,52 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
     const wiki = opts.wikiDir ? { path: resolve(opts.wikiDir), source: 'cwd' as const } : getWikiDirSource();
     const wikiRoot = wiki.path;
     const wikiFiles = collectFiles(wikiRoot);
+    // A4 · pack project-scoped {localPath}/wiki when present
+    let projectRoots: ReturnType<typeof listProjectWikiRoots> = [];
+    try {
+      projectRoots = listProjectWikiRoots();
+    } catch {
+      projectRoots = [];
+    }
+    const includedProjectWikiRoots: NonNullable<
+      SnapshotManifest['wiki']['includedProjectWikiRoots']
+    > = [];
+    const projectWikiEntries: ZipEntry[] = [];
+    const projectWikiFiles: SnapshotManifestFile[] = [];
+    for (const root of projectRoots) {
+      if (!root.exists) continue;
+      const filesInProject = collectFiles(root.wikiPath);
+      if (filesInProject.length === 0) {
+        // still report coverage even if empty wiki dir missing files
+        includedProjectWikiRoots.push({
+          projectId: root.projectId,
+          projectName: root.projectName,
+          wikiPath: root.wikiPath,
+          files: 0,
+        });
+        continue;
+      }
+      includedProjectWikiRoots.push({
+        projectId: root.projectId,
+        projectName: root.projectName,
+        wikiPath: root.wikiPath,
+        files: filesInProject.length,
+      });
+      for (const f of filesInProject) {
+        const zipPath = `wiki/projects/${root.projectId}/${f.path}`;
+        projectWikiEntries.push({ name: zipPath, data: f.data });
+        projectWikiFiles.push({
+          path: zipPath,
+          kind: 'wiki',
+          sizeBytes: f.data.length,
+          sha256: sha256(f.data),
+        });
+      }
+    }
     const files: SnapshotManifestFile[] = [
       { path: 'db/backup.sqlite', kind: 'database', sizeBytes: dbData.length, sha256: sha256(dbData) },
       ...wikiFiles.map((f) => ({ path: `wiki/${f.path}`, kind: 'wiki' as const, sizeBytes: f.data.length, sha256: sha256(f.data) })),
+      ...projectWikiFiles,
     ];
     const manifest: SnapshotManifest = {
       archiveVersion: SNAPSHOT_ARCHIVE_VERSION,
@@ -281,8 +333,11 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
       wiki: {
         root: wikiRoot,
         source: opts.wikiDir ? 'cwd' : wiki.source,
-        projectScopedExcluded: true,
-        excludedProjectWikiRoots: [],
+        projectScopedExcluded: false,
+        excludedProjectWikiRoots: projectRoots
+          .filter((r) => !r.exists)
+          .map((r) => r.wikiPath),
+        includedProjectWikiRoots,
         exclusions: [...EXCLUDED_NAMES, 'secret*/credential*', '*.pem/*.key'],
       },
       files,
@@ -292,6 +347,7 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
       { name: 'manifest.json', data: manifestData },
       { name: 'db/backup.sqlite', data: dbData },
       ...wikiFiles.map((f) => ({ name: `wiki/${f.path}`, data: f.data })),
+      ...projectWikiEntries,
     ];
     writeFileSync(tempZip, makeZip(entries, now));
     renameSync(tempZip, path);
@@ -339,7 +395,7 @@ function isSnapshotManifest(value: unknown): value is SnapshotManifest {
   const wikiValid = (
     typeof wiki.root === 'string'
     && (wiki.source === 'env' || wiki.source === 'workspace' || wiki.source === 'cwd')
-    && wiki.projectScopedExcluded === true
+    && typeof wiki.projectScopedExcluded === 'boolean'
     && Array.isArray(wiki.excludedProjectWikiRoots)
     && wiki.excludedProjectWikiRoots.every((item) => typeof item === 'string')
     && Array.isArray(wiki.exclusions)
@@ -445,7 +501,11 @@ export function dryRunRestore(input: string | undefined, opts: { backupDir?: str
     mutatesLiveState: false,
     report: {
       database: { included: v.dbBytes > 0, bytes: v.dbBytes, target: opts.workspace?.path ? join(opts.workspace.path, 'dev.db') : 'live SQLite database' },
-      wiki: { includedFiles: v.wikiFiles, root: m?.wiki.root ?? 'configured global Wiki root', projectScopedExcluded: true },
+      wiki: {
+        includedFiles: v.wikiFiles,
+        root: m?.wiki.root ?? 'configured global Wiki root',
+        projectScopedExcluded: m?.wiki.projectScopedExcluded ?? false,
+      },
       wouldOverwrite: [],
       actions: v.valid ? ['validate archive', 'stage database and Wiki entries (not executed)', 'await explicit restore implementation'] : [],
     },
@@ -576,7 +636,7 @@ export function stageSnapshotRestore(
       wiki: {
         path: join(finalPath, 'wiki'),
         includedFiles: validation.wikiFiles,
-        projectScopedExcluded: true,
+        projectScopedExcluded: false,
       },
     };
     writeFileSync(join(temporaryPath, 'stage.json'), `${JSON.stringify(stage, null, 2)}\n`, 'utf8');

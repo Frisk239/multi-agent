@@ -1,5 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm';
 import type { AgentReadiness, RuntimeId } from '@ma/shared';
+import {
+  isRuntimeAssignableForDispatch,
+  runtimeUnassignableReason,
+} from '@ma/shared';
 import { db } from '../db/client.js';
 import { agents, agentRuns } from '../db/schema.js';
 import { getBackend } from '../runtime/registry.js';
@@ -84,9 +88,19 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
   } else if (!det.installed) {
     status = 'runtime_missing';
     detail = `runtime ${row.runtime} 未安装或不在 PATH`;
-  } else if (!backendExecImplemented) {
+  } else if (
+    !isRuntimeAssignableForDispatch({
+      runtime: row.runtime,
+      executionImplemented: backendExecImplemented,
+    })
+  ) {
     status = 'error';
+    // Keep Slice 44 wording so readiness tests/UI stay stable; reason helper is for product surfaces.
     detail = `runtime ${row.runtime} 已安装，但适配器尚未实现真实执行，禁止假完成，不可派活`;
+    void runtimeUnassignableReason({
+      runtime: row.runtime,
+      executionImplemented: backendExecImplemented,
+    });
   } else if (runningCount >= row.concurrency) {
     status = 'busy';
     detail = `运行中 ${runningCount}/${row.concurrency}`;

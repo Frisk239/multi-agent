@@ -25,6 +25,10 @@ import { AssigneeSelect } from './AssigneeSelect';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '../lib/toast';
 import { Select } from './Select';
+import {
+  buildSheetFailCta,
+  buildSheetStorylineSummary,
+} from '@/lib/sheet-work-surface';
 
 const PROPS_OPEN_KEY = 'ma-issue-props-open';
 
@@ -61,6 +65,50 @@ function readPropsOpen(): boolean {
     /* ignore */
   }
   return true;
+}
+
+/** F2 · Sheet work strip: storyline summary + primary fail CTA */
+function SheetWorkStrip({
+  issueId,
+  commentCount,
+  runCount,
+  activityCount,
+  latestRun,
+}: {
+  issueId: string;
+  commentCount: number;
+  runCount: number;
+  activityCount: number;
+  latestRun: { id: string; status: string; failureReason?: string | null } | null;
+}) {
+  const summary = buildSheetStorylineSummary({
+    commentCount,
+    runCount,
+    activityCount,
+  });
+  const failCta = buildSheetFailCta({
+    issueId,
+    latestRunStatus: latestRun?.status ?? null,
+    failureReason: latestRun?.failureReason ?? null,
+    latestRunId: latestRun?.id ?? null,
+  });
+  return (
+    <div className="issue-sheet-work-strip" data-testid="issue-sheet-work-strip">
+      <div className="text-dim text-sm" data-testid="issue-sheet-storyline-summary">
+        {summary.label}
+      </div>
+      {failCta.show ? (
+        <Link
+          href={failCta.href}
+          className="btn btn-secondary btn-sm"
+          data-testid="issue-sheet-fail-cta"
+          title={failCta.reason ?? undefined}
+        >
+          {failCta.label}
+        </Link>
+      ) : null}
+    </div>
+  );
 }
 
 /** Sheet 轻量：状态 + 指派（全量属性进全页 / details） */
@@ -317,6 +365,16 @@ export function IssueDetail({
             />
 
             {isSheet ? <IssueSheetMeta issue={issue} /> : null}
+
+            {isSheet ? (
+              <SheetWorkStrip
+                issueId={issue.id}
+                commentCount={commentCount}
+                runCount={historyCount}
+                activityCount={0}
+                latestRun={runs[0] ?? null}
+              />
+            ) : null}
 
             {!isSheet && issue.status === 'done' ? (
               <div className="issue-knowledge-actions bg-slate-50 border border-slate-200 rounded p-4 mb-4 flex items-center justify-between shadow-sm">

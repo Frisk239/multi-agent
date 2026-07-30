@@ -2,8 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { Providers } from '@/lib/providers';
-import { EnvBanner } from '@/components/EnvBanner';
-import { WsConnectionBanner } from '@/components/WsConnectionBanner';
+import { GlobalBannerStack } from '@/components/GlobalBannerStack';
 import { OnboardingCard } from '@/components/OnboardingCard';
 import { Sidebar } from '@/components/Sidebar';
 import { HelperRail } from '@/components/HelperRail';
@@ -37,8 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Sidebar />
               </Suspense>
               <div className="main-column">
-                <EnvBanner />
-                <WsConnectionBanner />
+                <GlobalBannerStack />
                 <main className="main-content">
                   <Suspense fallback={null}>
                     <OnboardingCard />
