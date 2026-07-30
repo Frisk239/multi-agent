@@ -938,27 +938,27 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               autoFocus
               data-autofocus
               data-testid="cmdk-input"
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setActive((i) => Math.min(i + 1, Math.max(commands.length - 1, 0)));
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setActive((i) => Math.max(i - 1, 0));
-                } else if (e.key === 'Enter' && commands[active]) {
-                  e.preventDefault();
-                  runCommand(commands[active]);
-                }
-              }}
+              aria-activedescendant={active >= 0 ? `cmd-item-${active}` : undefined}
+              aria-controls="cmdk-list"
             />
-            <ul className="cmdk-list">
+            <ul
+              id="cmdk-list"
+              role="listbox"
+              aria-activedescendant={`cmd-item-${active}`}
+              className="cmdk-list"
+            >
               {commands.length === 0 ? (
                 <li className="cmdk-empty">
                   {issuesFetching ? '搜索中…' : '无匹配项'}
                 </li>
               ) : (
                 commands.map((cmd, idx) => (
-                  <li key={cmd.id}>
+                  <li
+                    id={`cmd-item-${idx}`}
+                    key={cmd.id}
+                    role="option"
+                    aria-selected={idx === active}
+                  >
                     <button
                       type="button"
                       className={`cmdk-item${idx === active ? ' is-active' : ''}`}

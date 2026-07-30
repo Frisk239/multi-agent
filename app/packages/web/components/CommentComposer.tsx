@@ -334,6 +334,8 @@ export function CommentComposer({ issueId }: { issueId: string }) {
               <div
                 className="composer-mention-chips"
                 data-testid="composer-mention-chips"
+                role="list"
+                aria-label="Mention chips"
               >
                 {mentionChips.map((chip) => {
                   const label = chip.label.startsWith('@')
@@ -346,6 +348,8 @@ export function CommentComposer({ issueId }: { issueId: string }) {
                       data-testid="composer-mention-chip"
                       data-mention-kind={chip.kind}
                       data-mention-id={chip.id}
+                      role="listitem"
+                      aria-label={`Mention ${chip.kind}: ${label}`}
                     >
                       <Icon
                         name={chip.kind === 'agent' ? 'agent' : 'squad'}

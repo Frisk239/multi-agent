@@ -36,6 +36,7 @@ export function IssueSideSheet({
       role="dialog"
       aria-modal="true"
       aria-label="Issue 详情"
+      aria-labelledby="issue-side-sheet-head"
     >
       <button
         type="button"

@@ -65,6 +65,8 @@ export function getShortcutHelpGroups(): ShortcutHelpGroup[] {
         { label: '新建 Issue', keys: ['c', '或', 'n'] },
         { label: '快速派活 (Quick Dispatch)', keys: ['q'] },
         { label: '全局搜索', keys: ['/'] },
+        { label: 'CommandPalette / 快速搜索', keys: ['Ctrl+K'] },
+        { label: '关闭弹层 / 返回焦点', keys: ['Esc'] },
       ],
     },
     {
