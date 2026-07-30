@@ -31,6 +31,7 @@
 ## 验证证据
 
 - `pnpm typecheck`（shared/server/web）通过。
+- 根目录 `pnpm test` 已改为按 package 配置运行并全绿：shared 5 files/90 tests、server 57/356、web 34/206。
 - `pnpm exec vitest run packages/server/src/ops-recovery.test.ts packages/server/src/ops-backup.test.ts packages/server/src/routes/ops.test.ts`：3 files / 16 tests passed。
 - Web focused tests（`run-recovery`、`RunEventTimeline`）：2 files / 12 tests passed。
 - Playwright 真浏览器：Settings → 环境诊断 → 灾备快照；创建后显示 `41 files / Wiki 40`、`hash valid`，校验显示“校验通过”，恢复演练显示 DB bytes/Wiki 数量且“未修改线上状态”。仅有开发环境 WebSocket 未连接和 favicon 404 噪声，无业务错误。

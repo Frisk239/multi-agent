@@ -126,6 +126,8 @@ describe('Shared Schema Validators', () => {
         'stale_heartbeat',
         'exec_error',
         'timeout',
+        'runtime_offline',
+        'provider_network',
         'squad_member_escalated',
         'waiting_local_directory_timeout',
         // Slice 63

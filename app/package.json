@@ -5,9 +5,9 @@
     "dev": "pnpm -r --parallel --filter=@ma/server --filter=@ma/web run dev",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test": "pnpm --filter @ma/shared exec vitest run --config vitest.config.ts && pnpm --filter @ma/server exec vitest run --config vitest.config.ts && pnpm --filter @ma/web exec vitest run --config vitest.config.ts",
+    "test:watch": "pnpm --filter @ma/shared exec vitest --config vitest.config.ts && pnpm --filter @ma/server exec vitest --config vitest.config.ts && pnpm --filter @ma/web exec vitest --config vitest.config.ts",
+    "test:coverage": "pnpm --filter @ma/shared exec vitest run --config vitest.config.ts --coverage && pnpm --filter @ma/server exec vitest run --config vitest.config.ts --coverage && pnpm --filter @ma/web exec vitest run --config vitest.config.ts --coverage",
     "check": "pnpm typecheck && pnpm test"
   },
   "packageManager": "pnpm@10.33.0",
