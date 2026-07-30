@@ -9,6 +9,7 @@ export const NARROW_SIDEBAR_MAX_PX = 900;
 /**
  * g + 第二键 → 路由。
  * 约定：i Issues · n Inbox · c Chat · a Agents · w Wiki · r Runs · s Settings
+ * 扩展：q Squads · m Memory · p Projects · u Usage/Automation 不占 g（用 CmdK）
  */
 export const G_CHORD_ROUTES: Readonly<Record<string, string>> = {
   i: '/',
@@ -18,6 +19,9 @@ export const G_CHORD_ROUTES: Readonly<Record<string, string>> = {
   w: '/wiki',
   r: '/runs',
   s: '/settings',
+  q: '/squads',
+  m: '/memory',
+  p: '/projects',
 } as const;
 
 /** 解析 g-chord 第二键；未知键 → null */
@@ -50,6 +54,9 @@ export function getShortcutHelpGroups(): ShortcutHelpGroup[] {
         { label: '跳转到 Wiki', keys: ['g', 'w'] },
         { label: '跳转到 Runs', keys: ['g', 'r'] },
         { label: '跳转到 Settings', keys: ['g', 's'] },
+        { label: '跳转到 Squads', keys: ['g', 'q'] },
+        { label: '跳转到 Memory', keys: ['g', 'm'] },
+        { label: '跳转到 Projects', keys: ['g', 'p'] },
       ],
     },
     {

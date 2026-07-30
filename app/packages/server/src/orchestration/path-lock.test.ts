@@ -39,6 +39,7 @@ vi.mock('../runtime/resolve-run-cwd.js', () => ({
 import {
   normalizePathLockKey,
   findRunningProjectLocalHolder,
+  matchRunningProjectLocalHolder,
   pathLockSelfCheck,
 } from './path-lock';
 
@@ -131,6 +132,33 @@ describe('path-lock', () => {
         },
       ]);
       expect(findRunningProjectLocalHolder('/repo/path')).toBeNull();
+    });
+  });
+
+  describe('matchRunningProjectLocalHolder', () => {
+    it('matches Windows path variants without DB', () => {
+      const holder = matchRunningProjectLocalHolder(
+        'D:\\repo\\app',
+        [
+          {
+            id: 'run-h',
+            issueId: 'iss-1',
+            agentId: 'ag-1',
+            cwdPath: 'd:/repo/app',
+          },
+        ],
+      );
+      expect(holder?.id).toBe('run-h');
+    });
+
+    it('respects excludeRunId', () => {
+      expect(
+        matchRunningProjectLocalHolder(
+          '/repo',
+          [{ id: 'self', issueId: null, agentId: 'a', cwdPath: '/repo' }],
+          'self',
+        ),
+      ).toBeNull();
     });
   });
 

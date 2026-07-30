@@ -247,3 +247,21 @@ daemon+Redis 扩展、自造 agent loop、Neo4j 默认记忆、OpenDeepWiki 企�
 - `app/packages/shared/src/schema.ts`（AgentRun + OpsSnapshot + OpsQueueSample）
 - `app/packages/web/components/RunsPage.tsx` / `SettingsPage.tsx`
 - `app/packages/web/lib/issue-storyline.ts` (+ test)
+
+---
+
+## 9. Phase land · 2026-07-30 #2（path-lock holder + g-chord）
+
+### Must
+1. Ops queue samples expose `pathBlockedByRunId` / `pathWaitReason` when waiting on project_local path mutex (Multica-style)
+2. Pure `matchRunningProjectLocalHolder` + `enrichOpsQueueSamplesWithPathLock` unit-tested without DB theater
+3. Settings ops sample links to holder run
+4. g-chord: `g q` Squads · `g m` Memory · `g p` Projects
+
+### Out
+- session resume for opencode/cursor; project Wiki in backup; TipTap; banner queue system
+
+### 改动面
+- `path-lock.ts` / `ops-snapshot.ts` / `schema.ts` OpsQueueSample
+- `SettingsPage.tsx` sample holder link
+- `shortcuts.ts` + tests

@@ -25,6 +25,10 @@ import {
   deriveRunObservability,
   type RunTerminalReason,
 } from './orchestration/run-observability.js';
+import {
+  matchRunningProjectLocalHolder,
+  type PathHolder,
+} from './orchestration/path-lock.js';
 
 /** Slice 69 钉死：近 7 日（createdAt） */
 export const RESUME_STATS_WINDOW = '7d' as const;
@@ -51,6 +55,9 @@ export type OpsQueueSample = {
   waitingLocalEnteredAt: number | null;
   eligibleAt: number | null;
   blockedReason: 'retry_backoff' | null;
+  cwdPath: string | null;
+  pathWaitReason: 'path_busy' | null;
+  pathBlockedByRunId: string | null;
 };
 
 export type OpsTerminalReason = {
@@ -94,6 +101,8 @@ export type OpsQueueRunRow = {
   lastHeartbeatAt?: number | null;
   waitingLocalEnteredAt?: number | null;
   nextAttemptAt?: number | null;
+  cwdMode?: string | null;
+  cwdPath?: string | null;
 };
 
 export type OpsQueueMetrics = {
@@ -107,10 +116,65 @@ export type OpsQueueMetrics = {
   queueSamples: OpsQueueSample[];
 };
 
+function projectLocalCwd(row: OpsQueueRunRow): string | null {
+  if ((row.cwdMode as string | null) !== 'project_local') return null;
+  const p = row.cwdPath?.trim();
+  return p ? p : null;
+}
+
+/** Collect running project_local holders from the same active-row batch (pure). */
+export function collectRunningPathHolders(rows: OpsQueueRunRow[]): PathHolder[] {
+  const holders: PathHolder[] = [];
+  for (const row of rows) {
+    if (row.status !== 'running') continue;
+    const p = projectLocalCwd(row);
+    if (!p) continue;
+    holders.push({
+      id: row.id,
+      issueId: row.issueId,
+      agentId: row.agentId,
+      cwdPath: p,
+    });
+  }
+  return holders;
+}
+
+/**
+ * Attach Multica-style path mutex fields onto queue samples using pure matching.
+ * Waiting/queued project_local runs show who holds the directory.
+ */
+export function enrichOpsQueueSamplesWithPathLock(
+  samples: OpsQueueSample[],
+  rows: OpsQueueRunRow[],
+): OpsQueueSample[] {
+  const holders = collectRunningPathHolders(rows);
+  const rowById = new Map(rows.map((r) => [r.id, r]));
+  return samples.map((sample) => {
+    const row = rowById.get(sample.id);
+    const path = row ? projectLocalCwd(row) : null;
+    if (!path) {
+      return {
+        ...sample,
+        cwdPath: null,
+        pathWaitReason: null,
+        pathBlockedByRunId: null,
+      };
+    }
+    const holder = matchRunningProjectLocalHolder(path, holders, sample.id);
+    return {
+      ...sample,
+      cwdPath: path,
+      pathWaitReason: holder ? ('path_busy' as const) : null,
+      pathBlockedByRunId: holder?.id ?? null,
+    };
+  });
+}
+
 /**
  * Project active-run rows into queue/heartbeat metrics.
  * Pure helper: auto-retry backoff rows still count toward wall-clock queueAge,
  * but are excluded from eligibleQueueAge and counted in retryBackoff.
+ * Path-lock holders are resolved against running rows in the same batch.
  */
 export function accumulateOpsQueueMetrics(
   rows: OpsQueueRunRow[],
@@ -143,6 +207,9 @@ export function accumulateOpsQueueMetrics(
         waitingLocalEnteredAt: null,
         eligibleAt: observed.queueEligibleAt,
         blockedReason: observed.queueBlockedReason,
+        cwdPath: null,
+        pathWaitReason: null,
+        pathBlockedByRunId: null,
       });
     } else if (row.status === 'waiting_local_directory') {
       waitingLocalDirectory += 1;
@@ -162,6 +229,9 @@ export function accumulateOpsQueueMetrics(
         waitingLocalEnteredAt: row.waitingLocalEnteredAt ?? null,
         eligibleAt: observed.queueEligibleAt,
         blockedReason: observed.queueBlockedReason,
+        cwdPath: null,
+        pathWaitReason: null,
+        pathBlockedByRunId: null,
       });
     } else if (row.status === 'running') {
       running += 1;
@@ -178,7 +248,7 @@ export function accumulateOpsQueueMetrics(
     queueAges,
     eligibleQueueAges,
     hbAges,
-    queueSamples,
+    queueSamples: enrichOpsQueueSamplesWithPathLock(queueSamples, rows),
   };
 }
 
@@ -286,6 +356,8 @@ export function buildOpsRunsSnapshot(now = Date.now()): OpsRunsSnapshot {
       // Slice 66：waiting 龄用进入时刻，避免用 createdAt 瞎猜
       waitingLocalEnteredAt: agentRuns.waitingLocalEnteredAt,
       nextAttemptAt: agentRuns.nextAttemptAt,
+      cwdMode: agentRuns.cwdMode,
+      cwdPath: agentRuns.cwdPath,
       failureReason: agentRuns.failureReason,
       error: agentRuns.error,
       finishedAt: agentRuns.finishedAt,

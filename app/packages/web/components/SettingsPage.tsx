@@ -1491,6 +1491,17 @@ function OpsSnapshotCard() {
                         ? `retry backoff · ${sample.eligibleAt == null ? '待定' : new Date(sample.eligibleAt).toLocaleTimeString()}`
                         : formatAgeMs(sample.ageMs)}
                     </span>
+                    {sample.pathWaitReason === 'path_busy' && sample.pathBlockedByRunId ? (
+                      <>
+                        {' · '}
+                        <Link
+                          href={`/runs/${sample.pathBlockedByRunId}`}
+                          data-testid={`settings-ops-path-holder-${sample.id}`}
+                        >
+                          占用 {sample.pathBlockedByRunId.slice(0, 8)}
+                        </Link>
+                      </>
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -1895,6 +1895,11 @@ export const OpsQueueSample = z.object({
   eligibleAt: z.number().int().nonnegative().nullable().optional(),
   /** Why this sample is not yet work-eligible; null when free to claim. */
   blockedReason: z.literal('retry_backoff').nullable().optional(),
+  /** project_local path preview when stamped (waiting/queued path-lock). */
+  cwdPath: z.string().nullable().optional(),
+  /** Multica-style path mutex: who is holding the same project_local path. */
+  pathWaitReason: z.enum(['path_busy']).nullable().optional(),
+  pathBlockedByRunId: BusinessId.nullable().optional(),
 });
 export type OpsQueueSample = z.infer<typeof OpsQueueSample>;
 

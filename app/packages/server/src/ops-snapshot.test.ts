@@ -230,4 +230,57 @@ describe('ops snapshot', () => {
     expect(summarizeAgesMs(metrics.queueAges).maxMs).toBe(90_000);
     expect(summarizeAgesMs(metrics.eligibleQueueAges).maxMs).toBe(60_000);
   });
+
+  it('accumulateOpsQueueMetrics attaches path-lock holder on waiting samples', () => {
+    const now = 100_000;
+    const metrics = accumulateOpsQueueMetrics(
+      [
+        {
+          id: 'run-holder',
+          issueId: 'iss-h',
+          agentId: 'ag-1',
+          status: 'running',
+          createdAt: 90_000,
+          startedAt: 91_000,
+          lastHeartbeatAt: 99_000,
+          cwdMode: 'project_local',
+          cwdPath: 'D:\\repo\\app',
+        },
+        {
+          id: 'run-waiting',
+          issueId: 'iss-w',
+          agentId: 'ag-2',
+          status: 'waiting_local_directory',
+          createdAt: 50_000,
+          waitingLocalEnteredAt: 80_000,
+          cwdMode: 'project_local',
+          // same path key after normalize (slash + lower)
+          cwdPath: 'd:/repo/app',
+        },
+        {
+          id: 'run-other-path',
+          issueId: 'iss-o',
+          agentId: 'ag-3',
+          status: 'waiting_local_directory',
+          createdAt: 60_000,
+          waitingLocalEnteredAt: 85_000,
+          cwdMode: 'project_local',
+          cwdPath: 'D:\\other\\proj',
+        },
+      ],
+      now,
+    );
+
+    const waiting = metrics.queueSamples.find((s) => s.id === 'run-waiting');
+    expect(waiting).toMatchObject({
+      pathWaitReason: 'path_busy',
+      pathBlockedByRunId: 'run-holder',
+      cwdPath: 'd:/repo/app',
+    });
+    const free = metrics.queueSamples.find((s) => s.id === 'run-other-path');
+    expect(free).toMatchObject({
+      pathWaitReason: null,
+      pathBlockedByRunId: null,
+    });
+  });
 });

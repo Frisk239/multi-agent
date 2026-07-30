@@ -27,6 +27,12 @@ describe('resolveGChordRoute', () => {
     expect(resolveGChordRoute('s')).toBe('/settings');
   });
 
+  it('maps squads / memory / projects g-chords', () => {
+    expect(resolveGChordRoute('q')).toBe('/squads');
+    expect(resolveGChordRoute('m')).toBe('/memory');
+    expect(resolveGChordRoute('p')).toBe('/projects');
+  });
+
   it('is case-insensitive', () => {
     expect(resolveGChordRoute('C')).toBe('/chat');
     expect(resolveGChordRoute('A')).toBe('/agents');
@@ -54,7 +60,7 @@ describe('isGChordKey', () => {
 });
 
 describe('getShortcutHelpGroups', () => {
-  it('documents g c / g a / g w in Navigation', () => {
+  it('documents g c / g a / g w and squads/memory/projects in Navigation', () => {
     const groups = getShortcutHelpGroups();
     const nav = groups.find((g) => g.category.startsWith('导航'));
     expect(nav).toBeTruthy();
@@ -62,10 +68,16 @@ describe('getShortcutHelpGroups', () => {
     expect(labels).toMatch(/Chat/i);
     expect(labels).toMatch(/Agents/i);
     expect(labels).toMatch(/Wiki/i);
+    expect(labels).toMatch(/Squads/i);
+    expect(labels).toMatch(/Memory/i);
+    expect(labels).toMatch(/Projects/i);
 
     const chordKeys = (nav?.items ?? []).map((i) => i.keys.join(''));
     expect(chordKeys).toContain('gc');
     expect(chordKeys).toContain('ga');
     expect(chordKeys).toContain('gw');
+    expect(chordKeys).toContain('gq');
+    expect(chordKeys).toContain('gm');
+    expect(chordKeys).toContain('gp');
   });
 });

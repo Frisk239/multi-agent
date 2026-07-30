@@ -30,22 +30,19 @@ export function normalizePathLockKey(path: string): string {
   return n.replace(/\\/g, '/').toLowerCase();
 }
 
-export function findRunningProjectLocalHolder(
+/**
+ * Pure matcher: given already-known running project_local holders, find who
+ * occupies `path`. Unit-testable without DB (ops snapshot + claim gate share this).
+ */
+export function matchRunningProjectLocalHolder(
   path: string,
+  holders: ReadonlyArray<Pick<PathHolder, 'id' | 'issueId' | 'agentId' | 'cwdPath'>>,
   excludeRunId?: string | null,
 ): PathHolder | null {
   const key = normalizePathLockKey(path);
   if (!key) return null;
-
-  const rows = db
-    .select()
-    .from(agentRuns)
-    .where(eq(agentRuns.status, 'running'))
-    .all();
-
-  for (const row of rows) {
+  for (const row of holders) {
     if (excludeRunId && row.id === excludeRunId) continue;
-    if ((row.cwdMode as string | null) !== 'project_local') continue;
     const p = row.cwdPath?.trim();
     if (!p) continue;
     if (normalizePathLockKey(p) === key) {
@@ -58,6 +55,34 @@ export function findRunningProjectLocalHolder(
     }
   }
   return null;
+}
+
+export function findRunningProjectLocalHolder(
+  path: string,
+  excludeRunId?: string | null,
+): PathHolder | null {
+  // Avoid DB work when the path cannot produce a lock key.
+  if (!normalizePathLockKey(path)) return null;
+
+  const rows = db
+    .select()
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'running'))
+    .all();
+
+  const holders: PathHolder[] = [];
+  for (const row of rows) {
+    if ((row.cwdMode as string | null) !== 'project_local') continue;
+    const p = row.cwdPath?.trim();
+    if (!p) continue;
+    holders.push({
+      id: row.id,
+      issueId: row.issueId ?? null,
+      agentId: row.agentId,
+      cwdPath: p,
+    });
+  }
+  return matchRunningProjectLocalHolder(path, holders, excludeRunId);
 }
 
 /**
