@@ -453,6 +453,10 @@ export function toAutomationRule(
     assigneeId: row.assigneeId,
     titleTemplate: row.titleTemplate,
     bodyTemplate: row.bodyTemplate ?? '',
+    executionMode:
+      (row as { executionMode?: string }).executionMode === 'run_only'
+        ? 'run_only'
+        : 'create_issue',
     lastPlannedAt: row.lastPlannedAt == null ? null : new Date(row.lastPlannedAt).toISOString(),
     nextPlannedAt: nextMs == null ? null : new Date(nextMs).toISOString(),
     failCount: stats?.failCount ?? 0,

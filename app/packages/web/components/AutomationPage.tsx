@@ -64,7 +64,8 @@ function formatPlanned(iso: string | null | undefined): string {
 }
 
 const AUTOMATION_RUN_STATUS_LABEL: Record<string, string> = {
-  issue_created: '已建 Issue',
+  // create_issue 与 run_only 共用 open 状态桶（run_only 无 Issue）
+  issue_created: '已触发',
   pending_dispatch: '待派发',
   running: '执行中',
   retrying: '自动重试中',
@@ -203,6 +204,10 @@ function AutomationPageInner() {
   const [assigneeValue, setAssigneeValue] = useState('');
   const [titleTemplate, setTitleTemplate] = useState('巡检 {{date}} {{time}}');
   const [bodyTemplate, setBodyTemplate] = useState('自动创建');
+  /** Multica: create_issue | run_only */
+  const [executionMode, setExecutionMode] = useState<'create_issue' | 'run_only'>(
+    'create_issue',
+  );
 
   const qFromUrl = searchParams.get('q') ?? '';
   const enabledFromUrl = parseEnabled(searchParams.get('enabled'));
@@ -266,6 +271,7 @@ function AutomationPageInner() {
     setAssigneeValue('');
     setTitleTemplate('巡检 {{date}} {{time}}');
     setBodyTemplate('自动创建');
+    setExecutionMode('create_issue');
     setOpen(false);
   }
 
@@ -327,6 +333,7 @@ function AutomationPageInner() {
       assigneeId,
       titleTemplate: titleTemplate.trim(),
       bodyTemplate: bodyTemplate,
+      executionMode,
     };
 
     create.mutate(input, {
@@ -639,6 +646,23 @@ function AutomationPageInner() {
             </label>
           </div>
           <label className="ops-field">
+            <span>执行模式</span>
+            <Select
+              value={executionMode}
+              data-testid="automation-execution-mode"
+              onChange={(e) =>
+                setExecutionMode(e.target.value as 'create_issue' | 'run_only')
+              }
+              aria-label="自动化执行模式"
+            >
+              <option value="create_issue">建 Issue 并派活</option>
+              <option value="run_only">仅派活（不建 Issue）</option>
+            </Select>
+            <span className="text-dim text-sm">
+              对齐 Multica Autopilot：run_only 适合定时巡检，不产生看板卡片
+            </span>
+          </label>
+          <label className="ops-field">
             <span>标题模板</span>
             <input
               value={titleTemplate}
@@ -913,7 +937,16 @@ function AutomationPageInner() {
                       </label>
                     </td>
                     <td>
-                      <div className="automation-rule-name">{rule.name}</div>
+                      <div className="automation-rule-name">
+                        {rule.name}
+                        <span
+                          className="text-dim text-sm"
+                          data-testid={`automation-mode-${rule.id}`}
+                          style={{ marginLeft: 8, fontWeight: 400 }}
+                        >
+                          {rule.executionMode === 'run_only' ? '· 仅派活' : '· 建 Issue'}
+                        </span>
+                      </div>
                       <div className="text-dim text-sm automation-rule-tpl">
                         {rule.titleTemplate}
                       </div>

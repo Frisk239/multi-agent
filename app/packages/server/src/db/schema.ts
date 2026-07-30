@@ -495,6 +495,12 @@ export const automationRules = sqliteTable('automation_rule', {
   assigneeId: text('assignee_id').notNull(),
   titleTemplate: text('title_template').notNull(),
   bodyTemplate: text('body_template').notNull().default(''),
+  /** Multica autopilot execution_mode: create_issue | run_only */
+  executionMode: text('execution_mode', {
+    enum: ['create_issue', 'run_only'],
+  })
+    .notNull()
+    .default('create_issue'),
   lastPlannedAt: integer('last_planned_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),

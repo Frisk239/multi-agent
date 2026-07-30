@@ -123,6 +123,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
         assigneeId: input.assigneeId,
         titleTemplate: input.titleTemplate,
         bodyTemplate: input.bodyTemplate ?? '',
+        executionMode: input.executionMode === 'run_only' ? 'run_only' : 'create_issue',
         lastPlannedAt: null,
         createdAt: now,
         updatedAt: now,
@@ -190,6 +191,10 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     if (patch.assigneeId !== undefined) updates.assigneeId = patch.assigneeId;
     if (patch.titleTemplate !== undefined) updates.titleTemplate = patch.titleTemplate;
     if (patch.bodyTemplate !== undefined) updates.bodyTemplate = patch.bodyTemplate;
+    if (patch.executionMode !== undefined) {
+      updates.executionMode =
+        patch.executionMode === 'run_only' ? 'run_only' : 'create_issue';
+    }
 
     if (
       patch.scheduleKind !== undefined ||

@@ -2244,6 +2244,10 @@ export const AutomationRunStatus = z.enum([
 ]);
 export type AutomationRunStatus = z.infer<typeof AutomationRunStatus>;
 
+/** Multica autopilot: create_issue builds a card; run_only enqueues quick_create only. */
+export const AutomationExecutionMode = z.enum(['create_issue', 'run_only']);
+export type AutomationExecutionMode = z.infer<typeof AutomationExecutionMode>;
+
 export const AutomationRule = z.object({
   id: BusinessId,
   name: z.string(),
@@ -2256,6 +2260,7 @@ export const AutomationRule = z.object({
   assigneeId: BusinessId,
   titleTemplate: z.string(),
   bodyTemplate: z.string(),
+  executionMode: AutomationExecutionMode.default('create_issue'),
   lastPlannedAt: z.string().datetime().nullable(),
   // automation-next-run：下次计划时刻（只读计算字段；disabled → null）
   nextPlannedAt: z.string().datetime().nullable(),
@@ -2285,6 +2290,7 @@ const CreateAutomationRuleFields = z.object({
   assigneeId: BusinessId,
   titleTemplate: z.string().min(1).max(200),
   bodyTemplate: z.string().max(10000).optional().default(''),
+  executionMode: AutomationExecutionMode.optional().default('create_issue'),
 });
 
 export const CreateAutomationRuleInput = CreateAutomationRuleFields.superRefine((v, ctx) => {

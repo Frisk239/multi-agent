@@ -1,15 +1,19 @@
 import { and, eq } from 'drizzle-orm';
 import {
   renderAutomationTemplate,
+  type AutomationExecutionMode,
   type AutomationRun,
   type AutomationRunSource,
 } from '@ma/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
-import { agents, automationRules, automationRuns, squads } from '../db/schema.js';
-import { toAutomationRun } from '../db/reshape.js';
+import { agentRuns, agents, automationRules, automationRuns, squads } from '../db/schema.js';
+import { toAgentRun, toAutomationRun } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { createIssueCore } from './issue-create.js';
+import { eventBus } from './event-bus.js';
+import { computeAgentReadiness } from './readiness.js';
+import { wakeRunWorker } from './run-worker.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
@@ -17,6 +21,34 @@ export function automationStatusForEnqueue(
   status: 'queued' | 'skipped' | 'not_applicable' | undefined,
 ): 'issue_created' | 'pending_dispatch' {
   return status === 'skipped' ? 'pending_dispatch' : 'issue_created';
+}
+
+/** Multica autopilot execution_mode; unknown/null → create_issue. */
+export function resolveAutomationExecutionMode(
+  mode: string | null | undefined,
+): AutomationExecutionMode {
+  return mode === 'run_only' ? 'run_only' : 'create_issue';
+}
+
+/**
+ * Pure prompt for run_only (no Issue card). Title + body + automation footer.
+ */
+export function buildAutomationRunOnlyPrompt(opts: {
+  title: string;
+  body: string;
+  ruleName: string;
+  source: string;
+  plannedAt: number;
+}): string {
+  const body = opts.body.trim();
+  const head = body ? `${opts.title}\n\n${body}` : opts.title;
+  const footer = `\n\n---\n由自动化规则「${opts.ruleName}」run_only 派发（source=${opts.source}, planned_at=${new Date(opts.plannedAt).toISOString()}）`;
+  return `${head}${footer}`;
+}
+
+function allowNotReadyEnqueue(): boolean {
+  const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+  return v === '1' || v === 'true';
 }
 
 /** @deprecated 请用 @ma/shared renderAutomationTemplate；保留 re-export 兼容 */
@@ -185,10 +217,148 @@ function validateAssignee(rule: RuleRow): string | null {
   return `非法 assigneeType: ${rule.assigneeType}`;
 }
 
+async function resolveDispatchAgent(rule: RuleRow): Promise<
+  | { ok: true; agentId: string; isLeader: boolean; squadId: string | null }
+  | { ok: false; error: string }
+> {
+  if (rule.assigneeType === 'agent') {
+    const agent = db.select().from(agents).where(eq(agents.id, rule.assigneeId)).get();
+    if (!agent) return { ok: false, error: `agent 不存在: ${rule.assigneeId}` };
+    return { ok: true, agentId: agent.id, isLeader: false, squadId: null };
+  }
+  if (rule.assigneeType === 'squad') {
+    const detail = loadSquadDetail(rule.assigneeId);
+    if (!detail) return { ok: false, error: `squad 不存在: ${rule.assigneeId}` };
+    if (!detail.leaderId) return { ok: false, error: `squad 无 leader: ${rule.assigneeId}` };
+    return {
+      ok: true,
+      agentId: detail.leaderId,
+      isLeader: true,
+      squadId: detail.id,
+    };
+  }
+  return { ok: false, error: `非法 assigneeType: ${rule.assigneeType}` };
+}
+
+/**
+ * Multica run_only: enqueue quick_create agent run without Issue card.
+ * Readiness hard-gate aligns with quick-runs (unless MA_ENQUEUE_ALLOW_NOT_READY).
+ */
+async function dispatchRunOnly(
+  rule: RuleRow,
+  plannedAt: number,
+  source: AutomationRunSource,
+): Promise<AutomationRun> {
+  const resolved = await resolveDispatchAgent(rule);
+  if (!resolved.ok) {
+    return insertFailedRun(rule.id, plannedAt, source, resolved.error);
+  }
+
+  const title = renderAutomationTemplate(rule.titleTemplate, {
+    plannedAt,
+    ruleName: rule.name,
+  });
+  const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
+    plannedAt,
+    ruleName: rule.name,
+  });
+  const prompt = buildAutomationRunOnlyPrompt({
+    title,
+    body: bodyBase,
+    ruleName: rule.name,
+    source,
+    plannedAt,
+  });
+
+  if (!allowNotReadyEnqueue()) {
+    const rd = await computeAgentReadiness(resolved.agentId);
+    if (!rd) {
+      return insertFailedRun(rule.id, plannedAt, source, 'agent 不存在');
+    }
+    if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
+      return insertFailedRun(
+        rule.id,
+        plannedAt,
+        source,
+        `run_only 未开工：${rd.detail ?? rd.status}`,
+      );
+    }
+  }
+
+  const agent = db.select().from(agents).where(eq(agents.id, resolved.agentId)).get();
+  if (!agent) {
+    return insertFailedRun(rule.id, plannedAt, source, `agent 不存在: ${resolved.agentId}`);
+  }
+
+  const linkedRunId = crypto.randomUUID();
+  const createdAt = Date.now();
+  db.insert(agentRuns)
+    .values({
+      id: linkedRunId,
+      issueId: null,
+      agentId: agent.id,
+      runtime: agent.runtime,
+      status: 'queued',
+      kind: 'quick_create',
+      quickPrompt: prompt,
+      isLeader: resolved.isLeader ? 1 : 0,
+      squadId: resolved.squadId,
+      projectId: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      lastHeartbeatAt: null,
+      createdAt,
+    })
+    .run();
+
+  const agentRow = db.select().from(agentRuns).where(eq(agentRuns.id, linkedRunId)).get()!;
+  eventBus.publish({ type: 'run:queued', run: toAgentRun(agentRow) });
+  wakeRunWorker();
+
+  const automationRunId = crypto.randomUUID();
+  try {
+    db.insert(automationRuns)
+      .values({
+        id: automationRunId,
+        ruleId: rule.id,
+        plannedAt,
+        source,
+        // Reuse open status bucket (UI: 已触发); no issueId for run_only.
+        status: 'issue_created',
+        issueId: null,
+        linkedRunId,
+        error: null,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .run();
+  } catch (e) {
+    if (isUniqueConflict(e)) {
+      const again = loadExistingRun(rule.id, plannedAt);
+      if (again) return again;
+    }
+    throw e;
+  }
+
+  db.update(automationRules)
+    .set({ lastPlannedAt: plannedAt, updatedAt: Date.now() })
+    .where(eq(automationRules.id, rule.id))
+    .run();
+
+  const row = db
+    .select()
+    .from(automationRuns)
+    .where(eq(automationRuns.id, automationRunId))
+    .get()!;
+  return toAutomationRun(row);
+}
+
 /**
  * 幂等派发：UNIQUE(rule_id, planned_at)；冲突静默返回已有 run。
  * 非法 assignee → failed run，不建卡。
- * issue 建成功即 success；B3：enqueue 跳过时 error 字段写明原因（不装作已开工）。
+ * create_issue：建卡 + enqueue；run_only：无 Issue 直派 quick_create（学 Multica）。
+ * B3：enqueue 跳过时 error 字段写明原因（不装作已开工）。
  */
 export async function dispatchAutomationRule(
   ruleId: string,
@@ -211,6 +381,13 @@ export async function dispatchAutomationRule(
   const assigneeErr = validateAssignee(rule);
   if (assigneeErr) {
     return insertFailedRun(ruleId, plannedAt, source, assigneeErr);
+  }
+
+  const mode = resolveAutomationExecutionMode(
+    (rule as { executionMode?: string }).executionMode,
+  );
+  if (mode === 'run_only') {
+    return dispatchRunOnly(rule, plannedAt, source);
   }
 
   const title = renderAutomationTemplate(rule.titleTemplate, {

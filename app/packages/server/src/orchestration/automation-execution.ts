@@ -27,36 +27,75 @@ function publishAutomationRun(row: typeof automationRuns.$inferSelect): void {
 }
 
 /**
+ * Locate open automation run for an agent run.
+ * create_issue: match issueId; run_only: match linkedRunId (or auto-retry parent id).
+ */
+export function findOpenAutomationForAgentRun(run: AgentRun): typeof automationRuns.$inferSelect | null {
+  if (run.issueId) {
+    const byIssue = db
+      .select()
+      .from(automationRuns)
+      .where(
+        and(
+          eq(automationRuns.issueId, run.issueId),
+          inArray(automationRuns.status, [...OPEN_AUTOMATION_STATUSES]),
+        ),
+      )
+      .get();
+    if (byIssue) return byIssue;
+  }
+
+  const linkIds = [run.id];
+  if (run.autoRetryOfRunId) linkIds.push(run.autoRetryOfRunId);
+  for (const id of linkIds) {
+    const byLink = db
+      .select()
+      .from(automationRuns)
+      .where(
+        and(
+          eq(automationRuns.linkedRunId, id),
+          inArray(automationRuns.status, [...OPEN_AUTOMATION_STATUSES]),
+        ),
+      )
+      .get();
+    if (byLink) return byLink;
+  }
+  return null;
+}
+
+/**
  * 将 linked agent run 的真实状态同步到 automation run。
  * 条件 UPDATE 保证迟到/重复事件不能覆盖 terminal。
+ * Supports create_issue (issueId) and Multica-style run_only (linkedRunId only).
  */
 export function syncAutomationRunFromAgentRun(run: AgentRun): void {
-  if (!run.issueId) return;
-  const automation = db
-    .select()
-    .from(automationRuns)
-    .where(
-      and(
-        eq(automationRuns.issueId, run.issueId),
-        inArray(automationRuns.status, [...OPEN_AUTOMATION_STATUSES]),
-      ),
-    )
-    .get();
+  const automation = findOpenAutomationForAgentRun(run);
   if (!automation) return;
 
   const activeRetryChild =
     !run.autoRetryOfRunId
-      ? db
-          .select({ id: agentRuns.id })
-          .from(agentRuns)
-          .where(
-            and(
-              eq(agentRuns.issueId, run.issueId),
-              isNotNull(agentRuns.autoRetryOfRunId),
-              inArray(agentRuns.status, [...ACTIVE_RETRY_STATUSES]),
-            ),
-          )
-          .get()
+      ? run.issueId
+        ? db
+            .select({ id: agentRuns.id })
+            .from(agentRuns)
+            .where(
+              and(
+                eq(agentRuns.issueId, run.issueId),
+                isNotNull(agentRuns.autoRetryOfRunId),
+                inArray(agentRuns.status, [...ACTIVE_RETRY_STATUSES]),
+              ),
+            )
+            .get()
+        : db
+            .select({ id: agentRuns.id })
+            .from(agentRuns)
+            .where(
+              and(
+                eq(agentRuns.autoRetryOfRunId, run.id),
+                inArray(agentRuns.status, [...ACTIVE_RETRY_STATUSES]),
+              ),
+            )
+            .get()
       : null;
   const retrying =
     run.autoRetryStatus === 'scheduled' ||
