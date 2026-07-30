@@ -29,30 +29,6 @@ export function CommentComposer({ issueId }: { issueId: string }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   // F1 · paste image → markdown data URL embed (local, no cloud)
-  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const items = e.clipboardData?.items;
-    if (!items) return;
-    for (const item of Array.from(items)) {
-      if (!item.type.startsWith('image/')) continue;
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (!file) continue;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        const v = validateImageDataUrl(dataUrl, { fileName: file.name || 'paste.png' });
-        if (!v.ok) {
-          setAttachError(v.error);
-          return;
-        }
-        setAttachError(null);
-        setBody((prev) => appendAttachmentMarkdown(prev, v.markdown));
-      };
-      reader.readAsDataURL(file);
-      return;
-    }
-  }
-  
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const create = useCreateComment(issueId);
