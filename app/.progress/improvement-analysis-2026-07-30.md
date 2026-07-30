@@ -52,7 +52,7 @@ Multica daemon / Redis / 云 webhook / 密钥入库 / TipTap 全量 / Wiki 图�
 | **A6** | Pi 真执行或产品隐藏 | **本相关** hard-block + UI disabled（不做真执行） | Multica | — | — |
 | **A7** | inline transcript preview | 仅深链 | execution-log 残留 | 中 | 低–中 |
 | **A8** | 子代理树 terminalReason | **本相关**：`projectTreeNodeTerminalReason` + RunTreeNode | Multica 父子 task failure | — | — |
-| **A9** | Grok ACP / 能力诚实 | print 优先 | 本仓 runtime | 中 | 高 |
+| **A9** | Grok ACP / 能力诚实 | **本相关**：supportsSessionResume=true + `--resume` 注入；UI 隐藏未实现 runtime | 本仓 | — | — |
 
 ### 1.3 健壮性债（B）— 仍开放
 
