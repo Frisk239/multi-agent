@@ -50,6 +50,8 @@ import type {
   SnapshotCreateResponse,
   SnapshotValidation,
   SnapshotDryRunResponse,
+  SnapshotStageCreateResponse,
+  SnapshotStageDeleteResponse,
   AutomationRule,
   AutomationRun,
   CreateAutomationRuleInput,
@@ -2259,6 +2261,32 @@ export function useDryRunSnapshotRestore() {
       return res.json();
     },
     onError: (err) => toastError(errMessage(err, '生成恢复演练报告失败')),
+  });
+}
+
+export function useStageSnapshotRestore() {
+  return useMutation<SnapshotStageCreateResponse, Error, { name: string }>({
+    mutationFn: async ({ name }) => {
+      const res = await apiFetch(`${API}/ops/snapshots/stage-restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '准备隔离恢复包失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '准备隔离恢复包失败')),
+  });
+}
+
+export function useDeleteSnapshotStage() {
+  return useMutation<SnapshotStageDeleteResponse, Error, { stageId: string }>({
+    mutationFn: async ({ stageId }) => {
+      const res = await apiFetch(`${API}/ops/snapshot-stages/${encodeURIComponent(stageId)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiError(res, '清理隔离恢复包失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '清理隔离恢复包失败')),
   });
 }
 

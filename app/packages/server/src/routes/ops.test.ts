@@ -67,6 +67,9 @@ function makeApp() {
     post: (path: string, handler: Handler) => {
       routes[`POST ${path}`] = handler;
     },
+    delete: (path: string, handler: Handler) => {
+      routes[`DELETE ${path}`] = handler;
+    },
   };
   return { app: app as never, routes };
 }

@@ -9,6 +9,8 @@ import {
   createSnapshot,
   dryRunRestore,
   listSnapshots,
+  removeSnapshotStage,
+  stageSnapshotRestore,
   validateSnapshotByName,
 } from '../ops-recovery.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
@@ -106,6 +108,21 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const value = await snapshotInput(req);
     const result = dryRunRestore(value);
     if (!result.valid && result.errors.some((e) => /required|traversal/.test(e))) return reply.status(400).send(result);
+    return result;
+  });
+
+  // Stage extraction is isolated and read-only; it never swaps live DB/Wiki.
+  app.post('/api/ops/snapshots/stage-restore', async (req, reply) => {
+    const value = await snapshotInput(req);
+    const result = stageSnapshotRestore(value);
+    if ('success' in result && !result.success) return reply.status(result.status).send(result);
+    return { success: true, stage: result };
+  });
+
+  app.delete('/api/ops/snapshot-stages/:stageId', async (req, reply) => {
+    const params = req.params as { stageId: string };
+    const result = removeSnapshotStage(params.stageId);
+    if ('success' in result && !result.success) return reply.status(result.status).send(result);
     return result;
   });
 

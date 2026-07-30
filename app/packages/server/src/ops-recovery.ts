@@ -7,10 +7,11 @@
  * inspect.  SQLite is copied through better-sqlite3's backup API, so WAL state
  * is checkpointed by SQLite rather than copied as a sidecar file.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -18,8 +19,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type Database from 'better-sqlite3';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import Database from 'better-sqlite3';
 import { getSqliteHardeningInfo, sqlite } from './db/client.js';
 import { resolveWorkspaceCwd, type ResolvedWorkspaceCwd } from './workspace-cwd.js';
 import { getWikiDirSource } from './wiki/store.js';
@@ -82,6 +83,30 @@ export type SnapshotDryRun = SnapshotValidation & {
     actions: string[];
   };
 };
+
+export type SnapshotStage = {
+  stageId: string;
+  snapshotName: string;
+  stagePath: string;
+  createdAt: string;
+  expiresAt: string;
+  mutatesLiveState: false;
+  database: {
+    path: string;
+    bytes: number;
+    integrity: 'ok' | 'failed';
+    schema: string;
+  };
+  wiki: {
+    path: string;
+    includedFiles: number;
+    projectScopedExcluded: true;
+  };
+};
+
+const SNAPSHOT_STAGE_DIR = '.ma-restore-staging';
+const DEFAULT_STAGE_TTL_MS = 60 * 60 * 1000;
+const SNAPSHOT_STAGE_ID = /^[0-9a-f-]{36}$/i;
 
 type ZipEntry = { name: string; data: Buffer };
 
@@ -425,4 +450,154 @@ export function dryRunRestore(input: string | undefined, opts: { backupDir?: str
       actions: v.valid ? ['validate archive', 'stage database and Wiki entries (not executed)', 'await explicit restore implementation'] : [],
     },
   };
+}
+
+type SnapshotStageFailure = {
+  success: false;
+  code: 'SNAPSHOT_STAGE_DIR_NOT_WRITABLE' | 'SNAPSHOT_STAGE_INVALID' | 'SNAPSHOT_STAGE_FAILED' | 'SNAPSHOT_STAGE_NOT_FOUND';
+  error: string;
+  status: 400 | 404 | 500 | 503;
+  validation?: SnapshotValidation;
+};
+
+export type StageSnapshotRestoreOpts = {
+  backupDir?: string;
+  now?: Date;
+  stageTtlMs?: number;
+};
+
+function stageRoot(backupDir: string): string {
+  return join(resolve(backupDir), SNAPSHOT_STAGE_DIR);
+}
+
+function cleanupExpiredStages(root: string, now: Date): number {
+  if (!existsSync(root)) return 0;
+  let removed = 0;
+  for (const name of readdirSync(root)) {
+    if (!SNAPSHOT_STAGE_ID.test(name)) continue;
+    const stagePath = join(root, name);
+    const metadataPath = join(stagePath, 'stage.json');
+    try {
+      const metadata = JSON.parse(readFileSync(metadataPath, 'utf8')) as { expiresAt?: string };
+      if (typeof metadata.expiresAt === 'string' && Date.parse(metadata.expiresAt) <= now.getTime()) {
+        rmSync(stagePath, { recursive: true, force: true });
+        removed++;
+      }
+    } catch {
+      // Unknown/incomplete staging directories are left for an explicit
+      // operator cleanup; never delete a directory without an expiry marker.
+    }
+  }
+  return removed;
+}
+
+function stageFailure(
+  code: SnapshotStageFailure['code'],
+  error: string,
+  status: SnapshotStageFailure['status'],
+  validation?: SnapshotValidation,
+): SnapshotStageFailure {
+  return { success: false, code, error, status, ...(validation ? { validation } : {}) };
+}
+
+/**
+ * Extract a validated archive into an isolated, expiring staging directory.
+ * This is deliberately not a restore: live DB/Wiki paths are never opened for
+ * write and no worker state is changed. The staged SQLite is opened read-only
+ * and must pass integrity_check before the stage is exposed to the UI.
+ */
+export function stageSnapshotRestore(
+  input: string | undefined,
+  opts: StageSnapshotRestoreOpts = {},
+): SnapshotStage | SnapshotStageFailure {
+  const backupDir = resolve(opts.backupDir ?? resolveBackupDir());
+  const writable = ensureBackupDirWritable(backupDir);
+  if (!writable.ok) return stageFailure('SNAPSHOT_STAGE_DIR_NOT_WRITABLE', writable.error, 503);
+
+  const now = opts.now ?? new Date();
+  const validation = validateSnapshotByName(input, { backupDir });
+  if (!validation.valid) {
+    return stageFailure(
+      validation.errors.some((e) => /required|traversal/.test(e)) ? 'SNAPSHOT_STAGE_INVALID' : 'SNAPSHOT_STAGE_FAILED',
+      validation.errors.join('; ') || 'snapshot validation failed',
+      validation.errors.some((e) => /required|traversal/.test(e)) ? 400 : 500,
+      validation,
+    );
+  }
+
+  const sourcePath = validation.path;
+  const stageId = randomUUID();
+  const root = stageRoot(backupDir);
+  const temporaryPath = join(root, `.${stageId}.tmp`);
+  const finalPath = join(root, stageId);
+  const expiresAt = new Date(now.getTime() + Math.max(1, opts.stageTtlMs ?? DEFAULT_STAGE_TTL_MS));
+  let stagedDb: Database.Database | undefined;
+  try {
+    cleanupExpiredStages(root, now);
+    mkdirSync(temporaryPath, { recursive: true });
+    const entries = zipEntries(readFileSync(sourcePath));
+    for (const entry of entries) {
+      if (entry.name === 'manifest.json') continue;
+      if (!safeArchivePath(entry.name)) throw new Error(`path traversal rejected: ${entry.name}`);
+      const target = resolve(temporaryPath, entry.name);
+      const targetRelative = relative(temporaryPath, target);
+      if (targetRelative.startsWith('..' + sep) || targetRelative === '..' || isAbsolute(targetRelative)) {
+        throw new Error(`staging path traversal rejected: ${entry.name}`);
+      }
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, entry.data);
+    }
+
+    const dbPath = join(temporaryPath, 'db', 'backup.sqlite');
+    stagedDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    const integrityRow = stagedDb.prepare('PRAGMA integrity_check').get() as { integrity_check?: unknown } | undefined;
+    const integrity = integrityRow?.integrity_check === 'ok' ? 'ok' : 'failed';
+    const schema = String(stagedDb.pragma('user_version', { simple: true }) ?? '0');
+    if (integrity !== 'ok') throw new Error('staged database integrity_check failed');
+    if (validation.manifest?.dbSchema !== schema) {
+      throw new Error(`staged database schema mismatch: expected ${validation.manifest?.dbSchema ?? 'unknown'}, got ${schema}`);
+    }
+    stagedDb.close();
+    stagedDb = undefined;
+
+    const stage: SnapshotStage = {
+      stageId,
+      snapshotName: validation.name,
+      stagePath: finalPath,
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      mutatesLiveState: false,
+      database: {
+        path: join(finalPath, 'db', 'backup.sqlite'),
+        bytes: validation.dbBytes,
+        integrity: 'ok',
+        schema,
+      },
+      wiki: {
+        path: join(finalPath, 'wiki'),
+        includedFiles: validation.wikiFiles,
+        projectScopedExcluded: true,
+      },
+    };
+    writeFileSync(join(temporaryPath, 'stage.json'), `${JSON.stringify(stage, null, 2)}\n`, 'utf8');
+    renameSync(temporaryPath, finalPath);
+    return stage;
+  } catch (e) {
+    try { stagedDb?.close(); } catch { /* ignore */ }
+    try { rmSync(temporaryPath, { recursive: true, force: true }); } catch { /* ignore */ }
+    return stageFailure('SNAPSHOT_STAGE_FAILED', e instanceof Error ? e.message : String(e), 500);
+  }
+}
+
+export function removeSnapshotStage(stageId: string | undefined, opts: { backupDir?: string } = {}) {
+  const id = (stageId ?? '').trim();
+  if (!SNAPSHOT_STAGE_ID.test(id)) return stageFailure('SNAPSHOT_STAGE_INVALID', 'invalid staging id', 400);
+  const path = join(stageRoot(opts.backupDir ?? resolveBackupDir()), id);
+  if (!existsSync(path)) return stageFailure('SNAPSHOT_STAGE_NOT_FOUND', 'staging package does not exist', 404);
+  try {
+    rmSync(path, { recursive: true, force: true });
+    return { success: true as const, stageId: id };
+  } catch (e) {
+    return stageFailure('SNAPSHOT_STAGE_FAILED', e instanceof Error ? e.message : String(e), 500);
+  }
 }

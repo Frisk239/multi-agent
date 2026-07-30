@@ -7,6 +7,8 @@ import {
   createSnapshot,
   dryRunRestore,
   listSnapshots,
+  removeSnapshotStage,
+  stageSnapshotRestore,
   validateSnapshot,
   validateSnapshotByName,
 } from './ops-recovery.js';
@@ -57,5 +59,20 @@ describe('snapshot v1 disaster recovery', () => {
     const report = dryRunRestore(made.name, { backupDir });
     expect(report.dryRun).toBe(true); expect(report.mutatesLiveState).toBe(false); expect(report.valid).toBe(true); expect(report.report.wouldOverwrite).toEqual([]);
     expect(readFileSync(dbPath).equals(beforeDb)).toBe(true); expect(readFileSync(join(wikiDir, 'page.md')).equals(beforeWiki)).toBe(true); expect(existsSync(made.path)).toBe(true);
+  });
+
+  it('stages a verified isolated restore package and cleans it explicitly', async () => {
+    const r = root(); const dbPath = join(r, 'live.db'); const backupDir = join(r, 'backups'); const wikiDir = join(r, 'wiki');
+    mkdirSync(wikiDir); writeFileSync(join(wikiDir, 'page.md'), '# staged\n');
+    const db = new Database(dbPath); dbs.push(db); db.exec('PRAGMA user_version = 41; CREATE TABLE t (id INTEGER PRIMARY KEY); INSERT INTO t VALUES (1)');
+    const now = new Date('2026-07-30T00:00:00Z');
+    const made = await createSnapshot({ database: db, liveDbPath: dbPath, backupDir, wikiDir, now }); expect(made.success).toBe(true); if (!made.success) return;
+    const staged = stageSnapshotRestore(made.name, { backupDir, now, stageTtlMs: 60_000 });
+    expect('success' in staged).toBe(false); if ('success' in staged) return;
+    expect(staged.mutatesLiveState).toBe(false); expect(staged.database.integrity).toBe('ok'); expect(staged.database.schema).toBe('41');
+    expect(existsSync(staged.database.path)).toBe(true); expect(readFileSync(join(staged.wiki.path, 'page.md'), 'utf8')).toBe('# staged\n');
+    expect(existsSync(dbPath)).toBe(true); expect(readFileSync(join(wikiDir, 'page.md'), 'utf8')).toBe('# staged\n');
+    const removed = removeSnapshotStage(staged.stageId, { backupDir });
+    expect(removed).toEqual({ success: true, stageId: staged.stageId }); expect(existsSync(staged.stagePath)).toBe(false);
   });
 });

@@ -13,6 +13,8 @@ import {
   useCreateSnapshot,
   useValidateSnapshot,
   useDryRunSnapshotRestore,
+  useStageSnapshotRestore,
+  useDeleteSnapshotStage,
   useRecoverStuckRuns,
   useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
@@ -1525,6 +1527,8 @@ function SnapshotRecoverySection() {
   const create = useCreateSnapshot();
   const validate = useValidateSnapshot();
   const dryRun = useDryRunSnapshotRestore();
+  const stage = useStageSnapshotRestore();
+  const removeStage = useDeleteSnapshotStage();
   const selected = validate.data?.name ?? dryRun.data?.name ?? null;
   return (
     <section className="settings-section" data-testid="settings-snapshot-recovery">
@@ -1532,7 +1536,7 @@ function SnapshotRecoverySection() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div>
             <h2 className="settings-section-title">灾备快照</h2>
-            <p className="settings-section-desc">SQLite（WAL 安全）+ 全局 Wiki；恢复目前只提供无写入演练</p>
+            <p className="settings-section-desc">SQLite（WAL 安全）+ 全局 Wiki；恢复先进入隔离 staging，不写线上状态</p>
           </div>
           <div className="settings-cwd-recovery-links">
             <button type="button" className="btn-primary btn-sm" data-testid="settings-snapshot-create" disabled={create.isPending} onClick={() => create.mutate()}>
@@ -1555,6 +1559,7 @@ function SnapshotRecoverySection() {
               <span className="settings-cwd-recovery-links">
                 <button type="button" className="btn-ghost btn-sm" data-testid={`settings-snapshot-validate-${entry.name}`} disabled={validate.isPending} onClick={() => validate.mutate({ name: entry.name })}>校验</button>
                 <button type="button" className="btn-secondary btn-sm" data-testid={`settings-snapshot-dry-run-${entry.name}`} disabled={dryRun.isPending} onClick={() => dryRun.mutate({ name: entry.name })}>恢复演练</button>
+                <button type="button" className="btn-secondary btn-sm" data-testid={`settings-snapshot-stage-${entry.name}`} disabled={stage.isPending || !entry.valid} onClick={() => stage.mutate({ name: entry.name })}>准备隔离包</button>
               </span>
             </li>
           ))}
@@ -1568,6 +1573,25 @@ function SnapshotRecoverySection() {
       {dryRun.data ? (
         <div className="settings-check-detail" data-testid="settings-snapshot-dry-run-result">
           {dryRun.data.valid ? `演练报告：DB ${dryRun.data.report.database.bytes} bytes，Wiki ${dryRun.data.report.wiki.includedFiles} 个；未修改线上状态。` : `演练无法继续：${dryRun.data.errors.join('；')}`}
+        </div>
+      ) : null}
+      {stage.data?.stage ? (
+        <div className="settings-check-detail" data-testid="settings-snapshot-stage-result">
+          <div>
+            隔离恢复包已准备：DB integrity <strong>{stage.data.stage.database.integrity}</strong>，Wiki {stage.data.stage.wiki.includedFiles} 个；未写入线上状态。
+          </div>
+          <div className="text-dim text-sm" style={{ marginTop: 4 }}>
+            到期：{new Date(stage.data.stage.expiresAt).toLocaleString()} · stage <code>{stage.data.stage.stageId}</code>
+          </div>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="settings-snapshot-stage-remove"
+            disabled={removeStage.isPending}
+            onClick={() => removeStage.mutate({ stageId: stage.data!.stage.stageId }, { onSuccess: () => stage.reset() })}
+          >
+            {removeStage.isPending ? '清理中…' : '清理隔离包'}
+          </button>
         </div>
       ) : null}
     </section>

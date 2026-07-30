@@ -2039,6 +2039,39 @@ export const SnapshotDryRunResponse = SnapshotValidation.extend({
 });
 export type SnapshotDryRunResponse = z.infer<typeof SnapshotDryRunResponse>;
 
+export const SnapshotStage = z.object({
+  stageId: z.string().uuid(),
+  snapshotName: z.string(),
+  stagePath: z.string(),
+  createdAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  mutatesLiveState: z.literal(false),
+  database: z.object({
+    path: z.string(),
+    bytes: z.number().int().nonnegative(),
+    integrity: z.enum(['ok', 'failed']),
+    schema: z.string(),
+  }),
+  wiki: z.object({
+    path: z.string(),
+    includedFiles: z.number().int().nonnegative(),
+    projectScopedExcluded: z.literal(true),
+  }),
+});
+export type SnapshotStage = z.infer<typeof SnapshotStage>;
+
+export const SnapshotStageCreateResponse = z.object({
+  success: z.literal(true),
+  stage: SnapshotStage,
+});
+export type SnapshotStageCreateResponse = z.infer<typeof SnapshotStageCreateResponse>;
+
+export const SnapshotStageDeleteResponse = z.object({
+  success: z.literal(true),
+  stageId: z.string().uuid(),
+});
+export type SnapshotStageDeleteResponse = z.infer<typeof SnapshotStageDeleteResponse>;
+
 export const SnapshotNameInput = z.object({ name: z.string().min(1).optional(), path: z.string().min(1).optional() }).refine((v) => Boolean(v.name || v.path), 'name or path is required');
 export type SnapshotNameInput = z.infer<typeof SnapshotNameInput>;
 
