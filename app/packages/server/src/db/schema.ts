@@ -277,14 +277,21 @@ export const agentRuns = sqliteTable(
     thinkingLevel: text('thinking_level'),
     // S12: Subagent delegation
     parentRunId: text('parent_run_id'),
+    // Bounded infrastructure auto-retry lineage / budget. These columns are
+    // additive so legacy runs remain attempt 1 with the default budget.
+    attempt: integer('attempt').notNull().default(1),
+    maxAttempts: integer('max_attempts').notNull().default(2),
+    nextAttemptAt: integer('next_attempt_at'),
+    autoRetryOfRunId: text('auto_retry_of_run_id'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
     issueIdx: index('idx_agent_run_issue').on(t.issueId),
     statusIdx: index('idx_agent_run_status').on(t.status),
-    kindStatusIdx: index('idx_agent_run_kind_status').on(t.kind, t.status),
-    createdIdx: index('idx_agent_runs_created_at').on(t.createdAt),
-  }),
+      kindStatusIdx: index('idx_agent_run_kind_status').on(t.kind, t.status),
+      createdIdx: index('idx_agent_runs_created_at').on(t.createdAt),
+      autoRetryOfIdx: uniqueIndex('uq_agent_run_auto_retry_of').on(t.autoRetryOfRunId),
+    }),
 );
 
 // —— run_message（S03 执行轨迹回放，对齐 multica task_message）——

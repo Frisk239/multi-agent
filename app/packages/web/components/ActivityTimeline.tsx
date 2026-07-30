@@ -44,7 +44,14 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
   }
 
   const getEventBadge = (event: ActivityLog) => {
-    switch (event.eventType) {
+    const eventType = event.eventType as string;
+    if (eventType === 'run_deferred') {
+      return { icon: '⏱️', title: 'Deferred · 等待 claim', color: 'var(--color-orange)' };
+    }
+    if (eventType === 'run_auto_retry_scheduled') {
+      return { icon: '🔁', title: 'Run 自动重试入队', color: 'var(--color-blue)' };
+    }
+    switch (eventType) {
       case 'status_changed':
         return { icon: '🔄', title: '状态变更', color: 'var(--accent)' };
       case 'assignee_changed':
@@ -57,8 +64,10 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
         return { icon: '✅', title: 'Run 执行完成', color: 'var(--color-green)' };
       case 'run_failed':
         return { icon: '❌', title: 'Run 执行失败', color: 'var(--color-red)' };
+      case 'run_auto_retry_scheduled':
+        return { icon: '🔁', title: 'Run 自动重试入队', color: 'var(--color-blue)' };
       case 'run_deferred':
-        return { icon: '⏳', title: 'Deferred · 排队未 claim', color: 'var(--color-orange)' };
+        return { icon: '⏱️', title: 'Deferred · 等待 claim', color: 'var(--color-orange)' };
       case 'squad_escalated':
         return { icon: '🚨', title: '小队升级告警', color: 'var(--color-red)' };
       case 'mention_delegated':
@@ -109,12 +118,23 @@ export function ActivityTimeline({ issueId }: { issueId: string }) {
                       act.eventType === 'run_completed' ||
                       act.eventType === 'run_failed' ||
                       act.eventType === 'run_deferred' ||
+                      act.eventType === 'run_auto_retry_scheduled' ||
                       act.eventType === 'squad_escalated' ||
                       act.eventType === 'mention_delegated') && (
                       <div>
                         {act.payload?.runId ? (
                           <Link href={`/runs?run=${act.payload.runId}`} className="text-sm" style={{ textDecoration: 'underline' }}>
                             查看 Run {act.payload.runId.slice(0, 8)}
+                          </Link>
+                        ) : null}
+                        {act.eventType === 'run_auto_retry_scheduled' && act.payload?.childRunId ? (
+                          <Link
+                            href={`/runs/${act.payload.childRunId}`}
+                            className="text-sm"
+                            style={{ textDecoration: 'underline', marginLeft: 8 }}
+                            data-testid="activity-auto-retry-child"
+                          >
+                            查看自动重试子 Run {String(act.payload.childRunId).slice(0, 8)}
                           </Link>
                         ) : null}
                         {act.payload?.error ? <span className="text-red" style={{ marginLeft: 8 }}>({act.payload?.error})</span> : null}

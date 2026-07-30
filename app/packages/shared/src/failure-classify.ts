@@ -7,6 +7,54 @@
  */
 import type { AgentRunFailureReason } from './schema.js';
 
+/**
+ * Failure reasons that are safe to retry without operator intervention.
+ * Keep this deliberately narrow: auth, quota, cancellation, tool/idle
+ * watchdogs and unknown execution errors must remain human-actionable.
+ */
+export const AUTO_RETRY_FAILURE_REASONS = [
+  'timeout',
+  'stale_heartbeat',
+  'runtime_offline',
+  'provider_network',
+] as const satisfies readonly AgentRunFailureReason[];
+export type AutoRetryFailureReason = (typeof AUTO_RETRY_FAILURE_REASONS)[number];
+
+export function isAutoRetryableFailureReason(
+  reason: AgentRunFailureReason | string | null | undefined,
+): reason is AutoRetryFailureReason {
+  return reason != null && (AUTO_RETRY_FAILURE_REASONS as readonly string[]).includes(reason);
+}
+
+/** Generic runs get one retry by default; provider disconnects get one final
+ * attempt because a mid-stream network cut is especially transient. */
+export const DEFAULT_AUTO_RETRY_MAX_ATTEMPTS = 2;
+export const PROVIDER_NETWORK_AUTO_RETRY_MAX_ATTEMPTS = 3;
+export const AUTO_RETRY_BACKOFF_BASE_MS = 1_000;
+export const AUTO_RETRY_BACKOFF_MAX_MS = 30_000;
+
+export function autoRetryMaxAttempts(
+  reason: AutoRetryFailureReason,
+  configured = DEFAULT_AUTO_RETRY_MAX_ATTEMPTS,
+): number {
+  const budget = Math.max(1, Math.floor(configured));
+  if (budget <= 1) return budget;
+  return reason === 'provider_network'
+    ? Math.max(budget, PROVIDER_NETWORK_AUTO_RETRY_MAX_ATTEMPTS)
+    : budget;
+}
+
+/** Delay before the child after a failed attempt. Attempt 1 retries now;
+ * later attempts use bounded exponential backoff. */
+export function autoRetryBackoffMs(failedAttempt: number): number {
+  if (!Number.isFinite(failedAttempt) || failedAttempt <= 1) return 0;
+  const exponent = Math.max(0, Math.floor(failedAttempt) - 2);
+  return Math.min(
+    AUTO_RETRY_BACKOFF_MAX_MS,
+    AUTO_RETRY_BACKOFF_BASE_MS * 2 ** exponent,
+  );
+}
+
 export type ClassifyFailureHints = {
   status?: string;
   explicitReason?: AgentRunFailureReason | null;
@@ -54,6 +102,27 @@ export function classifyFailure(
     // 5. session_poisoned
     if (/session\s*poison|poison(?:ed)?\s*session|corrupt\s*session|resume.*poison|poison/i.test(e)) {
       return 'session_poisoned';
+    }
+    // A squad escalation is a durable routing outcome, not infrastructure;
+    // check the prefix before matching an original provider reason.
+    if (/squad\s*escalat/i.test(e)) {
+      return 'squad_member_escalated';
+    }
+    // Infrastructure provider disconnects are retry-safe; classify before
+    // generic timeout/exec_error so an ECONNRESET is not lost as unknown.
+    if (
+      /provider[_\s-]?network|network[_\s-]?error|fetch\s+failed|connection\s+(?:closed|reset|reset\s+by\s+peer)|network\s+(?:disconnect|unavailable|error)|econnreset|socket\s+hang\s*up|stream\s+(?:ended|closed)|\b(?:502|503|504)\b/i.test(
+        e,
+      )
+    ) {
+      return 'provider_network';
+    }
+    if (
+      /runtime[_\s-]?offline|runtime\s+(?:is\s+)?offline|daemon\s+offline|agent\s+offline/i.test(
+        e,
+      )
+    ) {
+      return 'runtime_offline';
     }
     // 6. squad_member_escalated（结构化前缀，须先于 idle/timeout 等嵌套 original_reason）
     if (/squad\s*escalat/i.test(e)) {

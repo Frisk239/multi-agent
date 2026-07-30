@@ -73,6 +73,7 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/api', () => ({
   useRunMessages: () => ({ data: messages, isLoading: false }),
   useChildRuns: () => ({ data: [] }),
+  useAutoRetryChild: () => ({ data: null }),
   useRetryRun: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 

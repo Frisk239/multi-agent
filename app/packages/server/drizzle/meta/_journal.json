@@ -288,6 +288,13 @@
       "when": 1787404800000,
       "tag": "0040_automation_execution_truth",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1787491200000,
+      "tag": "0041_bounded_auto_retry",
+      "breakpoints": true
     }
   ]
 }

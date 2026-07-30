@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { classifyRunFailure, type AgentRun } from '@ma/shared';
+import { classifyRunFailure, isAutoRetryableFailureReason, type AgentRun } from '@ma/shared';
 import {
   useAgents,
   useCancelRunsMany,
@@ -706,6 +706,32 @@ function RunsPageInner() {
                           )}
                           <span className="runs-task-meta">
                             {kindLabel(r.kind)}
+                            <span
+                              className="runs-retry-budget"
+                              data-testid="runs-row-retry-budget"
+                              title="自动基础设施重试预算"
+                            >
+                              {' · '}{
+                                r.autoRetryStatus === 'scheduled' ||
+                                r.autoRetryOfRunId ||
+                                isAutoRetryableFailureReason(r.failureReason)
+                                  ? '自动重试'
+                                  : '执行尝试'
+                              }{' '}{r.attempt ?? 1}/{r.maxAttempts ?? 2}
+                            </span>
+                            {r.autoRetryStatus === 'scheduled' && r.autoRetryChildId ? (
+                              <Link
+                                href={`/runs/${encodeURIComponent(r.autoRetryChildId)}`}
+                                className="runs-auto-retry"
+                                data-testid="runs-row-auto-retry"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {' · '}自动重试中 · {shortId(r.autoRetryChildId)}
+                                {r.autoRetryNextAttemptAt
+                                  ? ` · 下次 ${relativeTime(r.autoRetryNextAttemptAt)}`
+                                  : ''}
+                              </Link>
+                            ) : null}
                             {cwdModeShort(r.cwdMode) ? (
                               <>
                                 {' · '}

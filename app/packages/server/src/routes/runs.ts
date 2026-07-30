@@ -20,6 +20,29 @@ const ACTIVE_STATUSES = [
   'running',
 ] as const;
 
+function withAutoRetrySummary(row: typeof agentRuns.$inferSelect) {
+  const child = db
+    .select({ id: agentRuns.id, status: agentRuns.status, nextAttemptAt: agentRuns.nextAttemptAt })
+    .from(agentRuns)
+    .where(eq(agentRuns.autoRetryOfRunId, row.id))
+    .get();
+  const run = toAgentRun(row);
+  return {
+    ...run,
+    // Surface the child's durable backoff on the source row so list/detail
+    // consumers can render one retry status without a second request.
+    nextAttemptAt: run.nextAttemptAt ??
+      (child?.nextAttemptAt == null ? null : new Date(child.nextAttemptAt).toISOString()),
+    autoRetryStatus:
+      child && ACTIVE_STATUSES.includes(child.status as (typeof ACTIVE_STATUSES)[number])
+        ? ('scheduled' as const)
+        : ('none' as const),
+    autoRetryChildId: child?.id ?? null,
+    autoRetryNextAttemptAt:
+      child?.nextAttemptAt == null ? null : new Date(child.nextAttemptAt).toISOString(),
+  };
+}
+
 // runs list / detail / messages / cancel / retry（S03 + run-observability）
 // runs-active-nav：active 筛选 + active-count 角标
 export async function runRoutes(app: FastifyInstance) {
@@ -36,6 +59,7 @@ export async function runRoutes(app: FastifyInstance) {
     if (q.squadId) filters.push(eq(agentRuns.squadId, q.squadId));
     if (q.chatThreadId) filters.push(eq(agentRuns.chatThreadId, q.chatThreadId));
     if (q.parentRunId) filters.push(eq(agentRuns.parentRunId, q.parentRunId));
+    if (q.autoRetryOfRunId) filters.push(eq(agentRuns.autoRetryOfRunId, q.autoRetryOfRunId));
     if (q.status === 'active') {
       filters.push(inArray(agentRuns.status, [...ACTIVE_STATUSES]));
     } else if (q.status) {
@@ -59,7 +83,7 @@ export async function runRoutes(app: FastifyInstance) {
     const offset = q.offset;
 
     const rows = query.orderBy(desc(agentRuns.createdAt)).limit(limit).offset(offset).all();
-    const data = rows.map((row) => enrichRunRowWithPathLock(row, toAgentRun(row)));
+    const data = rows.map((row) => enrichRunRowWithPathLock(row, withAutoRetrySummary(row)));
     return { data, total, limit, offset };
   });
 
@@ -113,7 +137,7 @@ export async function runRoutes(app: FastifyInstance) {
     const { runId } = req.params as { runId: string };
     const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
     if (!row) return reply.status(404).send({ success: false, error: 'run 不存在'  });
-    return enrichRunRowWithPathLock(row, toAgentRun(row));
+    return enrichRunRowWithPathLock(row, withAutoRetrySummary(row));
   });
 
   // GET /api/runs/:runId/messages —— seq ASC 轨迹回放

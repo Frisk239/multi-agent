@@ -9,7 +9,28 @@ import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
-import { transitionRun } from './run-transitions.js';
+import {
+  hasActiveAutoRetryChild,
+  transitionAndScheduleAutoRetry,
+} from './auto-retry.js';
+
+function publishFailedRun(
+  row: typeof agentRuns.$inferSelect,
+  now: number,
+  scheduledChild?: ReturnType<typeof toAgentRun> | null,
+): void {
+  const baseRun = toAgentRun(row);
+  const run = scheduledChild
+    ? {
+        ...baseRun,
+        autoRetryStatus: 'scheduled' as const,
+        autoRetryChildId: scheduledChild.id,
+        autoRetryNextAttemptAt: scheduledChild.nextAttemptAt ?? null,
+      }
+    : baseRun;
+  eventBus.publish({ type: 'run:failed', run });
+  if (!scheduledChild && !hasActiveAutoRetryChild(row.id)) notifyRunTerminal(run);
+}
 
 /**
  * F3 + C2 超时分层（学 Multica config.go）：
@@ -198,7 +219,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
       failureReason === 'idle_timeout' || failureReason === 'tool_watchdog'
         ? 'timed_out'
         : 'failed';
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['running'],
       patch: {
@@ -212,9 +233,7 @@ export function failStaleRunningRuns(now = Date.now()): number {
     if (tr.applied && tr.row) {
       clearToolInflight(row.id);
       abortRun(row.id); // 尽量杀仍挂着的 CLI
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }
@@ -231,7 +250,7 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
   let n = 0;
   for (const row of rows) {
     if (hasRunAbort(row.id)) continue;
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['running'],
       patch: {
@@ -243,9 +262,7 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
       },
     });
     if (tr.applied && tr.row) {
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }
@@ -284,7 +301,7 @@ export function failStalePrepareLeaseRuns(now = Date.now()): number {
 
     const error =
       'stale: prepare_lease expired (claim never reached stable running)';
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['running'],
       patch: {
@@ -299,9 +316,7 @@ export function failStalePrepareLeaseRuns(now = Date.now()): number {
     if (tr.applied && tr.row) {
       clearToolInflight(row.id);
       abortRun(row.id);
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }
@@ -323,7 +338,7 @@ export function failStaleQueuedRuns(now = Date.now()): number {
   let n = 0;
   for (const row of candidates) {
     if (row.createdAt > cutoff) continue;
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['queued'],
       patch: {
@@ -335,9 +350,7 @@ export function failStaleQueuedRuns(now = Date.now()): number {
       },
     });
     if (tr.applied && tr.row) {
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }
@@ -355,7 +368,7 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
   for (const row of candidates) {
     const agent = db.select().from(agents).where(eq(agents.id, row.agentId)).get();
     if (agent) continue;
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['queued', 'waiting_local_directory'],
       patch: {
@@ -368,9 +381,7 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
       },
     });
     if (tr.applied && tr.row) {
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }
@@ -424,7 +435,7 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
       row.createdAt;
     if (enteredAt > cutoff) continue;
     const error = `stale: waiting_local_directory exceeded wall clock (${formatDurationMs(maxMs)})`;
-    const tr = transitionRun({
+    const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['waiting_local_directory'],
       patch: {
@@ -437,9 +448,7 @@ export function failStaleWaitingLocalDirectoryRuns(now = Date.now()): number {
       },
     });
     if (tr.applied && tr.row) {
-      const run = toAgentRun(tr.row);
-      eventBus.publish({ type: 'run:failed', run });
-      notifyRunTerminal(run);
+      publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
   }

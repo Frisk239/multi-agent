@@ -41,6 +41,12 @@ describe('schema migrator drift gate (Slice 41)', () => {
     // Slice 66 / 68
     expect(agentRun.has('waiting_local_entered_at')).toBe(true);
     expect(agentRun.has('prepare_lease_expires_at')).toBe(true);
+    expect(agentRun.has('attempt')).toBe(true);
+    expect(agentRun.has('max_attempts')).toBe(true);
+    expect(agentRun.has('next_attempt_at')).toBe(true);
+    expect(agentRun.has('auto_retry_of_run_id')).toBe(true);
+    const retryIndexes = sqlite.pragma('index_list(agent_run)') as Array<{ name: string }>;
+    expect(retryIndexes.some((index) => index.name === 'uq_agent_run_auto_retry_of')).toBe(true);
 
     const issue = colNames(sqlite, 'issue');
     expect(issue.has('custom_fields')).toBe(true);

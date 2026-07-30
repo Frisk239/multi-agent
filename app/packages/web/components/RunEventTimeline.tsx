@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { classifyRunFailure, type AgentRun, type RunMessage } from '@ma/shared';
-import { useRetryRun, useRunMessages, useChildRuns } from '@/lib/api';
+import { useRetryRun, useRunMessages, useChildRuns, useAutoRetryChild } from '@/lib/api';
 import {
   filterRunEventView,
   kindToneOf,
@@ -399,6 +399,9 @@ export function RunEventTimelineDrawer({
 }) {
   const runId = run?.id;
   const { data: messages = [] } = useRunMessages(open ? runId : undefined);
+  const { data: autoRetryChild } = useAutoRetryChild(open ? runId : undefined, {
+    refetchIntervalMs: run?.autoRetryStatus === 'scheduled' ? 2000 : false,
+  });
   const retry = useRetryRun();
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
@@ -430,7 +433,17 @@ export function RunEventTimelineDrawer({
     run && (run.status === 'failed' || run.status === 'timed_out' || run.error)
       ? classifyRunFailure(run.error)
       : null;
-  const recovery = run ? runRecoveryKind(run) : 'none';
+  const autoRetrying =
+    run?.autoRetryStatus === 'scheduled' ||
+    autoRetryChild?.status === 'queued' ||
+    autoRetryChild?.status === 'waiting_local_directory' ||
+    autoRetryChild?.status === 'running';
+  const recovery = run
+    ? runRecoveryKind({
+        ...run,
+        autoRetryStatus: autoRetrying ? 'scheduled' : run.autoRetryStatus,
+      })
+    : 'none';
   const chatHref = run ? chatThreadHref(run) : null;
 
   useFocusTrap(open && Boolean(run), panelRef, {
@@ -556,6 +569,25 @@ export function RunEventTimelineDrawer({
             </button>
           </div>
         </header>
+
+        <div className="run-event-drawer-retry-summary" data-testid="run-event-drawer-retry-summary">
+          {run.autoRetryStatus === 'scheduled' && autoRetryChild ? (
+            <Link
+              href={`/runs/${encodeURIComponent(autoRetryChild.id)}`}
+              data-testid="run-event-drawer-auto-retry"
+              onClick={onClose}
+            >
+              自动重试中 · {autoRetryChild.attempt}/{autoRetryChild.maxAttempts}
+              {autoRetryChild.nextAttemptAt
+                ? ` · 下次 ${new Date(autoRetryChild.nextAttemptAt).toLocaleString()}`
+                : ' · 即将排队'}
+            </Link>
+          ) : (
+            <span data-testid="run-event-drawer-retry-budget">
+              重试预算 {run.attempt ?? 1}/{run.maxAttempts ?? 2}
+            </span>
+          )}
+        </div>
 
         {showFailure ? (
           <div

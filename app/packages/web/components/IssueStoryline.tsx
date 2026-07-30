@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo } from 'react';
 import type { ActivityLog, AgentRun, Comment } from '@ma/shared';
 import { useActivities, useComments, useRuns } from '@/lib/api';
@@ -40,6 +41,9 @@ function formatTime(iso: string) {
 }
 
 function activityTitle(event: ActivityLog): { icon: string; title: string; color: string } {
+  if (event.eventType === 'run_auto_retry_scheduled') {
+    return { icon: '🔁', title: 'Run 自动重试入队', color: 'var(--color-blue, #60a5fa)' };
+  }
   switch (event.eventType) {
     case 'status_changed':
       return { icon: '🔄', title: '状态变更', color: 'var(--accent)' };
@@ -108,6 +112,15 @@ function ActivityStoryRow({ act }: { act: ActivityLog }) {
               <span>
                 指派调整为: <code>{String(p.to ?? '未指派')}</code>
               </span>
+            ) : null}
+            {act.eventType === 'run_auto_retry_scheduled' && p.childRunId ? (
+              <Link
+                href={`/runs/${encodeURIComponent(String(p.childRunId))}`}
+                data-testid="storyline-auto-retry-child"
+                style={{ textDecoration: 'underline' }}
+              >
+                查看自动重试子 Run {String(p.childRunId).slice(0, 8)}
+              </Link>
             ) : null}
             {p.error ? (
               <span className="text-red" style={{ marginLeft: 4 }}>

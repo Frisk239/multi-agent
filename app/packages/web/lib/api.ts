@@ -1082,6 +1082,27 @@ export function useChildRuns(parentRunId: string, opts?: { refetchIntervalMs?: n
   });
 }
 
+/** Bounded infrastructure auto-retry child for a failed source run. */
+export function useAutoRetryChild(
+  sourceRunId: string | undefined,
+  opts?: { refetchIntervalMs?: number | false },
+) {
+  return useQuery<AgentRun | null>({
+    queryKey: ['auto-retry-child', sourceRunId],
+    queryFn: async () => {
+      const res = await apiFetch(
+        `${API}/runs?autoRetryOfRunId=${encodeURIComponent(sourceRunId!)}`,
+      );
+      if (!res.ok) throw new Error('鍔犺浇鑷姩閲嶈瘯澶辫触');
+      const body = (await res.json()) as PaginatedResponse<AgentRun> | AgentRun[];
+      const rows = Array.isArray(body) ? body : body.data;
+      return rows[0] ?? null;
+    },
+    enabled: Boolean(sourceRunId),
+    refetchInterval: opts?.refetchIntervalMs ?? false,
+  });
+}
+
 /** GET /api/runs/:runId/tree —— S22 (S8): 获取 Run 的完整子代理层级树与摘要 */
 export function useRunTree(runId: string | undefined, opts?: { refetchIntervalMs?: number | false }) {
   return useQuery<RunTreeNode>({

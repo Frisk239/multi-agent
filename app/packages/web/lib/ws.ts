@@ -385,6 +385,21 @@ export function useWsEvents() {
         }
         // live-run-toast：终态轻提示 + 深链
         if (event.type === 'run:failed') {
+          if (run.autoRetryStatus === 'scheduled') {
+            toastSuccess(
+              `基础设施故障，已自动重试 ${run.attempt ?? 1}/${run.maxAttempts ?? 2}`,
+              {
+                action: run.autoRetryChildId
+                  ? {
+                      label: '查看自动重试',
+                      href: `/runs/${encodeURIComponent(run.autoRetryChildId)}`,
+                    }
+                  : undefined,
+                durationMs: 8000,
+              },
+            );
+            return;
+          }
           const cls = classifyRunFailure(run.error);
           toastError(
             cls.title + (run.error ? ` · ${run.error.slice(0, 80)}` : ''),

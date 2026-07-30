@@ -203,7 +203,16 @@ describe('critical-path integration (Slice 41)', () => {
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'run:failed' }),
     );
-    expect(mocks.notifyRunTerminal).toHaveBeenCalledTimes(1);
+    // stale_heartbeat is infrastructure-retryable: the failed source is
+    // visible in WS/activity while its bounded child owns recovery.
+    expect(mocks.notifyRunTerminal).not.toHaveBeenCalled();
+    const retryChild = testState.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.autoRetryOfRunId, id))
+      .get();
+    expect(retryChild?.status).toBe('queued');
+    expect(retryChild?.attempt).toBe(2);
 
     // 已是终态：再扫 0
     mocks.publish.mockClear();

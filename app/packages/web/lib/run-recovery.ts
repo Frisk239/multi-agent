@@ -18,11 +18,14 @@ export type RunRecoveryKind = 'issue_retry' | 'open_chat' | 'qc_redispatch' | 'n
 
 /** 失败/取消行主 CTA 类型（Mission Control 诚实分支） */
 export function runRecoveryKind(
-  run: Pick<AgentRun, 'kind' | 'status' | 'issueId' | 'chatThreadId'>,
+  run: Pick<AgentRun, 'kind' | 'status' | 'issueId' | 'chatThreadId' | 'autoRetryStatus'>,
 ): RunRecoveryKind {
   const terminal =
     run.status === 'failed' || run.status === 'cancelled' || run.status === 'timed_out';
   if (!terminal) return 'none';
+  // A queued/running auto-retry child owns recovery while the source row is
+  // terminal; showing a manual CTA here would dispatch a competing run.
+  if (run.autoRetryStatus === 'scheduled') return 'none';
   if (run.kind === 'chat') return run.chatThreadId ? 'open_chat' : 'none';
   if (run.issueId) return 'issue_retry';
   if (run.kind === 'quick_create' || !run.issueId) return 'qc_redispatch';

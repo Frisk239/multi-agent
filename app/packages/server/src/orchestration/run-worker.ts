@@ -1,4 +1,4 @@
-import { eq, and, asc, sql, inArray } from 'drizzle-orm';
+import { eq, and, asc, sql, inArray, isNull, lte, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import {
   agentRuns,
@@ -50,6 +50,7 @@ import {
   CLAIMABLE_RUN_STATUSES,
   transitionRun,
 } from './run-transitions.js';
+import { hasActiveAutoRetryChild, transitionAndScheduleAutoRetry } from './auto-retry.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -100,7 +101,14 @@ async function tick(): Promise<void> {
   const queuedRows = db
     .select()
     .from(agentRuns)
-    .where(inArray(agentRuns.status, ['queued', 'waiting_local_directory']))
+    .where(
+      and(
+        inArray(agentRuns.status, ['queued', 'waiting_local_directory']),
+        // Auto-retry children with a backoff remain queued but are not
+        // claimable until their durable next_attempt_at is due.
+        or(isNull(agentRuns.nextAttemptAt), lte(agentRuns.nextAttemptAt, Date.now())),
+      ),
+    )
     .orderBy(asc(agentRuns.createdAt))
     .all();
 
@@ -172,6 +180,7 @@ async function tick(): Promise<void> {
         lastHeartbeatAt: now,
         // Slice 66：离开 waiting 清进入时刻
         waitingLocalEnteredAt: null,
+        nextAttemptAt: null,
         // Slice 68：prepare 窗；0=关闭 lease（不写）
         prepareLeaseExpiresAt:
           prepareLeaseMs > 0 ? now + prepareLeaseMs : null,
@@ -790,7 +799,7 @@ export async function failRun(
   // 显式 failureReason 优先；否则走 Classify 规则表
   const reason = failureReason ?? inferFailureReason(error);
   // Slice 39：0-change 不发 run:failed / inbox
-  const tr = transitionRun({
+  const tr = transitionAndScheduleAutoRetry({
     id: runId,
     fromStatuses: ACTIVE_RUN_STATUSES,
     patch: {
@@ -804,7 +813,19 @@ export async function failRun(
   });
   if (!tr.applied || !tr.row) return;
 
-  const r = toAgentRun(tr.row);
+  // Infrastructure-only failures may schedule one bounded child. The helper
+  // uses a DB conditional INSERT + unique lineage guard, so duplicate fail
+  // calls remain harmless. Automation-linked issues are intentionally skipped.
+  const autoRetryChild = tr.autoRetryChild ?? null;
+  const baseRun = toAgentRun(tr.row);
+  const r = autoRetryChild
+    ? {
+        ...baseRun,
+        autoRetryStatus: 'scheduled' as const,
+        autoRetryChildId: autoRetryChild.id,
+        autoRetryNextAttemptAt: autoRetryChild.nextAttemptAt ?? null,
+      }
+    : baseRun;
   // chat：失败也写一条 assistant 消息，避免 UI 只剩用户气泡 + 外部 fail card
   const kind = (prev.kind as string) ?? 'issue';
   if (kind === 'chat' && prev.chatThreadId) {
@@ -827,6 +848,8 @@ export async function failRun(
   }
   eventBus.publish({ type: 'run:failed', run: r });
   // bu01：失败终态 → inbox
-  notifyRunTerminal(r);
+  // While a child is active, the child/Activity events are the actionable
+  // surface; suppress the parent's manual retry CTA to avoid double dispatch.
+  if (!autoRetryChild && !hasActiveAutoRetryChild(runId)) notifyRunTerminal(r);
   wakeRunWorker();
 }

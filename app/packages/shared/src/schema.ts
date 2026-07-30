@@ -56,6 +56,9 @@ export const AgentRunFailureReason = z.enum([
   'stale_heartbeat',
   'exec_error',
   'timeout',
+  // bounded infrastructure auto-retry taxonomy
+  'runtime_offline',
+  'provider_network',
   'squad_member_escalated',
   'waiting_local_directory_timeout',
   // Slice 63：日用可行动档
@@ -163,6 +166,15 @@ export const AgentRun = z.object({
   thinkingLevel: z.string().nullable().optional(),
   // S12: Subagent delegation
   parentRunId: BusinessId.nullable().optional(),
+  /** Bounded infrastructure auto-retry lineage / budget (legacy rows default to 1/2). */
+  attempt: z.number().int().positive().optional(),
+  maxAttempts: z.number().int().positive().optional(),
+  nextAttemptAt: z.string().datetime().nullable().optional(),
+  autoRetryOfRunId: BusinessId.nullable().optional(),
+  /** API-computed source summary; scheduled means an active queued child exists. */
+  autoRetryStatus: z.enum(['none', 'scheduled']).optional(),
+  autoRetryChildId: BusinessId.nullable().optional(),
+  autoRetryNextAttemptAt: z.string().datetime().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -228,6 +240,8 @@ export const ActivityEventType = z.enum([
   'squad_escalated',
   /** Slice 42：queued 过久未 claim 的 deferred 升级（非失败路径） */
   'run_deferred',
+  /** Bounded infrastructure auto-retry child was scheduled. */
+  'run_auto_retry_scheduled',
 ]);
 export type ActivityEventType = z.infer<typeof ActivityEventType>;
 
@@ -296,6 +310,8 @@ export const ListRunsQuery = z.object({
   chatThreadId: BusinessId.optional(),
   // S12: 按父运行过滤子运行
   parentRunId: BusinessId.optional(),
+  // bounded auto-retry lineage child lookup
+  autoRetryOfRunId: BusinessId.optional(),
   status: ListRunsStatus.optional(),
   kind: AgentRunKind.optional(),
   // isLeader=1|true：仅小队 leader run（对齐 Multica leader task 列表）

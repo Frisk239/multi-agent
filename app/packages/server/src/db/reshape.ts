@@ -295,6 +295,16 @@ export function toAgentRun(row: RunRow): AgentRun {
         .sessionResumeStatus as AgentRun['sessionResumeStatus']) ?? null,
     sessionPoisoned:
       (row as { sessionPoisoned?: number | null }).sessionPoisoned === 1,
+    // Bounded infrastructure auto-retry lineage / budget. Legacy rows are
+    // normalized defensively in case an API is read during migration rollout.
+    attempt: Math.max(1, Number((row as { attempt?: number | null }).attempt ?? 1)),
+    maxAttempts: Math.max(1, Number((row as { maxAttempts?: number | null }).maxAttempts ?? 2)),
+    nextAttemptAt: iso((row as { nextAttemptAt?: number | null }).nextAttemptAt ?? null),
+    autoRetryOfRunId:
+      (row as { autoRetryOfRunId?: string | null }).autoRetryOfRunId ?? null,
+    autoRetryStatus: 'none',
+    autoRetryChildId: null,
+    autoRetryNextAttemptAt: null,
     // G22 residual：run 快照（trim 空串 → null）
     model: (() => {
       const m = (row as { model?: string | null }).model?.trim();

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { classifyFailure } from './failure-classify';
+import {
+  autoRetryBackoffMs,
+  autoRetryMaxAttempts,
+  classifyFailure,
+  isAutoRetryableFailureReason,
+} from './failure-classify';
 import type { AgentRunFailureReason } from './schema';
 
 describe('classifyFailure', () => {
@@ -52,6 +57,10 @@ describe('classifyFailure', () => {
     ['CLI exceeded wall clock timeout', 'timeout'],
     ['process timed out after 600s', 'timeout'],
     ['[Squad Escalated] original_reason: idle_timeout', 'squad_member_escalated'],
+    ['runtime offline: daemon disconnected', 'runtime_offline'],
+    ['provider_network: connection closed mid-response', 'provider_network'],
+    ['ECONNRESET while reading provider stream', 'provider_network'],
+    ['[Squad Escalated] original_reason: provider_network', 'squad_member_escalated'],
   ];
 
   it.each(cases)('classifies %j → %s', (error, expected) => {
@@ -70,5 +79,17 @@ describe('classifyFailure', () => {
 
   it('orders idle_timeout before generic timeout', () => {
     expect(classifyFailure('idle timeout (no events)')).toBe('idle_timeout');
+  });
+
+  it('keeps auto-retry allowlist narrow and backoff bounded', () => {
+    expect(isAutoRetryableFailureReason('timeout')).toBe(true);
+    expect(isAutoRetryableFailureReason('exec_error')).toBe(false);
+    expect(isAutoRetryableFailureReason('idle_timeout')).toBe(false);
+    expect(autoRetryMaxAttempts('timeout')).toBe(2);
+    expect(autoRetryMaxAttempts('provider_network')).toBe(3);
+    expect(autoRetryMaxAttempts('timeout', 1)).toBe(1);
+    expect(autoRetryBackoffMs(1)).toBe(0);
+    expect(autoRetryBackoffMs(2)).toBe(1_000);
+    expect(autoRetryBackoffMs(20)).toBe(30_000);
   });
 });

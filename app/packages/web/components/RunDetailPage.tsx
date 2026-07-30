@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { classifyRunFailure, type RunMessage } from '@ma/shared';
+import { classifyRunFailure, isAutoRetryableFailureReason, type RunMessage } from '@ma/shared';
 import {
   useAgent,
   useCancelRun,
@@ -10,6 +10,7 @@ import {
   useRun,
   useRunMessages,
   useChildRuns,
+  useAutoRetryChild,
 } from '@/lib/api';
 import {
   pairCollapsedPreview,
@@ -209,6 +210,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const { data: childRuns = [] } = useChildRuns(runId, {
     refetchIntervalMs: run?.status === 'running' || run?.status === 'queued' ? 3000 : false,
   });
+  const { data: autoRetryChild } = useAutoRetryChild(run?.id, {
+    refetchIntervalMs: run?.autoRetryStatus === 'scheduled' ? 2000 : false,
+  });
   const { data: agent } = useAgent(run?.agentId ?? '');
   const cancel = useCancelRun();
   const retry = useRetryRun();
@@ -309,7 +313,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
     run.status === 'queued' ||
     run.status === 'waiting_local_directory' ||
     run.status === 'running';
-  const recovery = runRecoveryKind(run);
+  const autoRetrying =
+    run.autoRetryStatus === 'scheduled' ||
+    autoRetryChild?.status === 'queued' ||
+    autoRetryChild?.status === 'waiting_local_directory' ||
+    autoRetryChild?.status === 'running';
+  const autoRetryEligible =
+    autoRetrying ||
+    Boolean(run.autoRetryOfRunId) ||
+    isAutoRetryableFailureReason(run.failureReason);
+  const recovery = runRecoveryKind({
+    ...run,
+    autoRetryStatus: autoRetrying ? 'scheduled' : run.autoRetryStatus,
+  });
   const chatHref = chatThreadHref(run);
 
   return (
@@ -554,6 +570,30 @@ export function RunDetailPage({ runId }: { runId: string }) {
           <span className="run-detail-chip">工具 {toolCount}</span>
           <span className="run-detail-chip">事件 {messages.length}</span>
           <span className="run-detail-chip">助手 {assistantCount}</span>
+          <span className="run-detail-chip" data-testid="run-retry-budget">
+            {autoRetryEligible ? '自动重试' : '执行尝试'} {run.attempt ?? 1}/{run.maxAttempts ?? 2}
+          </span>
+          {run.autoRetryOfRunId ? (
+            <Link
+              href={`/runs/${encodeURIComponent(run.autoRetryOfRunId)}`}
+              className="run-detail-chip run-detail-chip--link"
+              data-testid="run-auto-retry-parent"
+            >
+              自动重试子 Run · 父 {shortId(run.autoRetryOfRunId)}
+            </Link>
+          ) : null}
+          {autoRetrying && autoRetryChild ? (
+            <Link
+              href={`/runs/${encodeURIComponent(autoRetryChild.id)}`}
+              className="run-detail-chip run-detail-chip--link"
+              data-testid="run-auto-retry-child"
+            >
+              自动重试中 {autoRetryChild.attempt}/{autoRetryChild.maxAttempts}
+              {autoRetryChild.nextAttemptAt
+                ? ` · 下次 ${relativeTime(autoRetryChild.nextAttemptAt)}`
+                : ' · 即将排队'}
+            </Link>
+          ) : null}
           {run.tokensInput != null || run.tokensOutput != null ? (
             <span
               className="run-detail-chip run-detail-chip--tokens"
