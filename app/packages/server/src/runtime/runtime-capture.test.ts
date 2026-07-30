@@ -18,7 +18,7 @@ function emptyCtx(): LineContext {
 }
 
 describe('Slice 60 runtime capture matrix', () => {
-  it('documents usage/tool/session capture without flipping resume', () => {
+  it('documents usage/tool/session capture and current resume matrix', () => {
     const capture = runtimeCaptureCapabilityMatrix();
     expect(capture.find((r) => r.runtime === 'opencode')).toMatchObject({
       usage: true,
@@ -36,9 +36,12 @@ describe('Slice 60 runtime capture matrix', () => {
       providerSessionId: false,
     });
 
+    // A1 2026-07-30: claude + opencode + cursor resume; grok/pi remain false
     const resume = sessionResumeCapabilityMatrix();
-    expect(resume.find((r) => r.runtime === 'claude-code')?.supportsSessionResume).toBe(true);
-    for (const id of ['opencode', 'cursor', 'grok', 'pi'] as const) {
+    for (const id of ['claude-code', 'opencode', 'cursor'] as const) {
+      expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(true);
+    }
+    for (const id of ['grok', 'pi'] as const) {
       expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(false);
     }
   });

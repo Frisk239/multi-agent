@@ -5,8 +5,8 @@
  * 无服 → live 段 SKIP（不粉饰为 PASS）；unit 段必须绿。
  *
  * 覆盖：
- * 1. sessionResumeCapabilityMatrix：仅 claude-code true
- * 2. 非支持 runtime resolvePriorSession → unsupported
+ * 1. sessionResumeCapabilityMatrix：claude/opencode/cursor true；grok/pi false
+ * 2. 非支持 runtime resolvePriorSession → unsupported；支持者无 prior → fresh
  * 3. finalize resume_miss / unsupported
  * 4. buildGrokAgentArgs 不传假 --resume
  * 5. 可选：GET /api/settings/diagnostics 能力文案与矩阵一致
@@ -99,17 +99,19 @@ function runUnitSmoke(): void {
   log('— unit path (no server) —');
   try {
     const matrix = sessionResumeCapabilityMatrix();
-    const onlyClaude =
+    const resumable = new Set(['claude-code', 'opencode', 'cursor']);
+    const matrixOk =
       matrix.length === 5 &&
-      matrix.find((m) => m.runtime === 'claude-code')?.supportsSessionResume === true &&
-      matrix
-        .filter((m) => m.runtime !== 'claude-code')
-        .every((m) => m.supportsSessionResume === false);
-    if (onlyClaude) {
+      matrix.every((m) =>
+        resumable.has(m.runtime)
+          ? m.supportsSessionResume === true
+          : m.supportsSessionResume === false,
+      );
+    if (matrixOk) {
       record({
         id: 'unit.matrix',
         status: 'PASS',
-        note: 'claude-code=true; opencode/cursor/grok/pi=false',
+        note: 'claude-code/opencode/cursor=true; grok/pi=false',
       });
     } else {
       record({
@@ -121,7 +123,7 @@ function runUnitSmoke(): void {
 
     let backendOk = true;
     for (const b of allBackends()) {
-      const expected = b.id === 'claude-code';
+      const expected = resumable.has(b.id);
       if ((b.supportsSessionResume === true) !== expected) {
         backendOk = false;
         record({
@@ -139,7 +141,7 @@ function runUnitSmoke(): void {
       });
     }
 
-    for (const runtime of ['opencode', 'cursor', 'grok', 'pi'] as const) {
+    for (const runtime of ['grok', 'pi'] as const) {
       const d = resolvePriorSession({
         id: `run-${runtime}`,
         runtime,
@@ -162,38 +164,65 @@ function runUnitSmoke(): void {
       }
     }
 
-    // claude 能力 true；无 prior 时 fresh（DB 可能空，不依赖 fixture）
+    // forceFresh avoids depending on local DB schema for prior-session lookup
+    for (const runtime of ['opencode', 'cursor'] as const) {
+      if (!runtimeSupportsSessionResume(runtime)) {
+        record({
+          id: `unit.resolve.${runtime}`,
+          status: 'FAIL',
+          note: 'expected supportsSessionResume=true',
+        });
+        continue;
+      }
+      const d = resolvePriorSession({
+        id: `run-${runtime}-ff`,
+        runtime,
+        agentId: `ag-${runtime}-slice50`,
+        issueId: `iss-none-${runtime}-slice50`,
+        kind: 'issue',
+        forceFresh: true,
+      });
+      if (d.status === 'force_fresh' && d.resumeSessionId == null) {
+        record({
+          id: `unit.resolve.${runtime}`,
+          status: 'PASS',
+          note: `${runtime} supported; forceFresh skips binding`,
+        });
+      } else {
+        record({
+          id: `unit.resolve.${runtime}`,
+          status: 'FAIL',
+          note: `status=${d.status} resume=${d.resumeSessionId}`,
+        });
+      }
+    }
+
+    // claude 能力 true；forceFresh 不依赖本地 DB schema / prior 行
     if (runtimeSupportsSessionResume('claude-code')) {
       const dClaude = resolvePriorSession({
-        id: 'run-claude-fresh',
+        id: 'run-claude-ff',
         runtime: 'claude-code',
         agentId: 'ag-claude',
         issueId: 'iss-none-for-slice50',
         kind: 'issue',
+        forceFresh: true,
       });
-      if (dClaude.status === 'fresh' && dClaude.resumeSessionId == null) {
+      if (dClaude.status === 'force_fresh' && dClaude.resumeSessionId == null) {
         record({
-          id: 'unit.resolve.claude-fresh',
+          id: 'unit.resolve.claude-force-fresh',
           status: 'PASS',
-          note: 'claude supported; no prior → fresh',
-        });
-      } else if (dClaude.status === 'unsupported') {
-        record({
-          id: 'unit.resolve.claude-fresh',
-          status: 'FAIL',
-          note: 'claude must not be unsupported',
+          note: 'claude supported; forceFresh skips binding',
         });
       } else {
-        // 有残留 DB prior 时可能 resumed — 仍算能力路径通
         record({
-          id: 'unit.resolve.claude-fresh',
-          status: 'PASS',
-          note: `claude path open status=${dClaude.status}`,
+          id: 'unit.resolve.claude-force-fresh',
+          status: 'FAIL',
+          note: `status=${dClaude.status} resume=${dClaude.resumeSessionId}`,
         });
       }
     } else {
       record({
-        id: 'unit.resolve.claude-fresh',
+        id: 'unit.resolve.claude-force-fresh',
         status: 'FAIL',
         note: 'claude-code supportsSessionResume expected true',
       });
@@ -356,13 +385,26 @@ async function main(): Promise<void> {
       });
     }
 
-    let othersOk = true;
-    for (const id of ['opencode', 'cursor', 'grok', 'pi']) {
+    // A1: opencode/cursor claim Session Resume; grok/pi must not
+    for (const id of ['opencode', 'cursor'] as const) {
+      const b = byId.get(id);
+      if (!b) continue;
+      const has = b.capabilities?.some((c) => /session resume/i.test(c)) ?? false;
+      record({
+        id: `service.diag.${id}-resume`,
+        status: has ? 'PASS' : 'FAIL',
+        note: has
+          ? `${id} capabilities include Session Resume`
+          : `caps=${JSON.stringify(b.capabilities ?? null)}`,
+      });
+    }
+    let nonResumableOk = true;
+    for (const id of ['grok', 'pi'] as const) {
       const b = byId.get(id);
       if (!b) continue;
       const has = b.capabilities?.some((c) => /session resume/i.test(c)) ?? false;
       if (has) {
-        othersOk = false;
+        nonResumableOk = false;
         record({
           id: `service.diag.${id}-no-resume`,
           status: 'FAIL',
@@ -370,11 +412,11 @@ async function main(): Promise<void> {
         });
       }
     }
-    if (othersOk) {
+    if (nonResumableOk) {
       record({
-        id: 'service.diag.others-no-resume',
+        id: 'service.diag.grok-pi-no-resume',
         status: 'PASS',
-        note: 'non-claude backends do not claim Session Resume',
+        note: 'grok/pi do not claim Session Resume',
       });
     }
   } catch (e) {

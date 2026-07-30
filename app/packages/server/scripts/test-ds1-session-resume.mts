@@ -227,16 +227,18 @@ db.insert(agentRuns)
 }
 
 {
-  const dUn = resolvePriorSession({
+  // A1: cursor supports resume; no prior cursor session on this issue → fresh
+  const dCursor = resolvePriorSession({
     id: 'run-cursor',
     runtime: 'cursor',
     agentId,
     issueId,
     kind: 'issue',
   });
-  assert(dUn.status === 'unsupported', dUn.status);
-  assert(dUn.resumeSessionId == null, 'cursor no resume');
-  console.log('PASS unsupported cursor');
+  assert(dCursor.status !== 'unsupported', `cursor should be resumable: ${dCursor.status}`);
+  assert(dCursor.status === 'fresh', dCursor.status);
+  assert(dCursor.resumeSessionId == null, 'cursor fresh has no resume id without prior');
+  console.log('PASS cursor supported → fresh without prior');
 }
 
 {

@@ -107,30 +107,38 @@ function runFixtureSmoke(): void {
   log('— fixture / matrix (no CLI) —');
   try {
     const resume = sessionResumeCapabilityMatrix();
-    const onlyClaude =
-      resume.find((m) => m.runtime === 'claude-code')?.supportsSessionResume === true &&
-      resume
-        .filter((m) => m.runtime !== 'claude-code')
-        .every((m) => m.supportsSessionResume === false);
+    const resumable = new Set(['claude-code', 'opencode', 'cursor']);
+    const resumeMatrixOk =
+      resume.length === 5 &&
+      resume.every((m) =>
+        resumable.has(m.runtime)
+          ? m.supportsSessionResume === true
+          : m.supportsSessionResume === false,
+      );
     record({
       id: 'matrix.resume.honest',
-      status: onlyClaude ? 'PASS' : 'FAIL',
-      note: onlyClaude
-        ? 'claude-code=true; others false'
+      status: resumeMatrixOk ? 'PASS' : 'FAIL',
+      note: resumeMatrixOk
+        ? 'claude-code/opencode/cursor=true; grok/pi=false'
         : JSON.stringify(resume),
     });
 
-    if (runtimeSupportsSessionResume('opencode') || runtimeSupportsSessionResume('cursor')) {
+    if (
+      runtimeSupportsSessionResume('opencode') &&
+      runtimeSupportsSessionResume('cursor') &&
+      !runtimeSupportsSessionResume('grok') &&
+      !runtimeSupportsSessionResume('pi')
+    ) {
       record({
-        id: 'matrix.resume.no-flip',
-        status: 'FAIL',
-        note: 'opencode/cursor must remain supportsSessionResume=false',
+        id: 'matrix.resume.a1-opencode-cursor',
+        status: 'PASS',
+        note: 'opencode/cursor resume enabled; grok/pi still false',
       });
     } else {
       record({
-        id: 'matrix.resume.no-flip',
-        status: 'PASS',
-        note: 'opencode/cursor resume still false',
+        id: 'matrix.resume.a1-opencode-cursor',
+        status: 'FAIL',
+        note: 'expected opencode+cursor true, grok+pi false',
       });
     }
 
@@ -333,25 +341,38 @@ async function main(): Promise<void> {
       finish(false);
       return;
     }
-    let othersOk = true;
-    for (const id of ['opencode', 'cursor', 'grok', 'pi']) {
+    // A1: capture deepen + resume for opencode/cursor; grok/pi still no resume claim
+    for (const id of ['opencode', 'cursor'] as const) {
+      const b = backends.find((x) => x.id === id || x.id === `${id}-code`);
+      if (!b) continue;
+      const has = b.capabilities?.some((c) => /session resume/i.test(c)) ?? false;
+      record({
+        id: `service.diag.${id}-resume`,
+        status: has ? 'PASS' : 'FAIL',
+        note: has
+          ? `${id} claims Session Resume (A1)`
+          : `caps=${JSON.stringify(b.capabilities ?? null)}`,
+      });
+    }
+    let nonResumableOk = true;
+    for (const id of ['grok', 'pi'] as const) {
       const b = backends.find((x) => x.id === id || x.id === `${id}-code`);
       if (!b) continue;
       const has = b.capabilities?.some((c) => /session resume/i.test(c)) ?? false;
       if (has) {
-        othersOk = false;
+        nonResumableOk = false;
         record({
           id: `service.diag.${id}-no-resume`,
           status: 'FAIL',
-          note: 'must not claim Session Resume after Slice 60 capture deepen',
+          note: 'must not claim Session Resume',
         });
       }
     }
-    if (othersOk) {
+    if (nonResumableOk) {
       record({
-        id: 'service.diag.others-no-resume',
+        id: 'service.diag.grok-pi-no-resume',
         status: 'PASS',
-        note: 'non-claude backends still do not claim Session Resume',
+        note: 'grok/pi still do not claim Session Resume',
       });
     }
   } catch (e) {

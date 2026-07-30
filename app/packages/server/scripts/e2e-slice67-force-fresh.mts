@@ -99,18 +99,19 @@ function finish(): void {
 function runUnitPath(): void {
   log('— unit path —');
 
-  // 1. 能力矩阵诚实
+  // 1. 能力矩阵诚实（A1：claude + opencode + cursor）
   const matrix = sessionResumeCapabilityMatrix();
-  const onlyClaude = matrix.every((r) =>
-    r.runtime === 'claude-code'
+  const resumable = new Set(['claude-code', 'opencode', 'cursor']);
+  const matrixOk = matrix.every((r) =>
+    resumable.has(r.runtime)
       ? r.supportsSessionResume === true
       : r.supportsSessionResume === false,
   );
-  if (onlyClaude && runtimeSupportsSessionResume('claude-code')) {
+  if (matrixOk && runtimeSupportsSessionResume('claude-code')) {
     record({
       id: 'matrix.honest',
       status: 'PASS',
-      note: '仅 claude-code supportsSessionResume=true',
+      note: 'claude-code/opencode/cursor=true; grok/pi=false',
     });
   } else {
     record({
@@ -159,7 +160,7 @@ function runUnitPath(): void {
     record({ id: 'resolve.statusField', status: 'FAIL', note: JSON.stringify(d2) });
   }
 
-  // 4. 非 claude + forceFresh 仍 force_fresh，矩阵未翻
+  // 4. opencode + forceFresh 仍 force_fresh（能力 true，跳过绑定）
   const d3 = resolvePriorSession({
     id: 'e2e-ff-op',
     runtime: 'opencode',
@@ -171,15 +172,15 @@ function runUnitPath(): void {
   if (
     d3.status === 'force_fresh' &&
     d3.resumeSessionId === null &&
-    runtimeSupportsSessionResume('opencode') === false
+    runtimeSupportsSessionResume('opencode') === true
   ) {
     record({
-      id: 'resolve.nonClaude',
+      id: 'resolve.opencode-force-fresh',
       status: 'PASS',
-      note: 'opencode force_fresh 且矩阵仍 false',
+      note: 'opencode force_fresh with supportsSessionResume=true',
     });
   } else {
-    record({ id: 'resolve.nonClaude', status: 'FAIL', note: JSON.stringify(d3) });
+    record({ id: 'resolve.opencode-force-fresh', status: 'FAIL', note: JSON.stringify(d3) });
   }
 
   // 5. finalize 保留
