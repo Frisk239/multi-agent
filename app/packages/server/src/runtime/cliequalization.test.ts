@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { parseOpencodeLine } from './opencode';
-import { parseCursorLine } from './cursor';
+import { parseOpencodeLine, buildOpencodeArgs } from './opencode';
+import { parseCursorLine, buildCursorArgs } from './cursor';
 import { parseGrokLine, buildGrokAgentArgs } from './grok';
 import type { LineContext } from './spawn-line';
 import type { AgentEvent } from './types';
@@ -43,6 +43,33 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
 
       expect(ctx.providerSessionId).toBe('sess-text-99999');
     });
+
+    it('buildOpencodeArgs injects Multica --session for resume', () => {
+      const args = buildOpencodeArgs({
+        prompt: 'continue work',
+        model: 'claude-sonnet',
+        thinkingLevel: 'medium',
+        resumeSessionId: 'oc-sess-abc',
+      });
+      expect(args.slice(0, 2)).toEqual(['run', '--format']);
+      expect(args).toContain('--model');
+      expect(args).toContain('claude-sonnet');
+      expect(args).toContain('--variant');
+      expect(args).toContain('medium');
+      const sessionIdx = args.indexOf('--session');
+      expect(sessionIdx).toBeGreaterThanOrEqual(0);
+      expect(args[sessionIdx + 1]).toBe('oc-sess-abc');
+      expect(args[args.length - 1]).toBe('continue work');
+    });
+
+    it('buildOpencodeArgs omits --session when resume empty', () => {
+      const args = buildOpencodeArgs({
+        prompt: 'fresh',
+        resumeSessionId: '  ',
+      });
+      expect(args).not.toContain('--session');
+      expect(args).toContain('fresh');
+    });
   });
 
   describe('Cursor Line Parsing & Session Resume', () => {
@@ -81,6 +108,27 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
         cacheRead: 1,
         cacheWrite: 0,
       });
+    });
+
+    it('buildCursorArgs injects Multica --resume for resumeSessionId', () => {
+      const args = buildCursorArgs({
+        prompt: 'keep going',
+        model: 'gpt-5',
+        thinkingLevel: 'high',
+        resumeSessionId: 'cur-sess-xyz',
+      });
+      expect(args[0]).toBe('-p');
+      expect(args[1]).toBe('keep going');
+      expect(args).toContain('--model');
+      expect(args).toContain('gpt-5');
+      const resumeIdx = args.indexOf('--resume');
+      expect(resumeIdx).toBeGreaterThanOrEqual(0);
+      expect(args[resumeIdx + 1]).toBe('cur-sess-xyz');
+    });
+
+    it('buildCursorArgs omits --resume when no session', () => {
+      const args = buildCursorArgs({ prompt: 'start', resumeSessionId: null });
+      expect(args).not.toContain('--resume');
     });
   });
 

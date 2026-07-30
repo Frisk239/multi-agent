@@ -10,12 +10,12 @@ import { getBackend, allBackends } from './registry';
 import type { RuntimeId } from '@ma/shared';
 
 describe('Slice 50 session resume capability matrix', () => {
-  it('only claude-code declares supportsSessionResume=true', () => {
+  it('claude-code, opencode, and cursor declare supportsSessionResume=true', () => {
     const matrix = sessionResumeCapabilityMatrix();
     expect(matrix).toEqual([
       { runtime: 'claude-code', supportsSessionResume: true },
-      { runtime: 'opencode', supportsSessionResume: false },
-      { runtime: 'cursor', supportsSessionResume: false },
+      { runtime: 'opencode', supportsSessionResume: true },
+      { runtime: 'cursor', supportsSessionResume: true },
       { runtime: 'grok', supportsSessionResume: false },
       { runtime: 'pi', supportsSessionResume: false },
     ]);
@@ -38,8 +38,8 @@ describe('Slice 50 session resume capability matrix', () => {
     expect(runtimeSupportsSessionResume('unknown-runtime')).toBe(false);
   });
 
-  it('non-claude resolvePriorSession is unsupported without DB', () => {
-    for (const runtime of ['opencode', 'cursor', 'grok', 'pi'] as RuntimeId[]) {
+  it('unsupported runtimes resolvePriorSession without DB', () => {
+    for (const runtime of ['grok', 'pi'] as RuntimeId[]) {
       const d = resolvePriorSession({
         id: `run-${runtime}`,
         runtime,
@@ -50,6 +50,25 @@ describe('Slice 50 session resume capability matrix', () => {
       expect(d.status).toBe('unsupported');
       expect(d.resumeSessionId).toBeNull();
       expect(d.reason).toMatch(/不支持真 session resume/);
+    }
+  });
+
+  it('opencode/cursor are no longer blocked as unsupported by capability gate', () => {
+    expect(runtimeSupportsSessionResume('opencode')).toBe(true);
+    expect(runtimeSupportsSessionResume('cursor')).toBe(true);
+    // forceFresh path exercises resolvePriorSession without depending on prior rows.
+    for (const runtime of ['opencode', 'cursor'] as RuntimeId[]) {
+      const d = resolvePriorSession({
+        id: `run-ff-${runtime}`,
+        runtime,
+        agentId: 'ag-x',
+        issueId: 'iss-x',
+        kind: 'issue',
+        forceFresh: true,
+      });
+      expect(d.status).toBe('force_fresh');
+      expect(d.resumeSessionId).toBeNull();
+      expect(d.reason).toMatch(/force_fresh|强制/);
     }
   });
 
@@ -119,7 +138,7 @@ describe('Slice 50 session resume capability matrix', () => {
     expect(d.status).toBe('force_fresh');
   });
 
-  it('forceFresh on unsupported runtime still force_fresh (matrix unchanged)', () => {
+  it('forceFresh on opencode still force_fresh (capability true, skip binding)', () => {
     const d = resolvePriorSession({
       id: 'run-ff-op',
       runtime: 'opencode',
@@ -130,8 +149,7 @@ describe('Slice 50 session resume capability matrix', () => {
     });
     expect(d.resumeSessionId).toBeNull();
     expect(d.status).toBe('force_fresh');
-    // 能力矩阵仍 false
-    expect(runtimeSupportsSessionResume('opencode')).toBe(false);
+    expect(runtimeSupportsSessionResume('opencode')).toBe(true);
   });
 
   it('finalize keeps force_fresh status', () => {

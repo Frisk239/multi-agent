@@ -46,7 +46,7 @@ function pickOpencodeSessionId(j: Record<string, unknown>): string | null {
 /**
  * OpenCode `run --format json` 行解析（对齐 Multica opencode.go processEvents）。
  * 捕获：providerSessionId / tool 事件 / step_finish tokens 累加 / text。
- * Slice 50/60：supportsSessionResume 仍为 false — 本刀只加深捕获，不装会 resume。
+ * Slice 60 加深捕获；2026-07-30 开通 supportsSessionResume + --session 注入。
  */
 export function parseOpencodeLine(
   line: string,
@@ -201,15 +201,36 @@ export function parseOpencodeLine(
   }
 }
 
+/**
+ * Pure argv builder for opencode run.
+ * Multica `pkg/agent/opencode.go`: `--session <id>` when ResumeSessionID set.
+ */
+export function buildOpencodeArgs(
+  input: Pick<ExecutionInput, 'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId'>,
+): string[] {
+  // Multica：`opencode run --format json` —— 结构化捕获依赖 json 流
+  const args = ['run', '--format', 'json'];
+  const model = input.model?.trim();
+  if (model) args.push('--model', model);
+
+  const variant = input.thinkingLevel?.trim();
+  if (variant) args.push('--variant', variant);
+
+  const resume = input.resumeSessionId?.trim();
+  if (resume) args.push('--session', resume);
+
+  args.push(input.prompt);
+  return args;
+}
+
 export class OpencodeBackend implements RuntimeBackend {
   readonly id = 'opencode' as const;
   readonly label = 'Opencode';
   /**
-   * Slice 50：CLI 虽可能有 --session，策略层未验证可靠 resume/miss；
-   * 声明 false，execute 忽略 resumeSessionId，不装会。
-   * Slice 60：只加深 usage/tool/session **捕获**，不翻 true。
+   * Phase 2026-07-30：对齐 Multica opencode `--session` + session 捕获/poison/force_fresh 闭环。
+   * 策略层 resolvePriorSession 仅在 supportsSessionResume=true 时注入 resumeSessionId。
    */
-  readonly supportsSessionResume = false;
+  readonly supportsSessionResume = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('OPENCODE_PATH', ['opencode']);
@@ -225,17 +246,7 @@ export class OpencodeBackend implements RuntimeBackend {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'opencode CLI 未安装' };
 
-    // Multica：`opencode run --format json` —— 结构化捕获依赖 json 流
-    const args = ['run', '--format', 'json'];
-    const model = input.model?.trim();
-    if (model) args.push('--model', model);
-
-    const variant = input.thinkingLevel?.trim();
-    if (variant) args.push('--variant', variant);
-
-    // Slice 50/60：supportsSessionResume=false → 忽略 input.resumeSessionId
-
-    args.push(input.prompt);
+    const args = buildOpencodeArgs(input);
     return spawnLineProcess(
       det.path,
       args,

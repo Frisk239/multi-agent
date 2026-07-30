@@ -32,9 +32,11 @@ describe('runtime registry', () => {
     }
   });
 
-  it('Slice 50: only claude-code supportsSessionResume=true', () => {
+  it('claude-code, opencode, cursor support session resume; grok/pi do not', () => {
     expect(getBackend('claude-code').supportsSessionResume).toBe(true);
-    for (const id of ['opencode', 'cursor', 'grok', 'pi'] as RuntimeId[]) {
+    expect(getBackend('opencode').supportsSessionResume).toBe(true);
+    expect(getBackend('cursor').supportsSessionResume).toBe(true);
+    for (const id of ['grok', 'pi'] as RuntimeId[]) {
       expect(getBackend(id).supportsSessionResume).toBe(false);
     }
   });

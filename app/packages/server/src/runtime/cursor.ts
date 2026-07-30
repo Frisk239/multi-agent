@@ -185,15 +185,34 @@ export function parseCursorLine(
   }
 }
 
+/**
+ * Pure argv builder for cursor-agent.
+ * Multica `pkg/agent/cursor.go` buildCursorArgs: `--resume <id>` when set.
+ * Prompt stays on `-p` (existing local shape; Multica may use stdin — not required for resume).
+ */
+export function buildCursorArgs(
+  input: Pick<ExecutionInput, 'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId'>,
+): string[] {
+  const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
+  const model = input.model?.trim();
+  if (model) args.push('--model', model);
+
+  const variant = input.thinkingLevel?.trim();
+  if (variant) args.push('--variant', variant);
+
+  const resume = input.resumeSessionId?.trim();
+  if (resume) args.push('--resume', resume);
+
+  return args;
+}
+
 export class CursorBackend implements RuntimeBackend {
   readonly id = 'cursor' as const;
   readonly label = 'Cursor';
   /**
-   * Slice 50：未验证真 resume + resume_miss 可观测闭环；
-   * 声明 false，execute 忽略 resumeSessionId。
-   * Slice 60：只加深 usage/tool/session 捕获，不翻 true。
+   * Phase 2026-07-30：对齐 Multica cursor `--resume` + session 捕获/poison/force_fresh 闭环。
    */
-  readonly supportsSessionResume = false;
+  readonly supportsSessionResume = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CURSOR_PATH', ['cursor-agent', 'cursor']);
@@ -209,15 +228,7 @@ export class CursorBackend implements RuntimeBackend {
     const det = await this.detect();
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
 
-    const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
-    const model = input.model?.trim();
-    if (model) args.push('--model', model);
-
-    const variant = input.thinkingLevel?.trim();
-    if (variant) args.push('--variant', variant);
-
-    // Slice 50/60：supportsSessionResume=false → 忽略 input.resumeSessionId
-
+    const args = buildCursorArgs(input);
     return spawnLineProcess(
       det.path,
       args,

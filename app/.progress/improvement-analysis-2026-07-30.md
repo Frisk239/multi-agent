@@ -3,7 +3,8 @@
 > **方法:** 4 个探索子代理并行——后端 vs Multica · 前端 UX · 参考仓灵感 · 健壮性盘点  
 > **北星:** 本地 Multica 控制台体验；非 daemon/云/Redis 1:1  
 > **前置:** [multica-gap-2026-07-17.md](./multica-gap-2026-07-17.md) · [gap-analysis-full-2026-07-26.md](./gap-analysis-full-2026-07-26.md) · [phase-g-plan-2026-07-29.md](./phase-g-plan-2026-07-29.md)  
-> **注意:** 7/26 全量表中大量 F/B 项已在 7/27–7/30 关刀；本报告按 **当前代码树** 重判。
+> **注意:** 7/26 全量表中大量 F/B 项已在 7/27–7/30 关刀；本报告按 **当前代码树** 重判。  
+> **滚动更新:** 2026-07-30 已关刀：B1 retry_backoff · A3 path-lock ops samples · F3 故事线 run 去重 · g-chord q/m/p · **A1 opencode/cursor session resume**（本相）。
 
 ---
 
@@ -13,36 +14,50 @@
 剩余差距是 **深度、一致性、二阶手感、运维纵深**，不是缺骨架。  
 本仓已有多项 **相对 Multica 的超车**（编译式 Wiki、显式 Memory、Settings 健康卡、Runs 收尸/批量取消、CmdK 运维深链）。
 
+### 已关硬缺口（勿重开）
+
+| ID | 项 | 证据 |
+|---|---|---|
+| **B1** | auto-retry vs queue age | `a6d6f03` deriveRunObservability + eligibleQueueAge |
+| **F3** | 故事线 run_* 去重 | `a6d6f03` mergeIssueStoryline |
+| **A3** | ops path-lock holder | `349b948` OpsQueueSample.pathBlockedByRunId |
+| **F6 薄** | g-chord squads/memory/projects | `349b948` shortcuts |
+| **A1** | opencode/cursor session resume | 本相：`--session` / `--resume` + capability matrix |
+
+### 刻意不做（仍有效）
+
+Multica daemon / Redis / 云 webhook / 密钥入库 / TipTap 全量 / Wiki 图谱优先 / 后端 storyline merge API。
+
 ---
 
-## 1. 后端功能 · 可提升点
+## 1. 后端功能 · 仍开放硬缺口
 
 ### 1.1 短结论
 
-- 编排/执行/收尸/auto-retry/Automation/灾备 stage/可观测投影 **骨架齐全**（含 7/30 多刀）。
-- 差距在 **能力均衡与读模型统一**，不在「再造 daemon」。
-- 最高 ROI：读投影统一、非 Claude resume、ops path-lock 可见、项目 Wiki 入备份。
+- 编排/执行/收尸/auto-retry/Automation/灾备 stage/可观测投影 **骨架齐全**。
+- **A1 CLI resume 均衡已推进**（claude + opencode + cursor）；grok/pi 仍 false。
+- 下一波最高 ROI：项目 Wiki 入灾备、Automation run_only、读投影残留、Sheet/附件体验。
 
-### 1.2 产品债（A）
+### 1.2 产品债（A）— 仍开放
 
 | ID | 提升点 | 现状 | 参考 | 价值 | 难度 |
 |---|---|---|---|---|---|
-| **A1** | **Session resume 跨 CLI 均衡** | 仅 `claude-code` `supportsSessionResume=true`；opencode/cursor 可解析 session 但不注入 | Multica `opencode.go` `--session`、`cursor.go` `--resume` | 高 | 中 |
-| **A2** | **统一读投影 decorateRunForRead** | 部分 GET 用 `toObservedAgentRun`；chat/quick/WS 内部仍混 `toAgentRun` | Multica failure/elapsed 视图分离 | 高 | 低–中 |
-| **A3** | **Ops 队列 sample 暴露 path-lock holder** | path-lock enrich 有，ops DTO 可能缺 holder | Multica waiting/lease reason | 中–高 | 低 |
-| **A4** | **灾备含项目级 Wiki** | manifest 强制 `projectScopedExcluded` | 本仓产品缺口 | 高 | 中 |
-| **A5** | **Automation `run_only` 薄模式** | 仅 create_issue + enqueue | Multica autopilot `run_only` vs `create_issue` | 中 | 中 |
-| **A6** | **Pi 真执行或产品隐藏** | 诚实 `executionImplemented=false` | Multica `pi.go` | 中 | 高 / 低（隐藏） |
-| **A7** | **inline transcript preview API** | messages 已有；Issue/Squad 仅深链 | execution-log closeout 残留 | 中 | 低–中 |
-| **A8** | **子代理树 DTO 带 terminalReason** | tree API 有，字段不全 | Multica 父子 task 血缘 | 中 | 低 |
-| **A9** | **Grok 完整 ACP / 能力诚实** | print 优先，ACP 注释未完整 | 本仓 runtime | 中 | 高 |
+| **A1** | Session resume 跨 CLI | **已关**：claude/opencode/cursor true；grok/pi false | Multica opencode `--session`、cursor `--resume` | — | — |
+| **A2** | 统一读投影残留 | 多数 GET 已 `toObservedAgentRun`；WS 内部仍可裸 shape | Multica failure/elapsed 分离 | 中 | 低 |
+| **A3** | Ops path-lock holder | **已关** `349b948` | Multica waiting/lease | — | — |
+| **A4** | **灾备含项目级 Wiki** | manifest 仍可排除 project-scoped | 本仓产品缺口 | 高 | 中 |
+| **A5** | **Automation `run_only`** | 仅 create_issue + enqueue | Multica autopilot | 中 | 中 |
+| **A6** | Pi 真执行或产品隐藏 | 诚实 stub | Multica `pi.go` | 中 | 高/低 |
+| **A7** | inline transcript preview | 仅深链 | execution-log 残留 | 中 | 低–中 |
+| **A8** | 子代理树 terminalReason | 字段不全 | Multica 父子 task | 中 | 低 |
+| **A9** | Grok ACP / 能力诚实 | print 优先 | 本仓 runtime | 中 | 高 |
 
-### 1.3 健壮性债（B）
+### 1.3 健壮性债（B）— 仍开放
 
 | ID | 主题 | 说明 |
 |---|---|---|
-| **B1** | auto-retry 与 queue age 语义 | `retry_backoff` 期间勿误报 at-risk |
-| **B2** | live restore 闸门 | stage 已安全；live swap 需 quiesce + rollback journal + 人工确认 |
+| **B1** | auto-retry queue age | **已关** `a6d6f03` |
+| **B2** | live restore 闸门 | stage 已安全；live swap 需 quiesce + rollback journal |
 | **B3** | 路由层契约测试 | issues/runs/chat/automation/memory/wiki HTTP 层薄；orchestration 逻辑厚 |
 | **B4** | run-worker / run-service 直测 | 业务核心，故障注入不足 |
 | **B5** | 失败分类精度 | provider_network vs auth/quota 边界影响 auto-retry |
@@ -265,3 +280,24 @@ daemon+Redis 扩展、自造 agent loop、Neo4j 默认记忆、OpenDeepWiki 企�
 - `path-lock.ts` / `ops-snapshot.ts` / `schema.ts` OpsQueueSample
 - `SettingsPage.tsx` sample holder link
 - `shortcuts.ts` + tests
+
+---
+
+## 10. Phase land · 2026-07-30 #3（A1 session resume）
+
+### Must
+1. `OpencodeBackend.supportsSessionResume = true`；`buildOpencodeArgs` 注入 Multica `--session`
+2. `CursorBackend.supportsSessionResume = true`；`buildCursorArgs` 注入 Multica `--resume`
+3. 能力矩阵 / registry 单测与 arg 纯函数单测；force_fresh 仍跳过绑定
+4. grok/pi 保持 false（不装会）
+
+### Out
+- 真机 CLI e2e spawn；Grok ACP；Pi 真执行；灾备 Wiki
+
+### 参考
+- Multica `server/pkg/agent/opencode.go` `--session`
+- Multica `server/pkg/agent/cursor.go` `buildCursorArgs` `--resume`
+
+### 改动面
+- `runtime/opencode.ts` · `runtime/cursor.ts`
+- `session-resume.test.ts` · `registry.test.ts` · `cliequalization.test.ts`
