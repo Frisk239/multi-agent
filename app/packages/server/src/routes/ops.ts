@@ -14,6 +14,11 @@ import {
   validateSnapshotByName,
 } from '../ops-recovery.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
+import {
+  confirmSafeRestore,
+  previewSafeRestore,
+  readRestoreJournal,
+} from '../safe-live-restore.js';
 
 function pingSqlite(): DbPingResult {
   const t0 = Date.now();
@@ -124,6 +129,40 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const result = removeSnapshotStage(params.stageId);
     if ('success' in result && !result.success) return reply.status(result.status).send(result);
     return result;
+  });
+
+  app.post('/api/ops/snapshot-restores/preview', async (req, reply) => {
+    const stageId = String((req.body as { stageId?: unknown } | undefined)?.stageId ?? '');
+    try {
+      return { success: true, journal: previewSafeRestore(stageId) };
+    } catch (e) {
+      return reply.status(400).send({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.post('/api/ops/snapshot-restores/confirm', async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const journal = await confirmSafeRestore({
+        journalId: String(body.journalId ?? ''),
+        confirmationToken: String(body.confirmationToken ?? ''),
+        confirmationPhrase: String(body.confirmationPhrase ?? ''),
+      });
+      return reply.status(409).send({
+        success: false,
+        code: 'LIVE_RESTORE_DISABLED',
+        error: journal.error,
+        journal,
+      });
+    } catch (e) {
+      return reply.status(400).send({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  app.get('/api/ops/snapshot-restores/:journalId', async (req, reply) => {
+    const row = readRestoreJournal((req.params as { journalId: string }).journalId);
+    if (!row) return reply.status(404).send({ success: false, error: 'restore journal not found' });
+    return { success: true, journal: row };
   });
 
   // Friendly resource-shaped aliases for clients that prefer /:name routes.

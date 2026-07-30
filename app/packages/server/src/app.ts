@@ -29,6 +29,7 @@ import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
 import { resolveListenHost } from './bind.js';
 import { registerLocalTokenGuard } from './local-token.js';
 import { syncAutomationRunFromAgentRun } from './orchestration/automation-execution.js';
+import { isMaintenanceMode } from './safe-live-restore.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -42,6 +43,15 @@ export async function buildApp() {
 
   // Slice 49：非 loopback + MA_LOCAL_TOKEN 时保护 /api/* 与 /ws（/healthz 放行）
   registerLocalTokenGuard(app, { listenHost: resolveListenHost() });
+  app.addHook('onRequest', async (req, reply) => {
+    if (!isMaintenanceMode() || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return;
+    if (req.url.startsWith('/api/ops/snapshot-restores/')) return;
+    return reply.status(503).send({
+      success: false,
+      code: 'MAINTENANCE_MODE',
+      error: '系统正在执行恢复维护，已拒绝新的写入与派活',
+    });
+  });
 
   // 接线（spec §6.5）：eventBus → wsBroadcaster
   eventBus.on((e) => {

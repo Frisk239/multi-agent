@@ -2118,6 +2118,27 @@ export const SnapshotStageDeleteResponse = z.object({
 });
 export type SnapshotStageDeleteResponse = z.infer<typeof SnapshotStageDeleteResponse>;
 
+export const RestoreJournalStatus = z.enum([
+  'staged', 'confirmed', 'applying', 'applied', 'rolled_back', 'failed',
+]);
+export const RestoreJournal = z.object({
+  journalId: z.string().uuid(),
+  stageId: z.string().uuid(),
+  snapshotName: z.string(),
+  status: RestoreJournalStatus,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  confirmationToken: z.string().min(1),
+  confirmationPhrase: z.string().min(1),
+  activeRunIds: z.array(BusinessId),
+  rollbackSnapshotName: z.string().nullable(),
+  liveApplyEnabled: z.boolean(),
+  error: z.string().nullable(),
+});
+export type RestoreJournal = z.infer<typeof RestoreJournal>;
+export const RestorePreviewResponse = z.object({ success: z.literal(true), journal: RestoreJournal });
+export type RestorePreviewResponse = z.infer<typeof RestorePreviewResponse>;
+
 export const SnapshotNameInput = z.object({ name: z.string().min(1).optional(), path: z.string().min(1).optional() }).refine((v) => Boolean(v.name || v.path), 'name or path is required');
 export type SnapshotNameInput = z.infer<typeof SnapshotNameInput>;
 

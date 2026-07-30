@@ -15,6 +15,8 @@ import {
   useDryRunSnapshotRestore,
   useStageSnapshotRestore,
   useDeleteSnapshotStage,
+  usePreviewSnapshotRestore,
+  useConfirmSnapshotRestore,
   useRecoverStuckRuns,
   useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
@@ -1605,6 +1607,9 @@ function SnapshotRecoverySection() {
   const dryRun = useDryRunSnapshotRestore();
   const stage = useStageSnapshotRestore();
   const removeStage = useDeleteSnapshotStage();
+  const previewRestore = usePreviewSnapshotRestore();
+  const confirmRestore = useConfirmSnapshotRestore();
+  const [restorePhrase, setRestorePhrase] = useState('');
   const selected = validate.data?.name ?? dryRun.data?.name ?? null;
   return (
     <section className="settings-section" data-testid="settings-snapshot-recovery">
@@ -1668,6 +1673,66 @@ function SnapshotRecoverySection() {
           >
             {removeStage.isPending ? '清理中…' : '清理隔离包'}
           </button>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            data-testid="settings-snapshot-restore-preview"
+            disabled={previewRestore.isPending}
+            onClick={() => previewRestore.mutate({ stageId: stage.data!.stage.stageId })}
+          >
+            {previewRestore.isPending ? '预览中…' : '预览恢复影响'}
+          </button>
+        </div>
+      ) : null}
+      {previewRestore.data?.journal ? (
+        <div className="settings-check-detail" data-testid="settings-snapshot-restore-confirm">
+          <p>
+            将恢复 <code>{previewRestore.data.journal.snapshotName}</code>；当前有{' '}
+            <strong>{previewRestore.data.journal.activeRunIds.length}</strong> 个在途 Run。
+            未来应用时会先进入 maintenance 并终止旧 active run，不会原样复活。
+          </p>
+          {!previewRestore.data.journal.liveApplyEnabled ? (
+            <p className="text-dim text-sm">
+              当前版本已 fail-closed：SQLite 尚无可安全 reopen 的生命周期 seam；这里只生成 durable 影响预览，不会覆盖线上文件。
+            </p>
+          ) : null}
+          <label className="settings-field">
+            <span>输入“{previewRestore.data.journal.confirmationPhrase}”确认</span>
+            <input
+              value={restorePhrase}
+              data-testid="settings-snapshot-restore-phrase"
+              onChange={(event) => setRestorePhrase(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-danger btn-sm"
+            data-testid="settings-snapshot-restore-confirm-button"
+            disabled={
+              confirmRestore.isPending ||
+              !previewRestore.data.journal.liveApplyEnabled ||
+              restorePhrase !== previewRestore.data.journal.confirmationPhrase
+            }
+            onClick={() =>
+              confirmRestore.mutate({
+                journalId: previewRestore.data!.journal.journalId,
+                confirmationToken: previewRestore.data!.journal.confirmationToken,
+                confirmationPhrase: restorePhrase,
+              })
+            }
+          >
+            {confirmRestore.isPending
+              ? '确认中…'
+              : previewRestore.data.journal.liveApplyEnabled
+                ? '确认恢复'
+                : '当前版本不可应用'}
+          </button>
+          {confirmRestore.data?.journal ? (
+            <p data-testid="settings-snapshot-restore-result">
+              结果：{confirmRestore.data.journal.status} ·{' '}
+              {confirmRestore.data.journal.error ?? '完成'}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>

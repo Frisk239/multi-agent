@@ -52,6 +52,7 @@ import type {
   SnapshotDryRunResponse,
   SnapshotStageCreateResponse,
   SnapshotStageDeleteResponse,
+  RestorePreviewResponse,
   AutomationRule,
   AutomationRun,
   CreateAutomationRuleInput,
@@ -2324,6 +2325,45 @@ export function useDeleteSnapshotStage() {
       return res.json();
     },
     onError: (err) => toastError(errMessage(err, '清理隔离恢复包失败')),
+  });
+}
+
+export function usePreviewSnapshotRestore() {
+  return useMutation<RestorePreviewResponse, Error, { stageId: string }>({
+    mutationFn: async ({ stageId }) => {
+      const res = await apiFetch(`${API}/ops/snapshot-restores/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stageId }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '生成恢复影响预览失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '生成恢复影响预览失败')),
+  });
+}
+
+export function useConfirmSnapshotRestore() {
+  return useMutation<
+    { success: boolean; error?: string; journal: RestorePreviewResponse['journal'] },
+    Error,
+    { journalId: string; confirmationToken: string; confirmationPhrase: string }
+  >({
+    mutationFn: async (body) => {
+      const res = await apiFetch(`${API}/ops/snapshot-restores/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 409) throw new Error(data.error ?? '确认恢复失败');
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) toastSuccess('恢复已应用');
+      else toastError(data.error ?? '恢复未应用');
+    },
+    onError: (err) => toastError(errMessage(err, '确认恢复失败')),
   });
 }
 
