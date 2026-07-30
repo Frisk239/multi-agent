@@ -9,6 +9,10 @@ import {
   useInboxPrefs,
   useIsolatedWorkspaces,
   useOpsSnapshot,
+  useSnapshots,
+  useCreateSnapshot,
+  useValidateSnapshot,
+  useDryRunSnapshotRestore,
   useRecoverStuckRuns,
   useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
@@ -837,6 +841,7 @@ export function SettingsPage() {
       <>
       <CliHealthInspector />
       <LiveProbesSection />
+      <SnapshotRecoverySection />
       {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
         <section className="settings-section" data-testid="settings-guides-section">
           <div className="settings-section-head">
@@ -1511,6 +1516,60 @@ function OpsSnapshotCard() {
           Wiki dead
         </Link>
       </div>
+    </section>
+  );
+}
+
+function SnapshotRecoverySection() {
+  const { data, isLoading, isError, refetch, isFetching } = useSnapshots();
+  const create = useCreateSnapshot();
+  const validate = useValidateSnapshot();
+  const dryRun = useDryRunSnapshotRestore();
+  const selected = validate.data?.name ?? dryRun.data?.name ?? null;
+  return (
+    <section className="settings-section" data-testid="settings-snapshot-recovery">
+      <div className="settings-section-head">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <h2 className="settings-section-title">灾备快照</h2>
+            <p className="settings-section-desc">SQLite（WAL 安全）+ 全局 Wiki；恢复目前只提供无写入演练</p>
+          </div>
+          <div className="settings-cwd-recovery-links">
+            <button type="button" className="btn-primary btn-sm" data-testid="settings-snapshot-create" disabled={create.isPending} onClick={() => create.mutate()}>
+              {create.isPending ? '创建中…' : '创建快照'}
+            </button>
+            <button type="button" className="btn-ghost btn-sm" data-testid="settings-snapshot-refresh" disabled={isFetching} onClick={() => void refetch()}>刷新</button>
+          </div>
+        </div>
+      </div>
+      {isLoading ? <p className="text-dim text-sm">加载快照列表…</p> : isError ? <p className="text-dim text-sm">无法加载快照列表，请检查 server。</p> : null}
+      {data?.snapshots?.length ? (
+        <ul className="settings-cwd-steps" data-testid="settings-snapshot-list" style={{ listStyle: 'none', padding: 0 }}>
+          {data.snapshots.map((entry) => (
+            <li key={entry.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span>
+                <code>{entry.name}</code>{' '}
+                <span className={entry.valid ? 'text-dim' : 'settings-check-detail'}>{entry.valid ? '✓ hash valid' : `✕ ${entry.validationError ?? 'invalid'}`}</span>
+                <span className="text-dim text-sm"> · {(entry.sizeBytes / 1024).toFixed(1)} KiB · {new Date(entry.createdAt).toLocaleString()}</span>
+              </span>
+              <span className="settings-cwd-recovery-links">
+                <button type="button" className="btn-ghost btn-sm" data-testid={`settings-snapshot-validate-${entry.name}`} disabled={validate.isPending} onClick={() => validate.mutate({ name: entry.name })}>校验</button>
+                <button type="button" className="btn-secondary btn-sm" data-testid={`settings-snapshot-dry-run-${entry.name}`} disabled={dryRun.isPending} onClick={() => dryRun.mutate({ name: entry.name })}>恢复演练</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : data ? <p className="text-dim text-sm" data-testid="settings-snapshot-empty">尚无快照。创建后会显示 manifest、大小和 hash 状态。</p> : null}
+      {selected && validate.data ? (
+        <div className="settings-check-detail" data-testid="settings-snapshot-validation-result">
+          {validate.data.valid ? `校验通过：${validate.data.fileCount} 个文件，Wiki ${validate.data.wikiFiles} 个。` : `校验失败：${validate.data.errors.join('；')}`}
+        </div>
+      ) : null}
+      {dryRun.data ? (
+        <div className="settings-check-detail" data-testid="settings-snapshot-dry-run-result">
+          {dryRun.data.valid ? `演练报告：DB ${dryRun.data.report.database.bytes} bytes，Wiki ${dryRun.data.report.wiki.includedFiles} 个；未修改线上状态。` : `演练无法继续：${dryRun.data.errors.join('；')}`}
+        </div>
+      ) : null}
     </section>
   );
 }

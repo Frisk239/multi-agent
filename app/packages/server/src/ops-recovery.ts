@@ -1,0 +1,428 @@
+/**
+ * Snapshot v1 disaster recovery.
+ *
+ * The archive intentionally uses an uncompressed ZIP.  Keeping the tiny ZIP
+ * writer/reader here avoids adding a runtime dependency to the local server,
+ * while still producing a standard `.ma-backup.zip` that other tools can
+ * inspect.  SQLite is copied through better-sqlite3's backup API, so WAL state
+ * is checkpointed by SQLite rather than copied as a sidecar file.
+ */
+import { createHash } from 'node:crypto';
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import type Database from 'better-sqlite3';
+import { getSqliteHardeningInfo, sqlite } from './db/client.js';
+import { resolveWorkspaceCwd, type ResolvedWorkspaceCwd } from './workspace-cwd.js';
+import { getWikiDirSource } from './wiki/store.js';
+import { buildBackupFileName, ensureBackupDirWritable, resolveBackupDir } from './ops-backup.js';
+
+export const SNAPSHOT_ARCHIVE_VERSION = 1 as const;
+export const SNAPSHOT_EXTENSION = '.ma-backup.zip';
+
+export type SnapshotManifestFile = {
+  path: string;
+  kind: 'database' | 'wiki';
+  sizeBytes: number;
+  sha256: string;
+};
+
+export type SnapshotManifest = {
+  archiveVersion: 1;
+  createdAt: string;
+  dbSchema: string;
+  workspace: Pick<ResolvedWorkspaceCwd, 'path' | 'source' | 'configured' | 'exists'>;
+  wiki: {
+    root: string;
+    source: 'env' | 'workspace' | 'cwd';
+    projectScopedExcluded: true;
+    excludedProjectWikiRoots: string[];
+    exclusions: string[];
+  };
+  files: SnapshotManifestFile[];
+};
+
+export type SnapshotEntry = {
+  name: string;
+  path: string;
+  sizeBytes: number;
+  createdAt: string;
+  sha256: string;
+  valid: boolean;
+  validationError?: string;
+};
+
+export type SnapshotValidation = {
+  valid: boolean;
+  name: string;
+  path: string;
+  sha256: string | null;
+  errors: string[];
+  manifest?: SnapshotManifest;
+  fileCount: number;
+  dbBytes: number;
+  wikiFiles: number;
+};
+
+export type SnapshotDryRun = SnapshotValidation & {
+  dryRun: true;
+  mutatesLiveState: false;
+  report: {
+    database: { included: boolean; bytes: number; target: string };
+    wiki: { includedFiles: number; root: string; projectScopedExcluded: true };
+    wouldOverwrite: string[];
+    actions: string[];
+  };
+};
+
+type ZipEntry = { name: string; data: Buffer };
+
+function crc32(buf: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buf) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(d: Date): { date: number; time: number } {
+  const year = Math.max(1980, d.getUTCFullYear());
+  return {
+    date: ((year - 1980) << 9) | ((d.getUTCMonth() + 1) << 5) | d.getUTCDate(),
+    time: (d.getUTCHours() << 11) | (d.getUTCMinutes() << 5) | Math.floor(d.getUTCSeconds() / 2),
+  };
+}
+
+function makeZip(entries: ZipEntry[], now: Date): Buffer {
+  const local: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  const dt = dosDateTime(now);
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, 'utf8');
+    const crc = crc32(entry.data);
+    const h = Buffer.alloc(30 + name.length);
+    h.writeUInt32LE(0x04034b50, 0);
+    h.writeUInt16LE(20, 4); h.writeUInt16LE(0, 6); h.writeUInt16LE(0, 8);
+    h.writeUInt16LE(dt.time, 10); h.writeUInt16LE(dt.date, 12);
+    h.writeUInt32LE(crc, 14); h.writeUInt32LE(entry.data.length, 18); h.writeUInt32LE(entry.data.length, 22);
+    h.writeUInt16LE(name.length, 26); h.writeUInt16LE(0, 28); name.copy(h, 30);
+    local.push(h, entry.data);
+
+    const c = Buffer.alloc(46 + name.length);
+    c.writeUInt32LE(0x02014b50, 0);
+    c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(0, 8); c.writeUInt16LE(0, 10);
+    c.writeUInt16LE(dt.time, 12); c.writeUInt16LE(dt.date, 14);
+    c.writeUInt32LE(crc, 16); c.writeUInt32LE(entry.data.length, 20); c.writeUInt32LE(entry.data.length, 24);
+    c.writeUInt16LE(name.length, 28); c.writeUInt16LE(0, 30); c.writeUInt16LE(0, 32);
+    c.writeUInt16LE(0, 34); c.writeUInt16LE(0, 36); c.writeUInt32LE(0, 38); c.writeUInt32LE(offset, 42); name.copy(c, 46);
+    central.push(c);
+    offset += h.length + entry.data.length;
+  }
+  const centralBuf = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(0, 4); end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuf.length, 12); end.writeUInt32LE(offset, 16); end.writeUInt16LE(0, 20);
+  return Buffer.concat([...local, centralBuf, end]);
+}
+
+function zipEntries(buf: Buffer): ZipEntry[] {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i >= buf.length - 0xffff - 22; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0 || eocd + 22 > buf.length) throw new Error('malformed ZIP: missing end record');
+  const count = buf.readUInt16LE(eocd + 10);
+  const centralSize = buf.readUInt32LE(eocd + 12);
+  const centralOffset = buf.readUInt32LE(eocd + 16);
+  if (centralOffset + centralSize > buf.length) throw new Error('malformed ZIP: central directory outside archive');
+  const out: ZipEntry[] = [];
+  let p = centralOffset;
+  for (let i = 0; i < count; i++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) throw new Error('malformed ZIP: central entry');
+    const method = buf.readUInt16LE(p + 10);
+    const compressed = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28), extraLen = buf.readUInt16LE(p + 30), commentLen = buf.readUInt16LE(p + 32);
+    const localOffset = buf.readUInt32LE(p + 42);
+    const name = buf.subarray(p + 46, p + 46 + nameLen).toString('utf8');
+    p += 46 + nameLen + extraLen + commentLen;
+    if (method !== 0) throw new Error(`unsupported ZIP compression for ${name}`);
+    if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== 0x04034b50) throw new Error('malformed ZIP: local entry');
+    const localNameLen = buf.readUInt16LE(localOffset + 26), localExtraLen = buf.readUInt16LE(localOffset + 28);
+    const start = localOffset + 30 + localNameLen + localExtraLen;
+    if (start + compressed > buf.length) throw new Error('malformed ZIP: entry outside archive');
+    out.push({ name, data: Buffer.from(buf.subarray(start, start + compressed)) });
+  }
+  return out;
+}
+
+function sha256(data: Buffer): string { return createHash('sha256').update(data).digest('hex'); }
+
+function safeArchivePath(path: string): boolean {
+  if (!path || path.includes('\\') || isAbsolute(path)) return false;
+  const parts = path.split('/');
+  return parts.every((p) => p.length > 0 && p !== '.' && p !== '..');
+}
+
+const EXCLUDED_NAMES = new Set([
+  '.env', '.env.local', '.env.production', '.cache', 'node_modules', '.ma-backups',
+  '.git', '.runtime', 'runtime', '.runs', 'runs', '.workspaces', 'workspaces', '.tmp', 'tmp',
+]);
+function excludedWikiPath(name: string): boolean {
+  const lower = name.toLowerCase();
+  return EXCLUDED_NAMES.has(lower)
+    || lower.includes('secret')
+    || lower.includes('credential')
+    || /\.(pem|key|p12|pfx)$/.test(lower)
+    || /(?:\.db|\.sqlite)?-(?:wal|shm)$/.test(lower);
+}
+
+function collectFiles(root: string): { path: string; data: Buffer }[] {
+  const out: { path: string; data: Buffer }[] = [];
+  if (!existsSync(root) || !statSync(root).isDirectory()) return out;
+  const visit = (dir: string) => {
+    for (const name of readdirSync(dir).sort()) {
+      if (excludedWikiPath(name)) continue;
+      const absolute = join(dir, name);
+      const st = lstatSync(absolute);
+      // A symlink can escape the configured Wiki root and pull unrelated
+      // secrets into an otherwise safe archive.  Snapshot only real files.
+      if (st.isSymbolicLink()) continue;
+      if (st.isDirectory()) visit(absolute);
+      else if (st.isFile()) out.push({ path: relative(root, absolute).split(sep).join('/'), data: readFileSync(absolute) });
+    }
+  };
+  visit(root);
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function schemaMarker(database: Database.Database): string {
+  try { return String((database.pragma('user_version', { simple: true }) as number) ?? 0); } catch { return 'unknown'; }
+}
+
+export type CreateSnapshotOpts = {
+  database?: Database.Database;
+  liveDbPath?: string;
+  backupDir?: string;
+  wikiDir?: string;
+  now?: Date;
+  backupFn?: (filename: string) => Promise<unknown>;
+  workspace?: ResolvedWorkspaceCwd;
+};
+
+export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
+  const database = opts.database ?? sqlite;
+  const liveDbPath = opts.liveDbPath ?? (() => { try { return getSqliteHardeningInfo(database).path; } catch { return process.env.DB_PATH ?? './dev.db'; } })();
+  const dir = resolve(opts.backupDir ?? resolveBackupDir());
+  const now = opts.now ?? new Date();
+  const writable = ensureBackupDirWritable(dir);
+  if (!writable.ok) return { success: false as const, code: 'SNAPSHOT_DIR_NOT_WRITABLE', error: writable.error, status: 503 as const };
+  const stamp = buildBackupFileName(now).replace(/\.db$/, '').replace(/^ma-backup-/, 'ma-snapshot-');
+  const name = `${stamp}${SNAPSHOT_EXTENSION}`;
+  const path = resolve(dir, name);
+  if (path === resolve(liveDbPath)) return { success: false as const, code: 'SNAPSHOT_FORBIDDEN_PATH', error: 'snapshot target overlaps live database', status: 400 as const };
+  const tempDb = join(dir, `.${name}.${process.pid}.sqlite`);
+  const tempZip = join(dir, `.${name}.${process.pid}.tmp`);
+  try {
+    const backupFn = opts.backupFn ?? ((filename: string) => database.backup(filename));
+    await backupFn(tempDb);
+    const dbData = readFileSync(tempDb);
+    if (dbData.length === 0) throw new Error('database snapshot is zero bytes');
+    const wiki = opts.wikiDir ? { path: resolve(opts.wikiDir), source: 'cwd' as const } : getWikiDirSource();
+    const wikiRoot = wiki.path;
+    const wikiFiles = collectFiles(wikiRoot);
+    const files: SnapshotManifestFile[] = [
+      { path: 'db/backup.sqlite', kind: 'database', sizeBytes: dbData.length, sha256: sha256(dbData) },
+      ...wikiFiles.map((f) => ({ path: `wiki/${f.path}`, kind: 'wiki' as const, sizeBytes: f.data.length, sha256: sha256(f.data) })),
+    ];
+    const manifest: SnapshotManifest = {
+      archiveVersion: SNAPSHOT_ARCHIVE_VERSION,
+      createdAt: now.toISOString(),
+      dbSchema: schemaMarker(database),
+      workspace: opts.workspace ?? (() => {
+        try { return resolveWorkspaceCwd(); }
+        catch { return { path: null, source: 'none' as const, configured: false, exists: false }; }
+      })(),
+      wiki: {
+        root: wikiRoot,
+        source: opts.wikiDir ? 'cwd' : wiki.source,
+        projectScopedExcluded: true,
+        excludedProjectWikiRoots: [],
+        exclusions: [...EXCLUDED_NAMES, 'secret*/credential*', '*.pem/*.key'],
+      },
+      files,
+    };
+    const manifestData = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    const entries: ZipEntry[] = [
+      { name: 'manifest.json', data: manifestData },
+      { name: 'db/backup.sqlite', data: dbData },
+      ...wikiFiles.map((f) => ({ name: `wiki/${f.path}`, data: f.data })),
+    ];
+    writeFileSync(tempZip, makeZip(entries, now));
+    renameSync(tempZip, path);
+    const archive = readFileSync(path);
+    return { success: true as const, name, path, sizeBytes: archive.length, createdAt: now.toISOString(), sha256: sha256(archive), manifest };
+  } catch (e) {
+    return { success: false as const, code: 'SNAPSHOT_FAILED', error: e instanceof Error ? e.message : String(e), status: 500 as const };
+  } finally {
+    try { rmSync(tempDb, { force: true }); } catch { /* ignore */ }
+    try { rmSync(tempZip, { force: true }); } catch { /* ignore */ }
+  }
+}
+
+function validationError(name: string, path: string, errors: string[], sha: string | null = null): SnapshotValidation {
+  return { valid: false, name, path, sha256: sha, errors, fileCount: 0, dbBytes: 0, wikiFiles: 0 };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isManifestFile(value: unknown): value is SnapshotManifestFile {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.path === 'string'
+    && (value.kind === 'database' || value.kind === 'wiki')
+    && Number.isInteger(value.sizeBytes)
+    && Number(value.sizeBytes) >= 0
+    && typeof value.sha256 === 'string'
+    && /^[a-f0-9]{64}$/.test(value.sha256)
+  );
+}
+
+function isSnapshotManifest(value: unknown): value is SnapshotManifest {
+  if (!isRecord(value) || value.archiveVersion !== SNAPSHOT_ARCHIVE_VERSION || typeof value.createdAt !== 'string') return false;
+  const workspace = value.workspace;
+  const wiki = value.wiki;
+  if (!isRecord(workspace) || !isRecord(wiki) || !Array.isArray(value.files)) return false;
+  const workspaceValid = (
+    (typeof workspace.path === 'string' || workspace.path === null)
+    && (workspace.source === 'env' || workspace.source === 'db' || workspace.source === 'none')
+    && typeof workspace.configured === 'boolean'
+    && typeof workspace.exists === 'boolean'
+  );
+  const wikiValid = (
+    typeof wiki.root === 'string'
+    && (wiki.source === 'env' || wiki.source === 'workspace' || wiki.source === 'cwd')
+    && wiki.projectScopedExcluded === true
+    && Array.isArray(wiki.excludedProjectWikiRoots)
+    && wiki.excludedProjectWikiRoots.every((item) => typeof item === 'string')
+    && Array.isArray(wiki.exclusions)
+    && wiki.exclusions.every((item) => typeof item === 'string')
+  );
+  return workspaceValid && wikiValid && value.files.every(isManifestFile);
+}
+
+export function validateSnapshot(path: string): SnapshotValidation {
+  const name = basename(path);
+  if (!name.endsWith(SNAPSHOT_EXTENSION)) return validationError(name, path, ['snapshot must use .ma-backup.zip extension']);
+  if (!existsSync(path)) return validationError(name, path, ['snapshot does not exist']);
+  let data: Buffer;
+  try { data = readFileSync(path); } catch (e) { return validationError(name, path, [`snapshot unreadable: ${e instanceof Error ? e.message : String(e)}`]); }
+  const archiveHash = sha256(data);
+  let entries: ZipEntry[];
+  try { entries = zipEntries(data); } catch (e) { return validationError(name, path, [e instanceof Error ? e.message : String(e)], archiveHash); }
+  const errors: string[] = [];
+  const byName = new Map<string, Buffer>();
+  for (const entry of entries) {
+    if (!safeArchivePath(entry.name)) errors.push(`path traversal rejected: ${entry.name}`);
+    if (byName.has(entry.name)) errors.push(`duplicate archive path: ${entry.name}`);
+    byName.set(entry.name, entry.data);
+  }
+  const manifestBytes = byName.get('manifest.json');
+  if (!manifestBytes) return validationError(name, path, [...errors, 'missing manifest.json'], archiveHash);
+  let manifest: SnapshotManifest | undefined;
+  let parsedManifest: unknown;
+  try { parsedManifest = JSON.parse(manifestBytes.toString('utf8')) as unknown; } catch { errors.push('malformed manifest.json'); }
+  const rawManifestFiles = isRecord(parsedManifest) && Array.isArray(parsedManifest.files) ? parsedManifest.files : [];
+  if (!isRecord(parsedManifest)) {
+    errors.push('manifest.json must contain an object');
+  } else {
+    if (parsedManifest.archiveVersion !== SNAPSHOT_ARCHIVE_VERSION) errors.push(`unknown archive version: ${String(parsedManifest.archiveVersion)}`);
+    if (!Array.isArray(parsedManifest.files)) errors.push('manifest file list is malformed');
+    else rawManifestFiles.forEach((file, index) => {
+      if (!isManifestFile(file)) errors.push(`manifest file entry ${index} is malformed`);
+    });
+    if (!isSnapshotManifest(parsedManifest)) errors.push('manifest metadata is malformed');
+    else manifest = parsedManifest;
+  }
+  const validManifestFiles = rawManifestFiles.filter(isManifestFile);
+  const manifestPaths = new Set(validManifestFiles.map((f) => f.path));
+  if (manifestPaths.size !== validManifestFiles.length) errors.push('duplicate manifest file path');
+  if (!manifestPaths.has('db/backup.sqlite')) {
+    errors.push('manifest is missing database file entry');
+  }
+  for (const entry of entries) {
+    if (entry.name !== 'manifest.json' && !manifestPaths.has(entry.name)) {
+      errors.push(`unlisted archive file: ${entry.name}`);
+    }
+  }
+  const db = byName.get('db/backup.sqlite');
+  if (!db || db.length === 0) errors.push('database entry is missing or zero bytes');
+  let fileCount = 0, dbBytes = db?.length ?? 0, wikiFiles = 0;
+  for (const f of validManifestFiles) {
+    fileCount++;
+    if (!safeArchivePath(f.path)) { errors.push(`path traversal rejected: ${f.path}`); continue; }
+    const actual = byName.get(f.path);
+    if (!actual) { errors.push(`missing archive file: ${f.path}`); continue; }
+    if (actual.length !== f.sizeBytes) errors.push(`size mismatch: ${f.path}`);
+    if (sha256(actual) !== f.sha256) errors.push(`hash mismatch: ${f.path}`);
+    if (f.kind === 'database') dbBytes = actual.length;
+    if (f.kind === 'wiki') wikiFiles++;
+  }
+  return { valid: errors.length === 0, name, path, sha256: archiveHash, errors, manifest, fileCount, dbBytes, wikiFiles };
+}
+
+function resolveSnapshotPath(input: string | undefined, backupDir: string): string {
+  const raw = (input ?? '').trim();
+  if (!raw) throw new Error('snapshot name is required');
+  const candidate = isAbsolute(raw) ? resolve(raw) : resolve(backupDir, raw);
+  const base = resolve(backupDir);
+  const rel = relative(base, candidate);
+  if (rel.startsWith('..' + sep) || rel === '..' || isAbsolute(rel)) throw new Error('snapshot path traversal rejected');
+  return candidate;
+}
+
+export function listSnapshots(opts: { backupDir?: string } = {}) {
+  const dir = resolve(opts.backupDir ?? resolveBackupDir());
+  if (!existsSync(dir)) return { success: true as const, dir, snapshots: [] as SnapshotEntry[] };
+  try {
+    const snapshots = readdirSync(dir).filter((n) => n.endsWith(SNAPSHOT_EXTENSION)).map((name) => {
+      const path = resolve(dir, name); const st = statSync(path); const valid = validateSnapshot(path);
+      return { name, path, sizeBytes: st.size, createdAt: st.mtime.toISOString(), sha256: valid.sha256 ?? sha256(readFileSync(path)), valid: valid.valid, ...(valid.valid ? {} : { validationError: valid.errors.join('; ') }) } satisfies SnapshotEntry;
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return { success: true as const, dir, snapshots };
+  } catch (e) { return { success: false as const, code: 'SNAPSHOT_LIST_FAILED', error: e instanceof Error ? e.message : String(e), status: 500 as const }; }
+}
+
+export function validateSnapshotByName(input: string | undefined, opts: { backupDir?: string } = {}): SnapshotValidation {
+  const dir = resolve(opts.backupDir ?? resolveBackupDir());
+  try { const path = resolveSnapshotPath(input, dir); return validateSnapshot(path); }
+  catch (e) { return validationError(input ?? '', '', [e instanceof Error ? e.message : String(e)]); }
+}
+
+export function dryRunRestore(input: string | undefined, opts: { backupDir?: string; workspace?: ResolvedWorkspaceCwd } = {}): SnapshotDryRun {
+  const v = validateSnapshotByName(input, opts);
+  const m = v.manifest;
+  return {
+    ...v,
+    dryRun: true,
+    mutatesLiveState: false,
+    report: {
+      database: { included: v.dbBytes > 0, bytes: v.dbBytes, target: opts.workspace?.path ? join(opts.workspace.path, 'dev.db') : 'live SQLite database' },
+      wiki: { includedFiles: v.wikiFiles, root: m?.wiki.root ?? 'configured global Wiki root', projectScopedExcluded: true },
+      wouldOverwrite: [],
+      actions: v.valid ? ['validate archive', 'stage database and Wiki entries (not executed)', 'await explicit restore implementation'] : [],
+    },
+  };
+}

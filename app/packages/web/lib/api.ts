@@ -46,6 +46,10 @@ import type {
   SettingsDiagnosticsResponse,
   SettingsLiveProbesResponse,
   OpsSnapshot,
+  SnapshotEntry,
+  SnapshotCreateResponse,
+  SnapshotValidation,
+  SnapshotDryRunResponse,
   AutomationRule,
   AutomationRun,
   CreateAutomationRuleInput,
@@ -2207,6 +2211,54 @@ export function useOpsSnapshot(opts?: { refetchInterval?: number | false }) {
     },
     staleTime: 5_000,
     refetchInterval: opts?.refetchInterval ?? 10_000,
+  });
+}
+
+export function useSnapshots(opts?: { refetchInterval?: number | false }) {
+  return useQuery<{ success: true; dir: string; snapshots: SnapshotEntry[] }>({
+    queryKey: ['ops-snapshots'],
+    queryFn: async () => {
+      const res = await apiFetch(`${API}/ops/snapshots`);
+      if (!res.ok) throw new Error(await apiError(res, '加载灾备快照失败'));
+      return res.json();
+    },
+    staleTime: 5_000,
+    refetchInterval: opts?.refetchInterval ?? false,
+  });
+}
+
+export function useCreateSnapshot() {
+  const qc = useQueryClient();
+  return useMutation<SnapshotCreateResponse, Error, void>({
+    mutationFn: async () => {
+      const res = await apiFetch(`${API}/ops/snapshots`, { method: 'POST' });
+      if (!res.ok) throw new Error(await apiError(res, '创建灾备快照失败'));
+      return res.json();
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['ops-snapshots'] }); toastSuccess('灾备快照已创建'); },
+    onError: (err) => toastError(errMessage(err, '创建灾备快照失败')),
+  });
+}
+
+export function useValidateSnapshot() {
+  return useMutation<SnapshotValidation, Error, { name: string }>({
+    mutationFn: async ({ name }) => {
+      const res = await apiFetch(`${API}/ops/snapshots/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (!res.ok && res.status >= 500) throw new Error(await apiError(res, '校验灾备快照失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '校验灾备快照失败')),
+  });
+}
+
+export function useDryRunSnapshotRestore() {
+  return useMutation<SnapshotDryRunResponse, Error, { name: string }>({
+    mutationFn: async ({ name }) => {
+      const res = await apiFetch(`${API}/ops/snapshots/dry-run-restore`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (!res.ok && res.status >= 500) throw new Error(await apiError(res, '生成恢复演练报告失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '生成恢复演练报告失败')),
   });
 }
 

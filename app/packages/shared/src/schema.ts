@@ -1955,6 +1955,93 @@ export const OpsSnapshot = z.object({
 });
 export type OpsSnapshot = z.infer<typeof OpsSnapshot>;
 
+/** Snapshot v1 disaster-recovery contracts.  Restore is deliberately dry-run only. */
+export const SnapshotManifestFile = z.object({
+  path: z.string().min(1),
+  kind: z.enum(['database', 'wiki']),
+  sizeBytes: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type SnapshotManifestFile = z.infer<typeof SnapshotManifestFile>;
+
+export const SnapshotManifest = z.object({
+  archiveVersion: z.literal(1),
+  createdAt: z.string().datetime(),
+  dbSchema: z.string(),
+  workspace: z.object({
+    path: z.string().nullable(),
+    source: z.enum(['env', 'db', 'none']),
+    configured: z.boolean(),
+    exists: z.boolean(),
+  }),
+  wiki: z.object({
+    root: z.string(),
+    source: z.enum(['env', 'workspace', 'cwd']),
+    projectScopedExcluded: z.literal(true),
+    excludedProjectWikiRoots: z.array(z.string()),
+    exclusions: z.array(z.string()),
+  }),
+  files: z.array(SnapshotManifestFile),
+});
+export type SnapshotManifest = z.infer<typeof SnapshotManifest>;
+
+export const SnapshotEntry = z.object({
+  name: z.string(),
+  path: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  createdAt: z.string().datetime(),
+  sha256: z.string().nullable(),
+  valid: z.boolean(),
+  validationError: z.string().optional(),
+});
+export type SnapshotEntry = z.infer<typeof SnapshotEntry>;
+
+export const SnapshotListResponse = z.object({
+  success: z.literal(true),
+  dir: z.string(),
+  snapshots: z.array(SnapshotEntry),
+});
+export type SnapshotListResponse = z.infer<typeof SnapshotListResponse>;
+
+export const SnapshotValidation = z.object({
+  valid: z.boolean(),
+  name: z.string(),
+  path: z.string(),
+  sha256: z.string().nullable(),
+  errors: z.array(z.string()),
+  manifest: SnapshotManifest.optional(),
+  fileCount: z.number().int().nonnegative(),
+  dbBytes: z.number().int().nonnegative(),
+  wikiFiles: z.number().int().nonnegative(),
+});
+export type SnapshotValidation = z.infer<typeof SnapshotValidation>;
+
+export const SnapshotCreateResponse = z.object({
+  success: z.literal(true),
+  name: z.string(),
+  path: z.string(),
+  sizeBytes: z.number().int().positive(),
+  createdAt: z.string().datetime(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  manifest: SnapshotManifest,
+});
+export type SnapshotCreateResponse = z.infer<typeof SnapshotCreateResponse>;
+
+export const SnapshotDryRunResponse = SnapshotValidation.extend({
+  dryRun: z.literal(true),
+  mutatesLiveState: z.literal(false),
+  report: z.object({
+    database: z.object({ included: z.boolean(), bytes: z.number().int().nonnegative(), target: z.string() }),
+    wiki: z.object({ includedFiles: z.number().int().nonnegative(), root: z.string(), projectScopedExcluded: z.literal(true) }),
+    wouldOverwrite: z.array(z.string()),
+    actions: z.array(z.string()),
+  }),
+});
+export type SnapshotDryRunResponse = z.infer<typeof SnapshotDryRunResponse>;
+
+export const SnapshotNameInput = z.object({ name: z.string().min(1).optional(), path: z.string().min(1).optional() }).refine((v) => Boolean(v.name || v.path), 'name or path is required');
+export type SnapshotNameInput = z.infer<typeof SnapshotNameInput>;
+
 /** Slice 51：Settings live-probes（无 _stub） */
 export const SettingsLiveProbesResponse = z.object({
   ts: z.number().int(),

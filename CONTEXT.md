@@ -46,9 +46,9 @@
 
 ## 当前方位（2026-07-30）
 
-- **最新关刀：** Automation linked Run retry convergence——Automation execution truth 会在 bounded retry lineage 收敛前保持“自动重试中”，并把当前 child Run 深链暴露给页面；证据见 [closeout](app/.progress/automation-retry-convergence-closeout-2026-07-30.md)。上一刀 infra auto-retry 见 [closeout](app/.progress/infra-auto-retry-closeout-2026-07-30.md)。
-- **当前审计结论：** 普通 Run 与 Automation Run 主链均已闭环；剩余高价值后端硬缺口是灾难恢复（SQLite + Wiki manifest/restore）和 retry lineage 的统一 terminal reason。前端下一处体验缺口是恢复演练入口与队列延迟的可操作反馈。
-- **下一刀默认：** 评估灾难恢复演练与 Settings 运维入口；继续对照 Multica 的恢复/收尸语义，避免只做静态备份按钮。
+- **最新关刀：** Disaster recovery snapshot v1——Settings 可创建/列出/校验 SQLite + 全局 Wiki 的 `.ma-backup.zip`，并生成不写线上状态的恢复演练报告；证据见 [closeout](app/.progress/disaster-recovery-snapshot-closeout-2026-07-30.md)。前一刀 Automation retry convergence 见 [closeout](app/.progress/automation-retry-convergence-closeout-2026-07-30.md)。
+- **当前审计结论：** 普通 Run、Automation Run 与 bounded retry lineage 主链均已闭环；灾备已从 DB-only 推进到可校验快照，但仍没有 staged restore/rollback、项目级 Wiki 映射、保留策略和下载/审计。前端下一处体验缺口是恢复确认/回滚证据和排队延迟的可操作反馈。
+- **下一刀默认：** 先调研并设计 staged restore 的安全状态机（临时隔离、校验、人工确认、旧状态保留、失败回滚），再决定是否开放 live restore；继续对照 Multica/Hermes 的恢复与收尸语义，避免只做覆盖按钮。
 - **已排除过时候选：** U5 Issue List 切换/排序/虚拟化与 R6 prepare lease/stale/process tree 已有实现，不重复开刀。
 
 - **阶段：** Phase A–E **已收官** · **▶ Phase F 主路径已收官（71–73）** · 74 可选未开

@@ -5,6 +5,12 @@ import { sqlite } from '../db/client.js';
 import { getLastShutdownSnapshot } from '../orchestration/graceful-shutdown.js';
 import { buildOpsSnapshot } from '../ops-snapshot.js';
 import { createDbBackup, listDbBackups } from '../ops-backup.js';
+import {
+  createSnapshot,
+  dryRunRestore,
+  listSnapshots,
+  validateSnapshotByName,
+} from '../ops-recovery.js';
 import { buildProcessHealth, type DbPingResult } from '../process-health.js';
 
 function pingSqlite(): DbPingResult {
@@ -68,5 +74,48 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
       dir: result.dir,
       backups: result.backups,
     };
+  });
+
+  // Snapshot v1: versioned DB + global Wiki archive. Restore is validation-only.
+  app.post('/api/ops/snapshots', async (_req, reply) => {
+    const result = await createSnapshot();
+    if (!result.success) return reply.status(result.status).send(result);
+    return result;
+  });
+
+  app.get('/api/ops/snapshots', async (_req, reply) => {
+    const result = listSnapshots();
+    if (!result.success) return reply.status(result.status).send(result);
+    return result;
+  });
+
+  async function snapshotInput(req: { body?: unknown }): Promise<string | undefined> {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const value = body.name ?? body.path;
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  app.post('/api/ops/snapshots/validate', async (req, reply) => {
+    const value = await snapshotInput(req);
+    const result = validateSnapshotByName(value);
+    if (!result.valid && result.errors.some((e) => /required|traversal/.test(e))) return reply.status(400).send(result);
+    return result;
+  });
+
+  app.post('/api/ops/snapshots/dry-run-restore', async (req, reply) => {
+    const value = await snapshotInput(req);
+    const result = dryRunRestore(value);
+    if (!result.valid && result.errors.some((e) => /required|traversal/.test(e))) return reply.status(400).send(result);
+    return result;
+  });
+
+  // Friendly resource-shaped aliases for clients that prefer /:name routes.
+  app.post('/api/ops/snapshots/:name/validate', async (req) => {
+    const params = req.params as { name: string };
+    return validateSnapshotByName(params.name);
+  });
+  app.post('/api/ops/snapshots/:name/dry-run-restore', async (req) => {
+    const params = req.params as { name: string };
+    return dryRunRestore(params.name);
   });
 }
