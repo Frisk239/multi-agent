@@ -22,7 +22,8 @@
 | **F3** | 故事线 run_* 去重 | `a6d6f03` mergeIssueStoryline |
 | **A3** | ops path-lock holder | `349b948` OpsQueueSample.pathBlockedByRunId |
 | **F6 薄** | g-chord squads/memory/projects | `349b948` shortcuts |
-| **A1** | opencode/cursor session resume | 本相：`--session` / `--resume` + capability matrix |
+| **A1** | opencode/cursor session resume | `c4d45d6`/`29c306b`：`--session` / `--resume` + matrix tests |
+| **A8** | RunTree terminalReason | 本相：`projectTreeNodeTerminalReason` + UI badge |
 
 ### 刻意不做（仍有效）
 
@@ -42,14 +43,14 @@ Multica daemon / Redis / 云 webhook / 密钥入库 / TipTap 全量 / Wiki 图�
 
 | ID | 提升点 | 现状 | 参考 | 价值 | 难度 |
 |---|---|---|---|---|---|
-| **A1** | Session resume 跨 CLI | **已关**：claude/opencode/cursor true；grok/pi false | Multica opencode `--session`、cursor `--resume` | — | — |
+| **A1** | Session resume 跨 CLI | **已关** `c4d45d6`/`29c306b`：claude/opencode/cursor true | Multica opencode/cursor | — | — |
 | **A2** | 统一读投影残留 | 多数 GET 已 `toObservedAgentRun`；WS 内部仍可裸 shape | Multica failure/elapsed 分离 | 中 | 低 |
 | **A3** | Ops path-lock holder | **已关** `349b948` | Multica waiting/lease | — | — |
 | **A4** | **灾备含项目级 Wiki** | manifest 仍可排除 project-scoped | 本仓产品缺口 | 高 | 中 |
 | **A5** | **Automation `run_only`** | 仅 create_issue + enqueue | Multica autopilot | 中 | 中 |
 | **A6** | Pi 真执行或产品隐藏 | 诚实 stub | Multica `pi.go` | 中 | 高/低 |
 | **A7** | inline transcript preview | 仅深链 | execution-log 残留 | 中 | 低–中 |
-| **A8** | 子代理树 terminalReason | 字段不全 | Multica 父子 task | 中 | 低 |
+| **A8** | 子代理树 terminalReason | **本相关**：`projectTreeNodeTerminalReason` + RunTreeNode | Multica 父子 task failure | — | — |
 | **A9** | Grok ACP / 能力诚实 | print 优先 | 本仓 runtime | 中 | 高 |
 
 ### 1.3 健壮性债（B）— 仍开放

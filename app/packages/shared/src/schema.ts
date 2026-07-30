@@ -205,6 +205,8 @@ export type RunTreeNode = {
   summary?: string | null;
   tokensInput?: number | null;
   tokensOutput?: number | null;
+  /** Read projection: stable terminal reason (timeout/cancelled/failed/…); null while active. */
+  terminalReason?: string | null;
   children: RunTreeNode[];
 };
 
@@ -228,6 +230,7 @@ export const RunTreeNodeSchema: z.ZodType<RunTreeNode> = z.lazy(() =>
     summary: z.string().nullable().optional(),
     tokensInput: z.number().nullable().optional(),
     tokensOutput: z.number().nullable().optional(),
+    terminalReason: z.string().min(1).nullable().optional(),
     children: z.array(RunTreeNodeSchema),
   })
 );

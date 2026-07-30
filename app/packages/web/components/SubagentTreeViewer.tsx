@@ -318,6 +318,15 @@ function TreeNodeItem({
             <span className={`tree-status-badge ${getStatusBadgeClass(node.status)}`}>
               {getStatusZh(node.status)}
             </span>
+            {node.terminalReason ? (
+              <span
+                className="tree-node-terminal-reason text-dim text-sm"
+                data-testid={`subagent-terminal-reason-${node.id}`}
+                title="终态原因"
+              >
+                · {node.terminalReason}
+              </span>
+            ) : null}
           </div>
 
           {/* Metrics & Terminal Button */}

@@ -2,6 +2,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import type { AgentRunStatus, AgentRunKind, RunTreeNode } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, agents, runMessages } from '../db/schema.js';
+import { deriveRunObservability } from './run-observability.js';
 
 type AgentRunRow = typeof agentRuns.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
@@ -21,6 +22,22 @@ export function truncateSubagentSummary(text: string | null | undefined): string
   const cap = getSubagentSummaryCap();
   if (text.length <= cap) return text;
   return `${text.slice(0, cap)}…`;
+}
+
+/**
+ * Pure read projection: attach Multica-style terminal reason onto tree nodes.
+ * Active runs → null; cancelled prefers cancelled/user_aborted over stale failureReason.
+ */
+export function projectTreeNodeTerminalReason(
+  row: {
+    status: string;
+    createdAt: number;
+    failureReason?: string | null;
+    error?: string | null;
+  },
+  now = Date.now(),
+): string | null {
+  return deriveRunObservability(row, now).terminalReason;
 }
 
 /**
@@ -144,6 +161,7 @@ function buildNode(
 
   const rawSummary = summaryMap.get(row.id) || row.error || row.quickPrompt || null;
   const summary = truncateSubagentSummary(rawSummary);
+  const terminalReason = projectTreeNodeTerminalReason(row);
 
   return {
     id: row.id,
@@ -164,6 +182,7 @@ function buildNode(
     summary,
     tokensInput: row.tokensInput ?? null,
     tokensOutput: row.tokensOutput ?? null,
+    terminalReason,
     children: childrenRows.map((child) => buildNode(child, runsByParent, agentMap, summaryMap)),
   };
 }

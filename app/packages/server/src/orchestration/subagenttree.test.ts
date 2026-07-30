@@ -69,6 +69,7 @@ import {
   getDirectChildren,
   truncateSubagentSummary,
   getSubagentSummaryCap,
+  projectTreeNodeTerminalReason,
 } from './subagent-tree';
 
 describe('subagent-tree', () => {
@@ -108,6 +109,46 @@ describe('subagent-tree', () => {
     it('returns null for nullish', () => {
       expect(truncateSubagentSummary(null)).toBeNull();
       expect(truncateSubagentSummary(undefined)).toBeNull();
+    });
+  });
+
+  describe('projectTreeNodeTerminalReason', () => {
+    it('projects timeout / cancelled / completed for terminal rows', () => {
+      expect(
+        projectTreeNodeTerminalReason({
+          status: 'failed',
+          createdAt: 1,
+          failureReason: 'timeout',
+        }),
+      ).toBe('timeout');
+      expect(
+        projectTreeNodeTerminalReason({
+          status: 'cancelled',
+          createdAt: 1,
+          failureReason: 'timeout', // stale reason must not win
+        }),
+      ).toBe('cancelled');
+      expect(
+        projectTreeNodeTerminalReason({
+          status: 'completed',
+          createdAt: 1,
+        }),
+      ).toBe('completed');
+    });
+
+    it('returns null while the run is still active', () => {
+      expect(
+        projectTreeNodeTerminalReason({
+          status: 'running',
+          createdAt: 1,
+        }),
+      ).toBeNull();
+      expect(
+        projectTreeNodeTerminalReason({
+          status: 'queued',
+          createdAt: 1,
+        }),
+      ).toBeNull();
     });
   });
 
