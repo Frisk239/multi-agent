@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq, asc } from 'drizzle-orm';
 import { CreateCommentInput, ResolveThreadInput } from '@ma/shared';
 import { isRootComment, validateResolve } from '../comment-thread.js';
+import { bindAttachmentsToComment } from '../attachments/service.js';
 import { db } from '../db/client.js';
 import { comments, issues } from '../db/schema.js';
 import { toComment, toIssue } from '../db/reshape.js';
@@ -74,6 +75,12 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
         createdAt: now,
       })
       .run();
+
+    // S4：绑定已上传附件（只认同 issue 且未绑定的），替代把 data URL 塞进 body
+    const attachmentIds = parsed.data.attachmentIds ?? [];
+    if (attachmentIds.length > 0) {
+      bindAttachmentsToComment({ issueId: id, commentId, attachmentIds });
+    }
 
     const row = db.select().from(comments).where(eq(comments.id, commentId)).get();
     const comment = toComment(row!);

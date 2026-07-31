@@ -220,6 +220,30 @@ export const comments = sqliteTable(
   }),
 );
 
+// —— attachment（S4：真本地附件，字节在 ~/.multi-agent/attachments，DB 只存元数据）——
+// comment_id 可空：先上传拿 id，评论提交时绑定；未绑定的是孤儿，TTL GC 清理。
+export const attachments = sqliteTable(
+  'attachment',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    commentId: text('comment_id'),
+    originalName: text('original_name').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** 服务端生成的落盘名（UUID + 白名单扩展名），绝不含客户端路径 */
+    storageName: text('storage_name').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    issueIdx: index('idx_attachment_issue').on(t.issueId),
+    commentIdx: index('idx_attachment_comment').on(t.commentId),
+    storageUq: uniqueIndex('uq_attachment_storage_name').on(t.storageName),
+  }),
+);
+
 // —— agent_run（S03 执行层，薄状态机，对齐 multica task）——
 // bu03：issue_id 可空（quick_create 初始无 Issue）；+ kind / quick_prompt
 export const agentRuns = sqliteTable(

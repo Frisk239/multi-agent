@@ -23,6 +23,7 @@ import { profileRoutes } from './routes/profile.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { healthzRoutes } from './routes/healthz.js';
 import { opsRoutes } from './routes/ops.js';
+import { attachmentRoutes } from './routes/attachments.js';
 import { eventBus } from './orchestration/event-bus.js';
 import { wsBroadcaster } from './orchestration/ws-broadcaster.js';
 import { makeCorsOriginChecker, resolveCorsOrigins } from './cors-origin.js';
@@ -73,6 +74,8 @@ export async function buildApp() {
   await app.register(issueRoutes);
   await app.register(labelRoutes);
   await app.register(commentRoutes);
+  // S4：附件路由自成插件作用域（内部注册了 '*' buffer parser，不影响其它路由的 JSON 解析）
+  await app.register(attachmentRoutes);
   await app.register(rosterRoutes);
   await app.register(agentTemplateRoutes);
   await app.register(skillRoutes);

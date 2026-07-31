@@ -914,6 +914,8 @@ export const CreateCommentInput = z.object({
   body: z.string().min(1),
   /** S3：回复某条根评论；缺省 = 新建根评论 */
   parentCommentId: BusinessId.nullable().optional(),
+  /** S4：本评论要绑定的已上传附件 id（同 issue、尚未绑定的才会被接受） */
+  attachmentIds: z.array(BusinessId).max(20).optional(),
 });
 export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
 
