@@ -15,6 +15,7 @@ import { readManagedBlock } from '../wiki/agents-bridge.js';
 import { memoryManager } from '../memory/manager.js';
 import { buildQuickCreatePrompt } from './quick-create-prompt.js';
 import { LOCAL_MEMBER } from '../local-member.js';
+import { projectThreadsForPrompt } from '../comment-thread.js';
 import {
   readAgentsContextFromRoot,
   resolveIssuePromptContext,
@@ -412,7 +413,10 @@ export async function buildPromptParts(
     .limit(K)
     .all()
     .reverse();
-  const history = rows
+  // S3：已定论线程只喂「根 + 结论」，中间来回不再重复占 token。
+  // 与 UI 折叠共用同一套判定（comment-thread.ts），避免两处口径漂移。
+  const folded = projectThreadsForPrompt(rows);
+  const history = folded
     .map((c) => `[${c.authorType}:${c.authorId}] ${c.body}`)
     .join('\n\n');
 

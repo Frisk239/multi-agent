@@ -212,6 +212,10 @@ export function toComment(row: CommentRow): Comment {
     authorId: row.authorId,
     authorLabel: resolveAuthorLabel(row.authorType, row.authorId),
     body: row.body,
+    // S3：thread-lite + resolve/fold
+    parentCommentId: row.parentCommentId ?? null,
+    resolvedAt: row.resolvedAt == null ? null : new Date(row.resolvedAt).toISOString(),
+    resolutionCommentId: row.resolutionCommentId ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
   };
 }

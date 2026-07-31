@@ -899,6 +899,12 @@ export const Comment = z.object({
   authorId: BusinessId,
   authorLabel: z.string(),
   body: z.string(),
+  /** S3：null = 根评论；非 null 指向根评论（仅一层） */
+  parentCommentId: BusinessId.nullable().optional(),
+  /** S3：仅根评论可能有值 —— 该线程已定论的时刻 */
+  resolvedAt: z.string().datetime().nullable().optional(),
+  /** S3：被指定为结论的那条回复 id */
+  resolutionCommentId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type Comment = z.infer<typeof Comment>;
@@ -906,8 +912,16 @@ export type TimelineItem = Comment;
 
 export const CreateCommentInput = z.object({
   body: z.string().min(1),
+  /** S3：回复某条根评论；缺省 = 新建根评论 */
+  parentCommentId: BusinessId.nullable().optional(),
 });
 export type CreateCommentInput = z.infer<typeof CreateCommentInput>;
+
+/** S3：把某条回复标为该线程的结论。resolutionCommentId 缺省 = 用最后一条回复。 */
+export const ResolveThreadInput = z.object({
+  resolutionCommentId: BusinessId.nullable().optional(),
+});
+export type ResolveThreadInput = z.infer<typeof ResolveThreadInput>;
 
 /** G22：agent 绑定的 LLM 模型 id（如 opencode/big-pickle）；空=CLI 默认 */
 export const AgentModelId = z.string().max(200);

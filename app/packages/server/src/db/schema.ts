@@ -207,10 +207,16 @@ export const comments = sqliteTable(
     authorType: text('author_type', { enum: ['member', 'agent'] }).notNull(),
     authorId: text('author_id').notNull(),
     body: text('body').notNull(),
+    // S3：thread-lite —— null = 根评论；非 null 指向根评论（仅一层，handler 强制）
+    parentCommentId: text('parent_comment_id'),
+    // S3：结论记在根评论上，天然保证每线程最多一个 resolution
+    resolvedAt: integer('resolved_at'),
+    resolutionCommentId: text('resolution_comment_id'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
     issueCreatedIdx: index('idx_comment_issue_created').on(t.issueId, t.createdAt),
+    parentIdx: index('idx_comment_parent').on(t.parentCommentId),
   }),
 );
 
