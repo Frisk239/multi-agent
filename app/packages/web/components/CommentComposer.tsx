@@ -275,6 +275,38 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             >
               @提及
             </button>
+            <button
+              type="button"
+              className="composer-tool-btn"
+              title="附件 (图片/文件)"
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*,.pdf,.doc,.docx,.txt';
+                input.multiple = true;
+                input.onchange = (e: Event) => {
+                  const files = (e.target as HTMLInputElement).files;
+                  if (!files) return;
+                  Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      const v = validateImageDataUrl(dataUrl, { fileName: file.name });
+                      if (v.ok) {
+                        setBody(prev => appendAttachmentMarkdown(prev, v.markdown));
+                      } else {
+                        setAttachError(v.error);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  });
+                };
+                input.click();
+              }}
+              data-testid="composer-tool-attach"
+            >
+              📎
+            </button>
           </div>
         )}
       </div>
@@ -286,7 +318,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             <textarea
               ref={taRef}
               className="composer-input"
-              placeholder="留下评论… 输入 @ 提及 agent/小队；可粘贴图片；Ctrl+Enter 发送"
+              placeholder="留下评论… 输入 @ 提及 agent/小队；粘贴图片/文件；Ctrl+Enter 发送"
               value={body}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}

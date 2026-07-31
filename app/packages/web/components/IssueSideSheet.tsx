@@ -52,6 +52,7 @@ export function IssueSideSheet({
             <span className="text-dim text-sm" title={issueId}>
               {issueId.slice(0, 8)}…
             </span>
+            <span className="text-xs text-blue-500">Rich Text 附件</span>
           </div>
           <div className="issue-side-sheet-actions">
             <Link

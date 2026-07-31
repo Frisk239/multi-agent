@@ -36,14 +36,12 @@ describe('Slice 60 runtime capture matrix', () => {
       providerSessionId: false,
     });
 
-    // A1 2026-07-30: claude + opencode + cursor resume; grok/pi remain false
+    // A9 2026-07-30: Grok now true (resume + --resume injection); Pi remains false
     const resume = sessionResumeCapabilityMatrix();
-    for (const id of ['claude-code', 'opencode', 'cursor'] as const) {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'grok'] as const) {
       expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(true);
     }
-    for (const id of ['grok', 'pi'] as const) {
-      expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(false);
-    }
+    expect(resume.find((r) => r.runtime === 'pi')?.supportsSessionResume).toBe(false);
   });
 });
 

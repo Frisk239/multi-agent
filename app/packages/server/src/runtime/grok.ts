@@ -105,7 +105,8 @@ export function parseGrokLine(
 
 /**
  * 构建 grok agent argv 公共段（print / fallback 共用 model+effort）。
- * Slice 50：supportsSessionResume=false → 不注入 --resume（忽略 resumeSessionId）。
+ * A9（2026-07-30 起）：supportsSessionResume=true → 有 resumeSessionId 就注入 --resume。
+ * （此前 Slice 50 声明为 false 且不注入，已由 A9 推翻，勿照旧注释理解。）
  */
 export function buildGrokAgentArgs(
   input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId'>,
@@ -118,8 +119,9 @@ export function buildGrokAgentArgs(
   // DS4 / G22 residual：print 路径也要传 --effort（与 fallback 对齐）
   const effort = input.thinkingLevel?.trim();
   if (effort) args.push('--effort', effort);
-  // Slice 50：不传假 --resume（GrokBackend.supportsSessionResume = false）
-  void input.resumeSessionId;
+  // A9 / Slice 50：Grok now true — 支持 --resume injection（对齐 opencode/cursor）
+  const resume = input.resumeSessionId?.trim();
+  if (resume) args.push('--resume', resume);
 
   args.push(input.prompt);
   return args;
@@ -157,10 +159,10 @@ export class GrokBackend implements RuntimeBackend {
   readonly id = 'grok' as const;
   readonly label = 'Grok Build';
   /**
-   * Slice 50：未验证真 resume + resume_miss 闭环；
-   * 声明 false，buildGrokAgentArgs / execute 忽略 resumeSessionId。
+   * A9 · Grok ACP / capability honesty (2026-07-30 phase)
+   * supportsSessionResume=true + --resume injection + matrix tests
    */
-  readonly supportsSessionResume = false;
+  readonly supportsSessionResume = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('GROK_PATH', ['grok']);

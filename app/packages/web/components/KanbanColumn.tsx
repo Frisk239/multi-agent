@@ -4,6 +4,7 @@ import React, { useRef } from 'react';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IssueCard } from './IssueCard';
+import { ErrorBoundary } from './ErrorBoundary';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDensity } from '@/lib/density';
@@ -162,7 +163,14 @@ export const KanbanColumn = React.memo(function KanbanColumn({
             无 issue
           </div>
         ) : (
-          <SortableContext items={issues.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          <ErrorBoundary
+            fallback={
+              <div className="kanban-column-error" data-testid="kanban-column-error">
+                <span>该列加载失败</span>
+              </div>
+            }
+          >
+            <SortableContext items={issues.map((i) => i.id)} strategy={verticalListSortingStrategy}>
             {virtualize ? (
               <div
                 className="kanban-column-virtual-inner"
@@ -210,6 +218,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
               ))
             )}
           </SortableContext>
+          </ErrorBoundary>
         )}
       </div>
     </section>

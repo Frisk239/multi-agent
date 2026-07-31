@@ -5,10 +5,10 @@
  * 无服 → live 段 SKIP（不粉饰为 PASS）；unit 段必须绿。
  *
  * 覆盖：
- * 1. sessionResumeCapabilityMatrix：claude/opencode/cursor true；grok/pi false
+ * 1. sessionResumeCapabilityMatrix：claude/opencode/cursor/grok true；pi false
  * 2. 非支持 runtime resolvePriorSession → unsupported；支持者无 prior → fresh
  * 3. finalize resume_miss / unsupported
- * 4. buildGrokAgentArgs 不传假 --resume
+ * 4. buildGrokAgentArgs now passes --resume injection (A9)
  * 5. 可选：GET /api/settings/diagnostics 能力文案与矩阵一致
  *
  * 运行：
@@ -399,7 +399,7 @@ async function main(): Promise<void> {
       });
     }
     let nonResumableOk = true;
-    for (const id of ['grok', 'pi'] as const) {
+    for (const id of ['pi'] as const) {
       const b = byId.get(id);
       if (!b) continue;
       const has = b.capabilities?.some((c) => /session resume/i.test(c)) ?? false;
@@ -416,7 +416,7 @@ async function main(): Promise<void> {
       record({
         id: 'service.diag.grok-pi-no-resume',
         status: 'PASS',
-        note: 'grok/pi do not claim Session Resume',
+        note: 'grok/pi do not claim Session Resume (grok now true but diag checks cap list)',
       });
     }
   } catch (e) {
