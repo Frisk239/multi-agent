@@ -54,6 +54,10 @@ import {
   removeIssueSubscriber,
 } from '../orchestration/inbox-writer.js';
 import { enqueueWikiIngest } from '../wiki/ingest-queue.js';
+import {
+  propagateChildDoneBatch,
+  type ChildStatusChange,
+} from '../orchestration/child-done-propagation.js';
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
@@ -277,6 +281,23 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         prevStatus: sc?.from ?? null,
       });
     }
+    // S2：拖拽跨列也可能让最后一个子任务收口
+    try {
+      await propagateChildDoneBatch(
+        statusChanges.map((sc) => {
+          const row = updatedRows.find((r) => r.id === sc.issueId);
+          return {
+            issueId: sc.issueId,
+            parentIssueId: row?.parentIssueId ?? null,
+            prevStatus: sc.from,
+            nextStatus: sc.to,
+          };
+        }),
+      );
+    } catch (e) {
+      app.log.warn({ err: e }, 'child-done propagation failed (reorder)');
+    }
+
     for (const sc of statusChanges) {
       const cRow = db.select().from(comments).where(eq(comments.id, sc.commentId)).get();
       if (cRow) {
@@ -691,6 +712,22 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    // S2：子任务收口 → 通知并唤醒父级（不改父状态）。失败不挡 HTTP。
+    if (statusChanged && input.status) {
+      try {
+        await propagateChildDoneBatch([
+          {
+            issueId: id,
+            parentIssueId: prev.parentIssueId,
+            prevStatus: prev.status,
+            nextStatus: input.status,
+          },
+        ]);
+      } catch (e) {
+        app.log.warn({ err: e, issueId: id }, 'child-done propagation failed');
+      }
+    }
+
     const enqueue = toIssueEnqueueMeta(enqResult);
     return reply.send({ ...issue, enqueue });
   });
@@ -900,6 +937,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     const { issueIds, status } = parsed.data;
     const now = Date.now();
     let updatedCount = 0;
+    // S2：收集本批次的状态跃迁，事务外统一折叠传播（同一父级只一条评论一个 run）
+    const childChanges: ChildStatusChange[] = [];
     sqlite.transaction(() => {
       for (const id of issueIds) {
         const prev = db.select().from(issues).where(eq(issues.id, id)).get();
@@ -913,9 +952,22 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
             eventType: 'status_changed',
             payload: { from: prev.status, to: status },
           });
+          childChanges.push({
+            issueId: id,
+            parentIssueId: prev.parentIssueId,
+            prevStatus: prev.status,
+            nextStatus: status,
+          });
         }
       }
     })();
+
+    try {
+      await propagateChildDoneBatch(childChanges);
+    } catch (e) {
+      app.log.warn({ err: e }, 'child-done propagation failed (bulk-status)');
+    }
+
     return { success: true, updatedCount };
   });
 

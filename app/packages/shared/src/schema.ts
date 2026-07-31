@@ -251,6 +251,8 @@ export const ActivityEventType = z.enum([
   'run_deferred',
   /** Bounded infrastructure auto-retry child was scheduled. */
   'run_auto_retry_scheduled',
+  /** S2：某父 Issue 的全部直接子任务收口，已通知并唤醒父级（父状态不变）。 */
+  'child_done_rollup',
 ]);
 export type ActivityEventType = z.infer<typeof ActivityEventType>;
 
