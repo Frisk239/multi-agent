@@ -1,5 +1,5 @@
 'use client';
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -33,6 +33,14 @@ import { ErrorState } from './ErrorState';
 import { PageSkeleton } from './Skeleton';
 import { AgentsWorkingBanner } from './AgentsWorkingBanner';
 import { useDensity } from '@/lib/density';
+import { limitForPages, summarizeIssuePaging } from '@/lib/issue-list-paging';
+import {
+  makeListViewKey,
+  readListViewState,
+  resolveRestoreIndex,
+  saveListViewState,
+  sessionStorageOrNull,
+} from '@/lib/issue-list-scroll-restore';
 import {
   collectActiveIssueIds,
   issueIdsFromRuns,
@@ -322,12 +330,38 @@ function KanbanBoardInner() {
       ? originFromUrl
       : undefined;
 
+  // S1：递增窗口分页。过去这里不传 limit，后端默认 50，122 条里的 72 条静默不可见。
+  // 初值取自上次离开该视图时保存的页数，否则走全页详情返回会退回第 1 页。
+  const listViewKey = makeListViewKey({
+    view: viewMode,
+    q: qFromUrl,
+    label: labelFilter,
+    priority: priorityFromUrl,
+    origin: originFromUrl,
+    project: projectFromUrl,
+    assignee: assigneeFromUrl,
+    status: statusFromUrl,
+    sort: sortMode,
+  });
+  const restoredView = useMemo(
+    () => readListViewState(sessionStorageOrNull(), listViewKey),
+    [listViewKey],
+  );
+
+  const [pagesLoaded, setPagesLoaded] = useState(restoredView?.pagesLoaded ?? 1);
+  const issuesQueryLimit = limitForPages(pagesLoaded);
+  const topRowRef = useRef<{ id: string | null; index: number }>({
+    id: restoredView?.anchorIssueId ?? null,
+    index: restoredView?.anchorIndex ?? 0,
+  });
+
   const {
     data: issuesPage,
     isLoading,
     isError,
     error,
     refetch,
+    isFetching: issuesFetching,
   } = useIssues({
     q: qFromUrl || undefined,
     labelId: labelFilter || undefined,
@@ -335,9 +369,49 @@ function KanbanBoardInner() {
     originType: originQuery,
     projectId: projectFromUrl || undefined,
     sort: viewMode === 'list' && sortMode === 'updated' ? 'updated' : undefined,
+    limit: issuesQueryLimit,
     ...assigneeQuery,
   });
   const issues = issuesPage?.data ?? [];
+  const paging = summarizeIssuePaging(issues.length, issuesPage?.total);
+
+  // S1：离开该视图前存下页数 + 顶部锚点行，供返回时恢复
+  const persistListView = useCallback(() => {
+    saveListViewState(sessionStorageOrNull(), listViewKey, {
+      pagesLoaded,
+      anchorIssueId: topRowRef.current.id,
+      anchorIndex: topRowRef.current.index,
+    });
+  }, [listViewKey, pagesLoaded]);
+
+  useEffect(() => {
+    // 卸载即视为离开（走 /issues/[id] 全页详情是最常见的卸载路径）
+    return () => persistListView();
+  }, [persistListView]);
+
+  const handleTopRowChange = useCallback((issueId: string | null, index: number) => {
+    topRowRef.current = { id: issueId, index };
+  }, []);
+
+  // 换筛选条件/搜索词/指派人时窗口回到第一页，避免带着放大的 limit 走
+  const pagingResetKey = [
+    qFromUrl,
+    labelFilter,
+    priorityQuery ?? '',
+    originQuery ?? '',
+    projectFromUrl ?? '',
+    assigneeQuery.assigneeType ?? '',
+    assigneeQuery.assigneeId ?? '',
+    assigneeQuery.unassigned ? '1' : '',
+    assigneeQuery.assigned ? '1' : '',
+  ].join('|');
+  const lastPagingResetKey = useRef(pagingResetKey);
+  useEffect(() => {
+    if (lastPagingResetKey.current !== pagingResetKey) {
+      lastPagingResetKey.current = pagingResetKey;
+      setPagesLoaded(1);
+    }
+  }, [pagingResetKey]);
   const { data: labels } = useLabels();
   const reorder = useReorderIssues();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -1116,6 +1190,11 @@ function KanbanBoardInner() {
         ) : (
           <IssueListView
             issues={sortedVisible}
+            restoreToIndex={resolveRestoreIndex(
+              sortedVisible.map((i) => i.id),
+              restoredView,
+            )}
+            onTopRowChange={handleTopRowChange}
             density={density}
             selectedIds={selectedIds}
             failedIssueIds={failedIssueIds}
@@ -1171,6 +1250,33 @@ function KanbanBoardInner() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
+
+      {/* S1：诚实暴露已加载 / 总数，并提供真正能取到剩余条目的入口 */}
+      {issues.length > 0 && (
+        <div className="kanban-paging" data-testid="kanban-paging">
+          <span
+            className="text-dim text-sm"
+            data-testid="kanban-paging-summary"
+            data-loaded={paging.loaded}
+            data-total={paging.total}
+            data-remaining={paging.remaining}
+            role="status"
+          >
+            {paging.label}
+          </span>
+          {paging.hasMore && (
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              data-testid="kanban-load-more"
+              disabled={issuesFetching}
+              onClick={() => setPagesLoaded((p) => p + 1)}
+            >
+              {issuesFetching ? '加载中…' : `加载更多（还有 ${paging.remaining} 条）`}
+            </button>
+          )}
+        </div>
       )}
 
       {selectedIds.size > 0 && (

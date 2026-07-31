@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
@@ -59,6 +59,10 @@ export type IssueListViewProps = {
   /** Slice 32：行点进侧滑；不传则仍走 `/issues/[id]` 全页 */
   getDetailHref?: (issue: Issue) => string;
   onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
+  /** S1：挂载后要滚到的行号（来自锚点恢复）；null = 不滚 */
+  restoreToIndex?: number | null;
+  /** S1：顶部可见行变化时上报，供调用方保存锚点 */
+  onTopRowChange?: (issueId: string | null, index: number) => void;
 };
 
 export function IssueListView({
@@ -77,6 +81,8 @@ export function IssueListView({
   onStatusChange,
   getDetailHref,
   onOpenDetail,
+  restoreToIndex,
+  onTopRowChange,
 }: IssueListViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const estimateSize = estimateIssueListRowHeight(density);
@@ -89,6 +95,31 @@ export function IssueListView({
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // S1：只在挂载后恢复一次，之后用户自己的滚动不该被再次劫持
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (issues.length === 0) return;
+    if (restoreToIndex == null || restoreToIndex <= 0) {
+      restoredRef.current = true;
+      return;
+    }
+    const target = Math.min(restoreToIndex, issues.length - 1);
+    rowVirtualizer.scrollToIndex(target, { align: 'start' });
+    restoredRef.current = true;
+  }, [restoreToIndex, issues.length, rowVirtualizer]);
+
+  // S1：上报当前顶部可见行，供调用方存锚点（离开时才写存储，这里只回调）
+  const firstVisibleIndex = virtualItems[0]?.index ?? -1;
+  const lastReportedRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!onTopRowChange) return;
+    if (firstVisibleIndex < 0) return;
+    if (lastReportedRef.current === firstVisibleIndex) return;
+    lastReportedRef.current = firstVisibleIndex;
+    onTopRowChange(issues[firstVisibleIndex]?.id ?? null, firstVisibleIndex);
+  }, [firstVisibleIndex, issues, onTopRowChange]);
   const { paddingTop, paddingBottom } = computeVirtualTableSpacers(
     issues.length,
     virtualItems,

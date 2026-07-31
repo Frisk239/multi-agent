@@ -935,6 +935,16 @@ a:hover {
   align-items: stretch;
 }
 
+/* S1：列表/看板底部分页条——诚实显示 已加载/总数 + 加载更多 */
+.kanban-paging {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) 0 var(--space-4);
+}
+
 /* Multica board-column: width 280, rounded-xl, status tint, p-2 */
 .kanban-column {
   --kanban-col-tint: color-mix(in srgb, var(--text-muted) 8%, transparent);
@@ -2446,6 +2456,22 @@ html.dark .btn-ghost:hover {
 }
 
 .assignee-select:focus {
+  border-color: var(--accent);
+}
+
+/* S1：指派器搜索框（名单变长后不必再滚） */
+.assignee-search {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  outline: none;
+}
+
+.assignee-search:focus {
   border-color: var(--accent);
 }
 

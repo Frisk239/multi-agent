@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQueries } from '@tanstack/react-query';
 import {
@@ -14,6 +14,7 @@ import {
 import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
 import { isRuntimeAssignableForDispatch } from '@ma/shared';
 import { confirmDialog } from '@/lib/confirm-store';
+import { filterAssigneeOptions } from '@/lib/assignee-filter';
 import { toastSuccess } from '@/lib/toast';
 import { Select } from './Select';
 
@@ -139,6 +140,15 @@ export function AssigneeSelect({
       : currentAssignee?.type === 'squad'
         ? `squad:${currentAssignee.id}`
         : '';
+
+  // S1：搜索只收窄下拉里的候选，当前已选项由 filterAssigneeOptions 强制保留
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(
+    () => filterAssigneeOptions({ agents, squads, query: search, currentValue }),
+    [agents, squads, search, currentValue],
+  );
+  const visibleAgents = filtered.agents;
+  const visibleSquads = filtered.squads;
 
   const currentSquad =
     currentAssignee?.type === 'squad'
@@ -286,7 +296,28 @@ export function AssigneeSelect({
 
   return (
     <div className="assignee-select-wrap" data-testid="assignee-select-wrap">
+      {/* S1：名单一长就只能滚 → 补搜索。只过滤选项，不动 readiness 判定。 */}
+      <input
+        type="search"
+        className="assignee-search"
+        data-testid="assignee-search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="搜索智能体 / 小队（名称或 ID）"
+        aria-label="搜索指派对象"
+        aria-controls="assignee-select-listbox"
+      />
+      {filtered.isEmpty && filtered.isFiltering ? (
+        <div
+          className="assignee-search-empty text-dim text-sm"
+          data-testid="assignee-search-empty"
+          role="status"
+        >
+          无匹配的智能体或小队
+        </div>
+      ) : null}
       <Select
+        id="assignee-select-listbox"
         value={currentValue}
         onChange={(e) => {
           void onChange(e.target.value);
@@ -297,7 +328,7 @@ export function AssigneeSelect({
       >
         <option value="">未指派</option>
         <optgroup label="智能体">
-          {agents.map((a) => {
+          {visibleAgents.map((a) => {
             const hint = readinessHint(readinessMap[a.id]);
             // A6: Pi (executionImplemented=false) surfaces as blocked via readiness error;
             // also label options with unassignable runtime explicitly.
@@ -316,7 +347,7 @@ export function AssigneeSelect({
           })}
         </optgroup>
         <optgroup label="小队">
-          {squads.map((s) => {
+          {visibleSquads.map((s) => {
             const detail = squadDetailById.get(s.id);
             const summary = squadBlockedSummary(
               detail,
