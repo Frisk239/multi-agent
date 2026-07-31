@@ -405,6 +405,7 @@ export const chatThreads = sqliteTable(
   }),
 );
 
+// —— chat_message（agent-chat：单条会话消息，cascade 删除）——
 export const chatMessages = sqliteTable(
   'chat_message',
   {
