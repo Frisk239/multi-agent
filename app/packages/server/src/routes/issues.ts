@@ -423,6 +423,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       db.delete(issueToLabels).where(eq(issueToLabels.issueId, id)).run();
       db.delete(issueSubscribers).where(eq(issueSubscribers.issueId, id)).run();
       db.delete(comments).where(eq(comments.issueId, id)).run();
+      db.delete(activityLogs).where(eq(activityLogs.issueId, id)).run();
       db.delete(inboxItems).where(eq(inboxItems.issueId, id)).run();
       db.delete(wikiIngestJobs).where(eq(wikiIngestJobs.issueId, id)).run();
       // run 保留审计：issue_id 置空（与 QC 可空 issue 一致）
@@ -967,6 +968,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           db.delete(issueToLabels).where(eq(issueToLabels.issueId, id)).run();
           db.delete(issueSubscribers).where(eq(issueSubscribers.issueId, id)).run();
           db.delete(comments).where(eq(comments.issueId, id)).run();
+          db.delete(activityLogs).where(eq(activityLogs.issueId, id)).run();
           db.delete(inboxItems).where(eq(inboxItems.issueId, id)).run();
           db.delete(wikiIngestJobs).where(eq(wikiIngestJobs.issueId, id)).run();
           db.update(agentRuns).set({ issueId: null }).where(eq(agentRuns.issueId, id)).run();

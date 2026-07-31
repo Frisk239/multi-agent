@@ -310,7 +310,10 @@ export const runMessages = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
+    // 按 runId + seq 排序（用于轨迹回放）
     runSeqIdx: index('idx_run_message_run_seq').on(t.runId, t.seq),
+    // 按 runId + createdAt 范围查询（用于时间窗口过滤）
+    runCreatedIdx: index('idx_run_message_run_created').on(t.runId, t.createdAt),
   }),
 );
 
