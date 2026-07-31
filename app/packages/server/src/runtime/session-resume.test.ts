@@ -38,8 +38,10 @@ describe('Slice 50 session resume capability matrix', () => {
     expect(runtimeSupportsSessionResume('unknown-runtime')).toBe(false);
   });
 
+  // A9（2026-07-30）：grok 转为 supportsSessionResume=true，已不属于 unsupported。
+  // 只剩 pi（执行未实现）走 capability gate 短路，不查 DB。
   it('unsupported runtimes resolvePriorSession without DB', () => {
-    for (const runtime of ['grok', 'pi'] as RuntimeId[]) {
+    for (const runtime of ['pi'] as RuntimeId[]) {
       const d = resolvePriorSession({
         id: `run-${runtime}`,
         runtime,

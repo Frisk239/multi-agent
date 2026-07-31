@@ -105,7 +105,8 @@ export function parseGrokLine(
 
 /**
  * 构建 grok agent argv 公共段（print / fallback 共用 model+effort）。
- * Slice 50：supportsSessionResume=false → 不注入 --resume（忽略 resumeSessionId）。
+ * A9（2026-07-30 起）：supportsSessionResume=true → 有 resumeSessionId 就注入 --resume。
+ * （此前 Slice 50 声明为 false 且不注入，已由 A9 推翻，勿照旧注释理解。）
  */
 export function buildGrokAgentArgs(
   input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId'>,

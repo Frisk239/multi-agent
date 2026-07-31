@@ -2,7 +2,11 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { db, sqlite } from './client.js';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { isSafeMigrateClean, safeMigrateSqlFolder } from './safe-migrate.js';
+import {
+  isSafeMigrateClean,
+  safeMigrateSqlFolder,
+  stampMigrationJournal,
+} from './safe-migrate.js';
 
 // drizzle-kit generate 产出 ./drizzle/*.sql，此脚本执行它们
 // 注意：用 fileURLToPath 而非 .pathname，避免 Windows 上 pathname 产生前导 '/' (/D:/...) 导致路径无效
@@ -32,6 +36,12 @@ try {
     }
     console.log(
       `✓ safe migrate repair ok (applied≈${repair.applied.length}, skipped-dup=${repair.skipped.length})`,
+    );
+    // Reconcile the journal with what is now physically in the DB, otherwise the
+    // next `migrate()` replays the same edited files and fails identically.
+    const stamp = stampMigrationJournal(sqlite, migrationsFolder);
+    console.log(
+      `✓ journal stamped (new=${stamp.stamped.length}, already-present=${stamp.alreadyPresent})`,
     );
   } else {
     sqlite.close();

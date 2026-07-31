@@ -32,13 +32,13 @@ describe('runtime registry', () => {
     }
   });
 
-  it('claude-code, opencode, cursor support session resume; grok/pi do not', () => {
-    expect(getBackend('claude-code').supportsSessionResume).toBe(true);
-    expect(getBackend('opencode').supportsSessionResume).toBe(true);
-    expect(getBackend('cursor').supportsSessionResume).toBe(true);
-    for (const id of ['grok', 'pi'] as RuntimeId[]) {
-      expect(getBackend(id).supportsSessionResume).toBe(false);
+  // A9（2026-07-30）：grok 转为 supportsSessionResume=true + --resume 注入。
+  // 唯一不支持的是 pi（执行本身未实现）。
+  it('claude-code, opencode, cursor, grok support session resume; pi does not', () => {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'grok'] as RuntimeId[]) {
+      expect(getBackend(id).supportsSessionResume).toBe(true);
     }
+    expect(getBackend('pi').supportsSessionResume).toBe(false);
   });
 
   it('throws error for unregistered runtime ID', () => {

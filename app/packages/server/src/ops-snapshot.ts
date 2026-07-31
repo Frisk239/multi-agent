@@ -306,15 +306,17 @@ export type OpsResumeStats = {
   window: typeof RESUME_STATS_WINDOW;
 };
 
+export type OpsWikiTreeFile = {
+  path: string;
+  sizeBytes: number;
+  hash: string; // SHA-256
+  mtime: number;
+};
+
 export type OpsWikiTreeSnapshot = {
   root: string;
   projectRoots: number;
-  files: Array<{
-    path: string;
-    sizeBytes: number;
-    hash: string; // SHA-256
-    mtime: number;
-  }>;
+  files: OpsWikiTreeFile[];
   manifestVersion: string;
 };
 
@@ -625,9 +627,10 @@ export function buildOpsWikiTreeSnapshot(): OpsWikiTreeSnapshot {
     };
   }
 
-  const collectFiles = (dir: string, prefix = ''): Array<{path: string; size: number; hash: string; mtime: number}> => {
+  // 从 OpsWikiTreeSnapshot 派生，避免局部注解与 type 定义漂移（字段是 sizeBytes 不是 size）
+  const collectFiles = (dir: string, prefix = ''): OpsWikiTreeFile[] => {
     const entries = readdirSync(dir, { withFileTypes: true });
-    let files: Array<{path: string; size: number; hash: string; mtime: number}> = [];
+    let files: OpsWikiTreeFile[] = [];
 
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
