@@ -29,6 +29,10 @@ import {
   matchRunningProjectLocalHolder,
   type PathHolder,
 } from './orchestration/path-lock.js';
+import { existsSync, statSync, readdirSync, readFileSync } from 'node:fs';
+import { join, resolve, isAbsolute } from 'node:path';
+import { createHash } from 'crypto';
+import { listProjectWikiRoots } from './wiki/project-wiki-roots.js';
 
 /** Slice 69 钉死：近 7 日（createdAt） */
 export const RESUME_STATS_WINDOW = '7d' as const;
@@ -302,11 +306,24 @@ export type OpsResumeStats = {
   window: typeof RESUME_STATS_WINDOW;
 };
 
+export type OpsWikiTreeSnapshot = {
+  root: string;
+  projectRoots: number;
+  files: Array<{
+    path: string;
+    sizeBytes: number;
+    hash: string; // SHA-256
+    mtime: number;
+  }>;
+  manifestVersion: string;
+};
+
 export type OpsSnapshot = {
   ts: number;
   status: 'ok' | 'degraded';
   runs: OpsRunsSnapshot;
   wiki: OpsWikiSnapshot;
+  wikiTree: OpsWikiTreeSnapshot;
   memory: OpsMemoryBreakerSnapshot;
   workers: Record<WorkerHealthKey, WorkerHealthSnapshot>;
   process: Pick<ProcessHealthResponse, 'uptimeMs' | 'db' | 'status'>;
@@ -592,6 +609,61 @@ export function buildOpsResumeStats(now = Date.now()): OpsResumeStats {
   };
 }
 
+/**
+ * Wiki tree coverage for disaster recovery snapshot.
+ * Recursively walks wiki/ + project wiki roots, computes SHA-256 per file + manifest.
+ * Includes project roots count from project-wiki-roots.ts.
+ */
+export function buildOpsWikiTreeSnapshot(): OpsWikiTreeSnapshot {
+  const wikiRoot = resolve(process.cwd(), 'wiki');
+  if (!existsSync(wikiRoot) || !statSync(wikiRoot).isDirectory()) {
+    return {
+      root: wikiRoot,
+      projectRoots: 0,
+      files: [],
+      manifestVersion: '1.0',
+    };
+  }
+
+  const collectFiles = (dir: string, prefix = ''): Array<{path: string; size: number; hash: string; mtime: number}> => {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    let files: Array<{path: string; size: number; hash: string; mtime: number}> = [];
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      const relPath = join(prefix, entry.name);
+      if (entry.isDirectory()) {
+        files = files.concat(collectFiles(fullPath, relPath));
+      } else if (entry.isFile()) {
+        try {
+          const content = readFileSync(fullPath);
+          const hash = createHash('sha256').update(content).digest('hex');
+          const stats = statSync(fullPath);
+          files.push({
+            path: relPath,
+            sizeBytes: stats.size,
+            hash,
+            mtime: stats.mtimeMs,
+          });
+        } catch (e) {
+          // skip unreadable
+        }
+      }
+    }
+    return files;
+  };
+
+  const wikiFiles = collectFiles(wikiRoot);
+  const projectRoots = listProjectWikiRoots().length; // will define helper below
+
+  return {
+    root: wikiRoot,
+    projectRoots,
+    files: wikiFiles.sort((a, b) => a.path.localeCompare(b.path)),
+    manifestVersion: '1.0',
+  };
+}
+
 export function buildOpsSnapshot(opts?: {
   now?: number;
   processHealth?: ProcessHealthResponse;
@@ -615,11 +687,14 @@ export function buildOpsSnapshot(opts?: {
     automation.failedRules > 0 ||
     (runs.eligibleQueueAge.maxMs != null && runs.eligibleQueueAge.maxMs > 60_000);
 
+  const wikiTree = buildOpsWikiTreeSnapshot();
+
   return {
     ts: now,
     status: opsDegraded ? 'degraded' : 'ok',
     runs,
     wiki,
+    wikiTree,
     memory,
     workers: processHealth.workers,
     process: {

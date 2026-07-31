@@ -97,4 +97,13 @@ describe('IssueSideSheet', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('exposes proper ARIA for a11y/focus/CTA', () => {
+    const { getByRole, getByLabelText } = render(
+      <IssueSideSheet issueId="iss-42" onClose={vi.fn()} />
+    );
+    expect(getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    expect(getByRole('dialog')).toHaveAttribute('aria-labelledby', 'issue-side-sheet-head');
+    expect(getByLabelText('关闭详情')).toBeInTheDocument();
+  });
 });
