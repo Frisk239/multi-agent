@@ -5,12 +5,19 @@ import { useRouter } from 'next/navigation';
 import {
   useAgents,
   useAgentsReadinessMap,
-  useIssues,
+  useIssueSearch,
   useRunsActiveCount,
   useSquads,
   useWikiPages,
 } from '@/lib/api';
 import { useFocusTrap } from '@/lib/use-focus-trap';
+import { rankCandidates } from '@/lib/command-scorer';
+import {
+  clearRecentVisits,
+  localStorageOrNull,
+  readRecentVisits,
+  type RecentVisit,
+} from '@/lib/recent-visits';
 import { QuickDispatchPanel } from './QuickDispatchPanel';
 
 export type CommandPaletteOpenRequest = {
@@ -51,10 +58,17 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     return () => window.clearTimeout(t);
   }, [query]);
 
-  const { data: issuesPage, isFetching: issuesFetching } = useIssues(
-    debouncedQ ? { q: debouncedQ } : undefined,
-  );
-  const remoteIssues = issuesPage?.data ?? [];
+  // S6：搜索走 /api/issues/search（覆盖评论正文，带 snippet 与 commentId）
+  const { data: searchPage, isFetching: issuesFetching } = useIssueSearch(debouncedQ, {
+    limit: 12,
+  });
+  const searchHits = searchPage?.data ?? [];
+
+  // S6：真实最近访问（去重、可清空），替代「本地已加载 issues 前 8 条」
+  const [recentVisits, setRecentVisits] = useState<RecentVisit[]>([]);
+  useEffect(() => {
+    if (open) setRecentVisits(readRecentVisits(localStorageOrNull()));
+  }, [open]);
 
   // 有查询时：为命中名称的 agent 拉 readiness 显示在 hint
   const matchedAgentIds = useMemo(() => {
@@ -236,29 +250,47 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     ];
 
     const q = debouncedQ.toLowerCase();
-    const filteredNav = nav.filter((c) => {
-      if (!q) return true;
-      return c.label.toLowerCase().includes(q) || (c.hint ?? '').toLowerCase().includes(q);
-    });
 
-    // 无查询：本地全量 issues 前 8 条作「最近」；有查询：服务端结果
-    const issueSource = debouncedQ
-      ? remoteIssues
-      : remoteIssues; // useIssues() 无参时为全量
-    const issueCmds = issueSource
-      .slice(0, 8)
-      .map((i) => ({
-        id: `issue-${i.id}`,
-        label: `${i.identifier} · ${i.title}`,
-        hint: [
-          i.status,
-          ...(i.labels ?? []).slice(0, 2).map((l) => l.name),
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        group: 'Issues',
-        run: () => router.push(`/issues/${i.id}`),
-      }));
+    // S6：导航项改用确定性打分（前缀 > 子序列 > 拼音 > contains），不再是纯子串
+    const filteredNav = q
+      ? rankCandidates(
+          nav.map((c) => ({ id: c.id, label: c.label, identifier: c.hint ?? null, cmd: c })),
+          debouncedQ,
+        ).map((x) => x.cmd)
+      : nav;
+
+    // S6：无查询时列**真实**最近访问；有查询时用服务端搜索（含评论正文）
+    const recentCmds: Command[] = debouncedQ
+      ? []
+      : recentVisits.map((v) => ({
+          id: `recent-${v.key}`,
+          label: v.label,
+          hint: v.key,
+          group: '最近访问',
+          run: () => router.push(v.key),
+        }));
+
+    const issueCmds: Command[] = debouncedQ
+      ? searchHits.map((h) => ({
+          id: `issue-${h.issueId}`,
+          label: `${h.identifier} · ${h.title}`,
+          // 命中来源可见：评论命中时提示这是评论里搜到的，并给出片段
+          hint: [
+            h.matchSource === 'comment' ? '评论命中' : h.matchSource,
+            h.snippet ?? '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+            .slice(0, 120),
+          group: 'Issues',
+          run: () =>
+            router.push(
+              h.commentId
+                ? `/issues/${h.issueId}#comment-${h.commentId}`
+                : `/issues/${h.issueId}`,
+            ),
+        }))
+      : [];
 
     const readinessLabel = (status?: string | null) => {
       if (!status) return '…';
@@ -889,13 +921,16 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...filteredNav,
       ];
     }
+    // S6：无查询时先给「最近访问」，再给导航
+    if (!debouncedQ) return [...recentCmds, ...filteredNav];
     return [...filteredNav, ...issueCmds];
   }, [
     agents,
     activeRuns?.count,
     squads,
     debouncedQ,
-    remoteIssues,
+    searchHits,
+    recentVisits,
     readinessMap,
     router,
     setOpen,
@@ -979,6 +1014,20 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             </ul>
             <div className="cmdk-footer">
               <span>↑↓ 选择 · Enter 执行</span>
+              {/* S6：最近访问可一键清空 */}
+              {!debouncedQ && recentVisits.length > 0 ? (
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  data-testid="cmdk-clear-recent"
+                  onClick={() => {
+                    clearRecentVisits(localStorageOrNull());
+                    setRecentVisits([]);
+                  }}
+                >
+                  清空最近访问
+                </button>
+              ) : null}
               <span>Esc 关闭</span>
             </div>
           </div>

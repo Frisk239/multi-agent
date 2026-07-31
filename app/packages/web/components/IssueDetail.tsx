@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { localStorageOrNull, recordVisit } from '@/lib/recent-visits';
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
 import { API, apiFetch, useActivities, useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
@@ -194,6 +195,17 @@ export function IssueDetail({
     setPropsOpen(readPropsOpen());
     setHydrated(true);
   }, [isSheet]);
+
+  // S6：记录真实打开记录，供 CmdK 的「最近访问」使用（全页打开才算，侧滑不算）
+  useEffect(() => {
+    if (isSheet || !issue) return;
+    recordVisit(localStorageOrNull(), {
+      key: `/issues/${issue.id}`,
+      label: `${issue.identifier} · ${issue.title}`,
+      kind: 'Issue',
+      visitedAt: Date.now(),
+    });
+  }, [isSheet, issue?.id, issue?.identifier, issue?.title]);
 
   function toggleProps() {
     setPropsOpen((v) => {

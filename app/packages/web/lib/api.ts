@@ -36,6 +36,7 @@ import type {
   RuntimeModelsResponse,
   WikiPage,
   WikiPageSummary,
+  IssueSearchHit,
   WikiQueryResult,
   WikiHealthResult,
   WikiLintResult,
@@ -210,6 +211,25 @@ export function useIssues(params?: IssuesQuery) {
     queryFn: async () => {
       const res = await apiFetch(buildIssuesUrl(params));
       if (!res.ok) throw new Error('加载失败');
+      return res.json();
+    },
+  });
+}
+
+/**
+ * S6：含**评论正文**的「找回」搜索。与 useIssues 的 q 分开——后者是列表筛选，
+ * 这里带 snippet 与 commentId，用于 CmdK 与全局搜索。
+ */
+export function useIssueSearch(query: string, opts?: { limit?: number; enabled?: boolean }) {
+  const q = query.trim();
+  return useQuery<{ data: IssueSearchHit[]; total: number; query: string }>({
+    queryKey: ['issue-search', q, opts?.limit ?? 30],
+    enabled: (opts?.enabled ?? true) && q.length > 0,
+    queryFn: async () => {
+      const sp = new URLSearchParams({ q });
+      if (opts?.limit) sp.set('limit', String(opts.limit));
+      const res = await apiFetch(`${API}/issues/search?${sp.toString()}`);
+      if (!res.ok) throw new Error('搜索失败');
       return res.json();
     },
   });

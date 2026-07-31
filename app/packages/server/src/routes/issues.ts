@@ -6,6 +6,7 @@ import {
   RerunIssueInput,
   SetIssueLabelsInput,
   ListIssuesQuery,
+  SearchIssuesQuery,
   ReorderIssuesInput,
   validateUpdateIssue,
   BulkUpdateIssueStatusInput,
@@ -58,6 +59,10 @@ import {
   propagateChildDoneBatch,
   type ChildStatusChange,
 } from '../orchestration/child-done-propagation.js';
+import { projectSearchHits } from '../issue-search.js';
+
+/** S6：单次搜索最多扫这么多行，避免大库把 UI 卡死（对齐上游的超时保护意图）。 */
+const SEARCH_SCAN_LIMIT = 500;
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
@@ -193,6 +198,87 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     const data = issuesWithRelations(rows);
     return { data, total, limit: parsed.data.limit, offset: parsed.data.offset };
+  });
+
+  /**
+   * S6：GET /api/issues/search?q=&limit= —— 覆盖 identifier/title/description/**评论正文**。
+   * 与 GET /api/issues 的 q 分开：那个是列表筛选，这个是「找回」，要带 snippet 与 commentId。
+   * 必须注册在 /api/issues/:id 之前，否则 "search" 会被 :id 吃掉。
+   */
+  app.get('/api/issues/search', async (req, reply) => {
+    const parsed = SearchIssuesQuery.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      });
+    }
+    const q = parsed.data.q.trim();
+    if (!q) return { data: [], total: 0, query: '' };
+
+    const needle = `%${q.toLowerCase()}%`;
+
+    // 先按 identifier/title/description 捞一批，再单独捞命中评论的 issue，
+    // 合并后交给纯函数做「每 issue 一条 + 最强来源」的投影。
+    const directRows = db
+      .select()
+      .from(issues)
+      .where(
+        and(
+          eq(issues.workspaceId, WS_ID),
+          or(
+            like(issues.identifier, needle),
+            like(issues.title, needle),
+            like(issues.description, needle),
+          )!,
+        ),
+      )
+      .limit(SEARCH_SCAN_LIMIT)
+      .all();
+
+    const commentRows = db
+      .select({
+        id: comments.id,
+        issueId: comments.issueId,
+        body: comments.body,
+        createdAt: comments.createdAt,
+      })
+      .from(comments)
+      .where(and(eq(comments.type, 'comment'), like(comments.body, needle)))
+      .limit(SEARCH_SCAN_LIMIT)
+      .all();
+
+    const commentsByIssue = new Map<string, Array<{ id: string; body: string; createdAt: number }>>();
+    for (const c of commentRows) {
+      const arr = commentsByIssue.get(c.issueId) ?? [];
+      arr.push({ id: c.id, body: c.body, createdAt: c.createdAt });
+      commentsByIssue.set(c.issueId, arr);
+    }
+
+    // 补齐只命中评论、但不在 directRows 里的 issue
+    const seen = new Set(directRows.map((r) => r.id));
+    const extraIds = [...commentsByIssue.keys()].filter((id) => !seen.has(id));
+    const extraRows =
+      extraIds.length > 0
+        ? db
+            .select()
+            .from(issues)
+            .where(and(eq(issues.workspaceId, WS_ID), inArray(issues.id, extraIds)))
+            .all()
+        : [];
+
+    const candidates = [...directRows, ...extraRows].map((r) => ({
+      issueId: r.id,
+      identifier: r.identifier,
+      title: r.title,
+      description: r.description,
+      comments: commentsByIssue.get(r.id) ?? [],
+    }));
+
+    const data = projectSearchHits(candidates, q, { limit: parsed.data.limit });
+    return { data, total: data.length, query: q };
   });
 
   // POST /api/issues/reorder —— DS2：整列重排（orderedIds → position 0..n-1）

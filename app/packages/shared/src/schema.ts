@@ -666,6 +666,24 @@ export const ListIssuesQuery = z
   });
 export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
 
+/** S6：GET /api/issues/search —— 含评论正文的「找回」查询 */
+export const SearchIssuesQuery = z.object({
+  q: z.string().default(''),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+});
+export type SearchIssuesQuery = z.infer<typeof SearchIssuesQuery>;
+
+export const IssueSearchHit = z.object({
+  issueId: BusinessId,
+  identifier: z.string(),
+  title: z.string(),
+  matchSource: z.enum(['identifier', 'title', 'description', 'comment']),
+  snippet: z.string().nullable(),
+  /** 仅评论命中时非空，便于直接跳到该评论 */
+  commentId: BusinessId.nullable(),
+});
+export type IssueSearchHit = z.infer<typeof IssueSearchHit>;
+
 /** DS2：整列重排（同 status 内 orderedIds → position 0..n-1；可含跨列迁入的一张卡） */
 export const ReorderIssuesInput = z.object({
   status: IssueStatus,
