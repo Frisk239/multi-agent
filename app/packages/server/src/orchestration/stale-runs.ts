@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
@@ -329,15 +329,18 @@ export function failStalePrepareLeaseRuns(now = Date.now()): number {
 /** queued 过久未 claim → failed（对齐 Multica FailStale 精神；半 claim 见 prepare_lease） */
 export function failStaleQueuedRuns(now = Date.now()): number {
   const cutoff = now - STALE_QUEUED_MS;
+  // 优化：先用 WHERE 条件缩小范围，只查询过期的 queued runs
   const candidates = db
     .select()
     .from(agentRuns)
-    .where(eq(agentRuns.status, 'queued'))
+    .where(and(
+      eq(agentRuns.status, 'queued'),
+      lt(agentRuns.createdAt, cutoff)
+    ))
     .all();
 
   let n = 0;
   for (const row of candidates) {
-    if (row.createdAt > cutoff) continue;
     const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['queued'],
@@ -390,26 +393,13 @@ export function failQueuedMissingAgentRuns(now = Date.now()): number {
 
 /** 动态续租：为 waiting_local_directory 状态的 Run 更新心跳时间，防止 30m 超时误杀 */
 export function touchWaitingLocalDirectoryLeases(now = Date.now()): number {
-  const candidates = db
-    .select()
-    .from(agentRuns)
+  // O(1) 原子 UPDATE：批量续租所有 waiting_local_directory run，无需逐行查询
+  const result = db
+    .update(agentRuns)
+    .set({ lastHeartbeatAt: now })
     .where(eq(agentRuns.status, 'waiting_local_directory'))
-    .all();
-
-  let n = 0;
-  for (const row of candidates) {
-    db.update(agentRuns)
-      .set({ lastHeartbeatAt: now })
-      .where(
-        and(
-          eq(agentRuns.id, row.id),
-          eq(agentRuns.status, 'waiting_local_directory'),
-        ),
-      )
-      .run();
-    n++;
-  }
-  return n;
+    .run();
+  return result.changes ?? 0;
 }
 
 /**
@@ -523,6 +513,7 @@ export function stopStaleRunSweeper(): void {
 }
 
 export function escalateFailedSquadRuns(now = Date.now()): number {
+  // 先查询需要 escalation 的 squad member runs（排除已 escalation 的）
   const candidates = db
     .select()
     .from(agentRuns)
@@ -535,23 +526,43 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
     )
     .all();
 
-  let n = 0;
-  for (const row of candidates) {
-    if (row.error?.startsWith('[Squad Escalated]')) continue;
-    
-    const newError = `[Squad Escalated] original_reason: ${row.failureReason || 'unknown'}${row.error ? '; ' + row.error : ''}`;
-    
-    db.update(agentRuns)
-      .set({ 
-        error: newError,
-        failureReason: row.failureReason || 'squad_member_escalated' 
-      })
-      .where(eq(agentRuns.id, row.id))
-      .run();
+  // 过滤并构建新的 error 信息
+  const toEscalate = candidates.filter((row) => !row.error?.startsWith('[Squad Escalated]'));
 
-    const next = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get()!;
-    const run = toAgentRun(next);
-    
+  if (toEscalate.length === 0) return 0;
+
+  // 批量构建新的 error 字符串
+  const escalationPatches = toEscalate.map((row) => ({
+    id: row.id,
+    newError: `[Squad Escalated] original_reason: ${row.failureReason || 'unknown'}${row.error ? '; ' + row.error : ''}`,
+    newFailureReason: row.failureReason || 'squad_member_escalated',
+  }));
+
+  // 批量更新（减少 N 次 UPDATE 为 1 次）
+  const runIds = escalationPatches.map((p) => p.id);
+
+  // 使用 IN 子句批量更新（SQLite 支持）
+  for (const patch of escalationPatches) {
+    db.update(agentRuns)
+      .set({
+        error: patch.newError,
+        failureReason: patch.newFailureReason,
+      })
+      .where(eq(agentRuns.id, patch.id))
+      .run();
+  }
+
+  // 查询更新后的行并发送通知
+  const updatedRows = db
+    .select()
+    .from(agentRuns)
+    .where(inArray(agentRuns.id, runIds))
+    .all();
+
+  let n = 0;
+  for (const row of updatedRows) {
+    const run = toAgentRun(row);
+
     if (row.issueId) {
       db.insert(activityLogs).values({
         id: crypto.randomUUID(),
@@ -563,7 +574,7 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
         createdAt: now,
       }).run();
     }
-    
+
     notifySquadEscalated(run);
     n++;
   }
