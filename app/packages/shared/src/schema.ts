@@ -675,7 +675,9 @@ export type ListIssuesQuery = z.infer<typeof ListIssuesQuery>;
 
 /** S6：GET /api/issues/search —— 含评论正文的「找回」查询 */
 export const SearchIssuesQuery = z.object({
-  q: z.string().default(''),
+  // W5：关键词长度上界 —— 超长 pattern 会让 LIKE/`%..%` 退化、拖慢全表扫描。
+  // 与路由侧墙钟预算（SEARCH_TIMEOUT 503）同源：快速失败优于慢扫描（multica search.go 意图）。
+  q: z.string().max(200).default(''),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });
 export type SearchIssuesQuery = z.infer<typeof SearchIssuesQuery>;

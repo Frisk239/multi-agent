@@ -95,7 +95,8 @@ export function wakeRunWorker(): void {
 // tick —— 遍历 queued / waiting_local_directory，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
 // 可用的 claim 并 fire-and-forget 执行（不 await，多个 run 并发）。
 // C1：project_local 同 path 同时仅 1 个 running；被挡显示为 waiting_local_directory。
-async function tick(): Promise<void> {
+// W5：导出 tick 供故障注入测试直接驱动（生产入口 startRunWorker 不变）
+export async function tick(): Promise<void> {
   if (stopped) return;
   noteWorkerTick('runWorker');
   const queuedRows = db

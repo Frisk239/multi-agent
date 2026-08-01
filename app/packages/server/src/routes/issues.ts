@@ -63,6 +63,33 @@ import { projectSearchHits } from '../issue-search.js';
 
 /** S6：单次搜索最多扫这么多行，避免大库把 UI 卡死（对齐上游的超时保护意图）。 */
 const SEARCH_SCAN_LIMIT = 500;
+
+/**
+ * S6：搜索墙钟预算（ms）。
+ *
+ * SQLite 等价物说明（对照 multica search.go 的 Postgres `statement_timeout=3s` → 503）：
+ * better-sqlite3 是同步驱动，不暴露语句级中断（无 sqlite3_interrupt），
+ * 无法真打断一条正在跑的 LIKE。等价物 = 两层组合：
+ * 1. SEARCH_SCAN_LIMIT 行数上限：两条 LIKE 都 LIMIT 500，SQLite 凑够即停，结果集不爆炸；
+ * 2. 本墙钟预算：两条 LIKE 总耗时超限 → 快速 503（SEARCH_TIMEOUT），
+ *    跳过 extraRows 补齐与投影，客户端不无限转圈（对齐 multica 的 503 语义）。
+ * 差异：极端大库下单条语句仍会跑完（同步驱动做不到中途取消），但请求侧
+ * 立即收到 503 而非挂起，且行数上限保证单次请求工作量有界。
+ * MA_SEARCH_TIMEOUT_MS 可覆盖（0/非法 → 回落默认）。
+ */
+const DEFAULT_SEARCH_TIMEOUT_MS = 3_000;
+
+export function resolveSearchTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.MA_SEARCH_TIMEOUT_MS;
+  if (raw == null || String(raw).trim() === '') {
+    return DEFAULT_SEARCH_TIMEOUT_MS;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_SEARCH_TIMEOUT_MS;
+  return Math.floor(n);
+}
 import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
@@ -220,6 +247,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
 
     const needle = `%${q.toLowerCase()}%`;
 
+    // S6：墙钟预算起点（只包两条 LIKE 扫描；投影/补齐在超限检查之后，超限即跳过）
+    const searchTimeoutMs = resolveSearchTimeoutMs();
+    const searchStartedAt = performance.now();
+
     // 先按 identifier/title/description 捞一批，再单独捞命中评论的 issue，
     // 合并后交给纯函数做「每 issue 一条 + 最强来源」的投影。
     const directRows = db
@@ -249,6 +280,15 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       .where(and(eq(comments.type, 'comment'), like(comments.body, needle)))
       .limit(SEARCH_SCAN_LIMIT)
       .all();
+
+    // S6：超预算 → 快速失败（对齐 multica 超时 503；不做补齐/投影，客户端不转圈）
+    if (performance.now() - searchStartedAt > searchTimeoutMs) {
+      return reply.status(503).send({
+        success: false,
+        error: '搜索超时：数据量过大或关键词过泛，请缩小关键词后重试',
+        code: 'SEARCH_TIMEOUT',
+      });
+    }
 
     const commentsByIssue = new Map<string, Array<{ id: string; body: string; createdAt: number }>>();
     for (const c of commentRows) {
