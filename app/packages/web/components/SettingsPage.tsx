@@ -32,6 +32,7 @@ import {
   publicLocalTokenStatusLabel,
 } from '@/lib/local-token';
 import { confirmDialog } from '@/lib/confirm-store';
+import { useShortcuts } from '@/lib/use-shortcuts';
 import { EmptyState } from './EmptyState';
 import { Icon } from './Icon';
 import { CliHealthInspector } from './CliHealthInspector';
@@ -119,6 +120,7 @@ function formatAgeMs(ms: number | null | undefined): string {
 
 export function SettingsPage() {
   const searchParams = useSearchParams();
+  const { openHelp } = useShortcuts();
   const { data, isLoading, isError, error, refetch, isFetching } =
     useSettingsStatus();
   const { data: profile } = useUserProfile();
@@ -397,6 +399,14 @@ export function SettingsPage() {
             onClick={() => setTab('profile')}
           >
             个人资料
+          </button>
+          <button
+            type="button"
+            className="settings-nav-item"
+            data-testid="settings-nav-shortcuts"
+            onClick={openHelp}
+          >
+            快捷键
           </button>
           <div className="settings-nav-group">工作区</div>
           <button
