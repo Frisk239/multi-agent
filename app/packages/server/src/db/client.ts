@@ -21,8 +21,22 @@ export {
 const DB_PATH = process.env.DB_PATH ?? './dev.db';
 
 export const SQLITE_BUSY_TIMEOUT_MS = resolveSqliteBusyTimeoutMs();
-export const sqlite = new Database(DB_PATH);
-applySqlitePragmas(sqlite, { busyTimeoutMs: SQLITE_BUSY_TIMEOUT_MS });
+
+function openDatabase(path: string): Database.Database {
+  const s = new Database(path);
+  applySqlitePragmas(s, { busyTimeoutMs: SQLITE_BUSY_TIMEOUT_MS });
+  return s;
+}
+
+function createDrizzle(connection: Database.Database) {
+  return drizzle(connection, { schema });
+}
+
+// D1（reopenable-db-lifecycle）：export let + swapDatabase —— ESM live binding 让全部
+// `import { db }` 消费方在换库后自动跟随新实例（验证：src/__test-helpers__/livebind.test.ts）。
+// better-sqlite3 同步模型：无跨语句并发，swap 只发生在事件循环间隙，安全。
+export let sqlite: Database.Database = openDatabase(DB_PATH);
+export let db = createDrizzle(sqlite);
 
 export function getSqliteHardeningInfo(
   database: Database.Database = sqlite,
@@ -31,7 +45,24 @@ export function getSqliteHardeningInfo(
   return getHardeningFromDb(database, path);
 }
 
-export const db = drizzle(sqlite, { schema });
+/**
+ * D1：原子换入新 DB 文件（安全 live restore 的解锁前置）。
+ * 调用方必须处于 maintenance 模式（写已阻断）：本函数只保证连接替换本身——
+ * 关旧连接、开新连接（pragmas）、重建 drizzle；label 函数是运行时查询，自动读新库。
+ * 返回 closed 供调用方决定是否需要进程重启兜底。
+ */
+export function swapDatabase(newPath: string): { closed: boolean } {
+  const next = openDatabase(newPath);
+  const old = sqlite;
+  sqlite = next;
+  db = createDrizzle(next);
+  try {
+    old.close();
+    return { closed: true };
+  } catch {
+    return { closed: false };
+  }
+}
 
 // —— label map（spec §4.2 R2）：静态 seed 数据，启动时加载到内存，O(1) 查询 ——
 // agent/squad 表的 id -> name 映射，用于 GET issues 时填充 assignee.label
