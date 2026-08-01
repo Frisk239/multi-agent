@@ -85,7 +85,7 @@ Agent 可绑定 **runtime**（claude-code / opencode / cursor）与 **model**（
 
 - **默认可在 `main` 开发并 `git push origin main`**（人授权简化流程；大实验可用 `feat/*`）  
 - Conventional Commits：`feat:` / `fix:` / `docs:` / `chore:` …  
-- 关刀：typecheck + 相关 Playwright/API 烟测；证据写 `app/.progress/*-impl-*.md`  
+- 关刀：`pnpm check`（typecheck + 三包 vitest）绿 + 相关 e2e（起服后 `cd packages/server && pnpm e2e --filter <涉及面>`）；证据写 `app/.progress/*-impl-*.md`  
 - **勿 commit：** `wiki/`、`packages/server/wiki/`、`*.db`、含密钥的 `.env`、真站 `storage-state`  
 
 差距与进度：

@@ -19,7 +19,8 @@ Slice Owner 做绿（含 Playwright 自测）
 
 | 信号 | 要求 |
 |---|---|
-| `pnpm typecheck` | 绿 |
+| `pnpm check` | 绿（= `pnpm typecheck` + 三包 vitest） |
+| e2e | 起服后 `cd app/packages/server && pnpm e2e --filter <涉及面>`（无服自动 SKIP，不假绿） |
 | Playwright CLI | 本刀 Must 路径（见 workflow 北星约束） |
 | progress | `app/.progress/<slug>-impl-*.md` |
 

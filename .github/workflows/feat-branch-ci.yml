@@ -39,3 +39,7 @@ jobs:
 
       - name: Typecheck
         run: pnpm -r typecheck
+
+      - name: Test
+        # 942+ vitest 用例（shared 94 + server 593 + web 345）；串行 3 包
+        run: pnpm test
