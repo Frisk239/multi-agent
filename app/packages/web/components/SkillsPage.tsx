@@ -12,10 +12,10 @@ import { PageSkeleton } from './Skeleton';
 import { CreateSkillDialog } from './CreateSkillDialog';
 import { Select } from './Select';
 
-type SourceFilter = '' | 'project' | 'user' | 'workspace';
+type SourceFilter = '' | 'project' | 'user' | 'workspace' | 'builtin';
 
 function parseSource(raw: string | null): SourceFilter {
-  if (raw === 'project' || raw === 'user' || raw === 'workspace') return raw;
+  if (raw === 'project' || raw === 'user' || raw === 'workspace' || raw === 'builtin') return raw;
   return '';
 }
 
@@ -172,6 +172,7 @@ function SkillsPageInner() {
               <option value="user">用户级</option>
               <option value="workspace">工作区</option>
               <option value="project">项目本机</option>
+              <option value="builtin">内置</option>
             </Select>
           </label>
         </div>
@@ -322,7 +323,9 @@ function SkillsPageInner() {
                           : '项目本机'
                         : sk.source === 'workspace'
                           ? '工作区'
-                          : '用户级'}
+                          : sk.source === 'builtin'
+                            ? '内置 · 不可删'
+                            : '用户级'}
                     </span>
                     <span className="skills-list-desc text-dim text-sm">
                       {sk.description || '—'}

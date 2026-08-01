@@ -11,6 +11,7 @@ import {
   statSync,
 } from 'node:fs';
 import { join, resolve, basename, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
@@ -18,7 +19,8 @@ import { db } from '../db/client.js';
 import { projects } from '../db/schema.js';
 
 // 内部索引类型（含 body/path）。与 shared 的 SkillInfo（API 响应契约，含 usedBy）不同。
-export type SkillSourceKind = 'project' | 'user' | 'workspace';
+// W6：builtin = 产品自带自省 skill（src/skill/builtin/，不可删），user/workspace/project 同名可覆盖。
+export type SkillSourceKind = 'project' | 'user' | 'workspace' | 'builtin';
 
 export interface SkillInfo {
   name: string;
@@ -42,6 +44,11 @@ export interface LocalSkillCandidate {
 }
 
 let skillIndex = new Map<string, SkillInfo>();
+
+/** W6：内置自省 skill 目录（src/skill/builtin/，随包分发） */
+export function builtinSkillsDir(): string {
+  return fileURLToPath(new URL('./builtin/', import.meta.url));
+}
 
 /** 工作区根 .skills（历史「project」目标；C3 起 source=workspace） */
 export function projectSkillsDir(): string | null {
@@ -196,6 +203,8 @@ export function listSkillDestinations(): {
 // 扫描：user → workspace → 各 project.localPath（后扫覆盖同名；project 带 projectId）
 export function scanSkills(): void {
   const next = new Map<string, SkillInfo>();
+  // W6：先扫内置（产品自带说明书）；user/workspace/project 同名后者覆盖（可定制内置）
+  scanDir(builtinSkillsDir(), 'builtin', next);
   scanDir(userSkillsDir(), 'user', next);
   const wsDir = workspaceSkillsDir();
   if (wsDir) scanDir(wsDir, 'workspace', next);

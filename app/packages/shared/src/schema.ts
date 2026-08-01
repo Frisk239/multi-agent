@@ -1212,8 +1212,8 @@ export const AgentsReadinessQuery = z.object({
 export type AgentsReadinessQuery = z.infer<typeof AgentsReadinessQuery>;
 
 // S05 + C3：skill 列表项契约（GET /api/skills）
-// source: user | workspace(工作区 .skills) | project(某 project.localPath/.skills)
-export const SkillSource = z.enum(['project', 'user', 'workspace']);
+// source: user | workspace(工作区 .skills) | project(某 project.localPath/.skills) | builtin(产品自带自省 skill)
+export const SkillSource = z.enum(['project', 'user', 'workspace', 'builtin']);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const SkillInfo = z.object({
