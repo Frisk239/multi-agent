@@ -35,6 +35,8 @@ describe('schema migrator drift gate (Slice 41)', () => {
 
     const agent = colNames(sqlite, 'agent');
     expect(agent.has('allowed_paths')).toBe(true);
+    // P2-4：显式 fallback agent（0045）
+    expect(agent.has('fallback_agent_id')).toBe(true);
 
     const agentRun = colNames(sqlite, 'agent_run');
     expect(agentRun.has('parent_run_id')).toBe(true);
@@ -45,8 +47,11 @@ describe('schema migrator drift gate (Slice 41)', () => {
     expect(agentRun.has('max_attempts')).toBe(true);
     expect(agentRun.has('next_attempt_at')).toBe(true);
     expect(agentRun.has('auto_retry_of_run_id')).toBe(true);
+    // P2-4：改派血缘（0045）
+    expect(agentRun.has('escalated_from_run_id')).toBe(true);
     const retryIndexes = sqlite.pragma('index_list(agent_run)') as Array<{ name: string }>;
     expect(retryIndexes.some((index) => index.name === 'uq_agent_run_auto_retry_of')).toBe(true);
+    expect(retryIndexes.some((index) => index.name === 'uq_agent_run_escalated_from')).toBe(true);
 
     const issue = colNames(sqlite, 'issue');
     expect(issue.has('custom_fields')).toBe(true);

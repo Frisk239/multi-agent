@@ -303,6 +303,32 @@ export function notifyEnqueueSkipped(
   });
 }
 
+/**
+ * P2-4：runtime 连接不上 + auto-retry 预算用尽 → 已自动改派给 fallback agent。
+ * 与 notifySquadEscalated 分流（无 Squad 语义、独立 dedupeKey）。
+ */
+export function notifyRunEscalated(
+  run: AgentRun,
+  opts: { toRunId: string; toAgentId: string; toAgentName: string },
+): void {
+  if (!run.issueId) return;
+  const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();
+  if (!issue) return;
+  const fromAgent = db.select().from(agents).where(eq(agents.id, run.agentId)).get();
+  ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'run_watcher');
+  notifyInbox({
+    type: 'run_failed',
+    severity: 'attention',
+    title: `运行时不可达 · 已自动转给 ${opts.toAgentName} · ${issue.identifier}`,
+    body: `${fromAgent?.name ?? run.agentId} 的运行时连接不上，自动重试预算已用尽；任务已自动转给 ${opts.toAgentName}（新 run ${opts.toRunId.slice(0, 8)}…）。`,
+    issueId: issue.id,
+    runId: run.id,
+    actorType: 'system',
+    actorId: null,
+    dedupeKey: `escalate_fallback:${run.id}`,
+  });
+}
+
 export function notifySquadEscalated(run: AgentRun): void {
   if (!run.issueId || !run.squadId) return;
   const issue = db.select().from(issues).where(eq(issues.id, run.issueId)).get();

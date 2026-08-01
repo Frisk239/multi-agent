@@ -198,6 +198,18 @@ describe('Shared Schema Validators', () => {
         }),
       ).toThrow();
     });
+
+    // P2-4
+    it('accepts nullable fallbackAgentId on create', () => {
+      expect(
+        CreateAgentInput.parse({ name: 'Bot', runtime: 'opencode', fallbackAgentId: 'ag-2' })
+          .fallbackAgentId,
+      ).toBe('ag-2');
+      expect(
+        CreateAgentInput.parse({ name: 'Bot', runtime: 'opencode', fallbackAgentId: null })
+          .fallbackAgentId,
+      ).toBeNull();
+    });
   });
 
   describe('CreateCommentInput', () => {
@@ -336,6 +348,29 @@ describe('Shared Schema Validators', () => {
       };
       const parsed = AgentRun.parse(base);
       expect(parsed.sessionResumeStatus).toBe('force_fresh');
+    });
+
+    // P2-4
+    it('AgentRun accepts nullable escalatedFromRunId lineage', () => {
+      const base = {
+        id: 'run-1',
+        issueId: null,
+        agentId: 'ag-1',
+        runtime: 'claude-code',
+        status: 'queued',
+        kind: 'issue',
+        quickPrompt: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        lastHeartbeatAt: null,
+        isLeader: false,
+        squadId: null,
+        createdAt: new Date().toISOString(),
+      };
+      expect(AgentRun.parse(base).escalatedFromRunId).toBeUndefined();
+      const withLineage = AgentRun.parse({ ...base, escalatedFromRunId: 'run-0' });
+      expect(withLineage.escalatedFromRunId).toBe('run-0');
     });
   });
 });

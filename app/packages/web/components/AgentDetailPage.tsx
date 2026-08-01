@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { AgentReadiness, RuntimeId } from '@ma/shared';
 import {
   useAgent,
+  useAgents,
   useAgentReadiness,
   useAgentRuns,
   useAgentWorkStats,
@@ -63,8 +64,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [model, setModel] = useState('');
   const [thinkingLevel, setThinkingLevel] = useState('');
   const [concurrency, setConcurrency] = useState(1);
+  // P2-4：显式后备 agent（runtime 连接不上 + 预算用尽时自动改派目标；''=不启用）
+  const [fallbackAgentId, setFallbackAgentId] = useState('');
   const [profileReady, setProfileReady] = useState(false);
   const { data: modelCatalog, isFetching: modelsLoading } = useRuntimeModels(runtime);
+  const { data: agentsList } = useAgents();
 
   useEffect(() => {
     if (!agent) return;
@@ -74,6 +78,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     setModel(agent.model ?? '');
     setThinkingLevel(agent.thinkingLevel ?? '');
     setConcurrency(agent.concurrency);
+    setFallbackAgentId(agent.fallbackAgentId ?? '');
     setProfileReady(true);
   }, [agent]);
 
@@ -105,6 +110,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       model: model.trim() ? model.trim() : null,
       thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
       concurrency,
+      fallbackAgentId: fallbackAgentId.trim() ? fallbackAgentId.trim() : null,
     });
   }
 
@@ -337,6 +343,26 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                   value={concurrency}
                   onChange={(e) => setConcurrency(Number(e.target.value) || 1)}
                 />
+              </label>
+              <label className="ops-field">
+                <span>后备 agent</span>
+                <Select
+                  value={fallbackAgentId}
+                  onChange={(e) => setFallbackAgentId(e.target.value)}
+                  data-testid="agent-fallback-select"
+                >
+                  <option value="">无（不启用自动改派）</option>
+                  {(agentsList ?? [])
+                    .filter((a) => a.id !== agentId)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                </Select>
+                <span className="text-dim text-sm">
+                  运行时连接不上且自动重试预算用尽时，任务自动转给后备 agent（深度 1，不再链式转派）
+                </span>
               </label>
               <button
                 type="submit"

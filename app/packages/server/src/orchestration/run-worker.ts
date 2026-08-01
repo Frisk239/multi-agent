@@ -816,8 +816,13 @@ export async function failRun(
   // Infrastructure-only failures may schedule one bounded child. The helper
   // uses a DB conditional INSERT + unique lineage guard, so duplicate fail
   // calls remain harmless. Automation-linked issues are intentionally skipped.
+  // P2-4：预算用尽 + runtime_offline + 显式 fallback → 事务内已生成改派子 run
+  // （tr.escalatedChild），源 run error 已注明「已自动改派给 X」；重新读行让
+  // run:failed 事件/UI 展示最新 error。
   const autoRetryChild = tr.autoRetryChild ?? null;
-  const baseRun = toAgentRun(tr.row);
+  const escalatedChild = tr.escalatedChild ?? null;
+  const freshRow = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get() ?? tr.row;
+  const baseRun = toAgentRun(freshRow);
   const r = autoRetryChild
     ? {
         ...baseRun,
@@ -850,6 +855,9 @@ export async function failRun(
   // bu01：失败终态 → inbox
   // While a child is active, the child/Activity events are the actionable
   // surface; suppress the parent's manual retry CTA to avoid double dispatch.
-  if (!autoRetryChild && !hasActiveAutoRetryChild(runId)) notifyRunTerminal(r);
+  // P2-4：已自动改派时也不重复推 generic 失败通知（改派 inbox 更可行动）。
+  if (!autoRetryChild && !escalatedChild && !hasActiveAutoRetryChild(runId)) {
+    notifyRunTerminal(r);
+  }
   wakeRunWorker();
 }

@@ -54,6 +54,8 @@ export const agents = sqliteTable('agent', {
   allowedPaths: text('allowed_paths'),
   // G25：软归档；null=活跃（对齐 Multica archived_at）
   archivedAt: integer('archived_at'),
+  // P2-4：显式后备 agent（runtime 连接不上 + auto-retry 预算用尽时改派目标；null=不启用）
+  fallbackAgentId: text('fallback_agent_id'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -313,6 +315,8 @@ export const agentRuns = sqliteTable(
     maxAttempts: integer('max_attempts').notNull().default(2),
     nextAttemptAt: integer('next_attempt_at'),
     autoRetryOfRunId: text('auto_retry_of_run_id'),
+    // P2-4：显式 fallback 改派血缘（非空 = 由另一 run 改派而来；深度 1 防链式）
+    escalatedFromRunId: text('escalated_from_run_id'),
     createdAt: integer('created_at').notNull(),
   },
   (t) => ({
@@ -321,6 +325,7 @@ export const agentRuns = sqliteTable(
       kindStatusIdx: index('idx_agent_run_kind_status').on(t.kind, t.status),
       createdIdx: index('idx_agent_runs_created_at').on(t.createdAt),
       autoRetryOfIdx: uniqueIndex('uq_agent_run_auto_retry_of').on(t.autoRetryOfRunId),
+      escalatedFromIdx: uniqueIndex('uq_agent_run_escalated_from').on(t.escalatedFromRunId),
     }),
 );
 

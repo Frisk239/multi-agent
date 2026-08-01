@@ -119,6 +119,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         instructions: input.instructions ?? '',
         allowedPaths,
         mcpServers: input.mcpServers ?? null,
+        fallbackAgentId: input.fallbackAgentId ?? null,
         createdAt: now,
       })
       .run();
@@ -162,6 +163,10 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
           : String(patch.allowedPaths).trim();
     }
     if (patch.mcpServers !== undefined) updates.mcpServers = patch.mcpServers;
+    // P2-4：显式后备 agent；null=清除（不启用自动改派）
+    if (patch.fallbackAgentId !== undefined) {
+      updates.fallbackAgentId = patch.fallbackAgentId ?? null;
+    }
     if (patch.archived !== undefined) {
       updates.archivedAt = patch.archived ? Date.now() : null;
     }

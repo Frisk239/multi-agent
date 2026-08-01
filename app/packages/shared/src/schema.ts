@@ -181,6 +181,11 @@ export const AgentRun = z.object({
   autoRetryStatus: z.enum(['none', 'scheduled']).optional(),
   autoRetryChildId: BusinessId.nullable().optional(),
   autoRetryNextAttemptAt: z.string().datetime().nullable().optional(),
+  /**
+   * P2-4：显式 fallback 改派血缘。非空 = 本 run 由另一 run 因 runtime
+   * 连接不上 + auto-retry 预算用尽自动改派而来（深度 1，不再链式）。
+   */
+  escalatedFromRunId: BusinessId.nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;
@@ -251,6 +256,8 @@ export const ActivityEventType = z.enum([
   'run_deferred',
   /** Bounded infrastructure auto-retry child was scheduled. */
   'run_auto_retry_scheduled',
+  /** P2-4：runtime 连接不上 + 预算用尽 → 显式 fallback agent 自动改派。 */
+  'run_escalated',
   /** S2：某父 Issue 的全部直接子任务收口，已通知并唤醒父级（父状态不变）。 */
   'child_done_rollup',
 ]);
@@ -970,6 +977,8 @@ export const AgentSummary = z.object({
   model: z.string().nullable().optional(),
   // DS4：thinking level（空则省略/null）
   thinkingLevel: z.string().nullable().optional(),
+  // P2-4：runtime 连接不上且 auto-retry 预算用尽时，任务自动转给的后备 agent（null=不启用）
+  fallbackAgentId: BusinessId.nullable().optional(),
   // G25：软归档；null=活跃
   archivedAt: z.string().datetime().nullable().optional(),
   // S13: Agent 实时脉冲状态
@@ -1015,6 +1024,8 @@ export const CreateAgentInput = z.object({
   instructions: z.string().max(20000).optional().default(''),
   allowedPaths: z.string().max(10000).optional().nullable(),
   mcpServers: z.string().nullable().optional(),
+  // P2-4：显式后备 agent（runtime 连接不上且预算用尽时改派目标；null=不启用）
+  fallbackAgentId: BusinessId.nullable().optional(),
   id: OptionalClientId.optional(),
 });
 export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
@@ -1030,6 +1041,8 @@ export const UpdateAgentInput = z
     instructions: z.string().max(20000).optional(),
     allowedPaths: z.string().max(10000).nullable().optional(),
     mcpServers: z.string().nullable().optional(),
+    // P2-4：显式后备 agent；null=清除（不启用自动改派）
+    fallbackAgentId: BusinessId.nullable().optional(),
     // G25：true=归档，false=取消归档
     archived: z.boolean().optional(),
   })

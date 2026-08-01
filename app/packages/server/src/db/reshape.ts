@@ -310,6 +310,9 @@ export function toAgentRun(row: RunRow): AgentRun {
     autoRetryStatus: 'none',
     autoRetryChildId: null,
     autoRetryNextAttemptAt: null,
+    // P2-4：显式 fallback 改派血缘（null=非改派 run）
+    escalatedFromRunId:
+      (row as { escalatedFromRunId?: string | null }).escalatedFromRunId ?? null,
     // G22 residual：run 快照（trim 空串 → null）
     model: (() => {
       const m = (row as { model?: string | null }).model?.trim();
@@ -379,6 +382,7 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
     category: row.category ?? null,
     model: row.model?.trim() ? row.model.trim() : null,
     thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
+    fallbackAgentId: row.fallbackAgentId ?? null,
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     liveStatus: live.status,
