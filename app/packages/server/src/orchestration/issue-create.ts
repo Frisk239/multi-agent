@@ -32,6 +32,8 @@ export type CreateIssueCoreInput = {
   originRuleId?: string | null;
   /** issue-subtasks：父 issue id（仅一层） */
   parentIssueId?: string | null;
+  /** W7：阶段号（同阶段全部子任务终态才唤醒父；null=不参与阶段） */
+  stage?: number | null;
   /** projects-mvp：可选项目 */
   projectId?: string | null;
   /** 自定义字段 */
@@ -189,6 +191,7 @@ export async function createIssueCore(
       originRunId,
       originRuleId,
       parentIssueId,
+      stage: input.stage ?? null,
       projectId,
       customFields: input.customFields ?? null,
       createdAt: now,

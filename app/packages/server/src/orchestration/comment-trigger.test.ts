@@ -454,4 +454,64 @@ describe('triggerFromComment mention activity', () => {
     expect(mocks.enqueueAgentRun).toHaveBeenCalledWith('issue-42', 'agent-9');
     expect(res[0]).toMatchObject({ source: 'assignee' });
   });
+
+  // —— W7 invoke gate：mention-only 的 agent 不参与隐式路由 ——
+
+  it('mention-only assignee is NOT woken by comment fallback', async () => {
+    mocks.issueRow = { id: 'issue-42', assigneeType: 'agent', assigneeId: 'agent-9' };
+    mocks.agentRow = { id: 'agent-9', name: 'Quiet', invocationPermission: 'mention-only' };
+    mocks.enqueueAgentRun.mockResolvedValue({ run: { id: 'run-fb' } });
+
+    const res = await triggerFromComment(plainComment());
+
+    expect(mocks.enqueueAgentRun).not.toHaveBeenCalled();
+    expect(res).toEqual([]);
+  });
+
+  it('mention-only squad leader is NOT woken by squad-assignee fallback', async () => {
+    mocks.issueRow = { id: 'issue-42', assigneeType: 'squad', assigneeId: 'sqd-1' };
+    mocks.getSquadLeaderId.mockReturnValue('agent-9');
+    mocks.agentRow = { id: 'agent-9', name: 'Quiet', invocationPermission: 'mention-only' };
+    mocks.enqueueLeaderRun.mockResolvedValue({ run: { id: 'run-fb' } });
+
+    const res = await triggerFromComment(plainComment());
+
+    expect(mocks.enqueueLeaderRun).not.toHaveBeenCalled();
+    expect(res).toEqual([]);
+  });
+
+  it('mention-only leader is NOT woken by agent-authored squad comment', async () => {
+    mocks.issueRow = { id: 'issue-42', assigneeType: 'squad', assigneeId: 'sqd-1' };
+    mocks.getSquadLeaderId.mockReturnValue('agent-9');
+    mocks.agentRow = { id: 'agent-9', name: 'Quiet', invocationPermission: 'mention-only' };
+    mocks.enqueueLeaderRun.mockResolvedValue({ run: { id: 'run-fb' } });
+
+    const res = await triggerFromComment(
+      plainComment({ id: 'worker-c', authorType: 'agent', authorId: 'agent-worker' }),
+    );
+
+    expect(mocks.enqueueLeaderRun).not.toHaveBeenCalled();
+    expect(res).toEqual([]);
+  });
+
+  it('thread-parent reply still wakes a mention-only parent author (explicit interaction)', async () => {
+    mocks.parentRow = {
+      id: 'parent-1',
+      issueId: 'issue-42',
+      type: 'comment',
+      authorType: 'agent',
+      authorId: 'agent-quiet',
+      body: 'done',
+      createdAt: 0,
+    };
+    mocks.agentRow = { id: 'agent-quiet', name: 'Quiet', invocationPermission: 'mention-only' };
+    mocks.enqueueAgentRun.mockResolvedValue({ run: { id: 'run-reply' } });
+
+    const res = await triggerFromComment(
+      plainComment({ id: 'reply-1', parentCommentId: 'parent-1' }),
+    );
+
+    expect(mocks.enqueueAgentRun).toHaveBeenCalledWith('issue-42', 'agent-quiet');
+    expect(res[0]).toMatchObject({ targetId: 'agent-quiet', source: 'thread-parent' });
+  });
 });

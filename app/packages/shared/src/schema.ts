@@ -797,6 +797,8 @@ export const Issue = z.object({
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
   customFields: z.record(z.string()).nullable().optional(),
+  // W7：阶段屏障 —— 子 issue 的阶段号（同阶段全部子任务终态才唤醒父）；null=不参与阶段
+  stage: z.number().int().nonnegative().nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -821,6 +823,8 @@ export const CreateIssueInput = z
     originRuleId: BusinessId.optional(),
     // issue-subtasks：挂到父 issue 下
     parentIssueId: BusinessId.optional(),
+    // W7：阶段号（同阶段全部子任务终态才唤醒父；null=不参与阶段）
+    stage: z.number().int().nonnegative().optional(),
     // projects-mvp：创建时归属
     projectId: BusinessId.optional(),
     customFields: z.record(z.string()).nullable().optional(),
@@ -981,6 +985,8 @@ export const AgentSummary = z.object({
   thinkingLevel: z.string().nullable().optional(),
   // P2-4：runtime 连接不上且 auto-retry 预算用尽时，任务自动转给的后备 agent（null=不启用）
   fallbackAgentId: BusinessId.nullable().optional(),
+  // W7：被触发方式 —— auto（默认，评论路由 fallback 也会唤醒它）| mention-only（仅显式 @/委派触发）
+  invocationPermission: z.enum(['auto', 'mention-only']).optional().default('auto'),
   // G25：软归档；null=活跃
   archivedAt: z.string().datetime().nullable().optional(),
   // S13: Agent 实时脉冲状态
@@ -1028,6 +1034,8 @@ export const CreateAgentInput = z.object({
   mcpServers: z.string().nullable().optional(),
   // P2-4：显式后备 agent（runtime 连接不上且预算用尽时改派目标；null=不启用）
   fallbackAgentId: BusinessId.nullable().optional(),
+  // W7：被触发方式（缺省 auto）
+  invocationPermission: z.enum(['auto', 'mention-only']).optional(),
   id: OptionalClientId.optional(),
 });
 export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
@@ -1045,6 +1053,8 @@ export const UpdateAgentInput = z
     mcpServers: z.string().nullable().optional(),
     // P2-4：显式后备 agent；null=清除（不启用自动改派）
     fallbackAgentId: BusinessId.nullable().optional(),
+    // W7：被触发方式（null=清除回 auto）
+    invocationPermission: z.enum(['auto', 'mention-only']).nullable().optional(),
     // G25：true=归档，false=取消归档
     archived: z.boolean().optional(),
   })

@@ -56,6 +56,8 @@ export const agents = sqliteTable('agent', {
   archivedAt: integer('archived_at'),
   // P2-4：显式后备 agent（runtime 连接不上 + auto-retry 预算用尽时改派目标；null=不启用）
   fallbackAgentId: text('fallback_agent_id'),
+  // W7：被触发方式 —— 'auto'（默认，评论路由 fallback 也唤醒）| 'mention-only'（仅显式 @/委派）
+  invocationPermission: text('invocation_permission').notNull().default('auto'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -144,6 +146,8 @@ export const squads = sqliteTable('squad', {
       originRuleId: text('origin_rule_id'),
       // issue-subtasks：学 Multica parent_issue_id；仅一层（子不可再挂孙）
       parentIssueId: text('parent_issue_id'),
+      // W7：阶段屏障 —— 子 issue 阶段号；同阶段全部子任务终态才唤醒父（null=不参与阶段）
+      stage: integer('stage'),
       // projects-mvp：可选归属项目
       projectId: text('project_id'),
       // issue-pr-link：本地 PR/分支引用 URL（非 GitHub 集成）

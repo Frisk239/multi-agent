@@ -66,6 +66,8 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [concurrency, setConcurrency] = useState(1);
   // P2-4：显式后备 agent（runtime 连接不上 + 预算用尽时自动改派目标；''=不启用）
   const [fallbackAgentId, setFallbackAgentId] = useState('');
+  // W7：被触发方式 —— 'auto'（默认，评论路由兜底也唤醒）| 'mention-only'（仅显式 @/回复）
+  const [invocationPermission, setInvocationPermission] = useState<'auto' | 'mention-only'>('auto');
   const [profileReady, setProfileReady] = useState(false);
   const { data: modelCatalog, isFetching: modelsLoading } = useRuntimeModels(runtime);
   const { data: agentsList } = useAgents();
@@ -79,6 +81,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
     setThinkingLevel(agent.thinkingLevel ?? '');
     setConcurrency(agent.concurrency);
     setFallbackAgentId(agent.fallbackAgentId ?? '');
+    setInvocationPermission(agent.invocationPermission === 'mention-only' ? 'mention-only' : 'auto');
     setProfileReady(true);
   }, [agent]);
 
@@ -111,6 +114,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
       concurrency,
       fallbackAgentId: fallbackAgentId.trim() ? fallbackAgentId.trim() : null,
+      invocationPermission,
     });
   }
 
@@ -362,6 +366,22 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 </Select>
                 <span className="text-dim text-sm">
                   运行时连接不上且自动重试预算用尽时，任务自动转给后备 agent（深度 1，不再链式转派）
+                </span>
+              </label>
+              <label className="ops-field">
+                <span>被触发方式</span>
+                <Select
+                  value={invocationPermission}
+                  onChange={(e) =>
+                    setInvocationPermission(e.target.value as 'auto' | 'mention-only')
+                  }
+                  data-testid="agent-invocation-select"
+                >
+                  <option value="auto">自动（默认）—— 评论路由兜底也会唤醒</option>
+                  <option value="mention-only">仅显式 —— 只有被 @ 或回复才唤醒</option>
+                </Select>
+                <span className="text-dim text-sm">
+                  「仅显式」时，指派人的评论兜底与小队 leader 唤醒不会打扰它；显式 @ 与回复不受影响
                 </span>
               </label>
               <button

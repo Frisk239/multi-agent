@@ -33,6 +33,8 @@ export function isTerminalIssueStatus(status: string | null | undefined): boolea
 export type ChildSnapshot = {
   id: string;
   status: IssueStatus;
+  /** W7：阶段号（null=不参与阶段屏障） */
+  stage?: number | null;
 };
 
 export type PropagationDecision = {
@@ -43,6 +45,7 @@ export type PropagationDecision = {
     | 'not_a_transition'
     | 'next_not_terminal'
     | 'siblings_pending'
+    | 'stage_siblings_pending'
     | 'parent_already_terminal'
     | 'ok';
 };
@@ -57,6 +60,8 @@ export function decideChildDonePropagation(input: {
   nextStatus: IssueStatus;
   parentStatus: IssueStatus;
   siblings: readonly ChildSnapshot[];
+  /** W7：当前变更子的阶段号（null=无阶段，走全收口语义） */
+  stage?: number | null;
 }): PropagationDecision {
   const { parentId, prevStatus, nextStatus, parentStatus, siblings } = input;
 
@@ -75,7 +80,16 @@ export function decideChildDonePropagation(input: {
     return { propagate: false, reason: 'parent_already_terminal' };
   }
 
-  // 必须是「最后一个」：所有直接子都进 terminal 才通知
+  // W7：阶段屏障 —— 变更的子带 stage 时，只要求「同 stage」兄弟全终态。
+  // unstaged 子与其他 stage 不阻塞本 stage 推进（对齐 multica：unstaged child closes no stage）。
+  if (input.stage != null) {
+    const sameStage = siblings.filter((s) => s.stage === input.stage);
+    const pending = sameStage.filter((s) => !isTerminalIssueStatus(s.status));
+    if (pending.length > 0) return { propagate: false, reason: 'stage_siblings_pending' };
+    return { propagate: true, reason: 'ok' };
+  }
+
+  // 无 stage：必须是「最后一个」：所有直接子都进 terminal 才通知
   const pending = siblings.filter((s) => !isTerminalIssueStatus(s.status));
   if (pending.length > 0) return { propagate: false, reason: 'siblings_pending' };
 
@@ -202,6 +216,8 @@ export type ChildStatusChange = {
   parentIssueId: string | null | undefined;
   prevStatus: IssueStatus;
   nextStatus: IssueStatus;
+  /** W7：变更子的阶段号（决定走阶段屏障还是全收口语义） */
+  stage?: number | null;
 };
 
 /**
@@ -226,7 +242,7 @@ export async function propagateChildDoneBatch(
   const parentStatusById = new Map(parents.map((p) => [p.id, p.status]));
 
   const siblingRows = db
-    .select({ id: issues.id, status: issues.status, parentIssueId: issues.parentIssueId })
+    .select({ id: issues.id, status: issues.status, parentIssueId: issues.parentIssueId, stage: issues.stage })
     .from(issues)
     .where(inArray(issues.parentIssueId, parentIds))
     .all();
@@ -234,7 +250,7 @@ export async function propagateChildDoneBatch(
   for (const r of siblingRows) {
     if (!r.parentIssueId) continue;
     const arr = siblingsByParent.get(r.parentIssueId) ?? [];
-    arr.push({ id: r.id, status: r.status });
+    arr.push({ id: r.id, status: r.status, stage: r.stage });
     siblingsByParent.set(r.parentIssueId, arr);
   }
 
@@ -248,6 +264,7 @@ export async function propagateChildDoneBatch(
       nextStatus: c.nextStatus,
       parentStatus: parentStatusById.get(c.parentIssueId) ?? 'backlog',
       siblings: siblingsByParent.get(c.parentIssueId) ?? [],
+      stage: c.stage,
     });
     if (decision.propagate) winners.set(c.parentIssueId, c);
   }

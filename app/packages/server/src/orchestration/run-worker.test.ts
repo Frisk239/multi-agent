@@ -145,7 +145,10 @@ describe('W5 run-worker fault injection', () => {
     process.env.MA_ISSUE_TIMEOUT_MS = '0';
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // executeRun 是 fire-and-forget：等其异步尾巴（activity/评论/memory 写入）飞完，
+    // 否则清理 DB 时会触发 unhandled rejection（db down）
+    await new Promise((r) => setTimeout(r, 300));
     delete process.env.MA_ISSUE_TIMEOUT_MS;
     state.cleanup?.();
     state.db = null;
@@ -204,7 +207,8 @@ describe('W5 run-worker fault injection', () => {
     const cancel = cancelRunById('run-cancel');
     expect(cancel.ok).toBe(true);
     release({ finalText: 'late result', exitReason: 'completed' });
-    await flush();
+    // 等 executeRun 的异步尾巴（activity/评论写入）飞完，避免 afterEach 清库时 unhandled
+    await new Promise((r) => setTimeout(r, 200));
     const row = runRow('run-cancel');
     expect(row.status).toBe('cancelled'); // 不伪成功
     const msgs = state.db!.select().from(runMessages).where(eq(runMessages.runId, 'run-cancel')).all();

@@ -56,6 +56,20 @@ function agentLabel(id: string): string {
   return row?.name ?? id;
 }
 
+/**
+ * W7 invoke gate（本地化，对照 multica agent_access.go canInvokeAgent）：
+ * invocationPermission==='mention-only' 的 agent **不参与隐式路由**——
+ * 评论路由 fallback（B1 指派人 / squad leader wake）不唤醒它；显式 @ mention
+ * 与 thread-parent 回复（人对它的直接互动）不受限。单用户本地产品没有
+ * 多租户权限面，闸门只控制「隐式兜底是否打扰它」。
+ */
+function isAutoInvokable(agentId: string): boolean {
+  const row = db.select().from(agents).where(eq(agents.id, agentId)).get();
+  // agent 不存在/归档 → 保持现状（enqueue 侧自会拒绝）；只挡显式声明的 mention-only
+  if (!row) return true;
+  return row.invocationPermission !== 'mention-only';
+}
+
 function squadLabel(id: string): string {
   const d = loadSquadDetail(id);
   return d?.name ?? id;
@@ -128,6 +142,8 @@ async function routeToAssignee(
   issue: IssueRow,
 ): Promise<MentionDispatch[]> {
   if (issue.assigneeType === 'agent' && issue.assigneeId) {
+    // W7：mention-only 的指派人不参与隐式兜底（人没 @ 它，不打扰）
+    if (!isAutoInvokable(issue.assigneeId)) return [];
     const enq = await enqueueAgentRun(issueId, issue.assigneeId);
     return [
       {
@@ -157,6 +173,8 @@ async function routeToAssignee(
         },
       ];
     }
+    // W7：leader 声明 mention-only 时不走 squad 指派兜底
+    if (!isAutoInvokable(leaderId)) return [];
     const enq = await enqueueLeaderRun(issueId, leaderId, issue.assigneeId);
     return [
       {
@@ -188,6 +206,8 @@ async function routeSquadAssignedLeaderWake(
   const leaderId = getSquadLeaderId(issue.assigneeId);
   if (!leaderId) return []; // 无 leader：无处可唤醒
   if (comment.authorId === leaderId) return []; // leader 自指，跳过防循环
+  // W7：mention-only 的 leader 不参与 agent 评论的隐式唤醒（worker 得显式 @ 它）
+  if (!isAutoInvokable(leaderId)) return [];
   const enq = await enqueueLeaderRun(issueId, leaderId, issue.assigneeId);
   if (!enq.run) return []; // already_active / 熔断等：leader 已在跑或 issue 已满，无需再唤醒
   return [

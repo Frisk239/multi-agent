@@ -180,6 +180,7 @@ export function toIssue(
     originRunId: row.originRunId ?? null,
     originRuleId: row.originRuleId ?? null,
     parentIssueId,
+    stage: row.stage ?? null,
     parentIdentifier: parentIssueId
       ? (extras?.parentIdentifier ?? null)
       : null,
@@ -383,6 +384,8 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
     model: row.model?.trim() ? row.model.trim() : null,
     thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
     fallbackAgentId: row.fallbackAgentId ?? null,
+    invocationPermission:
+      row.invocationPermission === 'mention-only' ? 'mention-only' : 'auto',
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     liveStatus: live.status,
@@ -403,6 +406,9 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     mcpServers: row.mcpServers ?? null,
     instructions: row.instructions ?? '',
     allowedPaths: row.allowedPaths ?? null,
+    fallbackAgentId: row.fallbackAgentId ?? null,
+    invocationPermission:
+      row.invocationPermission === 'mention-only' ? 'mention-only' : 'auto',
     archivedAt:
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     liveStatus: live.status,

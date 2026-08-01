@@ -8,6 +8,11 @@ import {
 } from './child-done-propagation.js';
 
 const child = (id: string, status: IssueStatus): ChildSnapshot => ({ id, status });
+const staged = (id: string, status: IssueStatus, stage: number): ChildSnapshot => ({
+  id,
+  status,
+  stage,
+});
 
 describe('isTerminalIssueStatus', () => {
   it('done / cancelled 是 terminal，其余不是', () => {
@@ -117,6 +122,57 @@ describe('decideChildDonePropagation', () => {
       siblings: [child('only', 'done')],
     });
     expect(d.propagate).toBe(true);
+  });
+
+  // —— W7 阶段屏障 ——
+
+  it('staged 子：同 stage 兄弟未全终态 → 不传播（stage_siblings_pending）', () => {
+    const d = decideChildDonePropagation({
+      parentId: 'p1',
+      prevStatus: 'in_progress',
+      nextStatus: 'done',
+      parentStatus: 'in_progress',
+      stage: 1,
+      siblings: [
+        staged('c1', 'done', 1),
+        staged('c2', 'in_progress', 1), // 同 stage 还开着
+        staged('c3', 'in_progress', 2), // 其他 stage 不参与判断
+        child('c4', 'in_progress'), // unstaged 不阻塞 stage 推进
+      ],
+    });
+    expect(d.propagate).toBe(false);
+    expect(d.reason).toBe('stage_siblings_pending');
+  });
+
+  it('staged 子：同 stage 全终态即传播（其他 stage / unstaged 不阻塞）', () => {
+    const d = decideChildDonePropagation({
+      parentId: 'p1',
+      prevStatus: 'in_progress',
+      nextStatus: 'done',
+      parentStatus: 'in_progress',
+      stage: 1,
+      siblings: [
+        staged('c1', 'done', 1),
+        staged('c2', 'done', 1),
+        staged('c3', 'todo', 2), // stage 2 未动
+        child('c4', 'todo'), // unstaged 未动
+      ],
+    });
+    expect(d.propagate).toBe(true);
+    expect(d.reason).toBe('ok');
+  });
+
+  it('unstaged 子：仍走全收口语义（含 staged 兄弟未完成 → 不传播）', () => {
+    const d = decideChildDonePropagation({
+      parentId: 'p1',
+      prevStatus: 'in_progress',
+      nextStatus: 'done',
+      parentStatus: 'in_progress',
+      stage: null,
+      siblings: [child('c1', 'done'), staged('c2', 'in_progress', 1)],
+    });
+    expect(d.propagate).toBe(false);
+    expect(d.reason).toBe('siblings_pending');
   });
 });
 

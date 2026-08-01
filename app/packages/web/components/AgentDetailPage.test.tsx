@@ -40,6 +40,7 @@ function makeAgent(overrides: Partial<AgentDetail>): AgentDetail {
     mcpServers: null,
     instructions: '',
     allowedPaths: null,
+    invocationPermission: 'auto',
     archivedAt: null,
     liveStatus: 'idle',
     activeRunCount: 0,

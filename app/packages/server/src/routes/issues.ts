@@ -417,6 +417,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
             parentIssueId: row?.parentIssueId ?? null,
             prevStatus: sc.from,
             nextStatus: sc.to,
+            // W7：变更子带 stage 时走阶段屏障
+            stage: row?.stage ?? null,
           };
         }),
       );
@@ -532,6 +534,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       originRunId: input.originRunId ?? null,
       originRuleId: input.originRuleId ?? null,
       parentIssueId: input.parentIssueId ?? null,
+      stage: input.stage ?? null,
       projectId: input.projectId ?? null,
       customFields: input.customFields ?? null,
       enqueue: true,
@@ -847,6 +850,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
             parentIssueId: prev.parentIssueId,
             prevStatus: prev.status,
             nextStatus: input.status,
+            // W7：变更子带 stage 时走阶段屏障
+            stage: prev.stage,
           },
         ]);
       } catch (e) {
