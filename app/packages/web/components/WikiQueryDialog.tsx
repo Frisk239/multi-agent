@@ -16,11 +16,13 @@ export function WikiQueryDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [question, setQuestion] = useState('');
+  // B5：跨项目检索开关（缺省关；开 = 合并 global + 所有有效 project 根的 wiki）
+  const [acrossRoots, setAcrossRoots] = useState(false);
   const [result, setResult] = useState<{
     answer: string;
-    citations: { slug: string; title: string }[];
+    citations: { slug: string; title: string; root?: string }[];
   } | null>(null);
-  const query = useWikiQuery(projectId);
+  const query = useWikiQuery(projectId, acrossRoots ? 'all' : undefined);
   const createPage = useCreateWikiPage(projectId);
 
   useFocusTrap(true, dialogRef, {
@@ -85,6 +87,15 @@ export function WikiQueryDialog({
               {query.isPending ? '查询中…' : '提问'}
             </button>
           </div>
+          <label className="wiki-query-cross-root">
+            <input
+              type="checkbox"
+              checked={acrossRoots}
+              onChange={(e) => setAcrossRoots(e.target.checked)}
+              data-testid="wiki-query-cross-root"
+            />
+            跨项目检索（合并全局与所有项目根的 wiki）
+          </label>
 
           {query.isError && (
             <div className="wiki-query-error">
@@ -107,8 +118,10 @@ export function WikiQueryDialog({
                 <div className="wiki-query-citations">
                   <strong>引用来源：</strong>
                   {result.citations.map((c) => (
-                    <span key={c.slug} className="citation-tag">
+                    // B5：跨根同 slug 会冲突，key 带根名区分；引用标签带根名提示
+                    <span key={`${c.root ?? ''}:${c.slug}`} className="citation-tag">
                       {c.title}
+                      {c.root ? ` · ${c.root}` : ''}
                     </span>
                   ))}
                 </div>

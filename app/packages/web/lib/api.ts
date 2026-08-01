@@ -2206,8 +2206,8 @@ export function useWikiPage(slug: string | null, projectId?: string | null) {
 
 // —— S07 Wiki query / health / lint / 存回 hooks ——
 
-// POST /api/wiki/query — 问答（spec §5.5）；可选 project 根
-export function useWikiQuery(projectId?: string | null) {
+// POST /api/wiki/query — 问答（spec §5.5）；可选 project 根；roots='all' 跨根检索（P2-3/B5）
+export function useWikiQuery(projectId?: string | null, roots?: 'all') {
   const pid = projectId?.trim() || '';
   return useMutation({
     mutationFn: async (question: string) => {
@@ -2215,7 +2215,7 @@ export function useWikiQuery(projectId?: string | null) {
       const res = await apiFetch(`${API}/wiki/query${qs ? `?${qs}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, ...(roots === 'all' ? { roots: 'all' } : {}) }),
       });
       if (!res.ok) throw new Error('查询失败');
       return res.json() as Promise<WikiQueryResult>;

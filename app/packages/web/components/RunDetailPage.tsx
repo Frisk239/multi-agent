@@ -731,6 +731,15 @@ export function RunDetailPage({ runId }: { runId: string }) {
                 ) : null}
               </p>
             ) : null}
+            {run.escalatedFromRunId ? (
+              <p className="run-path-lock-note" data-testid="run-escalated-note">
+                本 run 由{' '}
+                <Link href={`/runs/${run.escalatedFromRunId}`}>
+                  {shortId(run.escalatedFromRunId)}
+                </Link>{' '}
+                自动改派而来（原 agent 运行时连接不上，任务转给了后备 agent）。
+              </p>
+            ) : null}
             {run.cwdMode === 'chat_scratch' ? (
               <p className="run-path-lock-note" data-testid="run-cwd-chat-note">
                 聊天会话目录按 thread 固定；同会话后续轮次共用该隔离目录。
