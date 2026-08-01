@@ -7,7 +7,7 @@
  * inspect.  SQLite is copied through better-sqlite3's backup API, so WAL state
  * is checkpointed by SQLite rather than copied as a sidecar file.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
@@ -170,6 +170,26 @@ function makeZip(entries: ZipEntry[], now: Date): Buffer {
   return Buffer.concat([...local, centralBuf, end]);
 }
 
+/**
+ * D5（reopenable-db-lifecycle）：从 snapshot zip 解出 DB 文件到目标路径。
+ * 供 safe-live-restore 的 apply 生命周期使用；zip 布局为 db/backup.sqlite。
+ */
+export function extractSnapshotDatabase(
+  snapshotPath: string,
+  destPath: string,
+): { ok: true } | { ok: false; error: string } {
+  try {
+    const entries = zipEntries(readFileSync(snapshotPath));
+    const dbEntry = entries.find((e) => e.name === 'db/backup.sqlite');
+    if (!dbEntry) return { ok: false, error: 'snapshot 缺少 db/backup.sqlite' };
+    if (dbEntry.data.length === 0) return { ok: false, error: 'snapshot DB 为空' };
+    writeFileSync(destPath, dbEntry.data);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 function zipEntries(buf: Buffer): ZipEntry[] {
   let eocd = -1;
   for (let i = buf.length - 22; i >= 0 && i >= buf.length - 0xffff - 22; i--) {
@@ -264,7 +284,9 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
   const writable = ensureBackupDirWritable(dir);
   if (!writable.ok) return { success: false as const, code: 'SNAPSHOT_DIR_NOT_WRITABLE', error: writable.error, status: 503 as const };
   const stamp = buildBackupFileName(now).replace(/\.db$/, '').replace(/^ma-backup-/, 'ma-snapshot-');
-  const name = `${stamp}${SNAPSHOT_EXTENSION}`;
+  // 秒级时间戳同秒内多次 snapshot 会同名互相覆盖（restore 的 rollback snapshot 与
+  // 目标快照同秒创建时 rollback 会覆盖目标 zip）——加 3 字节随机后缀保证唯一。
+  const name = `${stamp}-${randomBytes(3).toString('hex')}${SNAPSHOT_EXTENSION}`;
   const path = resolve(dir, name);
   if (path === resolve(liveDbPath)) return { success: false as const, code: 'SNAPSHOT_FORBIDDEN_PATH', error: 'snapshot target overlaps live database', status: 400 as const };
   const tempDb = join(dir, `.${name}.${process.pid}.sqlite`);

@@ -4,7 +4,11 @@ import { resolve, join } from 'node:path';
 import { db } from './db/client.js';
 import { agentRuns } from './db/schema.js';
 import { inArray } from 'drizzle-orm';
-import { createSnapshot } from './ops-recovery.js';
+import { createSnapshot, extractSnapshotDatabase } from './ops-recovery.js';
+import {
+  migrateDatabaseFile,
+  swapDatabaseUnderMaintenance,
+} from './orchestration/db-lifecycle.js';
 
 export type RestoreJournalStatus =
   | 'staged'
@@ -98,9 +102,9 @@ export function previewSafeRestore(stageId: string): RestoreJournal {
     confirmationPhrase: CONFIRMATION_PHRASE,
     activeRunIds,
     rollbackSnapshotName: null,
-    // The process currently exports immutable sqlite/drizzle singletons across
-    // route and worker modules. Hot replacement cannot be proven safe.
-    liveApplyEnabled: false,
+    // D5（reopenable-db-lifecycle）：db/client 已支持热替换（export let + swapDatabase，
+    // live binding 全消费方跟随）；worker stop/start 与在途 run 终态化已编排。
+    liveApplyEnabled: true,
     error: null,
   });
 }
@@ -146,7 +150,46 @@ export async function confirmSafeRestore(input: {
   row.updatedAt = new Date().toISOString();
   writeJournal(row);
 
-  // A future live apply must inject a reopenable DB/worker lifecycle, enter
-  // maintenance, and then advance applying→applied with rollback on failure.
-  throw new Error('live restore apply lifecycle is not implemented');
+  // D5：live apply —— maintenance 写阻断 → 解压 snapshot DB → migrate → 原子换入。
+  // swapDatabaseUnderMaintenance 内部完成：abort 在途子进程 + 终态化 active run（D4）+
+  // 停 worker（D2）+ swapDatabase（D1，live binding 全消费方切换）+ 重启 worker。
+  // 失败不回滚当前库（rollback snapshot 已生成，人可再走一次 restore），journal 记 failed。
+  setMaintenanceMode(true);
+  try {
+    row.status = 'applying';
+    row.updatedAt = new Date().toISOString();
+    writeJournal(row);
+
+    const snapshotPath = resolve(backupDir(), row.snapshotName);
+    const stagingDir = join(backupDir(), '.ma-restore-staging', row.stageId);
+    mkdirSync(stagingDir, { recursive: true });
+    const liveDb = join(stagingDir, 'live.db');
+
+    const ex = extractSnapshotDatabase(snapshotPath, liveDb);
+    if (!ex.ok) {
+      row.status = 'failed';
+      row.error = `extract snapshot database failed: ${ex.error}`;
+      row.updatedAt = new Date().toISOString();
+      return writeJournal(row);
+    }
+    const mig = migrateDatabaseFile(liveDb);
+    if (!mig.ok) {
+      row.status = 'failed';
+      row.error = `migrate snapshot database failed: ${mig.error}`;
+      row.updatedAt = new Date().toISOString();
+      return writeJournal(row);
+    }
+    const swap = swapDatabaseUnderMaintenance(liveDb);
+    if (!swap.ok) {
+      row.status = 'failed';
+      row.error = `db swap failed: ${swap.error ?? 'unknown'}`;
+      row.updatedAt = new Date().toISOString();
+      return writeJournal(row);
+    }
+    row.status = 'applied';
+    row.updatedAt = new Date().toISOString();
+    return writeJournal(row);
+  } finally {
+    setMaintenanceMode(false);
+  }
 }

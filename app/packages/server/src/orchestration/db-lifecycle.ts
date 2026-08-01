@@ -9,11 +9,34 @@
  *   4. 重启 worker
  */
 import { and, inArray } from 'drizzle-orm';
+import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate as drizzleMigrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { fileURLToPath } from 'node:url';
+import * as schema from '../db/schema.js';
 import { db, swapDatabase } from '../db/client.js';
 import { agentRuns } from '../db/schema.js';
 import { abortRun, listActiveRunIds } from './run-control.js';
 import { startRunWorker, stopRunWorker } from './run-worker.js';
 import { startAutomationWorker, stopAutomationWorker } from './automation-worker.js';
+
+const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url));
+
+/**
+ * D5：对换入的 DB 文件跑 drizzle migrator（独立连接；journal 保证只跑增量）。
+ * 换入前必须完成——旧库 schema 可能落后于当前代码。
+ */
+export function migrateDatabaseFile(path: string): { ok: true } | { ok: false; error: string } {
+  const conn = new Database(path);
+  try {
+    drizzleMigrate(drizzle(conn, { schema }), { migrationsFolder });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    conn.close();
+  }
+}
 
 /** D4：终止在途 run —— 先 abort 子进程树，再条件 UPDATE 终态化（只命中 active 状态）。 */
 export function terminalizeActiveRuns(

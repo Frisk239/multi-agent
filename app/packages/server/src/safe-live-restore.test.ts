@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -41,13 +41,14 @@ describe('safe live restore fail-closed contract', () => {
     const { root, stageId } = staged();
     const preview = previewSafeRestore(stageId);
     expect(preview.status).toBe('staged');
-    expect(preview.liveApplyEnabled).toBe(false);
+    // D5（reopenable-db-lifecycle）：热替换已落地，不再 fail-closed
+    expect(preview.liveApplyEnabled).toBe(true);
     expect(preview.confirmationPhrase).toBe('恢复此快照');
     expect(existsSync(join(root, 'restore-journal', `${preview.journalId}.json`))).toBe(true);
     expect(readRestoreJournal(preview.journalId)?.confirmationToken).toBe(preview.confirmationToken);
   });
 
-  it('rejects mismatched confirmation and refuses disabled apply without side effects', async () => {
+  it('rejects mismatched confirmation; legacy disabled journal still refuses apply', async () => {
     const { stageId } = staged();
     const preview = previewSafeRestore(stageId);
     await expect(confirmSafeRestore({
@@ -55,6 +56,11 @@ describe('safe live restore fail-closed contract', () => {
       confirmationToken: 'wrong',
       confirmationPhrase: preview.confirmationPhrase,
     })).rejects.toThrow(/confirmation/);
+    // 旧 journal 防御：liveApplyEnabled=false 的 journal 仍拒绝（不产生 rollback 副作用）
+    const jp = join(process.env.MA_BACKUP_DIR!, 'restore-journal', `${preview.journalId}.json`);
+    const j = JSON.parse(readFileSync(jp, 'utf8'));
+    j.liveApplyEnabled = false;
+    writeFileSync(jp, JSON.stringify(j));
     let rollbackCalls = 0;
     await expect(confirmSafeRestore({
       journalId: preview.journalId,
