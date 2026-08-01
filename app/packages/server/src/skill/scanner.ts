@@ -580,10 +580,3 @@ export function importLocalSkill(opts: {
     };
   }
 }
-
-export function getSkillsForAgent(_agentId: string): SkillInfo[] {
-  // 查 agent_skill 需 DB import——scanner 不 import db（避免循环）。
-  // 此函数保留占位；实际 agent→skill 查询（agent_skill 表 + 内存索引 join）
-  // 由 impl-2 在 prompt.ts 里做（那里有 db import）。
-  return [];
-}

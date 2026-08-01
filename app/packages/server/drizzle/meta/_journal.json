@@ -330,6 +330,13 @@
       "when": 1787923200000,
       "tag": "0046_invoke_gate_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1788009600000,
+      "tag": "0047_squad_updated_at",
+      "breakpoints": true
     }
   ]
 }

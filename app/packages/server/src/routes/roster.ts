@@ -331,9 +331,13 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
 
   // —— Squads ——
 
-  // bu02：列表带 leaderId + memberCount
+  // bu02：列表带 leaderId + memberCount；B5：updatedAt desc，createdAt 兜底（旧行 null 排尾）
   app.get('/api/squads', async () => {
-    const rows = db.select().from(squads).all();
+    const rows = db
+      .select()
+      .from(squads)
+      .orderBy(desc(squads.updatedAt), desc(squads.createdAt))
+      .all();
     return rows.map((s) => {
       const memberCount =
         db
@@ -391,6 +395,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
             operatingProtocol: input.operatingProtocol ?? '',
             missionDirective: input.missionDirective ?? '',
             createdAt: now,
+            updatedAt: now,
           })
           .run();
         replaceSquadMembers(id, input.memberIds);
@@ -440,9 +445,10 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         if (patch.missionDirective !== undefined) {
           updates.missionDirective = patch.missionDirective;
         }
-        if (Object.keys(updates).length > 0) {
-          db.update(squads).set(updates).where(eq(squads.id, id)).run();
-        }
+        // B5：任何 squad 字段变更（改名/协议/directive/成员）都刷新 updatedAt；
+        // UpdateSquadInput 已拒绝空 patch，此处恒有内容
+        updates.updatedAt = Date.now();
+        db.update(squads).set(updates).where(eq(squads.id, id)).run();
         if (patch.memberIds) {
           replaceSquadMembers(id, patch.memberIds);
         }

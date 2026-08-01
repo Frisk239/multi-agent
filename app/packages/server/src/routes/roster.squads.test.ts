@@ -10,6 +10,7 @@ const updateSet = vi.fn();
 const selectGet = vi.fn();
 const selectAll = vi.fn();
 const deleteWhere = vi.fn();
+const orderByArgs: { args: unknown } = { args: null };
 
 vi.mock('../db/client.js', () => ({
   db: {
@@ -23,6 +24,11 @@ vi.mock('../db/client.js', () => ({
           }),
         }),
         all: selectAll,
+        // B5：GET /api/squads 排序链
+        orderBy: (...args: unknown[]) => {
+          orderByArgs.args = args;
+          return { all: selectAll };
+        },
       }),
     }),
     insert: () => ({
@@ -55,7 +61,7 @@ vi.mock('../db/schema.js', () => ({
   agentRuns: { id: 'id', agentId: 'agentId', status: 'status', createdAt: 'createdAt' },
   issues: { id: 'id', assigneeType: 'assigneeType', assigneeId: 'assigneeId', status: 'status', identifier: 'identifier' },
   squadMembers: { squadId: 'squadId', agentId: 'agentId' },
-  squads: { id: 'id', name: 'name', leaderId: 'leaderId' },
+  squads: { id: 'id', name: 'name', leaderId: 'leaderId', createdAt: 'createdAt', updatedAt: 'updatedAt' },
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -227,9 +233,12 @@ describe('POST /api/squads', () => {
     );
     expect(reply.statusCode).toBe(201);
     expect(insertValues).toHaveBeenCalled();
-    const vals = insertValues.mock.calls[0][0] as { name: string; leaderId: string };
+    const vals = insertValues.mock.calls[0][0] as { name: string; leaderId: string; createdAt: number; updatedAt: number };
     expect(vals.name).toBe('Alpha');
     expect(vals.leaderId).toBe('agt-1');
+    // B5：create 即写 updatedAt
+    expect(vals.createdAt).toBeTypeOf('number');
+    expect(vals.updatedAt).toBeTypeOf('number');
   });
 
   it('creates squad with memberIds and persists squad_members', async () => {
@@ -361,8 +370,32 @@ describe('PATCH /api/squads/:id', () => {
     );
     expect(reply.statusCode).toBe(200);
     expect(updateSet).toHaveBeenCalled();
-    const patch = updateSet.mock.calls[0][0] as { name: string };
+    const patch = updateSet.mock.calls[0][0] as { name: string; updatedAt?: number };
     expect(patch.name).toBe('New Name');
+    // B5：改名刷 updatedAt
+    expect(patch.updatedAt).toBeTypeOf('number');
+  });
+
+  it('B5: memberIds-only patch also refreshes updatedAt', async () => {
+    selectGet
+      .mockReturnValueOnce({ id: 'sqd-1', name: 'S', leaderId: 'agt-1' }) // squad exists
+      .mockReturnValueOnce({ id: 'agt-new', name: 'New', archivedAt: null }); // member valid
+    mockLoadSquadDetail.mockReturnValue({
+      id: 'sqd-1', name: 'S', leaderId: 'agt-1',
+      operatingProtocol: '', missionDirective: '',
+      members: [{ agentId: 'agt-new', name: 'New' }],
+    });
+
+    const { app, routes } = makeApp();
+    await rosterRoutes(app);
+    const reply = replyMock();
+    await routes['PATCH /api/squads/:id'](
+      { params: { id: 'sqd-1' }, body: { memberIds: ['agt-new'] } },
+      reply,
+    );
+    expect(reply.statusCode).toBe(200);
+    const patch = updateSet.mock.calls[0][0] as { updatedAt?: number };
+    expect(patch.updatedAt).toBeTypeOf('number');
   });
 
   it('updates memberIds and replaces squad_members', async () => {
@@ -386,6 +419,26 @@ describe('PATCH /api/squads/:id', () => {
     // delete old members + insert new
     expect(deleteWhere).toHaveBeenCalled();
     expect(insertValues).toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/squads (B5 排序)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    orderByArgs.args = null;
+  });
+
+  it('按 updatedAt desc、createdAt desc 兜底排序', async () => {
+    selectAll.mockReturnValue([]);
+    const { app, routes } = makeApp();
+    await rosterRoutes(app);
+    const reply = replyMock();
+    const result = await routes['GET /api/squads'](undefined, reply);
+    expect(orderByArgs.args).not.toBeNull();
+    const [first, second] = orderByArgs.args as [unknown, unknown];
+    expect(first).toBe('updatedAt');
+    expect(second).toBe('createdAt');
+    expect(result).toEqual([]);
   });
 });
 

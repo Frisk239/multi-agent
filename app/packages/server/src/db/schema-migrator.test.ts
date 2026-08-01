@@ -56,6 +56,10 @@ describe('schema migrator drift gate (Slice 41)', () => {
     const issue = colNames(sqlite, 'issue');
     expect(issue.has('custom_fields')).toBe(true);
 
+    // B5：squad updated_at（0047）
+    const squad = colNames(sqlite, 'squad');
+    expect(squad.has('updated_at')).toBe(true);
+
     const automationRule = colNames(sqlite, 'automation_rule');
     expect(automationRule.has('cron_expression')).toBe(true);
     const automationRun = colNames(sqlite, 'automation_run');

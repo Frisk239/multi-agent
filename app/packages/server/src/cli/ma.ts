@@ -2,6 +2,7 @@
 // bu03：ma issue create —— HTTP 调本地 server 建卡并 origin link
 // 只 import wiki/queue 函数，不复制业务逻辑（B10）
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { ensureWikiDir, listWikiPages } from '../wiki/store.js';
 import { checkHealth } from '../wiki/health.js';
 import { checkLint } from '../wiki/lint.js';
@@ -89,7 +90,14 @@ function flagValue(args: string[], name: string): string | undefined {
   return undefined;
 }
 
-async function handleIssueCreate(args: string[], wantText: boolean): Promise<void> {
+/** B2：CLI → server 统一转发 MA_LOCAL_TOKEN（agent 子进程 env 继承 process.env） */
+function authHeaders(base: Record<string, string> = {}): Record<string, string> {
+  const token = (process.env.MA_LOCAL_TOKEN ?? '').trim();
+  if (token) base.authorization = `Bearer ${token}`;
+  return base;
+}
+
+export async function handleIssueCreate(args: string[], wantText: boolean): Promise<void> {
   const title = flagValue(args, '--title');
   if (!title) emitErr('input.invalid', 'ma issue create 需要 --title', 5);
 
@@ -146,7 +154,7 @@ async function handleIssueCreate(args: string[], wantText: boolean): Promise<voi
   try {
     res = await fetch(`${server}/api/issues`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: authHeaders({ 'content-type': 'application/json' }),
       body: JSON.stringify(body),
     });
   } catch (e) {
@@ -301,4 +309,8 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+// 仅当以 CLI 进程运行时启动主流程（测试 import 本模块时跳过）
+const isMain =
+  process.argv[1] != null &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) void main();
