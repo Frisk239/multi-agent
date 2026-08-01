@@ -77,6 +77,7 @@ import type {
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 import { withLocalTokenHeaders } from './local-token';
+import { encodeFilenameHeader } from './attachment-upload';
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -727,6 +728,92 @@ export function useCreateComment(issueId: string) {
       }
     },
     onError: (err) => toastError(errMessage(err, '评论失败')),
+  });
+}
+
+/* ───────────────────────── W1 · 附件数据层 ───────────────────────── */
+
+/**
+ * 附件元数据。后端 `AttachmentMeta`（`server/src/attachments/service.ts`）的镜像。
+ * shared 未导出该类型，本刀不为此改 shared，故在 web 侧本地声明。
+ * `downloadUrl` 后端已带 `/api` 前缀（形如 `/api/attachments/<id>`）。
+ */
+export type AttachmentMeta = {
+  id: string;
+  issueId: string;
+  commentId: string | null;
+  originalName: string;
+  mime: string;
+  sizeBytes: number;
+  downloadUrl: string;
+  createdAt: string;
+};
+
+/**
+ * 把后端 `downloadUrl`（已含 `/api`）拼成可点的绝对地址。
+ * `API` 形如 `http://localhost:3001/api`，直接相加会得到 `/api/api/...`，
+ * 所以先削掉尾部 `/api` 再拼。
+ */
+export function attachmentHref(downloadUrl: string): string {
+  const origin = API.replace(/\/api\/?$/, '');
+  if (/^https?:\/\//i.test(downloadUrl)) return downloadUrl;
+  return `${origin}${downloadUrl.startsWith('/') ? '' : '/'}${downloadUrl}`;
+}
+
+export function useIssueAttachments(issueId: string) {
+  return useQuery<AttachmentMeta[]>({
+    queryKey: ['attachments', issueId],
+    queryFn: async () => {
+      const res = await apiFetch(`${API}/issues/${issueId}/attachments`);
+      if (!res.ok) throw new Error(await apiError(res, '加载附件失败'));
+      return res.json();
+    },
+    enabled: !!issueId,
+  });
+}
+
+/**
+ * 上传附件：**原始二进制 body**（不是 multipart / FormData）+ `X-Filename` 头。
+ * 头是 latin-1，所以中文名先 `encodeFilenameHeader`（percent-encode），
+ * 服务端 `decodeFilenameHeader` 解回来。成功返 201 + AttachmentMeta。
+ */
+export function useUploadAttachment(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const res = await apiFetch(`${API}/issues/${issueId}/attachments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-Filename': encodeFilenameHeader(file.name),
+        },
+        body: file,
+      });
+      if (!res.ok) throw new Error(await apiError(res, '上传附件失败'));
+      return res.json() as Promise<AttachmentMeta>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attachments', issueId] });
+    },
+    onError: (err) => toastError(errMessage(err, '上传附件失败')),
+  });
+}
+
+export function useDeleteAttachment(issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (attachmentId: string) => {
+      const res = await apiFetch(`${API}/attachments/${attachmentId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(await apiError(res, '删除附件失败'));
+      return attachmentId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attachments', issueId] });
+      toastSuccess('已删除附件');
+    },
+    onError: (err) => toastError(errMessage(err, '删除附件失败')),
   });
 }
 

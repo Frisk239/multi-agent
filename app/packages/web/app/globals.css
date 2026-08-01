@@ -13462,3 +13462,78 @@ a.issue-card-run-fail--link:hover {
     padding-top: 4px;
   }
 }
+
+/* ───────────── W1 · 附件端到端（真实上传） ───────────── */
+
+/* 视觉隐藏但留在 a11y 树里（隐藏 file input 用） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 拖拽悬停态：整张 composer 高亮，告诉用户「松手就上传」 */
+.composer-card.is-dragging {
+  outline: 2px dashed color-mix(in srgb, var(--accent, #3b82f6) 60%, transparent);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 6%, transparent);
+}
+
+.composer-attachment-chips {
+  position: static;
+}
+
+.composer-attachment-chip {
+  border-color: color-mix(in srgb, var(--text-muted) 30%, var(--border-subtle));
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--surface, #fff));
+}
+
+.composer-attachment-chip-size {
+  flex: none;
+}
+
+/* Issue 详情：附件区 */
+.issue-attachments-section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+}
+
+.issue-attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.issue-attachment-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.issue-attachment-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

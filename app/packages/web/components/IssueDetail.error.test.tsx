@@ -47,6 +47,10 @@ vi.mock('@/lib/api', () => ({
   useRetryRun: () => ({ mutate: vi.fn(), isPending: false }),
   useSquad: () => ({ data: undefined, isLoading: false }),
   useIssueChildren: () => ({ data: [] }),
+  // W1 · 附件区
+  attachmentHref: (u: string) => `http://test${u}`,
+  useIssueAttachments: () => ({ data: [], isLoading: false }),
+  useDeleteAttachment: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('./IssueHeader', () => ({
@@ -96,6 +100,7 @@ vi.mock('./Select', () => ({
 }));
 vi.mock('./Skeleton', () => ({
   PageSkeleton: () => <div data-testid="page-skeleton">loading</div>,
+  Skeleton: () => <div data-testid="skeleton" />,
 }));
 vi.mock('next/link', () => ({
   default: ({

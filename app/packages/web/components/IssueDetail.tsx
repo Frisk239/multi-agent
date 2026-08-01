@@ -4,7 +4,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { localStorageOrNull, recordVisit } from '@/lib/recent-visits';
 import type { Issue, IssueStatus } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum } from '@ma/shared';
-import { API, apiFetch, useActivities, useComments, useIssue, useIssueRunUsage, useRuns, useUpdateIssue } from '@/lib/api';
+import {
+  API,
+  apiFetch,
+  attachmentHref,
+  useActivities,
+  useComments,
+  useDeleteAttachment,
+  useIssue,
+  useIssueAttachments,
+  useIssueRunUsage,
+  useRuns,
+  useUpdateIssue,
+} from '@/lib/api';
+import { formatBytes } from '@/lib/attachment-upload';
+import { confirmDialog } from '@/lib/confirm-store';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
@@ -21,7 +35,7 @@ import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ErrorState } from './ErrorState';
 import { IssuePrCard } from './IssuePrCard';
-import { PageSkeleton } from './Skeleton';
+import { PageSkeleton, Skeleton } from './Skeleton';
 import { AssigneeSelect } from './AssigneeSelect';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '../lib/toast';
@@ -177,6 +191,10 @@ export function IssueDetail({
   const { data: activities = [] } = useActivities(id);
   const { data: runs = [] } = useRuns(id, { refetchActive: true });
   const { data: usage } = useIssueRunUsage(isSheet ? '' : id);
+  // W1：附件区（issue 级清单，评论上传的附件同样在此可见/可删）
+  const { data: attachments = [], isLoading: attachmentsLoading } =
+    useIssueAttachments(id);
+  const deleteAttachment = useDeleteAttachment(id);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [execOpen, setExecOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -568,6 +586,76 @@ export function IssueDetail({
                 </>
               ) : (
                 <ActivityTimeline issueId={id} />
+              )}
+            </section>
+
+            {/* W1 · 附件区：真实字节存储在本机，下载走 /api/attachments/:id */}
+            <section
+              className="issue-attachments-section"
+              data-testid="issue-attachments-section"
+              data-count={attachments.length}
+            >
+              <div className="issue-exec-head-row">
+                <span className="issue-section-title">附件</span>
+                <span className="text-dim text-sm" data-testid="issue-attachments-summary">
+                  {attachments.length > 0 ? `${attachments.length} 个` : '暂无'}
+                </span>
+              </div>
+              {attachmentsLoading ? (
+                <Skeleton variant="text" lines={2} />
+              ) : attachments.length === 0 ? (
+                <EmptyState
+                  title="暂无附件"
+                  description="在下方评论框拖入或粘贴文件即可上传（单个 ≤25 MiB）"
+                />
+              ) : (
+                <ul className="issue-attachment-list" data-testid="issue-attachment-list">
+                  {attachments.map((att) => (
+                    <li
+                      key={att.id}
+                      className="issue-attachment-row"
+                      data-testid="issue-attachment-row"
+                      data-attachment-id={att.id}
+                    >
+                      {/*
+                        downloadUrl 后端已含 `/api` 前缀（/api/attachments/<id>），
+                        attachmentHref 会先削掉 API 尾部的 /api 再拼，避免 /api/api/...
+                      */}
+                      <a
+                        className="issue-attachment-name"
+                        href={attachmentHref(att.downloadUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        data-testid="issue-attachment-download"
+                        title={`下载 ${att.originalName}`}
+                      >
+                        {att.originalName}
+                      </a>
+                      <span className="issue-attachment-meta text-dim text-xs">
+                        {formatBytes(att.sizeBytes)} · {att.mime}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        data-testid="issue-attachment-delete"
+                        aria-label={`删除附件 ${att.originalName}`}
+                        disabled={deleteAttachment.isPending}
+                        onClick={async () => {
+                          const ok = await confirmDialog({
+                            title: '删除附件',
+                            description: `将永久删除「${att.originalName}」的本机字节，不可恢复。`,
+                            confirmLabel: '删除',
+                            variant: 'danger',
+                          });
+                          if (!ok) return;
+                          deleteAttachment.mutate(att.id);
+                        }}
+                      >
+                        删除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
 

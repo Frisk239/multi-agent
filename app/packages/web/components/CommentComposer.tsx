@@ -2,7 +2,13 @@
 
 import { useMemo, useState, useRef, useEffect } from 'react';
 import type { AgentPulseStatus } from '@ma/shared';
-import { useAgents, useSquads, useCreateComment } from '@/lib/api';
+import type { AttachmentMeta } from '@/lib/api';
+import {
+  useAgents,
+  useSquads,
+  useCreateComment,
+  useUploadAttachment,
+} from '@/lib/api';
 import { draftKey, usePersistentDraft } from '@/lib/draft-storage';
 import {
   parseMentionChips,
@@ -12,6 +18,13 @@ import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { MarkdownBody } from './MarkdownBody';
 import {
+  addPending,
+  formatBytes,
+  removePending,
+  validateUploadFile,
+} from '@/lib/attachment-upload';
+import {
+  MAX_ATTACHMENT_BYTES as FALLBACK_DATA_URL_MAX_BYTES,
   appendAttachmentMarkdown,
   validateImageDataUrl,
 } from '@/lib/comment-attachments';
@@ -28,10 +41,22 @@ export function CommentComposer({ issueId }: { issueId: string }) {
   const [attachError, setAttachError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // F1 · paste image → markdown data URL embed (local, no cloud)
+  // W1 · 真实附件上传（字节 → POST /api/issues/:id/attachments）
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  /** 已上传、待随本条评论绑定的附件 id（顺序 = 上传顺序） */
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
+  const [pendingMeta, setPendingMeta] = useState<Record<string, AttachmentMeta>>({});
+  /**
+   * 异步上传循环里要读到「刚刚追加后」的列表，effect 同步 ref 来不及，
+   * 所以写 state 的同时手动同步 ref。
+   */
+  const pendingRef = useRef<string[]>([]);
+
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const create = useCreateComment(issueId);
+  const upload = useUploadAttachment(issueId);
 
   // 整理可选的 Agent 和 Squad 槽位
   const roster = useMemo(
@@ -167,48 +192,171 @@ export function CommentComposer({ issueId }: { issueId: string }) {
     }
   }
 
+  function commitPending(next: string[]) {
+    pendingRef.current = next;
+    setPendingIds(next);
+  }
+
+  function clearPending() {
+    commitPending([]);
+    setPendingMeta({});
+  }
+
+  /**
+   * F1 回退路径（**非主路径**）：上传失败时，小图仍可内嵌 data URL，
+   * 至少不丢用户刚粘的截图。仅图片、仅 ≤512 KiB（见 comment-attachments.ts）。
+   */
+  function embedAsDataUrlFallback(file: File): Promise<boolean> {
+    if (!file.type.startsWith('image/') || file.size > FALLBACK_DATA_URL_MAX_BYTES) {
+      return Promise.resolve(false);
+    }
+    return new Promise<boolean>((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(false);
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        const v = validateImageDataUrl(dataUrl, { fileName: file.name || 'paste.png' });
+        if (!v.ok) {
+          resolve(false);
+          return;
+        }
+        setBody((prev) => appendAttachmentMarkdown(prev, v.markdown));
+        resolve(true);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /** W1 主路径：逐个真实上传；成功进 pending chip，失败给 role="alert" 文案。 */
+  async function uploadFiles(files: readonly File[]) {
+    if (files.length === 0) return;
+    let firstError: string | null = null;
+
+    for (const file of files) {
+      const check = validateUploadFile({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+      if (!check.ok) {
+        firstError ??= check.error;
+        continue;
+      }
+      try {
+        const meta = await upload.mutateAsync(file);
+        const next = addPending(pendingRef.current, meta.id);
+        if (!next.ok) {
+          firstError ??= next.error;
+          continue;
+        }
+        commitPending(next.ids);
+        setPendingMeta((prev) => ({ ...prev, [meta.id]: meta }));
+      } catch (e) {
+        const msg = e instanceof Error && e.message ? e.message : '上传失败';
+        const embedded = await embedAsDataUrlFallback(file);
+        firstError ??= embedded
+          ? `${file.name} 上传失败（${msg}），已回退为内嵌图片`
+          : `${file.name} 上传失败：${msg}`;
+      }
+    }
+    setAttachError(firstError);
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    // 允许重复选同一个文件：清空 value 才会再触发 change
+    e.target.value = '';
+    void uploadFiles(files);
+  }
+
+  function removeAttachment(id: string) {
+    commitPending(removePending(pendingRef.current, id));
+    setPendingMeta((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
   function submit() {
     const t = body.trim();
-    if (!t || create.isPending) return;
+    if (!t || create.isPending || upload.isPending) return;
+    const attachmentIds = pendingRef.current;
     create.mutate(
-      { body: t },
+      {
+        body: t,
+        ...(attachmentIds.length > 0 ? { attachmentIds: [...attachmentIds] } : {}),
+      },
       {
         onSuccess: () => {
           clearDraftBody();
           setMode('edit');
           setAttachError(null);
+          clearPending();
         },
       }
     );
   }
 
-  /** F1 · paste image → markdown data URL embed (local, no cloud). */
+  /** W1 · 粘贴图片 → 真实上传（≤25 MiB）；不再默认内嵌 data URL。 */
   function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const files: File[] = [];
     for (const item of Array.from(items)) {
       if (!item.type.startsWith('image/')) continue;
-      e.preventDefault();
       const file = item.getAsFile();
-      if (!file) continue;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-        const v = validateImageDataUrl(dataUrl, { fileName: file.name || 'paste.png' });
-        if (!v.ok) {
-          setAttachError(v.error);
-          return;
-        }
-        setAttachError(null);
-        setBody((prev) => appendAttachmentMarkdown(prev, v.markdown));
-      };
-      reader.readAsDataURL(file);
-      return;
+      if (file) files.push(file);
     }
+    if (files.length === 0) return;
+    e.preventDefault();
+    void uploadFiles(files);
   }
 
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    setDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    e.preventDefault();
+    setDragging(false);
+    if (files.length === 0) return;
+    void uploadFiles(files);
+  }
+
+  const pendingChips = pendingIds
+    .map((id) => pendingMeta[id])
+    .filter((m): m is AttachmentMeta => Boolean(m));
+
   return (
-    <div className="composer-card" data-testid="comment-composer">
+    <div
+      className={`composer-card${dragging ? ' is-dragging' : ''}`}
+      data-testid="comment-composer"
+      data-dragging={dragging ? '1' : '0'}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* W1 · 受控隐藏 file input（不再 document.createElement） */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        multiple
+        onChange={onPickFiles}
+        data-testid="composer-attach-input"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* 顶栏 Toolbar: 模式切换 + Markdown 工具 */}
       <div className="composer-toolbar">
         <div className="composer-tabs">
@@ -275,34 +423,14 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             >
               @提及
             </button>
+            {/* W1：不限类型（后端不限），别再承诺做不到的 accept 白名单 */}
             <button
               type="button"
               className="composer-tool-btn"
-              title="附件 (图片/文件)"
-              onClick={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*,.pdf,.doc,.docx,.txt';
-                input.multiple = true;
-                input.onchange = (e: Event) => {
-                  const files = (e.target as HTMLInputElement).files;
-                  if (!files) return;
-                  Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const dataUrl = ev.target?.result as string;
-                      const v = validateImageDataUrl(dataUrl, { fileName: file.name });
-                      if (v.ok) {
-                        setBody(prev => appendAttachmentMarkdown(prev, v.markdown));
-                      } else {
-                        setAttachError(v.error);
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                  });
-                };
-                input.click();
-              }}
+              title="附件（任意文件，单个 ≤25 MiB）"
+              aria-label="上传附件"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={upload.isPending}
               data-testid="composer-tool-attach"
             >
               📎
@@ -318,7 +446,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             <textarea
               ref={taRef}
               className="composer-input"
-              placeholder="留下评论… 输入 @ 提及 agent/小队；粘贴图片/文件；Ctrl+Enter 发送"
+              placeholder="留下评论… 输入 @ 提及 agent/小队；粘贴或拖入文件上传；Ctrl+Enter 发送"
               value={body}
               onChange={(e) => onChange(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -403,6 +531,46 @@ export function CommentComposer({ issueId }: { issueId: string }) {
                 })}
               </div>
             )}
+
+            {/* W1 · 已上传待绑定的附件 chips（提交评论时随 attachmentIds 绑定） */}
+            {pendingChips.length > 0 && (
+              <div
+                className="composer-mention-chips composer-attachment-chips"
+                data-testid="composer-attachment-chips"
+                role="list"
+                aria-label="待提交附件"
+              >
+                {pendingChips.map((att) => (
+                  <span
+                    key={att.id}
+                    className="composer-mention-chip composer-attachment-chip"
+                    data-testid="composer-attachment-chip"
+                    data-attachment-id={att.id}
+                    role="listitem"
+                    aria-label={`附件：${att.originalName}（${formatBytes(att.sizeBytes)}）`}
+                    title={`${att.originalName} · ${att.mime}`}
+                  >
+                    <span aria-hidden>📎</span>
+                    <span className="composer-mention-chip-label">
+                      {att.originalName}
+                    </span>
+                    <span className="composer-attachment-chip-size text-dim text-xs">
+                      {formatBytes(att.sizeBytes)}
+                    </span>
+                    <button
+                      type="button"
+                      className="composer-mention-chip-remove"
+                      aria-label={`移除附件 ${att.originalName}`}
+                      title={`移除附件 ${att.originalName}`}
+                      data-testid="composer-attachment-chip-remove"
+                      onClick={() => removeAttachment(att.id)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="composer-preview-area" data-testid="comment-composer-preview">
@@ -438,18 +606,30 @@ export function CommentComposer({ issueId }: { issueId: string }) {
       {/* 底栏: 提示 + 发送按钮 */}
       <div className="composer-footer">
         <span className="text-dim text-xs">
-          支持 Markdown 语法 · Ctrl+Enter 快捷发送
+          {upload.isPending
+            ? '上传中…'
+            : dragging
+              ? '松手即上传（单个 ≤25 MiB）'
+              : '支持 Markdown · 拖入/粘贴上传附件 · Ctrl+Enter 快捷发送'}
         </span>
         <div className="composer-footer-actions">
+          {upload.isPending && (
+            <span
+              className="text-dim text-xs mr-2"
+              data-testid="composer-upload-pending"
+            >
+              附件上传中…
+            </span>
+          )}
           {create.isError && <span className="error text-xs mr-2">发送失败</span>}
           <button
             type="button"
             className="btn btn-primary btn-sm"
             onClick={submit}
-            disabled={create.isPending || !body.trim()}
+            disabled={create.isPending || upload.isPending || !body.trim()}
             data-testid="comment-submit-btn"
           >
-            {create.isPending ? '发送中…' : '发送评论'}
+            {create.isPending ? '发送中…' : upload.isPending ? '上传中…' : '发送评论'}
           </button>
         </div>
       </div>

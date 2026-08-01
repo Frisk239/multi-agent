@@ -43,6 +43,19 @@ const runs = [
   },
 ];
 
+const attachments = [
+  {
+    id: 'att-1',
+    issueId: 'iss-1',
+    commentId: null,
+    originalName: '报告.pdf',
+    mime: 'application/pdf',
+    sizeBytes: 2048,
+    downloadUrl: '/api/attachments/att-1',
+    createdAt: '2026-07-01T00:00:00.000Z',
+  },
+];
+
 vi.mock('@/lib/api', () => ({
   useIssue: () => ({ data: issue, isLoading: false, error: null }),
   useComments: () => ({ data: comments, isLoading: false }),
@@ -88,6 +101,10 @@ vi.mock('@/lib/api', () => ({
   useRetryRun: () => ({ mutate: vi.fn(), isPending: false }),
   useSquad: () => ({ data: undefined, isLoading: false }),
   useIssueChildren: () => ({ data: [] }),
+  // W1 · 附件区
+  attachmentHref: (u: string) => `http://test${u}`,
+  useIssueAttachments: () => ({ data: attachments, isLoading: false }),
+  useDeleteAttachment: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('./IssueHeader', () => ({
