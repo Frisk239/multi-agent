@@ -78,6 +78,7 @@ import type {
 import { toastError, toastSuccess } from './toast';
 import { withLocalTokenHeaders } from './local-token';
 import { encodeFilenameHeader } from './attachment-upload';
+import { mapIssueRows, optimisticOptions, removeIssueRows } from './optimistic';
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
@@ -883,11 +884,22 @@ export function useBulkUpdateIssueStatus() {
       if (!res.ok) throw new Error(await apiError(res, '批量更新状态失败'));
       return res.json() as Promise<{ success: boolean; updatedCount: number }>;
     },
+    // W2：乐观 patch 全部 ['issues'] 前缀列表（与 ws.ts 回灌同 key 同 shape，按 id 幂等替换）
+    ...optimisticOptions<{ issueIds: string[]; status: string }>({
+      queryClient: qc,
+      queryKeys: () => [['issues']],
+      apply: (vars, old) => {
+        const ids = new Set(vars.issueIds);
+        return mapIssueRows<Issue>(old, (row) =>
+          ids.has(row.id) ? { ...row, status: vars.status as IssueStatus } : row,
+        );
+      },
+      invalidateKeys: [['issues']],
+      fallbackMessage: '批量更新状态失败',
+    }),
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['issues'] });
       toastSuccess(`已更新 ${r.updatedCount} 项状态`);
     },
-    onError: (err) => toastError(errMessage(err, '批量更新状态失败')),
   });
 }
 
@@ -907,11 +919,28 @@ export function useBulkUpdateIssueAssignee() {
       if (!res.ok) throw new Error(await apiError(res, '批量指派失败'));
       return res.json() as Promise<{ success: boolean; updatedCount: number }>;
     },
+    // W2：乐观 patch 列表；指派只带 {type,id} + label 占位 ''（label 由 server 回填，
+    // 与 useUpdateIssue 同口径 —— bulk-assign 响应不含 label）
+    ...optimisticOptions<
+      { issueIds: string[]; assigneeType: string | null; assigneeId: string | null }
+    >({
+      queryClient: qc,
+      queryKeys: () => [['issues']],
+      apply: (vars, old) => {
+        const ids = new Set(vars.issueIds);
+        const assignee: Issue['assignee'] = vars.assigneeId
+          ? { type: vars.assigneeType as 'agent' | 'squad', id: vars.assigneeId, label: '' }
+          : null;
+        return mapIssueRows<Issue>(old, (row) =>
+          ids.has(row.id) ? { ...row, assignee } : row,
+        );
+      },
+      invalidateKeys: [['issues']],
+      fallbackMessage: '批量指派失败',
+    }),
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['issues'] });
       toastSuccess(`已更新 ${r.updatedCount} 项指派`);
     },
-    onError: (err) => toastError(errMessage(err, '批量指派失败')),
   });
 }
 
@@ -927,11 +956,24 @@ export function useBulkDeleteIssues() {
       if (!res.ok) throw new Error(await apiError(res, '批量删除失败'));
       return res.json() as Promise<{ success: boolean; deletedCount: number }>;
     },
+    // W2：乐观从全部 ['issues'] 前缀列表移除（与 ws.ts issue:deleted 同 key 同 shape）；
+    // 详情缓存直接 remove（与 useDeleteIssue 同口径：回滚只还原列表，详情重新挂载即 refetch）
+    ...optimisticOptions<{ issueIds: string[] }>({
+      queryClient: qc,
+      queryKeys: () => [['issues']],
+      apply: (vars, old) => removeIssueRows<Issue>(old, new Set(vars.issueIds)),
+      afterMutate: (vars) => {
+        for (const id of vars.issueIds) {
+          qc.removeQueries({ queryKey: ['issue', id] });
+          qc.removeQueries({ queryKey: ['comments', id] });
+        }
+      },
+      invalidateKeys: [['issues']],
+      fallbackMessage: '批量删除失败',
+    }),
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['issues'] });
       toastSuccess(`已删除 ${r.deletedCount} 项`);
     },
-    onError: (err) => toastError(errMessage(err, '批量删除失败')),
   });
 }
 
@@ -948,28 +990,27 @@ export function useUpdateIssue() {
       return res.json() as Promise<IssueWithEnqueue>;
     },
     // D12 + R2：只乐观 Issue 字段
-    // 注意：assignee 在 UpdateIssueInput 无 label，乐观展开会破坏 Issue.assignee 的 label 形状；
-    // 故 assignee 不参与乐观更新，等服务端返回带 label 的完整 Issue（onSuccess）落地。
-    onMutate: async ({ id, input }) => {
-      await qc.cancelQueries({ queryKey: ['issues'] });
-      await qc.cancelQueries({ queryKey: ['issue', id] });
-      const prevList = qc.getQueryData<PaginatedResponse<Issue>>(['issues']);
-      const prevOne = qc.getQueryData<Issue>(['issue', id]);
-      const { assignee: _dropAssignee, ...patch } = input;
-      qc.setQueryData<PaginatedResponse<Issue>>(['issues'], (old) => {
-        if (!old) return old;
-        return { ...old, data: old.data.map((i) => (i.id === id ? { ...i, ...patch } : i)) };
-      });
-      if (prevOne) {
-        qc.setQueryData<Issue>(['issue', id], { ...prevOne, ...patch });
-      }
-      return { prevList, prevOne };
-    },
-    onError: (err, { id }, ctx) => {
-      if (ctx?.prevList) qc.setQueryData(['issues'], ctx.prevList);
-      if (ctx?.prevOne) qc.setQueryData(['issue', id], ctx.prevOne);
-      toastError(errMessage(err, '更新失败'));
-    },
+    // W2：从「精确 ['issues'] 单 key」扩到全部 ['issues'] 前缀列表（含筛选/搜索板），
+    // 与 ws.ts issue:updated 回灌同 key 同 shape（行级按 id 幂等替换）。
+    // 注意：assignee 在 UpdateIssueInput 无 label，乐观只 patch {type,id} + label 占位 ''，
+    // 完整 label 由 server 响应（onSuccess setQueryData(['issue', id])）回填。
+    ...optimisticOptions<{ id: string; input: UpdateIssueInput }>({
+      queryClient: qc,
+      queryKeys: (vars) => [['issues'], ['issue', vars.id]],
+      apply: (vars, old) =>
+        mapIssueRows<Issue>(old, (row) => {
+          if (row.id !== vars.id) return row;
+          const { assignee, ...rest } = vars.input;
+          const patch: Partial<Issue> = { ...rest };
+          if (assignee !== undefined) {
+            patch.assignee =
+              assignee === null ? null : { type: assignee.type, id: assignee.id, label: '' };
+          }
+          return { ...row, ...patch };
+        }),
+      invalidateKeys: [['issues']],
+      fallbackMessage: '更新失败',
+    }),
     onSuccess: (issue) => {
       // issue-find：issues 带筛选 queryKey，统一 invalidate 前缀
       qc.invalidateQueries({ queryKey: ['issues'] });
