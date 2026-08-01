@@ -1429,18 +1429,21 @@ export type WikiPageCreatedEvent = z.infer<typeof WikiPageCreatedEvent>;
 
 // —— S07：Wiki query / health / lint 契约 ——
 
-// query 结果（spec §5.1）
+// query 结果（spec §5.1）；跨根模式（roots:'all'）cite 带可选 root 区分页归属
 export const WikiQueryResult = z.object({
   answer: z.string(),
   citations: z.array(z.object({
     slug: z.string(),
     title: z.string(),
+    root: z.string().optional(),
   })),
 });
 export type WikiQueryResult = z.infer<typeof WikiQueryResult>;
 
 export const WikiQueryInput = z.object({
   question: z.string().min(1),
+  // 跨根检索开关：roots='all' 时检索 global + 所有有效 project 根；缺省单根行为不变
+  roots: z.enum(['all']).optional(),
 });
 export type WikiQueryInput = z.infer<typeof WikiQueryInput>;
 

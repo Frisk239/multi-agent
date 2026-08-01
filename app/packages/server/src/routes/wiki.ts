@@ -92,15 +92,17 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     return page;
   });
 
-  // POST /api/wiki/query — 问答（spec §5.2）
+  // POST /api/wiki/query — 问答（spec §5.2）；body 可选 roots:'all' 跨根检索（缺省单根）
   app.post('/api/wiki/query', async (req, reply) => {
     const parsed = WikiQueryInput.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const opts = rootOptsFromQuery(req.query as { projectId?: string });
-    const result = await queryWiki(parsed.data.question, opts);
-    appendLog({ type: 'query', identifier: '-', issueId: 'query' }, opts);
+    const roots = parsed.data.roots;
+    const result = await queryWiki(parsed.data.question, opts, { roots });
+    // 跨根查询无单一根可记，log 落 global 根
+    appendLog({ type: 'query', identifier: '-', issueId: 'query' }, roots === 'all' ? undefined : opts);
     return result;
   });
 

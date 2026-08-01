@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { db } from '../db/client.js';
 import { projects } from '../db/schema.js';
+import { listProjectWikiRoots } from './project-wiki-roots.js';
 
 // —— 根解析（ADR 0005）——
 // project: {localPath}/wiki ；global: MA_WIKI_DIR > workspace/wiki > cwd/wiki
@@ -92,6 +93,34 @@ export function resolveWikiDir(opts?: WikiRootOpts): ResolvedWikiDir {
     projectId: undefined,
     projectLocalPath: undefined,
   };
+}
+
+// S07 跨根检索：根引用（ResolvedWikiDir + 展示/引用用 label）
+export type WikiRootRef = ResolvedWikiDir & {
+  /** 引用与展示用根标识：project 根 = project 名（title），global 根 = 'global' */
+  label: string;
+};
+
+/**
+ * 枚举所有有效根（跨根检索用）：
+ * global 根（getWikiDirSource）+ 每个 localPath 有效且 {localPath}/wiki 存在的 project 根。
+ * 复用 listProjectWikiRoots 的 DB 查询与路径映射，仅保留 exists 的根。
+ */
+export function listAllWikiRoots(): WikiRootRef[] {
+  const roots: WikiRootRef[] = [];
+  const g = getWikiDirSource();
+  roots.push({ path: g.path, source: g.source, label: 'global' });
+  for (const r of listProjectWikiRoots()) {
+    if (!r.exists) continue;
+    roots.push({
+      path: r.wikiPath,
+      source: 'project',
+      projectId: r.projectId,
+      projectLocalPath: r.localPath,
+      label: r.projectName,
+    });
+  }
+  return roots;
 }
 
 function wikiPath(opts?: WikiRootOpts): string {
