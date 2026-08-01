@@ -11312,6 +11312,19 @@ a.issue-card-run-fail--link:hover {
   font-size: var(--text-sm);
 }
 
+/* W3：表单字段错误行（FieldError）——与输入框 aria-describedby 联动 */
+.field-error {
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, #f87171 30%, var(--border-subtle));
+  background: color-mix(in srgb, #f87171 8%, transparent);
+  color: #b91c1c;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+
 .skills-import-toolbar {
   display: flex;
   flex-wrap: wrap;

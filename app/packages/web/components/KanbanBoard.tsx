@@ -109,6 +109,13 @@ function KanbanBoardInner() {
   // DS2：列表 sort=manual|updated（默认 manual 与看板一致）
   const sortMode =
     searchParams.get('sort') === 'updated' ? 'updated' : 'manual';
+  // W3：列表列排序（客户端）→ ?sort=<col>:<dir>，与 sort=updated 服务端模式互斥
+  const columnSortFromUrl = useMemo(() => {
+    const raw = searchParams.get('sort') ?? '';
+    const m = raw.match(/^(identifier|title|status|priority|assignee|updatedAt):(asc|desc)$/);
+    if (!m) return null;
+    return { col: m[1] as IssueListSortCol, dir: m[2] as 'asc' | 'desc' };
+  }, [searchParams]);
   // Slice 32：?issue= 打开右侧详情 Sheet（保留筛选等其它 query）
   const issueFromUrl = searchParams.get('issue') ?? '';
   const [qDraft, setQDraft] = useState(qFromUrl);
@@ -245,6 +252,9 @@ function KanbanBoardInner() {
       else sp.delete('sort');
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      // W3：切回排序 Tab 时清掉列排序（URL 里的 <col>:<dir> 已被覆盖）
+      setSortCol(null);
+      setSortDir('asc');
     },
     [pathname, router, searchParams],
   );
@@ -485,21 +495,41 @@ function KanbanBoardInner() {
   }, [statusFromUrl]);
 
   const updateIssue = useUpdateIssue();
-  const [sortCol, setSortCol] = useState<IssueListSortCol | null>(null);
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  // W3：列排序状态与 URL 双向——mount 从 ?sort=<col>:<dir> 恢复，变更即写回
+  const [sortCol, setSortCol] = useState<IssueListSortCol | null>(
+    columnSortFromUrl?.col ?? null,
+  );
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(
+    columnSortFromUrl?.dir ?? 'asc',
+  );
 
-  const handleHeaderSort = useCallback((col: IssueListSortCol) => {
-    if (sortCol === col) {
-      if (sortDir === 'asc') setSortDir('desc');
-      else {
-        setSortCol(null);
-        setSortDir('asc');
+  const handleHeaderSort = useCallback(
+    (col: IssueListSortCol) => {
+      let nextCol: IssueListSortCol | null;
+      let nextDir: 'asc' | 'desc';
+      if (sortCol === col) {
+        if (sortDir === 'asc') {
+          nextCol = col;
+          nextDir = 'desc';
+        } else {
+          nextCol = null;
+          nextDir = 'asc';
+        }
+      } else {
+        nextCol = col;
+        nextDir = 'asc';
       }
-    } else {
-      setSortCol(col);
-      setSortDir('asc');
-    }
-  }, [sortCol, sortDir]);
+      setSortCol(nextCol);
+      setSortDir(nextDir);
+      // W3：排序状态进 URL（?sort=<col>:<dir>；清除时回到服务端 manual 序）
+      const sp = new URLSearchParams(searchParams.toString());
+      if (nextCol) sp.set('sort', `${nextCol}:${nextDir}`);
+      else sp.delete('sort');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [sortCol, sortDir, pathname, router, searchParams],
+  );
 
   const projectTitleById = useMemo(() => {
     const m = new Map<string, string>();
