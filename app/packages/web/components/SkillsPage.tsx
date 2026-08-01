@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import type { SkillInfo } from '@ma/shared';
 import { useRefreshSkills, useSkills } from '@/lib/api';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
@@ -19,6 +20,24 @@ function parseSource(raw: string | null): SourceFilter {
   return '';
 }
 
+// F6-2（UI-SKL-002）：排序模式；'' = 默认（服务端 name 稳定序）
+type SortMode = '' | 'updated';
+
+function parseSort(raw: string | null): SortMode {
+  if (raw === 'updated') return 'updated';
+  return '';
+}
+
+/** F6-2：「最近更新」按 updatedAt desc；列表接口未下发该字段时按 name 兜底（与服务端默认序一致） */
+function byUpdatedAtDesc(a: SkillInfo, b: SkillInfo): number {
+  const au = (a as { updatedAt?: string }).updatedAt;
+  const bu = (b as { updatedAt?: string }).updatedAt;
+  if (au && bu) return bu.localeCompare(au);
+  if (au) return -1;
+  if (bu) return 1;
+  return a.name.localeCompare(b.name);
+}
+
 /**
  * Skills 列表 + Multica 式「新建 skill」弹层（URL / 本机，无手动创建）
  */
@@ -31,6 +50,7 @@ function SkillsPageInner() {
 
   const qFromUrl = searchParams.get('q') ?? '';
   const sourceFromUrl = parseSource(searchParams.get('source'));
+  const sortFromUrl = parseSort(searchParams.get('sort'));
   const [qDraft, setQDraft] = useState(qFromUrl);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -61,7 +81,7 @@ function SkillsPageInner() {
   const filtered = useMemo(() => {
     const list = data ?? [];
     const q = qFromUrl.trim().toLowerCase();
-    return list.filter((s) => {
+    const rows = list.filter((s) => {
       if (sourceFromUrl && s.source !== sourceFromUrl) return false;
       if (q) {
         const hay = `${s.name} ${s.description ?? ''}`.toLowerCase();
@@ -69,7 +89,10 @@ function SkillsPageInner() {
       }
       return true;
     });
-  }, [data, qFromUrl, sourceFromUrl]);
+    // F6-2：?sort=updated 深链 → 最近更新序（updatedAt desc，缺字段按 name 兜底）
+    if (sortFromUrl === 'updated') rows.sort(byUpdatedAtDesc);
+    return rows;
+  }, [data, qFromUrl, sourceFromUrl, sortFromUrl]);
 
   const hasActiveFilters = Boolean(qFromUrl.trim() || sourceFromUrl);
 
@@ -173,6 +196,18 @@ function SkillsPageInner() {
               <option value="workspace">工作区</option>
               <option value="project">项目本机</option>
               <option value="builtin">内置</option>
+            </Select>
+          </label>
+          <label className="agents-filter-field">
+            排序
+            <Select
+              value={sortFromUrl}
+              data-testid="skills-sort-filter"
+              onChange={(e) => replaceParams({ sort: e.target.value || null })}
+              aria-label="排序 skill"
+            >
+              <option value="">默认</option>
+              <option value="updated">最近更新</option>
             </Select>
           </label>
         </div>

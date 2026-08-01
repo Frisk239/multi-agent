@@ -21,6 +21,16 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
 import { PageSkeleton } from './Skeleton';
 
+/** F6-1：本地单用户 id（与 server LOCAL_MEMBER 对齐） */
+const LOCAL_USER_ID = 'user-linyuan';
+
+type SquadScope = 'all' | 'mine';
+
+function parseScope(raw: string | null): SquadScope {
+  if (raw === 'mine') return 'mine';
+  return 'all';
+}
+
 type ReadyFilter =
   | ''
   | 'ready'
@@ -95,6 +105,7 @@ function SquadsPageInner() {
   const qFromUrl = searchParams.get('q') ?? '';
   const readyFromUrl = parseReady(searchParams.get('ready'));
   const leaderFromUrl = searchParams.get('leader') ?? '';
+  const scope = parseScope(searchParams.get('scope'));
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   useEffect(() => {
@@ -140,10 +151,18 @@ function SquadsPageInner() {
   // 默认 leader：第一个 agent
   const defaultLeader = agents[0]?.id ?? '';
 
+  // F6-1：列表接口（GET /api/squads → SquadSummary）只下发 leaderId + memberCount，
+  // 不含 memberIds，成员关系无法在客户端判定；「我的」按 leaderId === 本地用户匹配。
+  const mySquads = useMemo(
+    () => (data ?? []).filter((sq) => sq.leaderId === LOCAL_USER_ID),
+    [data],
+  );
+
   const visible = useMemo(() => {
     const list = data ?? [];
     const q = qFromUrl.trim().toLowerCase();
     return list.filter((sq) => {
+      if (scope === 'mine' && sq.leaderId !== LOCAL_USER_ID) return false;
       if (leaderFromUrl && sq.leaderId !== leaderFromUrl) return false;
       if (q) {
         const leaderName = sq.leaderId ? (agentNameById.get(sq.leaderId) ?? '') : '';
@@ -160,7 +179,7 @@ function SquadsPageInner() {
       }
       return true;
     });
-  }, [data, qFromUrl, leaderFromUrl, readyFromUrl, readinessMap, agentNameById]);
+  }, [data, scope, qFromUrl, leaderFromUrl, readyFromUrl, readinessMap, agentNameById]);
 
   const hasActiveFilters = Boolean(qFromUrl.trim() || readyFromUrl || leaderFromUrl);
 
@@ -214,6 +233,11 @@ function SquadsPageInner() {
       if (!ok) return;
       del.mutate(id);
     })();
+  }
+
+  function setScope(next: SquadScope) {
+    // F6-1：默认「全部」= 无 scope 参数；「我的」= ?scope=mine 深链可分享
+    replaceParams({ scope: next === 'all' ? null : 'mine' });
   }
 
   function clearAllFilters() {
@@ -270,6 +294,30 @@ function SquadsPageInner() {
       </div>
 
       <div className="page-body">
+      {/* F6-1（UI-SQD-002）：我的 / 全部 Tab，?scope= 深链可分享，刷新不丢 */}
+      <div className="agents-scope-tabs" data-testid="squads-scope-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === 'all'}
+          className={`my-issues-tab${scope === 'all' ? ' is-active' : ''}`}
+          data-testid="squads-scope-all"
+          onClick={() => setScope('all')}
+        >
+          全部 <span className="my-issues-tab-count">{squads.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={scope === 'mine'}
+          className={`my-issues-tab${scope === 'mine' ? ' is-active' : ''}`}
+          data-testid="squads-scope-mine"
+          onClick={() => setScope('mine')}
+        >
+          我的 <span className="my-issues-tab-count">{mySquads.length}</span>
+        </button>
+      </div>
+
       {open && (
         <form className="ops-form surface-card" onSubmit={submit}>
           <div className="ops-form-grid">
@@ -493,7 +541,7 @@ function SquadsPageInner() {
                   <th>小队</th>
                   <th>Leader</th>
                   <th>队长就绪</th>
-                  <th>成员数</th>
+                  <th>成员</th>
                   <th />
                 </tr>
               </thead>
@@ -564,7 +612,15 @@ function SquadsPageInner() {
                             '—'
                           )}
                         </td>
-                        <td className="text-dim">{sq.memberCount ?? '—'}</td>
+                        <td
+                          className="text-dim"
+                          data-testid="squad-member-count"
+                          // F6-3（UI-SQD-014）降级：列表接口仅下发 memberCount（无 memberIds），
+                          // 无法反查成员名做头像堆叠，暂以「数字 + 说明」展示
+                          title="列表接口未下发成员明细（memberIds），暂以人数展示"
+                        >
+                          {sq.memberCount ?? 0} 名成员
+                        </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <Link
                             href={`/?assignee=squad:${encodeURIComponent(sq.id)}`}
