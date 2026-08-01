@@ -24,7 +24,7 @@ export type RuntimeCaptureRow = {
  * - opencode：--format json step_finish tokens + tool_use + sessionID
  * - cursor：result usage + tool_call envelope + session_id
  * - grok：尽力 JSON-RPC（不稳定）；session/usage 尽力
- * - pi：无真执行 → 无捕获
+ * - pi：RPC agent_end usage（message_end 求和）+ tool 事件 + get_state sessionId
  */
 export function runtimeCaptureCapabilityMatrix(): RuntimeCaptureRow[] {
   return [
@@ -58,10 +58,10 @@ export function runtimeCaptureCapabilityMatrix(): RuntimeCaptureRow[] {
     },
     {
       runtime: 'pi',
-      usage: false,
-      tool: false,
-      providerSessionId: false,
-      gapNote: 'executionImplemented=false，无 CLI 捕获路径',
+      usage: true,
+      tool: true,
+      providerSessionId: true,
+      gapNote: 'message_end 无 usage 时 uncosted/no_tokens；cost 不入库',
     },
   ];
 }

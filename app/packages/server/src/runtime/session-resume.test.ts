@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   finalizeSessionFields,
   isSessionPoisonText,
@@ -9,15 +9,34 @@ import {
 import { getBackend, allBackends } from './registry';
 import type { RuntimeId } from '@ma/shared';
 
+// 全 runtime 均已过能力门：resolvePriorSession 会查 DB。
+// 空链 mock：无 prior session 行 → fresh（不落真库文件）。
+vi.mock('./db/client.js', () => {
+  const chain = {
+    select: () => chain,
+    from: () => chain,
+    where: () => chain,
+    orderBy: () => chain,
+    limit: () => chain,
+    all: () => [],
+    get: () => undefined,
+  };
+  return {
+    db: {
+      select: () => chain,
+    },
+  };
+});
+
 describe('Slice 50 session resume capability matrix', () => {
-  it('claude-code, opencode, and cursor declare supportsSessionResume=true', () => {
+  it('claude-code, opencode, cursor, grok, pi declare supportsSessionResume=true', () => {
     const matrix = sessionResumeCapabilityMatrix();
     expect(matrix).toEqual([
       { runtime: 'claude-code', supportsSessionResume: true },
       { runtime: 'opencode', supportsSessionResume: true },
       { runtime: 'cursor', supportsSessionResume: true },
       { runtime: 'grok', supportsSessionResume: true },
-      { runtime: 'pi', supportsSessionResume: false },
+      { runtime: 'pi', supportsSessionResume: true },
     ]);
   });
 
@@ -38,21 +57,20 @@ describe('Slice 50 session resume capability matrix', () => {
     expect(runtimeSupportsSessionResume('unknown-runtime')).toBe(false);
   });
 
-  // A9（2026-07-30）：grok 转为 supportsSessionResume=true，已不属于 unsupported。
-  // 只剩 pi（执行未实现）走 capability gate 短路，不查 DB。
-  it('unsupported runtimes resolvePriorSession without DB', () => {
-    for (const runtime of ['pi'] as RuntimeId[]) {
-      const d = resolvePriorSession({
-        id: `run-${runtime}`,
-        runtime,
-        agentId: 'ag-x',
-        issueId: 'iss-x',
-        kind: 'issue',
-      });
-      expect(d.status).toBe('unsupported');
-      expect(d.resumeSessionId).toBeNull();
-      expect(d.reason).toMatch(/不支持真 session resume/);
-    }
+  // A9（2026-07-30）：grok 转 supportsSessionResume=true；pi 也已转真 backend。
+  // 全 runtime 均过能力门；pi 在空 DB 下走完整决策链 → fresh。
+  it('pi passes the capability gate and resolves fresh against empty DB', () => {
+    expect(runtimeSupportsSessionResume('pi')).toBe(true);
+    const d = resolvePriorSession({
+      id: 'run-pi',
+      runtime: 'pi',
+      agentId: 'ag-x',
+      issueId: 'iss-x',
+      kind: 'issue',
+    });
+    expect(d.status).toBe('fresh');
+    expect(d.resumeSessionId).toBeNull();
+    expect(d.reason).toMatch(/无可 resume/);
   });
 
   it('opencode/cursor are no longer blocked as unsupported by capability gate', () => {

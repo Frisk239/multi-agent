@@ -31,17 +31,16 @@ describe('Slice 60 runtime capture matrix', () => {
       providerSessionId: true,
     });
     expect(capture.find((r) => r.runtime === 'pi')).toMatchObject({
-      usage: false,
-      tool: false,
-      providerSessionId: false,
+      usage: true,
+      tool: true,
+      providerSessionId: true,
     });
 
-    // A9 2026-07-30: Grok now true (resume + --resume injection); Pi remains false
+    // A9 2026-07-30: Grok now true (resume + --resume injection); pi also true (real RPC backend)
     const resume = sessionResumeCapabilityMatrix();
-    for (const id of ['claude-code', 'opencode', 'cursor', 'grok'] as const) {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'grok', 'pi'] as const) {
       expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(true);
     }
-    expect(resume.find((r) => r.runtime === 'pi')?.supportsSessionResume).toBe(false);
   });
 });
 
