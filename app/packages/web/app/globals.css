@@ -5174,6 +5174,41 @@ button.memory-kind-chip.is-active {
   gap: var(--space-2);
 }
 
+/* F6-3（UI-SQD-014）：小队列表成员列头像堆叠（对齐 skills-usedby-avatar 视觉） */
+.squad-members-cell {
+  white-space: nowrap;
+}
+
+.squad-members-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.squad-member-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid var(--page-canvas, var(--bg-primary));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: -6px;
+}
+
+.squad-members-stack .squad-member-avatar:first-child {
+  margin-left: 0;
+}
+
+.squad-members-extra {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
 .inbox-fail-strip {
   display: flex;
   flex-wrap: wrap;

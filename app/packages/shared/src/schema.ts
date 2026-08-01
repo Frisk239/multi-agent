@@ -1237,6 +1237,8 @@ export const SkillInfo = z.object({
   /** C3：来自绑定 localPath 的项目时有值 */
   projectId: BusinessId.nullable().optional(),
   projectTitle: z.string().nullable().optional(),
+  /** F6-2：技能文件 mtime（ISO）；无文件路径/读取失败 → null */
+  updatedAt: z.string().nullable().optional(),
   usedBy: z.array(AgentSummary),
 });
 export type SkillInfo = z.infer<typeof SkillInfo>;
@@ -1352,6 +1354,8 @@ export const SquadSummary = z.object({
   // bu02：列表展示 leader + 成员数
   leaderId: BusinessId.optional(),
   memberCount: z.number().int().optional(),
+  // F6-3：成员 agentId 数组（前端「我的」Tab 命中 + 成员列头像堆叠）
+  memberIds: z.array(BusinessId).optional(),
 });
 export type SquadSummary = z.infer<typeof SquadSummary>;
 

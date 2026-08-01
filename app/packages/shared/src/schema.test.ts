@@ -19,6 +19,8 @@ import {
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
+  SquadSummary,
+  SkillInfo,
 } from './schema';
 
 describe('Shared Schema Validators', () => {
@@ -394,6 +396,53 @@ describe('Shared Schema Validators', () => {
       expect(AgentRun.parse(base).escalatedFromRunId).toBeUndefined();
       const withLineage = AgentRun.parse({ ...base, escalatedFromRunId: 'run-0' });
       expect(withLineage.escalatedFromRunId).toBe('run-0');
+    });
+  });
+
+  describe('SquadSummary', () => {
+    it('accepts optional memberIds (business id array)', () => {
+      const withMembers = SquadSummary.parse({
+        id: 'sqd-1',
+        name: 'Alpha',
+        memberIds: ['agt-1', 'agt-2'],
+      });
+      expect(withMembers.memberIds).toEqual(['agt-1', 'agt-2']);
+    });
+
+    it('memberIds is absent when not provided', () => {
+      const plain = SquadSummary.parse({ id: 'sqd-1', name: 'Alpha' });
+      expect(plain.memberIds).toBeUndefined();
+    });
+
+    it('rejects invalid memberIds entries', () => {
+      expect(() =>
+        SquadSummary.parse({ id: 'sqd-1', name: 'A', memberIds: [''] }),
+      ).toThrow();
+    });
+  });
+
+  describe('SkillInfo', () => {
+    const base = {
+      name: 'demo',
+      description: 'd',
+      source: 'builtin' as const,
+      usedBy: [],
+    };
+
+    it('accepts updatedAt ISO string', () => {
+      const parsed = SkillInfo.parse({
+        ...base,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      expect(parsed.updatedAt).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('accepts updatedAt null (无文件路径/读取失败)', () => {
+      expect(SkillInfo.parse({ ...base, updatedAt: null }).updatedAt).toBeNull();
+    });
+
+    it('updatedAt is absent when not provided', () => {
+      expect(SkillInfo.parse(base).updatedAt).toBeUndefined();
     });
   });
 });

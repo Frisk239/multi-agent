@@ -28,10 +28,10 @@ function parseSort(raw: string | null): SortMode {
   return '';
 }
 
-/** F6-2：「最近更新」按 updatedAt desc；列表接口未下发该字段时按 name 兜底（与服务端默认序一致） */
+/** F6-2：「最近更新」按 updatedAt desc（null 排尾）；updatedAt 全缺时按 name 兜底（与服务端默认序一致） */
 function byUpdatedAtDesc(a: SkillInfo, b: SkillInfo): number {
-  const au = (a as { updatedAt?: string }).updatedAt;
-  const bu = (b as { updatedAt?: string }).updatedAt;
+  const au = a.updatedAt;
+  const bu = b.updatedAt;
   if (au && bu) return bu.localeCompare(au);
   if (au) return -1;
   if (bu) return 1;

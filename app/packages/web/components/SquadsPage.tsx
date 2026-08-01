@@ -83,6 +83,60 @@ function readyChipLabel(ready: ReadyFilter): string {
   return READY_OPTIONS.find((o) => o.value === ready)?.label ?? ready;
 }
 
+// F6-3（UI-SQD-014）：成员头像堆叠。id → 名字反查后渲染首字圆点；名字不足时回退「N 名成员」。
+const MEMBER_AVATAR_COLORS = [
+  '#e5484d',
+  '#f76b15',
+  '#ffb224',
+  '#30a46c',
+  '#3e63dd',
+  '#8e4ec6',
+  '#0090ff',
+  '#d6409f',
+];
+
+function memberAvatarColor(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return MEMBER_AVATAR_COLORS[h % MEMBER_AVATAR_COLORS.length];
+}
+
+type SquadMemberCellProps = {
+  memberIds: string[] | undefined;
+  memberCount: number | undefined;
+  agentNameById: Map<string, string>;
+};
+
+function SquadMemberCell({ memberIds, memberCount, agentNameById }: SquadMemberCellProps) {
+  const ids = memberIds ?? [];
+  const names = ids.map((id) => agentNameById.get(id) ?? '').filter(Boolean);
+  if (ids.length === 0 || names.length === 0) {
+    // 降级：无 memberIds 或反查不到名字 → 「N 名成员」文本
+    const count = ids.length > 0 ? ids.length : memberCount ?? 0;
+    return <span className="text-dim">{count} 名成员</span>;
+  }
+  return (
+    <span className="squad-members-stack" title={names.join('、')}>
+      {names.slice(0, 4).map((name, i) => (
+        <span
+          key={`${name}-${i}`}
+          className="squad-member-avatar"
+          data-testid="squad-member-avatar"
+          style={{ background: memberAvatarColor(name) }}
+          title={name}
+        >
+          {name.slice(0, 1)}
+        </span>
+      ))}
+      {names.length > 4 ? (
+        <span className="squad-members-extra" data-testid="squad-member-overflow">
+          +{names.length - 4}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 // bu02：小队列表 + 新建 + leader 就绪 + URL 可分享筛选
 function SquadsPageInner() {
   const router = useRouter();
@@ -151,10 +205,14 @@ function SquadsPageInner() {
   // 默认 leader：第一个 agent
   const defaultLeader = agents[0]?.id ?? '';
 
-  // F6-1：列表接口（GET /api/squads → SquadSummary）只下发 leaderId + memberCount，
-  // 不含 memberIds，成员关系无法在客户端判定；「我的」按 leaderId === 本地用户匹配。
+  // F6-3：「我的」= leaderId 命中本地用户，或 memberIds 包含本地用户
+  // （本地单用户不是 agent 成员，实际命中 leaderId 分支；memberIds 分支为逻辑正确性）
   const mySquads = useMemo(
-    () => (data ?? []).filter((sq) => sq.leaderId === LOCAL_USER_ID),
+    () =>
+      (data ?? []).filter(
+        (sq) =>
+          sq.leaderId === LOCAL_USER_ID || sq.memberIds?.includes(LOCAL_USER_ID),
+      ),
     [data],
   );
 
@@ -162,7 +220,13 @@ function SquadsPageInner() {
     const list = data ?? [];
     const q = qFromUrl.trim().toLowerCase();
     return list.filter((sq) => {
-      if (scope === 'mine' && sq.leaderId !== LOCAL_USER_ID) return false;
+      if (
+        scope === 'mine' &&
+        sq.leaderId !== LOCAL_USER_ID &&
+        !(sq.memberIds ?? []).includes(LOCAL_USER_ID)
+      ) {
+        return false;
+      }
       if (leaderFromUrl && sq.leaderId !== leaderFromUrl) return false;
       if (q) {
         const leaderName = sq.leaderId ? (agentNameById.get(sq.leaderId) ?? '') : '';
@@ -613,13 +677,14 @@ function SquadsPageInner() {
                           )}
                         </td>
                         <td
-                          className="text-dim"
+                          className="squad-members-cell"
                           data-testid="squad-member-count"
-                          // F6-3（UI-SQD-014）降级：列表接口仅下发 memberCount（无 memberIds），
-                          // 无法反查成员名做头像堆叠，暂以「数字 + 说明」展示
-                          title="列表接口未下发成员明细（memberIds），暂以人数展示"
                         >
-                          {sq.memberCount ?? 0} 名成员
+                          <SquadMemberCell
+                            memberIds={sq.memberIds}
+                            memberCount={sq.memberCount}
+                            agentNameById={agentNameById}
+                          />
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <Link

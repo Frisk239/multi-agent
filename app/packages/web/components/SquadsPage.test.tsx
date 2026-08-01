@@ -28,7 +28,13 @@ vi.mock('next/navigation', () => ({
 
 const createMutate = vi.fn();
 const deleteMutate = vi.fn();
-const squadsData: Array<{ id: string; name: string; leaderId?: string; memberCount: number }> = [];
+const squadsData: Array<{
+  id: string;
+  name: string;
+  leaderId?: string;
+  memberCount: number;
+  memberIds?: string[];
+}> = [];
 const agentsData: Array<{ id: string; name: string; runtime: string }> = [];
 
 vi.mock('@/lib/api', () => ({
@@ -263,6 +269,101 @@ describe('SquadsPage', () => {
     agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
     renderPage();
     expect(screen.getByTestId('squad-member-count')).toHaveTextContent('2 名成员');
-    expect(screen.getByTestId('squad-member-count')).toHaveAttribute('title');
+  });
+
+  // ── F6-3（UI-SQD-014）：memberIds 到位后成员列头像堆叠 ──
+
+  it('renders avatar stack from memberIds (id → name lookup)', () => {
+    squadsData.push({
+      id: 'sqd-1',
+      name: 'Alpha',
+      leaderId: 'agt-1',
+      memberCount: 2,
+      memberIds: ['agt-2', 'agt-3'],
+    });
+    agentsData.push(
+      { id: 'agt-1', name: 'Agent One', runtime: 'opencode' },
+      { id: 'agt-2', name: 'Bob Agent', runtime: 'opencode' },
+      { id: 'agt-3', name: 'Carol Agent', runtime: 'claude-code' },
+    );
+    renderPage();
+    const cell = screen.getByTestId('squad-member-count');
+    expect(cell).not.toHaveTextContent('名成员');
+    const avatars = screen.getAllByTestId('squad-member-avatar');
+    expect(avatars.length).toBe(2);
+    expect(avatars[0]).toHaveTextContent('B');
+    expect(avatars[1]).toHaveTextContent('C');
+    // 每个头像有 hash 底色（不透明色值），且名字不同 → 颜色不同
+    expect(avatars[0].style.background).toBeTruthy();
+    expect(avatars[1].style.background).toBeTruthy();
+    expect(avatars[0].style.background).not.toBe(avatars[1].style.background);
+  });
+
+  it('shows +N overflow when more than 4 members resolve', () => {
+    squadsData.push({
+      id: 'sqd-1',
+      name: 'Alpha',
+      leaderId: 'agt-1',
+      memberCount: 6,
+      memberIds: ['agt-2', 'agt-3', 'agt-4', 'agt-5', 'agt-6', 'agt-7'],
+    });
+    agentsData.push(
+      { id: 'agt-1', name: 'Agent One', runtime: 'opencode' },
+      { id: 'agt-2', name: 'Two', runtime: 'opencode' },
+      { id: 'agt-3', name: 'Three', runtime: 'opencode' },
+      { id: 'agt-4', name: 'Four', runtime: 'opencode' },
+      { id: 'agt-5', name: 'Five', runtime: 'opencode' },
+      { id: 'agt-6', name: 'Six', runtime: 'opencode' },
+      { id: 'agt-7', name: 'Seven', runtime: 'opencode' },
+    );
+    renderPage();
+    expect(screen.getAllByTestId('squad-member-avatar').length).toBe(4);
+    expect(screen.getByTestId('squad-member-overflow')).toHaveTextContent('+2');
+  });
+
+  it('falls back to text when memberIds absent or names unresolvable', () => {
+    squadsData.push(
+      { id: 'sqd-1', name: 'NoIds', leaderId: 'agt-1', memberCount: 2 },
+      {
+        id: 'sqd-2',
+        name: 'GhostIds',
+        leaderId: 'agt-1',
+        memberCount: 2,
+        memberIds: ['agt-unknown'],
+      },
+    );
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    renderPage();
+    const cells = screen.getAllByTestId('squad-member-count');
+    expect(cells[0]).toHaveTextContent('2 名成员');
+    expect(cells[1]).toHaveTextContent('1 名成员');
+    expect(screen.queryAllByTestId('squad-member-avatar').length).toBe(0);
+  });
+
+  // ── F6-3：「我的」Tab 命中 memberIds（不依赖 leaderId）──
+
+  it('?scope=mine includes squads where local user is a member', () => {
+    squadsData.push(
+      // leader 是 agent，但成员里有本地用户
+      {
+        id: 'sqd-1',
+        name: 'Member Squad',
+        leaderId: 'agt-1',
+        memberCount: 1,
+        memberIds: ['user-linyuan'],
+      },
+      { id: 'sqd-2', name: 'Foreign Squad', leaderId: 'agt-2', memberCount: 0 },
+    );
+    agentsData.push(
+      { id: 'agt-1', name: 'Agent One', runtime: 'opencode' },
+      { id: 'agt-2', name: 'Agent Two', runtime: 'opencode' },
+    );
+    mockSearchParams = new URLSearchParams('scope=mine');
+    renderPage();
+    expect(screen.getByText('Member Squad')).toBeTruthy();
+    expect(screen.queryByText('Foreign Squad')).toBeNull();
+    // Tab 计数：我的 1 / 全部 2
+    expect(screen.getByTestId('squads-scope-mine')).toHaveTextContent('1');
+    expect(screen.getByTestId('squads-scope-all')).toHaveTextContent('2');
   });
 });

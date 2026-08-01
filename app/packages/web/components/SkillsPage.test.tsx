@@ -16,8 +16,8 @@ type MockSkill = {
   description?: string;
   source: 'user' | 'workspace' | 'project' | 'builtin';
   usedBy: Array<{ id: string; name: string; runtime: string }>;
-  /** 列表接口当前未下发该字段；保留以验证 updatedAt desc 分支 */
-  updatedAt?: string;
+  /** F6-2：列表接口已下发该字段（ISO 或 null）；null 排尾 */
+  updatedAt?: string | null;
 };
 
 const replace = vi.fn();
@@ -138,6 +138,16 @@ describe('SkillsPage', () => {
     mockSearchParams = new URLSearchParams('sort=updated');
     renderPage();
     expect(skillNames()).toEqual(['new-skill', 'old-skill']);
+  });
+
+  it('sort=updated puts null updatedAt skills last (name asc among tails)', () => {
+    pushSkill('alpha-null', { updatedAt: null });
+    pushSkill('older', { updatedAt: '2021-01-01T00:00:00.000Z' });
+    pushSkill('zeta-null', { updatedAt: null });
+    pushSkill('newer', { updatedAt: '2026-01-01T00:00:00.000Z' });
+    mockSearchParams = new URLSearchParams('sort=updated');
+    renderPage();
+    expect(skillNames()).toEqual(['newer', 'older', 'alpha-null', 'zeta-null']);
   });
 
   it('sort=updated falls back to name order when updatedAt is absent', () => {

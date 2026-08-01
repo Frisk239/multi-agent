@@ -440,6 +440,32 @@ describe('GET /api/squads (B5 排序)', () => {
     expect(second).toBe('createdAt');
     expect(result).toEqual([]);
   });
+
+  it('F6-3: 下发 memberIds（一次查全表按 squadId 分组），无成员 squad → []', async () => {
+    // 第一次 all：squad 行；第二次 all：squad_member 全表
+    selectAll
+      .mockReturnValueOnce([
+        { id: 'sqd-1', name: 'A', leaderId: 'agt-1', createdAt: 1, updatedAt: 2 },
+        { id: 'sqd-2', name: 'B', leaderId: 'agt-2', createdAt: 1, updatedAt: 2 },
+      ])
+      .mockReturnValueOnce([
+        { squadId: 'sqd-1', agentId: 'agt-10' },
+        { squadId: 'sqd-1', agentId: 'agt-11' },
+      ]);
+    const { app, routes } = makeApp();
+    await rosterRoutes(app);
+    const reply = replyMock();
+    const result = (await routes['GET /api/squads'](undefined, reply)) as Array<{
+      id: string;
+      memberIds: string[];
+      memberCount: number;
+    }>;
+    const byId = new Map(result.map((s) => [s.id, s]));
+    expect(byId.get('sqd-1')!.memberIds).toEqual(['agt-10', 'agt-11']);
+    expect(byId.get('sqd-1')!.memberCount).toBe(2);
+    expect(byId.get('sqd-2')!.memberIds).toEqual([]);
+    expect(byId.get('sqd-2')!.memberCount).toBe(0);
+  });
 });
 
 describe('DELETE /api/squads/:id', () => {

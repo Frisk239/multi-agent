@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import {
   CreateAgentInput,
   CreateSquadInput,
@@ -331,25 +331,28 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
 
   // —— Squads ——
 
-  // bu02：列表带 leaderId + memberCount；B5：updatedAt desc，createdAt 兜底（旧行 null 排尾）
+  // bu02：列表带 leaderId + memberCount + memberIds；B5：updatedAt desc，createdAt 兜底（旧行 null 排尾）
   app.get('/api/squads', async () => {
     const rows = db
       .select()
       .from(squads)
       .orderBy(desc(squads.updatedAt), desc(squads.createdAt))
       .all();
+    // F6-3：一次查全成员表按 squadId 分组（避免逐行 N+1）
+    const memberIdsBySquad = new Map<string, string[]>();
+    for (const m of db.select().from(squadMembers).all()) {
+      const arr = memberIdsBySquad.get(m.squadId);
+      if (arr) arr.push(m.agentId);
+      else memberIdsBySquad.set(m.squadId, [m.agentId]);
+    }
     return rows.map((s) => {
-      const memberCount =
-        db
-          .select({ cnt: sql<number>`COUNT(*)` })
-          .from(squadMembers)
-          .where(eq(squadMembers.squadId, s.id))
-          .get()?.cnt ?? 0;
+      const memberIds = memberIdsBySquad.get(s.id) ?? [];
       return {
         id: s.id,
         name: s.name,
         leaderId: s.leaderId ?? undefined,
-        memberCount,
+        memberCount: memberIds.length,
+        memberIds,
       };
     });
   });

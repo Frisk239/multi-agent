@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { statSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 import {
   ImportLocalSkillsInput,
@@ -28,6 +29,16 @@ import { importSkillFromUrl } from '../skill/import-url.js';
 // PUT  /api/agents/:id/skills   整体替换分配（body: { skillIds: string[] }）
 // GET  /api/agents/:id/mcp      MCP 配置 JSON 字符串
 // PUT  /api/agents/:id/mcp      更新 MCP（body: { mcpServers: string | null }）
+// F6-2：skill 文件 mtime → ISO；path 缺失/读取失败 → null（builtin 来源同样有文件路径）
+function skillUpdatedAt(path: string | null | undefined): string | null {
+  if (!path) return null;
+  try {
+    return statSync(path).mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
 export async function skillRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/skills —— 内存索引 + usedBy 反查（spec §4.1）
   app.get('/api/skills', async () => {
@@ -52,6 +63,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
         source: skill.source,
         projectId: skill.projectId ?? null,
         projectTitle: skill.projectTitle ?? null,
+        updatedAt: skillUpdatedAt(skill.path),
         usedBy,
       });
     }
