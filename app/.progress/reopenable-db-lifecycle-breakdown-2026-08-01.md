@@ -1,7 +1,7 @@
-# reopenable-db-lifecycle · 拆解与下一会话起点（2026-08-01）
+# reopenable-db-lifecycle · 完成 closeout（2026-08-01 当日收尾）
 
-> 状态：**未实施（设计拆解）**。本刀是仓库级基础设施重构（安全 live restore 的解锁前置），
-> 按宪法「特大/特雾 → 下一会话 Owner 做深」在本会话仅完成现状核实与拆解，供下一会话直接开工。
+> 状态：**D1-D5 全部完成**（commit `4887e29` + `7b1459b`，同日实施）。以下拆解保留为实施记录；
+> 验收与 Remaining 见 [reopenable-db-closeout-2026-08-01.md](./reopenable-db-closeout-2026-08-01.md)。
 
 ## 目标（CONTEXT.md:51 原文）
 
