@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { CreateIssueInput, Priority } from '@ma/shared';
+import { CreateIssueInput, type Priority } from '@ma/shared';
 import {
   useAgents,
   useAgentsReadinessMap,
@@ -20,7 +20,9 @@ import {
   writeJsonDraft,
   type NewIssueDraft,
 } from '@/lib/draft-storage';
+import { validateWith, type FieldErrors } from '@/lib/form-validation';
 import { useFocusTrap } from '@/lib/use-focus-trap';
+import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { Select } from './Select';
 
@@ -51,6 +53,8 @@ export function NewIssueForm() {
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
   const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
+  // W3：提交前 Zod 校验（CreateIssueInput）产生的字段级错误
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftReadyRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,6 +237,7 @@ export function NewIssueForm() {
     setPriority('none');
     setAssigneeValue('');
     setCustomFields([]);
+    setFieldErrors({});
     if (!projectFromUrl) setProjectId('');
     setOpen(false);
     clearDraft(draftKey.newIssue);
@@ -240,7 +245,36 @@ export function NewIssueForm() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+
+    let assignee: CreateIssueInput['assignee'] = null;
+    if (assigneeValue.startsWith('agent:')) {
+      assignee = { type: 'agent', id: assigneeValue.slice('agent:'.length) };
+    } else if (assigneeValue.startsWith('squad:')) {
+      assignee = { type: 'squad', id: assigneeValue.slice('squad:'.length) };
+    }
+
+    const parsedCustomFields: Record<string, string> = {};
+    customFields.forEach(({k, v}) => {
+      const key = k.trim();
+      const val = v.trim();
+      if (key && val) {
+        parsedCustomFields[key] = val;
+      }
+    });
+
+    // W3：提交前用 CreateIssueInput 校验；不过则显示字段级 FieldError
+    const validated = validateWith(CreateIssueInput, {
+      title: title.trim(),
+      priority,
+      assignee,
+      projectId: projectId || undefined,
+      customFields:
+        Object.keys(parsedCustomFields).length > 0 ? parsedCustomFields : undefined,
+    });
+    if (!validated.ok) {
+      setFieldErrors(validated.errors);
+      return;
+    }
 
     // F8：指派硬闸（cwd/runtime/error）与服务端一致——禁止提交开工
     if (
@@ -259,34 +293,9 @@ export function NewIssueForm() {
       return;
     }
 
-    let assignee: CreateIssueInput['assignee'] = null;
-    if (assigneeValue.startsWith('agent:')) {
-      assignee = { type: 'agent', id: assigneeValue.slice('agent:'.length) };
-    } else if (assigneeValue.startsWith('squad:')) {
-      assignee = { type: 'squad', id: assigneeValue.slice('squad:'.length) };
-    }
-
-    const parsedCustomFields: Record<string, string> = {};
-    customFields.forEach(({k, v}) => {
-      const key = k.trim();
-      const val = v.trim();
-      if (key && val) {
-        parsedCustomFields[key] = val;
-      }
+    create.mutate(validated.data, {
+      onSuccess: () => reset(),
     });
-
-    create.mutate(
-      {
-        title: title.trim(),
-        priority,
-        assignee,
-        projectId: projectId || undefined,
-        customFields: Object.keys(parsedCustomFields).length > 0 ? parsedCustomFields : undefined,
-      },
-      {
-        onSuccess: () => reset(),
-      },
-    );
   }
 
   if (!open) {
@@ -404,11 +413,19 @@ export function NewIssueForm() {
       <input
         className="new-issue-input"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          setFieldErrors((prev) => (prev.title ? { ...prev, title: '' } : prev));
+        }}
         placeholder="标题"
         autoFocus
         data-testid="new-issue-title"
+        aria-invalid={fieldErrors.title ? true : undefined}
+        aria-describedby={fieldErrors.title ? 'new-issue-title-error' : undefined}
       />
+      {fieldErrors.title ? (
+        <FieldError id="new-issue-title-error" message={fieldErrors.title} dataTestId="new-issue-title-error" />
+      ) : null}
       <Select
         className="new-issue-select"
         value={priority}
@@ -637,7 +654,8 @@ export function NewIssueForm() {
                   ? '将在隔离目录执行（不会改动业务仓）'
                   : undefined
         }
-        disabled={create.isPending || !title.trim()}
+        // W3：校验错误用 FieldError 展示，按钮只在提交中禁用
+        disabled={create.isPending}
       >
         {create.isPending
           ? '提交中…'

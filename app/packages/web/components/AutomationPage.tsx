@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   AUTOMATION_PRESETS,
+  CreateAutomationRuleInput,
   renderAutomationTemplate,
   type AutomationPreset,
   type AutomationRule,
   type AutomationScheduleKind,
-  type CreateAutomationRuleInput,
 } from '@ma/shared';
 import {
   API,
@@ -25,7 +25,9 @@ import {
   useUpdateAutomationRule,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import { validateWith, type FieldErrors } from '@/lib/form-validation';
 import { EmptyState } from './EmptyState';
+import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
@@ -208,6 +210,8 @@ function AutomationPageInner() {
   const [executionMode, setExecutionMode] = useState<'create_issue' | 'run_only'>(
     'create_issue',
   );
+  // W3：提交前 Zod 校验（CreateAutomationRuleInput）产生的字段级错误
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const qFromUrl = searchParams.get('q') ?? '';
   const enabledFromUrl = parseEnabled(searchParams.get('enabled'));
@@ -272,6 +276,7 @@ function AutomationPageInner() {
     setTitleTemplate('巡检 {{date}} {{time}}');
     setBodyTemplate('自动创建');
     setExecutionMode('create_issue');
+    setFieldErrors({});
     setOpen(false);
   }
 
@@ -308,7 +313,6 @@ function AutomationPageInner() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !assigneeValue || !titleTemplate.trim()) return;
 
     let assigneeType: 'agent' | 'squad';
     let assigneeId: string;
@@ -319,10 +323,12 @@ function AutomationPageInner() {
       assigneeType = 'squad';
       assigneeId = assigneeValue.slice('squad:'.length);
     } else {
+      setFieldErrors({ assignee: '请选择要指派的 agent 或小队' });
       return;
     }
 
-    const input: CreateAutomationRuleInput = {
+    // W3：提交前用 CreateAutomationRuleInput 校验；不过则显示字段级 FieldError
+    const validated = validateWith(CreateAutomationRuleInput, {
       name: name.trim(),
       enabled: true,
       scheduleKind,
@@ -334,9 +340,18 @@ function AutomationPageInner() {
       titleTemplate: titleTemplate.trim(),
       bodyTemplate: bodyTemplate,
       executionMode,
-    };
+    });
+    if (!validated.ok) {
+      // 表单用 assigneeValue 承载指派，把 schema 的 assigneeId 错误映射到该字段
+      const errors: FieldErrors = {};
+      for (const [key, message] of Object.entries(validated.errors)) {
+        errors[key === 'assigneeId' ? 'assignee' : key] = message;
+      }
+      setFieldErrors(errors);
+      return;
+    }
 
-    create.mutate(input, {
+    create.mutate(validated.data, {
       onSuccess: () => resetForm(),
     });
   }
@@ -544,12 +559,20 @@ function AutomationPageInner() {
               <span>名称</span>
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setFieldErrors((prev) => (prev.name ? { ...prev, name: '' } : prev));
+                }}
                 placeholder="如：每 15 分钟巡检"
                 required
                 autoFocus
                 maxLength={80}
+                aria-invalid={fieldErrors.name ? true : undefined}
+                aria-describedby={fieldErrors.name ? 'automation-create-name-error' : undefined}
               />
+              {fieldErrors.name ? (
+                <FieldError id="automation-create-name-error" message={fieldErrors.name} dataTestId="automation-create-name-error" />
+              ) : null}
             </label>
             <label className="ops-field">
               <span>调度类型</span>
@@ -588,9 +611,17 @@ function AutomationPageInner() {
                 <input
                   type="time"
                   value={dailyTime}
-                  onChange={(e) => setDailyTime(e.target.value)}
+                  onChange={(e) => {
+                    setDailyTime(e.target.value);
+                    setFieldErrors((prev) => (prev.dailyTime ? { ...prev, dailyTime: '' } : prev));
+                  }}
                   required
+                  aria-invalid={fieldErrors.dailyTime ? true : undefined}
+                  aria-describedby={fieldErrors.dailyTime ? 'automation-create-daily-error' : undefined}
                 />
+                {fieldErrors.dailyTime ? (
+                  <FieldError id="automation-create-daily-error" message={fieldErrors.dailyTime} dataTestId="automation-create-daily-error" />
+                ) : null}
               </label>
             ) : (
               <label className="ops-field">
@@ -598,10 +629,18 @@ function AutomationPageInner() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <input
                     value={cronExpression}
-                    onChange={(e) => setCronExpression(e.target.value)}
+                    onChange={(e) => {
+                      setCronExpression(e.target.value);
+                      setFieldErrors((prev) => (prev.cronExpression ? { ...prev, cronExpression: '' } : prev));
+                    }}
                     placeholder="如 0 9 * * 1-5"
                     required
+                    aria-invalid={fieldErrors.cronExpression ? true : undefined}
+                    aria-describedby={fieldErrors.cronExpression ? 'automation-create-cron-error' : undefined}
                   />
+                  {fieldErrors.cronExpression ? (
+                    <FieldError id="automation-create-cron-error" message={fieldErrors.cronExpression} dataTestId="automation-create-cron-error" />
+                  ) : null}
                   <div className="automation-cron-chips">
                     {['*/15 * * * *', '0 * * * *', '0 9 * * 1-5'].map(chip => (
                       <button type="button" key={chip} className="btn-ghost btn-sm" style={{ padding: '0 4px', fontSize: 12, marginRight: 4 }} onClick={() => setCronExpression(chip)}>{chip}</button>
@@ -623,9 +662,14 @@ function AutomationPageInner() {
               <span>指派给</span>
               <Select
                 value={assigneeValue}
-                onChange={(e) => setAssigneeValue(e.target.value)}
+                onChange={(e) => {
+                  setAssigneeValue(e.target.value);
+                  setFieldErrors((prev) => (prev.assignee ? { ...prev, assignee: '' } : prev));
+                }}
                 required
                 aria-label="指派 agent 或小队"
+                aria-invalid={fieldErrors.assignee ? true : undefined}
+                aria-describedby={fieldErrors.assignee ? 'automation-create-assignee-error' : undefined}
               >
                 <option value="">选择 agent 或小队…</option>
                 <optgroup label="智能体">
@@ -643,6 +687,9 @@ function AutomationPageInner() {
                   ))}
                 </optgroup>
               </Select>
+              {fieldErrors.assignee ? (
+                <FieldError id="automation-create-assignee-error" message={fieldErrors.assignee} dataTestId="automation-create-assignee-error" />
+              ) : null}
             </label>
           </div>
           <label className="ops-field">
@@ -666,11 +713,19 @@ function AutomationPageInner() {
             <span>标题模板</span>
             <input
               value={titleTemplate}
-              onChange={(e) => setTitleTemplate(e.target.value)}
+              onChange={(e) => {
+                setTitleTemplate(e.target.value);
+                setFieldErrors((prev) => (prev.titleTemplate ? { ...prev, titleTemplate: '' } : prev));
+              }}
               placeholder="巡检 {{date}} {{time}}"
               required
               maxLength={200}
+              aria-invalid={fieldErrors.titleTemplate ? true : undefined}
+              aria-describedby={fieldErrors.titleTemplate ? 'automation-create-title-template-error' : undefined}
             />
+            {fieldErrors.titleTemplate ? (
+              <FieldError id="automation-create-title-template-error" message={fieldErrors.titleTemplate} dataTestId="automation-create-title-template-error" />
+            ) : null}
           </label>
           <label className="ops-field">
             <span>描述模板</span>
@@ -712,12 +767,8 @@ function AutomationPageInner() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={
-                create.isPending ||
-                !name.trim() ||
-                !assigneeValue ||
-                !titleTemplate.trim()
-              }
+              // W3：校验错误用 FieldError 展示，按钮只在提交中禁用
+              disabled={create.isPending}
             >
               {create.isPending ? '创建中…' : '创建'}
             </button>

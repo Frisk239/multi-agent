@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { Project, ProjectStatus } from '@ma/shared';
+import { CreateProjectInput, type Project, type ProjectStatus } from '@ma/shared';
 import {
   useCreateProject,
   useDeleteProject,
@@ -10,7 +10,9 @@ import {
   useUpdateProject,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import { validateWith, type FieldErrors } from '@/lib/form-validation';
 import { EmptyState } from './EmptyState';
+import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { Select } from './Select';
 
@@ -52,6 +54,8 @@ export function ProjectsPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [statusCreate, setStatusCreate] = useState<ProjectStatus>('active');
+  // W3：提交前 Zod 校验（CreateProjectInput）产生的字段级错误
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | ProjectStatus>('');
 
@@ -78,16 +82,21 @@ export function ProjectsPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const t = title.trim();
-    if (!t || create.isPending) return;
-    await create.mutateAsync({
-      title: t,
+    // W3：提交前用 CreateProjectInput 校验；不过则显示字段级 FieldError
+    const validated = validateWith(CreateProjectInput, {
+      title: title.trim(),
       description: description.trim() || undefined,
       status: statusCreate,
     });
+    if (!validated.ok) {
+      setFieldErrors(validated.errors);
+      return;
+    }
+    await create.mutateAsync(validated.data);
     setTitle('');
     setDescription('');
     setStatusCreate('active');
+    setFieldErrors({});
     setOpen(false);
   }
 
@@ -177,12 +186,20 @@ export function ProjectsPage() {
                 <span>名称</span>
                 <input
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setFieldErrors((prev) => (prev.title ? { ...prev, title: '' } : prev));
+                  }}
                   placeholder="如：验收项目"
                   data-testid="projects-create-title"
                   required
                   autoFocus
+                  aria-invalid={fieldErrors.title ? true : undefined}
+                  aria-describedby={fieldErrors.title ? 'projects-create-title-error' : undefined}
                 />
+                {fieldErrors.title ? (
+                  <FieldError id="projects-create-title-error" message={fieldErrors.title} dataTestId="projects-create-title-error" />
+                ) : null}
               </label>
               <label className="ops-field">
                 <span>状态</span>
@@ -215,7 +232,8 @@ export function ProjectsPage() {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={!title.trim() || create.isPending}
+                // W3：校验错误用 FieldError 展示，按钮只在提交中禁用
+                disabled={create.isPending}
                 data-testid="projects-create-submit"
               >
                 {create.isPending ? '创建中…' : '创建'}
@@ -227,6 +245,7 @@ export function ProjectsPage() {
                   setOpen(false);
                   setTitle('');
                   setDescription('');
+                  setFieldErrors({});
                 }}
               >
                 取消

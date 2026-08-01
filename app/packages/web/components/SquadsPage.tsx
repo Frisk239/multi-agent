@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { AgentReadiness, CreateSquadInput } from '@ma/shared';
+import { CreateSquadInput, type AgentReadiness } from '@ma/shared';
 import {
   useAgents,
   useAgentsReadinessMap,
@@ -12,8 +12,10 @@ import {
   useSquads,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import { validateWith, type FieldErrors } from '@/lib/form-validation';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
+import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
@@ -87,6 +89,8 @@ function SquadsPageInner() {
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [operatingProtocol, setOperatingProtocol] = useState('');
   const [missionDirective, setMissionDirective] = useState('');
+  // W3：提交前 Zod 校验（CreateSquadInput）产生的字段级错误
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const qFromUrl = searchParams.get('q') ?? '';
   const readyFromUrl = parseReady(searchParams.get('ready'));
@@ -166,6 +170,7 @@ function SquadsPageInner() {
     setMemberIds([]);
     setOperatingProtocol('');
     setMissionDirective('');
+    setFieldErrors({});
     setOpen(false);
   }
 
@@ -178,15 +183,19 @@ function SquadsPageInner() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const lid = leaderId || defaultLeader;
-    if (!name.trim() || !lid) return;
-    const input: CreateSquadInput = {
+    // W3：提交前用 CreateSquadInput 校验；不过则显示字段级 FieldError
+    const validated = validateWith(CreateSquadInput, {
       name: name.trim(),
       leaderId: lid,
       operatingProtocol,
       missionDirective,
       memberIds,
-    };
-    create.mutate(input, {
+    });
+    if (!validated.ok) {
+      setFieldErrors(validated.errors);
+      return;
+    }
+    create.mutate(validated.data, {
       onSuccess: (squad) => {
         resetForm();
         router.push(`/squads/${squad.id}`);
@@ -268,20 +277,33 @@ function SquadsPageInner() {
               <span>名称</span>
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setFieldErrors((prev) => (prev.name ? { ...prev, name: '' } : prev));
+                }}
                 placeholder="如：补2小队"
                 required
                 autoFocus
+                aria-invalid={fieldErrors.name ? true : undefined}
+                aria-describedby={fieldErrors.name ? 'squad-create-name-error' : undefined}
               />
+              {fieldErrors.name ? (
+                <FieldError id="squad-create-name-error" message={fieldErrors.name} dataTestId="squad-create-name-error" />
+              ) : null}
             </label>
             <label className="ops-field">
               <span>Leader</span>
               <Select
                 value={leaderId || defaultLeader}
-                onChange={(e) => setLeaderId(e.target.value)}
+                onChange={(e) => {
+                  setLeaderId(e.target.value);
+                  setFieldErrors((prev) => (prev.leaderId ? { ...prev, leaderId: '' } : prev));
+                }}
                 required
                 data-testid="squad-create-leader-select"
                 aria-label="小队 Leader"
+                aria-invalid={fieldErrors.leaderId ? true : undefined}
+                aria-describedby={fieldErrors.leaderId ? 'squad-create-leader-error' : undefined}
               >
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -289,6 +311,9 @@ function SquadsPageInner() {
                   </option>
                 ))}
               </Select>
+              {fieldErrors.leaderId ? (
+                <FieldError id="squad-create-leader-error" message={fieldErrors.leaderId} dataTestId="squad-create-leader-error" />
+              ) : null}
             </label>
           </div>
 
@@ -335,7 +360,8 @@ function SquadsPageInner() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={create.isPending || !name.trim() || !(leaderId || defaultLeader)}
+              // W3：校验错误用 FieldError 展示，按钮只在提交中禁用
+              disabled={create.isPending}
             >
               {create.isPending ? '创建中…' : '创建'}
             </button>

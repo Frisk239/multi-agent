@@ -42,6 +42,70 @@ export type IssueListSortCol =
   | 'assignee'
   | 'updatedAt';
 
+/** W3：可排序表头元数据（6 列）——统一 aria-sort / 键盘 / aria-label */
+const SORTABLE_COLUMNS: {
+  col: IssueListSortCol;
+  label: string;
+  sortLabel: string;
+  testId: string;
+}[] = [
+  { col: 'identifier', label: '标识', sortLabel: '按标识排序', testId: 'issue-list-sort-header-identifier' },
+  { col: 'title', label: '标题', sortLabel: '按标题排序', testId: 'issue-list-sort-header-title' },
+  { col: 'status', label: '状态', sortLabel: '按状态排序', testId: 'issue-list-sort-header-status' },
+  { col: 'priority', label: '优先级', sortLabel: '按优先级排序', testId: 'issue-list-sort-header-priority' },
+  { col: 'assignee', label: '指派', sortLabel: '按指派排序', testId: 'issue-list-sort-header-assignee' },
+  { col: 'updatedAt', label: '更新时间', sortLabel: '按更新时间排序', testId: 'issue-list-sort-header-updatedAt' },
+];
+
+/** W3：可排序表头——aria-sort + tabIndex=0 + Enter/Space 与点击同逻辑 */
+function SortableTh({
+  col,
+  label,
+  sortLabel,
+  testId,
+  sortCol,
+  sortDir,
+  onSort,
+}: {
+  col: IssueListSortCol;
+  label: string;
+  sortLabel: string;
+  testId: string;
+  sortCol: IssueListSortCol | null;
+  sortDir: 'asc' | 'desc';
+  onSort: (col: IssueListSortCol) => void;
+}) {
+  const active = sortCol === col;
+  const ariaSort: 'ascending' | 'descending' | 'none' = active
+    ? sortDir === 'asc'
+      ? 'ascending'
+      : 'descending'
+    : 'none';
+  const ariaLabel = active
+    ? `${label}，可排序，当前${sortDir === 'asc' ? '升序' : '降序'}`
+    : `${label}，可排序`;
+  return (
+    <th
+      scope="col"
+      style={{ cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => onSort(col)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSort(col);
+        }
+      }}
+      tabIndex={0}
+      aria-sort={ariaSort}
+      aria-label={ariaLabel}
+      data-testid={testId}
+      title={sortLabel}
+    >
+      {label} {active ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+    </th>
+  );
+}
+
 export type IssueListViewProps = {
   issues: Issue[];
   density: Density;
@@ -156,55 +220,19 @@ export function IssueListView({
                 aria-label="全选 Issue"
               />
             </th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('identifier')}
-              data-testid="issue-list-sort-header-identifier"
-              title="按标识排序"
-            >
-              标识 {sortCol === 'identifier' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('title')}
-              data-testid="issue-list-sort-header-title"
-              title="按标题排序"
-            >
-              标题 {sortCol === 'title' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('status')}
-              data-testid="issue-list-sort-header-status"
-              title="按状态排序"
-            >
-              状态 {sortCol === 'status' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('priority')}
-              data-testid="issue-list-sort-header-priority"
-              title="按优先级排序"
-            >
-              优先级 {sortCol === 'priority' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('assignee')}
-              data-testid="issue-list-sort-header-assignee"
-              title="按指派排序"
-            >
-              指派 {sortCol === 'assignee' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
+            {SORTABLE_COLUMNS.map((c) => (
+              <SortableTh
+                key={c.col}
+                col={c.col}
+                label={c.label}
+                sortLabel={c.sortLabel}
+                testId={c.testId}
+                sortCol={sortCol}
+                sortDir={sortDir}
+                onSort={onHeaderSort}
+              />
+            ))}
             <th>项目</th>
-            <th
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => onHeaderSort('updatedAt')}
-              data-testid="issue-list-sort-header-updatedAt"
-              title="按更新时间排序"
-            >
-              更新时间 {sortCol === 'updatedAt' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </th>
             <th>操作</th>
           </tr>
         </thead>

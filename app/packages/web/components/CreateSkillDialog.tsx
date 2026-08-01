@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LocalSkillCandidate, SkillImportTarget } from '@ma/shared';
 import {
   useImportLocalSkills,
@@ -8,6 +8,7 @@ import {
   useProjects,
   useScanLocalSkills,
 } from '@/lib/api';
+import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Select } from './Select';
 
 type Method = 'chooser' | 'url' | 'local';
@@ -38,6 +39,14 @@ export function CreateSkillDialog({
   const importLocal = useImportLocalSkills();
   const importUrl = useImportSkillFromUrl();
   const { data: projects = [] } = useProjects();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  // W3：焦点陷阱（照 KeyboardShortcutsModal 用法）——Tab 循环 + Esc + 归还焦点
+  useFocusTrap(open, dialogRef, {
+    onEscape: onClose,
+    restoreFocus: true,
+    autoFocus: true,
+  });
 
   const [method, setMethod] = useState<Method>('chooser');
   const [target, setTarget] = useState<SkillImportTarget>('user');
@@ -75,15 +84,6 @@ export function CreateSkillDialog({
     setTarget('user');
     setProjectId('');
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -208,6 +208,7 @@ export function CreateSkillDialog({
       }}
     >
       <div
+        ref={dialogRef}
         className="modal-dialog skill-create-dialog"
         role="dialog"
         aria-modal="true"
@@ -341,6 +342,7 @@ export function CreateSkillDialog({
                   className="input"
                   value={url}
                   autoFocus
+                  data-autofocus
                   data-testid="create-skill-url"
                   placeholder="https://clawhub.ai/owner/skill"
                   onChange={(e) => {
@@ -396,6 +398,7 @@ export function CreateSkillDialog({
                     placeholder="例如 ~/.claude/skills 或 D:/skills"
                     data-testid="create-skill-path"
                     autoFocus
+                    data-autofocus
                   />
                 </label>
                 <button
