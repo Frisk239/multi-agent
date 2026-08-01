@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, comments, issues } from '../db/schema.js';
+import { agentRuns, comments, issues, issueLabels, issueToLabels } from '../db/schema.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { resolveSearchTimeoutMs } from './issues.js';
 
@@ -557,6 +557,90 @@ describe('issues contract (W5)', () => {
       });
       expect(res.statusCode).toBe(400);
       expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
+      await app.close();
+    });
+  });
+
+  describe('POST /api/issues (create, F2)', () => {
+    function insertLabel(id: string, overrides: Partial<typeof issueLabels.$inferInsert> = {}) {
+      const now = Date.now();
+      state.db!.insert(issueLabels)
+        .values({
+          id,
+          workspaceId: 'ws-local',
+          name: `Label ${id}`,
+          color: '#3b82f6',
+          createdAt: now,
+          updatedAt: now,
+          ...overrides,
+        })
+        .run();
+    }
+
+    it('creates with status and labels, echoing both in response', async () => {
+      insertLabel('lab-f2-1');
+      insertLabel('lab-f2-2');
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: {
+          title: 'F2 create with status/labels',
+          priority: 'high',
+          status: 'in_progress',
+          labels: ['lab-f2-1', 'lab-f2-2'],
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as { id: string; status: string; labels: Array<{ id: string }> };
+      expect(body.status).toBe('in_progress');
+      expect(body.labels.map((l) => l.id).sort()).toEqual(['lab-f2-1', 'lab-f2-2']);
+      const links = state.db!.select().from(issueToLabels).where(eq(issueToLabels.issueId, body.id)).all();
+      expect(links.map((l) => l.labelId).sort()).toEqual(['lab-f2-1', 'lab-f2-2']);
+      const row = state.db!.select().from(issues).where(eq(issues.id, body.id)).get();
+      expect(row?.status).toBe('in_progress');
+      await app.close();
+    });
+
+    it('defaults status to todo when omitted, labels [] accepted without error', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'F2 default status', labels: [] },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as { status: string; labels: unknown[] };
+      expect(body.status).toBe('todo');
+      expect(body.labels).toEqual([]);
+      await app.close();
+    });
+
+    it('400 on unknown labelId and leaves no half-created issue', async () => {
+      const before = state.db!.select().from(issues).all().length;
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'F2 bad label', labels: ['lab-does-not-exist'] },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { error?: string }).error).toContain('labelId');
+      const after = state.db!.select().from(issues).all().length;
+      expect(after).toBe(before);
+      await app.close();
+    });
+
+    it('400 on archived label', async () => {
+      insertLabel('lab-f2-archived', { archivedAt: Date.now() });
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'F2 archived label', labels: ['lab-f2-archived'] },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { error?: string }).error).toContain('已归档');
       await app.close();
     });
   });

@@ -27,9 +27,12 @@ vi.mock('@/lib/api', () => ({
   useAgents: () => ({ data: [] }),
   useSquads: () => ({ data: [] }),
   useProjects: () => ({ data: [] }),
+  useLabels: () => ({ data: mockLabels }),
   useSettingsStatus: () => ({ data: undefined }),
   useAgentsReadinessMap: () => ({ data: {} }),
 }));
+
+let mockLabels: Array<{ id: string; name: string; color: string }> = [];
 
 import { NewIssueForm } from './NewIssueForm';
 
@@ -52,6 +55,7 @@ describe('NewIssueForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams = new URLSearchParams();
+    mockLabels = [];
     window.localStorage.clear();
   });
 
@@ -116,5 +120,65 @@ describe('NewIssueForm', () => {
     fireEvent.submit(title.closest('form')!);
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(createMutate).not.toHaveBeenCalled();
+  });
+
+  // —— F2：状态 + 标签 ——
+
+  it('渲染状态 Select（默认 todo）与标签多选区', () => {
+    mockLabels = [{ id: 'lab-1', name: '后端', color: '#3b82f6' }];
+    renderForm();
+    openForm();
+    const status = screen.getByTestId('new-issue-status') as HTMLSelectElement;
+    expect(status).toBeTruthy();
+    expect(status.value).toBe('todo');
+    expect(screen.getByTestId('new-issue-labels')).toBeTruthy();
+    expect(screen.getByTestId('new-issue-label-lab-1')).toBeTruthy();
+  });
+
+  it('提交体携带 status 与 labels（多选标签）', () => {
+    mockLabels = [
+      { id: 'lab-1', name: '后端', color: '#3b82f6' },
+      { id: 'lab-2', name: 'UI', color: '#8b5cf6' },
+    ];
+    renderForm();
+    openForm();
+    fireEvent.change(screen.getByTestId('new-issue-title'), {
+      target: { value: '带标签建卡' },
+    });
+    fireEvent.change(screen.getByTestId('new-issue-status'), {
+      target: { value: 'in_progress' },
+    });
+    fireEvent.click(screen.getByTestId('new-issue-label-lab-1'));
+    fireEvent.click(screen.getByTestId('new-issue-label-lab-2'));
+    fireEvent.click(screen.getByTestId('new-issue-label-lab-2')); // 取消选中
+    fireEvent.submit(screen.getByTestId('new-issue-title').closest('form')!);
+
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const input = createMutate.mock.calls[0][0];
+    expect(input.status).toBe('in_progress');
+    expect(input.labels).toEqual(['lab-1']);
+  });
+
+  it('quickCreate 打开表单并预填该列 status', () => {
+    mockLabels = [];
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <NewIssueForm quickCreate={null} />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId('new-issue-form')).toBeNull();
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <NewIssueForm quickCreate={{ status: 'done', nonce: 1 }} />
+      </QueryClientProvider>,
+    );
+    const form = screen.getByTestId('new-issue-form');
+    expect(form).toBeTruthy();
+    expect((screen.getByTestId('new-issue-status') as HTMLSelectElement).value).toBe(
+      'done',
+    );
   });
 });

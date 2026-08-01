@@ -37,6 +37,7 @@ export function IssueSubtasks({ parent }: { parent: Issue }) {
       parentIssueId: parent.id,
       priority: 'none',
       assignee: null,
+      status: 'todo',
     });
     setTitle('');
   }

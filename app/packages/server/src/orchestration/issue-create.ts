@@ -1,5 +1,5 @@
 import { eq, sql, and } from 'drizzle-orm';
-import type { Issue, IssueEnqueueMeta, Priority } from '@ma/shared';
+import type { Issue, IssueEnqueueMeta, IssueStatus, Priority } from '@ma/shared';
 import { db } from '../db/client.js';
 import { issues, agentRuns, projects } from '../db/schema.js';
 import { toIssue } from '../db/reshape.js';
@@ -26,6 +26,8 @@ export type CreateIssueCoreInput = {
   title: string;
   description?: string | null;
   priority?: Priority;
+  /** F2：创建时的初始状态；缺省 = backlog（保持 automation 既有语义） */
+  status?: IssueStatus | null;
   assignee?: { type: 'member' | 'agent' | 'squad'; id: string } | null;
   originType?: 'quick_create' | 'automation' | null;
   originRunId?: string | null;
@@ -60,6 +62,8 @@ export async function createIssueCore(
       : null;
   const originRunId = input.originRunId ?? null;
   const originRuleId = input.originRuleId ?? null;
+  // F2：缺省 backlog（automation 既有语义）；POST /api/issues 恒传（CreateIssueInput 默认 todo）
+  const status = input.status ?? 'backlog';
   const shouldEnqueue = input.enqueue !== false;
   let parentIssueId: string | null = input.parentIssueId?.trim() || null;
   let parentIdentifier: string | null = null;
@@ -162,11 +166,11 @@ export async function createIssueCore(
   const nextNum = (maxRow?.maxNum ?? 0) + 1;
   const identifier = `FRI-${nextNum}`;
 
-  // position 浮顶：MIN(position)-1
+  // position 浮顶：MIN(position)-1（落在目标状态列，F2：随 status 走）
   const minRow = db
     .select({ minPos: sql<number>`COALESCE(MIN(${issues.position}), 0) - 1` })
     .from(issues)
-    .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, 'backlog')))
+    .where(and(eq(issues.workspaceId, WS_ID), eq(issues.status, status)))
     .get();
   const position = minRow?.minPos ?? -1;
 
@@ -180,7 +184,7 @@ export async function createIssueCore(
       identifier,
       title: input.title,
       description: input.description ?? null,
-      status: 'backlog',
+      status,
       priority,
       assigneeType: input.assignee?.type ?? null,
       assigneeId: input.assignee?.id ?? null,

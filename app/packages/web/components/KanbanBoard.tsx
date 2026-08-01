@@ -90,7 +90,17 @@ function parseAssigneeParam(raw: string | null): {
   return {};
 }
 
-function KanbanBoardInner() {
+/**
+ * 可选 scope 过滤（仅 MyIssuesPage 复用）：在主数据流之上做客户端视角裁剪，
+ * 不改任何既有 filter 语义；缺省 undefined = 原行为。
+ */
+export type KanbanScopeFilter = (issue: Issue) => boolean;
+
+function KanbanBoardInner({
+  scopeFilter,
+}: {
+  scopeFilter?: KanbanScopeFilter;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -122,6 +132,16 @@ function KanbanBoardInner() {
   // Multica 真站顶栏更疏：默认只露主筛选；运维向筛选放进「更多」
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // F2：看板列头「+」→ 打开 NewIssueForm 并预填该列 status
+  const [quickCreate, setQuickCreate] = useState<{
+    status: IssueStatus;
+    nonce: number;
+  } | null>(null);
+  const quickCreateNonceRef = useRef(0);
+  const handleColumnQuickCreate = useCallback((status: IssueStatus) => {
+    quickCreateNonceRef.current += 1;
+    setQuickCreate({ status, nonce: quickCreateNonceRef.current });
+  }, []);
 
   const bulkUpdateStatus = useBulkUpdateIssueStatus();
   const bulkUpdateAssignee = useBulkUpdateIssueAssignee();
@@ -544,14 +564,15 @@ function KanbanBoardInner() {
     [updateIssue],
   );
 
-  // 服务端已按 q/label/assignee 过滤；failed=1 / status 客户端再滤（含 cancelled 列）
+  // 服务端已按 q/label/assignee 过滤；failed=1 / status / scope 客户端再滤（含 cancelled 列）
   const visible = useMemo(() => {
     return (issues ?? []).filter((i) => {
+      if (scopeFilter && !scopeFilter(i)) return false;
       if (failedOnly && !failedIssueIds.has(i.id)) return false;
       if (statusQuery && i.status !== statusQuery) return false;
       return true;
     });
-  }, [issues, failedOnly, failedIssueIds, statusQuery]);
+  }, [issues, failedOnly, failedIssueIds, statusQuery, scopeFilter]);
 
   const sortedVisible = useMemo(() => {
     if (!sortCol) {
@@ -753,7 +774,7 @@ function KanbanBoardInner() {
       <div className="kanban-toolbar" data-testid="kanban-toolbar">
         <div className="kanban-toolbar-primary">
           <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
-            <NewIssueForm />
+            <NewIssueForm quickCreate={quickCreate} />
           </Suspense>
           <div className="kanban-scope-tabs" role="tablist" aria-label="范围" data-testid="kanban-scope-tabs">
             <button
@@ -1264,6 +1285,7 @@ function KanbanBoardInner() {
               onToggleSelect={handleToggleSelect}
               getDetailHref={getIssueSheetHref}
               onOpenDetail={handleOpenIssueDetail}
+              onQuickCreate={handleColumnQuickCreate}
             />
           ))}
         </div>
@@ -1463,10 +1485,14 @@ function KanbanBoardInner() {
   );
 }
 
-export function KanbanBoard() {
+export function KanbanBoard({
+  scopeFilter,
+}: {
+  scopeFilter?: KanbanScopeFilter;
+}) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <KanbanBoardInner />
+      <KanbanBoardInner scopeFilter={scopeFilter} />
     </Suspense>
   );
 }

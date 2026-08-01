@@ -525,10 +525,30 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
+
+    // F2：labels 先校验（存在 / 归属本工作区 / 未归档），失败不产生半成品
+    const uniqueLabelIds = input.labels ? [...new Set(input.labels)] : [];
+    if (uniqueLabelIds.length > 0) {
+      const found = db
+        .select()
+        .from(issueLabels)
+        .where(
+          and(eq(issueLabels.workspaceId, WS_ID), inArray(issueLabels.id, uniqueLabelIds)),
+        )
+        .all();
+      if (found.length !== uniqueLabelIds.length) {
+        return reply.status(400).send({ success: false, error: '存在无效或不属于本工作区的 labelId'  });
+      }
+      if (found.some((l) => l.archivedAt != null)) {
+        return reply.status(400).send({ success: false, error: '不能挂载已归档的标签'  });
+      }
+    }
+
     const result = await createIssueCore({
       title: input.title,
       description: input.description,
       priority: input.priority,
+      status: input.status,
       assignee: input.assignee,
       originType: input.originType ?? null,
       originRunId: input.originRunId ?? null,
@@ -546,7 +566,19 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         ...(result.issueId ? { issueId: result.issueId } : {}),
       });
     }
-    return reply.status(201).send({ ...result.issue, enqueue: result.enqueue });
+
+    // F2：create 后写 labels（同 handler；校验已前置，写入失败不留半成品）
+    if (uniqueLabelIds.length > 0) {
+      sqlite.transaction(() => {
+        for (const labelId of uniqueLabelIds) {
+          db.insert(issueToLabels).values({ issueId: result.issue.id, labelId }).run();
+        }
+      })();
+    }
+
+    // 回显带 labels（toIssue 已带 label 装载，F2）
+    const row = db.select().from(issues).where(eq(issues.id, result.issue.id)).get();
+    return reply.status(201).send({ ...issueWithLabels(row!), enqueue: result.enqueue });
   });
 
   // DELETE /api/issues/:id —— 硬删除（学 Multica DeleteIssue：先 cancel active run，再清关联）

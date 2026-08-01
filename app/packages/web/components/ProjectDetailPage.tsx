@@ -67,6 +67,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
       projectId: id,
       priority: 'none',
       assignee: null,
+      status: 'todo',
     });
     setIssueTitle('');
   }

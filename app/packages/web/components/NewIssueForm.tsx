@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { CreateIssueInput, type Priority } from '@ma/shared';
+import { CreateIssueInput, type IssueLabel, type IssueStatus, type Priority } from '@ma/shared';
 import {
   useAgents,
   useAgentsReadinessMap,
   useCreateIssue,
+  useLabels,
   useProjects,
   useSettingsStatus,
   useSquads,
@@ -36,6 +37,17 @@ type ExecPreview =
 // A1 UX Trust：可选 project + 执行目录预检（隔离 / 项目本机 / 路径无效）
 const NEW_ISSUE_DRAFT_DEBOUNCE_MS = 300;
 
+// F2：状态 Select 选项（文案与看板列头一致）
+const STATUS_OPTIONS: { value: IssueStatus; label: string }[] = [
+  { value: 'backlog', label: '待规划' },
+  { value: 'todo', label: '待办' },
+  { value: 'in_progress', label: '进行中' },
+  { value: 'in_review', label: '审核中' },
+  { value: 'done', label: '已完成' },
+  { value: 'blocked', label: '已阻塞' },
+  { value: 'cancelled', label: '已取消' },
+];
+
 function isPriority(v: string): v is Priority {
   return (
     v === 'none' ||
@@ -46,10 +58,17 @@ function isPriority(v: string): v is Priority {
   );
 }
 
-export function NewIssueForm() {
+// F2：看板列头「+」→ 打开表单并预填该列状态（nonce 保证重复点击可再次触发）
+export type NewIssueQuickCreate = { status: IssueStatus; nonce: number };
+
+export function NewIssueForm({
+  quickCreate = null,
+}: { quickCreate?: NewIssueQuickCreate | null } = {}) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('none');
+  const [status, setStatus] = useState<IssueStatus>('todo');
+  const [labelIds, setLabelIds] = useState<string[]>([]);
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
   const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
@@ -62,6 +81,7 @@ export function NewIssueForm() {
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
   const { data: projects = [] } = useProjects();
+  const { data: labelCatalog = [] } = useLabels();
   const { data: settings } = useSettingsStatus();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -223,10 +243,23 @@ export function NewIssueForm() {
     }
   }, [searchParams, router, pathname]);
 
+  // F2：看板列头「+」→ 打开表单并预填该列 status（每次 quickCreate 变化都生效）
+  useEffect(() => {
+    if (!quickCreate) return;
+    setStatus(quickCreate.status);
+    setOpen(true);
+  }, [quickCreate]);
+
   // 看板 ?project= 筛选时预填表单（不删除 URL，保留筛选）
   useEffect(() => {
     if (projectFromUrl) setProjectId(projectFromUrl);
   }, [projectFromUrl]);
+
+  function toggleLabel(id: string) {
+    setLabelIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
   function reset() {
     if (draftTimerRef.current != null) {
@@ -235,6 +268,8 @@ export function NewIssueForm() {
     }
     setTitle('');
     setPriority('none');
+    setStatus('todo');
+    setLabelIds([]);
     setAssigneeValue('');
     setCustomFields([]);
     setFieldErrors({});
@@ -266,6 +301,8 @@ export function NewIssueForm() {
     const validated = validateWith(CreateIssueInput, {
       title: title.trim(),
       priority,
+      status,
+      labels: labelIds.length > 0 ? labelIds : undefined,
       assignee,
       projectId: projectId || undefined,
       customFields:
@@ -439,6 +476,45 @@ export function NewIssueForm() {
         <option value="high">高</option>
         <option value="urgent">紧急</option>
       </Select>
+      <Select
+        className="new-issue-select new-issue-status"
+        value={status}
+        onChange={(e) => setStatus(e.target.value as IssueStatus)}
+        aria-label="状态"
+        data-testid="new-issue-status"
+      >
+        {STATUS_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+      <div className="new-issue-labels mb-2" data-testid="new-issue-labels">
+        <div className="text-xs font-medium text-slate-600 mb-1">标签</div>
+        {labelCatalog.length === 0 ? (
+          <span className="text-dim text-xs">无可用标签</span>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {labelCatalog.map((l: IssueLabel) => {
+              const on = labelIds.includes(l.id);
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={`issue-label-toggle${on ? ' is-on' : ''}`}
+                  style={{ ['--label-color' as string]: l.color }}
+                  onClick={() => toggleLabel(l.id)}
+                  aria-pressed={on}
+                  data-testid={`new-issue-label-${l.id}`}
+                >
+                  <span className="issue-label-dot" />
+                  {l.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <Select
         className="new-issue-select new-issue-project"
         value={projectId}

@@ -176,6 +176,29 @@ describe('Shared Schema Validators', () => {
     it('rejects missing title', () => {
       expect(() => CreateIssueInput.parse({})).toThrow();
     });
+
+    // F2：create 支持 status/labels
+    it('defaults status to todo and accepts labels', () => {
+      const result = CreateIssueInput.parse({ title: 'T' });
+      expect(result.status).toBe('todo');
+      expect(result.labels).toBeUndefined();
+    });
+
+    it('accepts explicit status and labels array', () => {
+      const result = CreateIssueInput.parse({
+        title: 'T',
+        status: 'in_progress',
+        labels: ['lab-1', 'lab-2'],
+      });
+      expect(result.status).toBe('in_progress');
+      expect(result.labels).toEqual(['lab-1', 'lab-2']);
+    });
+
+    it('accepts empty labels array and rejects invalid status/label id', () => {
+      expect(CreateIssueInput.parse({ title: 'T', labels: [] }).labels).toEqual([]);
+      expect(() => CreateIssueInput.parse({ title: 'T', status: 'bogus' })).toThrow();
+      expect(() => CreateIssueInput.parse({ title: 'T', labels: [''] })).toThrow();
+    });
   });
 
   describe('CreateAgentInput', () => {

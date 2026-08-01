@@ -5,6 +5,7 @@ import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IssueCard } from './IssueCard';
 import { ErrorBoundary } from './ErrorBoundary';
+import { Icon } from './Icon';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDensity } from '@/lib/density';
@@ -34,6 +35,8 @@ interface Props {
   /** Slice 32：卡片主链 → 侧滑 */
   getDetailHref?: (issue: Issue) => string;
   onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
+  /** F2：列头「+」→ 请求在指定状态列新建（打开 NewIssueForm 并预填 status） */
+  onQuickCreate?: (status: IssueStatus) => void;
 }
 
 function renderCard(
@@ -88,6 +91,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   onToggleSelect,
   getDetailHref,
   onOpenDetail,
+  onQuickCreate,
 }: Props) {
   const { setNodeRef } = useDroppable({
     id: status,
@@ -139,6 +143,20 @@ export const KanbanColumn = React.memo(function KanbanColumn({
           <span className="kanban-column-count">{issues.length}</span>
         </div>
         <div className="kanban-column-actions">
+          <button
+            type="button"
+            className="kanban-column-add"
+            data-testid="kanban-column-add"
+            data-status={status}
+            title={`在「${title}」列新建 Issue`}
+            aria-label={`在「${title}」列新建 Issue`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickCreate?.(status);
+            }}
+          >
+            <Icon name="plus" size={12} />
+          </button>
           <a
             href={`/?status=${encodeURIComponent(status)}`}
             className="kanban-column-focus"

@@ -809,6 +809,10 @@ export const CreateIssueInput = z
     title: z.string().min(1),
     description: z.string().optional(),
     priority: Priority.optional().default('none'),
+    // F2：建卡录入流支持状态（默认 todo；看板列头「+」预填该列）
+    status: IssueStatus.optional().default('todo'),
+    // F2：建卡时直接挂标签（全量指定；空数组 = 不带标签）
+    labels: z.array(BusinessId).optional(),
     assignee: z
       .object({
         type: AssigneeType,
