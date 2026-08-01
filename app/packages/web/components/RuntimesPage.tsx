@@ -1,24 +1,44 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRuntimes } from '@/lib/api';
 import { Icon } from './Icon';
 
+type RuntimeFilter = 'all' | 'installed';
+
 export function RuntimesPage() {
   const { data, refetch, isFetching } = useRuntimes();
+  const [filter, setFilter] = useState<RuntimeFilter>('all');
   if (!data) return <div className="runtime-page">加载中…</div>;
 
   const { machine, runtimes } = data;
   const installed = runtimes.filter((r) => r.installed).length;
+  const visibleRuntimes =
+    filter === 'installed'
+      ? runtimes.filter((r) => r.installed)
+      : runtimes;
 
   return (
     <div className="runtime-layout" data-testid="runtimes-page">
       <aside className="machine-list">
         <div className="machine-list-header">本机 CLI {runtimes.length}</div>
-        <div className="machine-filters">
-          <button type="button" className="machine-filter active">
+        <div className="machine-filters" role="group" aria-label="运行时筛选">
+          <button
+            type="button"
+            className={`machine-filter${filter === 'all' ? ' active' : ''}`}
+            aria-pressed={filter === 'all'}
+            data-testid="runtimes-filter-all"
+            onClick={() => setFilter('all')}
+          >
             全部 {runtimes.length}
           </button>
-          <button type="button" className="machine-filter">
+          <button
+            type="button"
+            className={`machine-filter${filter === 'installed' ? ' active' : ''}`}
+            aria-pressed={filter === 'installed'}
+            data-testid="runtimes-filter-installed"
+            onClick={() => setFilter('installed')}
+          >
             已安装 {installed}
           </button>
         </div>
@@ -44,6 +64,13 @@ export function RuntimesPage() {
           {machine.cwd ?? '（未配置 MA_WORKSPACE_CWD）'}
         </div>
         <div className="runtime-actions">
+          <Link
+            href="/settings?tab=health"
+            className="btn-primary btn-sm"
+            data-testid="runtimes-add"
+          >
+            添加运行时
+          </Link>
           <button
             type="button"
             className="btn-ghost btn-sm"
@@ -134,7 +161,7 @@ export function RuntimesPage() {
               </tr>
             </thead>
             <tbody>
-              {runtimes.map((rt) => (
+              {visibleRuntimes.map((rt) => (
                 <tr
                   key={rt.id}
                   data-testid="runtime-row"

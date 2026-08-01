@@ -79,6 +79,7 @@ export const agentSkills = sqliteTable(
 
 // —— squad（spec §3.1，3 行静态，用于 assignee label）——
 // S04：加 operating_protocol + mission_directive（briefing 三段的第一/第三段，spec §3.1）
+// B5：加 updated_at（改名/改协议/改 directive 时更新；旧行 null → 排序 createdAt 兜底）
 export const squads = sqliteTable('squad', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -86,6 +87,7 @@ export const squads = sqliteTable('squad', {
   operatingProtocol: text('operating_protocol').notNull().default(''),
   missionDirective: text('mission_directive').notNull().default(''),
   createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at'),
 });
 
 // S05（spec §3.2b / R6）：删 S01 的 skill 死表——skill 改文件系统真源 + 内存索引，
