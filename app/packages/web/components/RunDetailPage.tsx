@@ -11,6 +11,7 @@ import {
   useRunMessages,
   useChildRuns,
   useAutoRetryChild,
+  useSendRunCommand,
 } from '@/lib/api';
 import {
   pairCollapsedPreview,
@@ -216,6 +217,17 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const { data: agent } = useAgent(run?.agentId ?? '');
   const cancel = useCancelRun();
   const retry = useRetryRun();
+  // G1-1：运行中 RPC 命令（pi steer/compact）；仅 running + pi runtime 渲染入口
+  const steerCmd = useSendRunCommand(runId);
+  const [steerText, setSteerText] = useState('');
+  const sendSteer = () => {
+    const text = steerText.trim();
+    if (!text || steerCmd.isPending) return;
+    steerCmd.mutate(
+      { command: 'steer', message: text },
+      { onSuccess: () => setSteerText('') },
+    );
+  };
   const progressByRun = useRunProgressStore((s) => s.byRunId);
   const streamChunksByRun = useRunProgressStore((s) => s.streamChunks);
   const progress = run && run.status === 'running' ? progressByRun[run.id]?.trim() : undefined;
@@ -373,6 +385,46 @@ export function RunDetailPage({ runId }: { runId: string }) {
             >
               {cancel.isPending ? '停止中…' : '停止'}
             </button>
+          ) : null}
+          {run.status === 'running' && run.runtime === 'pi' ? (
+            <div
+              className="run-detail-steer"
+              data-testid="run-detail-steer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              title="pi RPC 运行中命令：steer 追加指令 / compact 压缩上下文"
+            >
+              <input
+                type="text"
+                data-testid="run-detail-steer-input"
+                placeholder="追加指令…（steer）"
+                value={steerText}
+                onChange={(e) => setSteerText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && steerText.trim() && !steerCmd.isPending) {
+                    sendSteer();
+                  }
+                }}
+                style={{ width: 230 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                data-testid="run-detail-steer-send"
+                disabled={!steerText.trim() || steerCmd.isPending}
+                onClick={() => sendSteer()}
+              >
+                {steerCmd.isPending ? '发送中…' : '推进'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                data-testid="run-detail-compact"
+                disabled={steerCmd.isPending}
+                onClick={() => steerCmd.mutate({ command: 'compact' })}
+              >
+                压缩上下文
+              </button>
+            </div>
           ) : null}
           {recovery === 'issue_retry' ? (
             <div

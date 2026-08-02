@@ -379,6 +379,30 @@ export const RetryRunInput = z.object({
 });
 export type RetryRunInput = z.infer<typeof RetryRunInput>;
 
+/**
+ * POST /api/runs/:runId/command —— 运行中 RPC 命令（G1-1）。
+ * 对齐上游 pi rpc-types.ts:20-72 的 steer / compact / set_model 子集。
+ */
+export const RunCommandInput = z.discriminatedUnion('command', [
+  z.object({ command: z.literal('steer'), message: z.string().min(1).max(8000) }),
+  z.object({
+    command: z.literal('compact'),
+    customInstructions: z.string().max(8000).optional(),
+  }),
+  z.object({
+    command: z.literal('set_model'),
+    provider: z.string().min(1).max(200),
+    modelId: z.string().min(1).max(200),
+  }),
+]);
+export type RunCommandInput = z.infer<typeof RunCommandInput>;
+
+export const RunCommandResult = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+});
+export type RunCommandResult = z.infer<typeof RunCommandResult>;
+
 export const RunFailureCode = z.enum([
   'cwd_missing',
   'cli_missing',

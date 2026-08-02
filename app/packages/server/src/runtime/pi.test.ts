@@ -314,4 +314,109 @@ describe('PiBackend (real pi RPC backend)', () => {
     expect(result.exitReason).toBe('failed');
     expect(result.error).toMatch(/退出码 0/);
   });
+
+  // ---- G1-1：运行中 RPC 命令面（steer / compact / set_model） ----
+  it('G1-1 steer：运行中发出 steer JSON，success 响应 → ok:true', async () => {
+    const f = setupInstalled();
+    const backend = new PiBackend();
+    const promise = backend.execute(baseInput, () => {}, new AbortController().signal);
+    await tick();
+
+    const resP = backend.sendRunCommand('run-pi', { command: 'steer', message: '先检查测试目录' });
+    await tick();
+    const writes = f.child.stdin.write.mock.calls.map((c: unknown[]) => c[0] as string);
+    const steer = writes.map((w: string) => JSON.parse(w)).find((c: any) => c.type === 'steer');
+    expect(steer).toBeTruthy();
+    expect(steer.message).toBe('先检查测试目录');
+    expect(steer.id).toMatch(/^ma-steer-\d+$/);
+
+    f.feedJson([{ type: 'response', id: steer.id, command: 'steer', success: true }]);
+    await expect(resP).resolves.toEqual({ ok: true });
+
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+    await promise;
+  });
+
+  it('G1-1 compact：customInstructions 可选序列化', async () => {
+    const f = setupInstalled();
+    const backend = new PiBackend();
+    const promise = backend.execute(baseInput, () => {}, new AbortController().signal);
+    await tick();
+
+    const resP = backend.sendRunCommand('run-pi', {
+      command: 'compact',
+      customInstructions: '压缩会话后继续',
+    });
+    await tick();
+    const writes = f.child.stdin.write.mock.calls.map((c: unknown[]) => c[0] as string);
+    const compact = writes.map((w: string) => JSON.parse(w)).find((c: any) => c.type === 'compact');
+    expect(compact.customInstructions).toBe('压缩会话后继续');
+
+    f.feedJson([{ type: 'response', id: compact.id, command: 'compact', success: true }]);
+    await expect(resP).resolves.toEqual({ ok: true });
+
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+    await promise;
+  });
+
+  it('G1-1 set_model + 失败 passthrough（success:false → ok:false 带 error）', async () => {
+    const f = setupInstalled();
+    const backend = new PiBackend();
+    const promise = backend.execute(baseInput, () => {}, new AbortController().signal);
+    await tick();
+
+    const resP = backend.sendRunCommand('run-pi', {
+      command: 'set_model',
+      provider: 'deepseek',
+      modelId: 'deepseek-v4-pro',
+    });
+    await tick();
+    const writes = f.child.stdin.write.mock.calls.map((c: unknown[]) => c[0] as string);
+    const setModel = writes.map((w: string) => JSON.parse(w)).find((c: any) => c.type === 'set_model');
+    expect(setModel.provider).toBe('deepseek');
+    expect(setModel.modelId).toBe('deepseek-v4-pro');
+
+    f.feedJson([
+      { type: 'response', id: setModel.id, command: 'set_model', success: false, error: 'model locked' },
+    ]);
+    await expect(resP).resolves.toEqual({ ok: false, error: 'model locked' });
+
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+    await promise;
+  });
+
+  it('G1-1 sendRunCommand：run 未在活动表（未执行/已结束）→ ok:false 诚实错误', async () => {
+    const backend = new PiBackend();
+    const res = await backend.sendRunCommand('run-ghost', { command: 'steer', message: 'x' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('没有活动中的 pi 进程');
+  });
+
+  it('G1-1 sendRunCommand：run 结束后再发命令 → ok:false（active 槽已注销）', async () => {
+    const f = setupInstalled();
+    const backend = new PiBackend();
+    const promise = backend.execute(baseInput, () => {}, new AbortController().signal);
+    await tick();
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+    await promise;
+
+    const res = await backend.sendRunCommand('run-pi', { command: 'steer', message: 'x' });
+    expect(res.ok).toBe(false);
+  });
 });

@@ -4,6 +4,7 @@ import {
   CancelRunsManyInput,
   ListRunsQuery,
   RetryRunInput,
+  RunCommandInput,
   type RunsActiveCount,
 } from '@ma/shared';
 import { db } from '../db/client.js';
@@ -13,6 +14,7 @@ import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-se
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 import { getRunTree, getDirectChildren } from '../orchestration/subagent-tree.js';
+import { getBackend } from '../runtime/registry.js';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -197,6 +199,39 @@ export async function runRoutes(app: FastifyInstance) {
     });
     if (!res.ok) return reply.status(res.status).send({ success: false, error: res.error  });
     return reply.status(201).send(res.run);
+  });
+
+  // POST /api/runs/:runId/command —— G1-1 运行中 RPC 命令（pi steer/compact/set_model，rpc-types.ts:20-72 子集）
+  app.post('/api/runs/:runId/command', async (req, reply) => {
+    const { runId } = req.params as { runId: string };
+    const parsed = RunCommandInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'invalid body',
+        details: parsed.error.flatten(),
+      });
+    }
+    const row = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
+    if (!row) return reply.status(404).send({ success: false, error: 'run 不存在'  });
+    if (row.status !== 'running') {
+      return reply.status(409).send({
+        success: false,
+        error: `run 状态为 ${row.status}，仅 running 可发送运行中命令`,
+      });
+    }
+    const backend = getBackend(row.runtime);
+    if (!backend.sendRunCommand) {
+      return reply.status(501).send({
+        success: false,
+        error: `runtime ${row.runtime} 不支持运行中命令（steer/compact/set_model）`,
+      });
+    }
+    const result = await backend.sendRunCommand(runId, parsed.data);
+    if (!result.ok) {
+      return reply.status(502).send({ success: false, error: result.error ?? '命令发送失败'  });
+    }
+    return { ok: true, command: parsed.data.command };
   });
 }
 

@@ -91,6 +91,17 @@ async function main() {
     process.exit(1);
   }
 
+  // G1-1 健壮性：客户端异常断开（EPIPE）不应崩掉整个本地编排进程（2026-08-02 实测复现）；
+  // 其它未捕获异常仍照常退出。
+  process.on('uncaughtException', (err) => {
+    if ((err as NodeJS.ErrnoException | null)?.code === 'EPIPE') {
+      console.warn('[server] EPIPE ignored（客户端已断开）');
+      return;
+    }
+    console.error('[server] uncaughtException', err);
+    process.exit(1);
+  });
+
   // Slice 23：SIGINT/SIGTERM 优雅关停；grace 超时 hard exit，避免卡死
   let shuttingDown = false;
   const onSignal = (signal: NodeJS.Signals) => {

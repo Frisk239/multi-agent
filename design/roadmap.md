@@ -45,7 +45,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| G1-1 | **Pi runtime 真机验收 + RPC 命令面扩展**（`steer`/`compact`/`set_model` 等，上游 rpc-types.ts:20-72 有蓝图，mock 已全绿） | 高 | 中 | — | ⬜ |
+| G1-1 | **Pi runtime 真机验收 + RPC 命令面扩展**（`steer`/`compact`/`set_model` 等，上游 rpc-types.ts:20-72 有蓝图，mock 已全绿） | 高 | 中 | — | ✅ |
 | G1-2 | **Grok ACP/fail-closed**（补 ACP stdio 客户端，或摘除 `supportsSessionResume` 声明 + UI 标注降级） | 高 | 中 | — | ⬜ |
 | G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ⬜ |
 | G1-4 | **失败分类精度**（provider_network vs auth/quota 边界，驱动更准的自动改派与文案） | 中 | 中 | — | ⬜ |
@@ -118,7 +118,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 序 | 切片 | Goal | 建议理由 |
 |---|---|---|---|
 | 1 | G3-1 错误态三件套 | G3 | ✅ 已关（2026-08-02，[closeout](app/.progress/g3-1-error-states-closeout-2026-08-02.md)） |
-| 2 | G1-1 Pi 真 backend | G1 | closeout 钦定「最值得下一刀」；协议蓝图 + mock 已全绿，真机验收补上 |
+| 2 | G1-1 Pi 真 backend | G1 | ✅ 已关（2026-08-02，[closeout](app/.progress/g1-1-pi-real-closeout-2026-08-02.md)） |
 | 3 | G2-1 Deferred-escalation | G2 | 半截基建差半截（复用 escalated_from_run_id）；编排闭环最后拼图 |
 | 4 | G1-2 Grok ACP/fail-closed | G1 | 产品误导项，诚实性优先 |
 | 5 | G4-1 记忆检索 FTS5 | G4 | 决定记忆层长期可用性的根本问题 |

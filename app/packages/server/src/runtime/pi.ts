@@ -8,6 +8,7 @@ import type {
   ExecutionResult,
   TokenUsage,
 } from './types.js';
+import type { RunCommandInput, RunCommandResult } from '@ma/shared';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { killProcessTree, trackChildPid, untrackChildPid } from './process-tree.js';
 import { extractTokenUsage, mergeUsage } from './usage-parse.js';
@@ -23,11 +24,14 @@ export const PI_NOT_INSTALLED_ERROR =
 // - JSONL 帧 LF-only split（禁用 Node readline）；行尾 \r 剥掉；非 JSON 行静默忽略
 // ============================================================================
 
-/** 本适配器只发 prompt / abort / get_state 三种命令 */
+/** 本适配器支持的命令：prompt/abort/get_state 基线 + G1-1 扩展 steer/compact/set_model */
 interface PiCommand {
   id?: string;
-  type: 'prompt' | 'abort' | 'get_state';
+  type: 'prompt' | 'abort' | 'get_state' | 'steer' | 'compact' | 'set_model';
   message?: string;
+  customInstructions?: string;
+  provider?: string;
+  modelId?: string;
 }
 
 interface PiContentBlock {
@@ -103,11 +107,48 @@ export class PiBackend implements RuntimeBackend {
   /** Slice 50：spawn 带 --session-id 真 resume */
   readonly supportsSessionResume = true;
 
+  /**
+   * G1-1：活动 run 的 RPC 发送槽。execute 的 spawnRpc 注册、finish 注销；
+   * sendRunCommand 由此把 steer/compact/set_model 发给对应子进程。
+   */
+  private readonly activeCommands = new Map<
+    string,
+    { send: (c: PiCommand & { id: string }) => Promise<PiResponse>; settled: () => boolean }
+  >();
+  private cmdSeq = 0;
+
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('PI_PATH', ['pi']);
     if (!path) return { installed: false, version: null, path: null };
     const version = await versionOf(path);
     return { installed: true, version, path };
+  }
+
+  async sendRunCommand(runId: string, command: RunCommandInput): Promise<RunCommandResult> {
+    const slot = this.activeCommands.get(runId);
+    if (!slot || slot.settled()) {
+      return { ok: false, error: `run ${runId} 没有活动中的 pi 进程（已结束或未开始）` };
+    }
+    let cmd: PiCommand;
+    switch (command.command) {
+      case 'steer':
+        cmd = { type: 'steer', message: command.message };
+        break;
+      case 'compact':
+        cmd = { type: 'compact', customInstructions: command.customInstructions };
+        break;
+      case 'set_model':
+        cmd = { type: 'set_model', provider: command.provider, modelId: command.modelId };
+        break;
+    }
+    cmd.id = `ma-${command.command}-${++this.cmdSeq}`;
+    try {
+      const resp = await slot.send(cmd as PiCommand & { id: string });
+      if (resp.success) return { ok: true };
+      return { ok: false, error: resp.error ?? `pi ${command.command} 被拒绝` };
+    } catch (err) {
+      return { ok: false, error: `pi ${command.command} 发送失败: ${String(err)}` };
+    }
   }
 
   async execute(
@@ -193,6 +234,7 @@ export class PiBackend implements RuntimeBackend {
       const finish = (result: ExecutionResult) => {
         if (settled) return;
         settled = true;
+        this.activeCommands.delete(input.runId);
         if (abortFallbackTimer) clearTimeout(abortFallbackTimer);
         if (timeoutTimer) clearTimeout(timeoutTimer);
         if (completeFallbackTimer) clearTimeout(completeFallbackTimer);
@@ -295,6 +337,9 @@ export class PiBackend implements RuntimeBackend {
             }
           });
         });
+
+      // G1-1：注册活动 run 命令槽（sendRunCommand 入口）；finish 注销
+      this.activeCommands.set(input.runId, { send: sendCommand, settled: () => settled });
 
       // ---- 三通道 demux ----
       const handleResponse = (resp: PiResponse) => {

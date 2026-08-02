@@ -1,4 +1,4 @@
-import type { RuntimeId } from '@ma/shared';
+import type { RuntimeId, RunCommandInput, RunCommandResult } from '@ma/shared';
 // 进程内 AgentEvent 仅 server 使用（不进 shared WS 契约）：
 
 export type AgentEvent =
@@ -73,4 +73,9 @@ export interface RuntimeBackend {
     onEvent: (e: AgentEvent) => void,
     signal: AbortSignal,
   ): Promise<ExecutionResult>;
+  /**
+   * G1-1：向运行中的子进程发 RPC 命令（pi steer / compact / set_model）。
+   * 未实现 → 视为不支持（路由返回 501）。runId 即执行中的 agent_run。
+   */
+  sendRunCommand?(runId: string, command: RunCommandInput): Promise<RunCommandResult>;
 }

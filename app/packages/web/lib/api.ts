@@ -1533,6 +1533,38 @@ export function useCancelRun() {
   });
 }
 
+/**
+ * G1-1：POST /api/runs/:runId/command —— 运行中 RPC 命令（pi steer/compact/set_model）。
+ * 仅 pi runtime 且 running 的 run 可用；其它情况服务端 409/501。
+ */
+export function useSendRunCommand(runId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      command: 'steer' | 'compact' | 'set_model';
+      message?: string;
+      customInstructions?: string;
+      provider?: string;
+      modelId?: string;
+    }) => {
+      const res = await apiFetch(`${API}/runs/${runId}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '命令发送失败'));
+      return res.json() as Promise<{ ok: true; command: string }>;
+    },
+    onSuccess: (result, input) => {
+      const label =
+        input.command === 'steer' ? '已推进运行' : input.command === 'compact' ? '已请求压缩会话' : '已请求切换模型';
+      toastSuccess(label, { durationMs: 4000 });
+      qc.invalidateQueries({ queryKey: ['runs', runId] });
+    },
+    onError: (err) => toastError(errMessage(err, '命令发送失败')),
+  });
+}
+
 // —— S05 Skills / MCP hooks ——
 
 // GET /api/skills —— 内存索引 skill 列表（含 usedBy 反查）
