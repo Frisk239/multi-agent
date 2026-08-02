@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, automationRules, automationRuns } from '../db/schema.js';
+import { agentRuns, automationRules, automationRuns, issues } from '../db/schema.js';
 
 const state = vi.hoisted(() => ({
   db: null as ReturnType<typeof createTestDb>['db'] | null,
@@ -10,18 +10,32 @@ const state = vi.hoisted(() => ({
 }));
 const publish = vi.hoisted(() => vi.fn());
 const wake = vi.hoisted(() => vi.fn());
+// G2-2：mock readiness，可控「离线」语义
+const readiness = vi.hoisted(() => ({
+  result: null as null | { status: string; detail: string | null },
+}));
 
 vi.mock('../db/client.js', () => ({
   get db() {
     if (!state.db) throw new Error('test db not ready');
     return state.db;
   },
+  // reshape.toIssue 需要的 label 装配（测试不校验 label 文案，给个可读值即可）
+  resolveAssigneeLabel: (t: string | null, id: string | null) =>
+    id ? `${t}:${id}` : null,
+  resolveAuthorLabel: (t: string | null, id: string | null) =>
+    id ? `${t}:${id}` : null,
 }));
 vi.mock('./event-bus.js', () => ({ eventBus: { publish } }));
 vi.mock('./run-worker.js', () => ({ wakeRunWorker: wake }));
 vi.mock('./inbox-writer.js', () => ({
   notifyEnqueueSkipped: vi.fn(),
   notifyRunTerminal: vi.fn(),
+  ensureIssueSubscriber: vi.fn(),
+  notifyAssigned: vi.fn(),
+}));
+vi.mock('./readiness.js', () => ({
+  computeAgentReadiness: async () => readiness.result,
 }));
 
 import {
@@ -44,10 +58,12 @@ describe('automation run_only (A5 / Multica)', () => {
     publish.mockReset();
     wake.mockReset();
     process.env.MA_ENQUEUE_ALLOW_NOT_READY = '1';
+    readiness.result = { status: 'ready', detail: null };
   });
 
   afterEach(() => {
     delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+    readiness.result = null;
     state.cleanup?.();
     state.db = null;
     state.cleanup = null;
@@ -196,5 +212,118 @@ describe('automation run_only (A5 / Multica)', () => {
       .filter((r) => r.kind === 'quick_create' && r.quickPrompt?.includes('run_only')).length;
     // only one agent run for this plannedAt (idempotent)
     expect(count).toBe(1);
+  });
+
+  it.each(['runtime_missing', 'cwd_missing', 'error'] as const)(
+    'G2-2 run_only + agent 离线（%s）→ skipped（非 failed），不落死任务',
+    async (status) => {
+      delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+      readiness.result = { status, detail: `detail-${status}` };
+      const now = Date.now();
+      state.db!.insert(automationRules).values({
+        id: `rule-ro-offline-${status}`,
+        name: 'offline-ro',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 15,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'patrol {{date}}',
+        bodyTemplate: 'check health',
+        executionMode: 'run_only',
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const plannedAt = now - (now % 60_000);
+      const auto = await dispatchAutomationRule(
+        `rule-ro-offline-${status}`,
+        plannedAt,
+        'schedule',
+      );
+
+      expect(auto.status).toBe('skipped');
+      expect(auto.issueId).toBeNull();
+      expect(auto.linkedRunId).toBeNull();
+      expect(auto.error).toContain('agent 离线');
+      expect(auto.error).toContain(`detail-${status}`);
+      // 没有 enqueue、没有 wake：瞬态离线不堆积死任务
+      expect(wake).not.toHaveBeenCalled();
+      const quickRuns = state.db!
+        .select()
+        .from(agentRuns)
+        .all()
+        .filter((r) => r.kind === 'quick_create');
+      expect(quickRuns.length).toBe(0);
+    },
+  );
+
+  it('G2-2 run_only + readiness 竞态（agent 不存在）→ skipped', async () => {
+    delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+    readiness.result = null; // readiness 返回 null = agent 不存在
+    const now = Date.now();
+    state.db!.insert(automationRules).values({
+      id: 'rule-ro-race',
+      name: 'race-ro',
+      enabled: 1,
+      scheduleKind: 'interval_minutes',
+      intervalMinutes: 15,
+      dailyTime: null,
+      cronExpression: null,
+      assigneeType: 'agent',
+      assigneeId: 'agt-test-1',
+      titleTemplate: 't',
+      bodyTemplate: '',
+      executionMode: 'run_only',
+      lastPlannedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    const plannedAt = now - (now % 60_000);
+    const auto = await dispatchAutomationRule('rule-ro-race', plannedAt, 'schedule');
+    expect(auto.status).toBe('skipped');
+    expect(auto.error).toContain('agent 不存在');
+  });
+
+  it('G2-2 create_issue + agent 离线 → 仍建卡（持久审计），run 记 pending_dispatch', async () => {
+    delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+    readiness.result = { status: 'runtime_missing', detail: 'runtime opencode 未安装或不在 PATH' };
+    const now = Date.now();
+    state.db!.insert(automationRules).values({
+      id: 'rule-ci-offline',
+      name: 'offline-ci',
+      enabled: 1,
+      scheduleKind: 'interval_minutes',
+      intervalMinutes: 15,
+      dailyTime: null,
+      cronExpression: null,
+      assigneeType: 'agent',
+      assigneeId: 'agt-test-1',
+      titleTemplate: '巡检 {{date}}',
+      bodyTemplate: 'body',
+      executionMode: 'create_issue',
+      lastPlannedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    const plannedAt = now - (now % 60_000);
+    const auto = await dispatchAutomationRule('rule-ci-offline', plannedAt, 'schedule');
+
+    // issue 持久审计：即使 agent 离线也建卡
+    expect(auto.issueId).toBeTruthy();
+    expect(auto.status).toBe('pending_dispatch');
+    expect(auto.error).toContain('Issue 已建');
+    const issue = state.db!
+      .select()
+      .from(issues)
+      .where(eq(issues.id, auto.issueId!))
+      .get();
+    expect(issue).toBeTruthy();
+    expect(issue!.title).toContain('巡检');
   });
 });

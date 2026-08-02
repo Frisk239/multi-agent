@@ -1,7 +1,7 @@
 import { eq, sql, and } from 'drizzle-orm';
 import type { Issue, IssueEnqueueMeta, IssueStatus, Priority } from '@ma/shared';
 import { db } from '../db/client.js';
-import { issues, agentRuns, projects } from '../db/schema.js';
+import { issues, agentRuns, projects, agents } from '../db/schema.js';
 import { toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import {
@@ -13,12 +13,6 @@ import {
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { ensureIssueSubscriber, notifyAssigned } from './inbox-writer.js';
-import { computeAgentReadiness } from './readiness.js';
-
-function allowNotReadyEnqueue(): boolean {
-  const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
-  return v === '1' || v === 'true';
-}
 
 const WS_ID = 'ws-local';
 
@@ -126,8 +120,11 @@ export async function createIssueCore(
     projectTitle = proj.title;
   }
 
-  // Pre-check readiness if we should enqueue
-  if (shouldEnqueue && input.assignee && input.assignee.type !== 'member' && !allowNotReadyEnqueue()) {
+  // 结构性检查（不查「离线」）：agent/小队不存在、无 leader 是配置错误，直接拒绝。
+  // G2-2（学 multica autopilot.go:100-113）：create_issue 首要契约是持久审计 ——
+  // runtime 离线（cwd_missing/runtime_missing/error）仍建卡，稍后被 claim；
+  // 是否开工由 enqueue 阶段决定（跳过时写 comment + inbox + UI toast，见 run-service checkAndEnqueue）。
+  if (shouldEnqueue && input.assignee && input.assignee.type !== 'member') {
     let targetAgentId: string | null = null;
     if (input.assignee.type === 'agent') {
       targetAgentId = input.assignee.id;
@@ -138,20 +135,11 @@ export async function createIssueCore(
         return { ok: false, status: 400, error: `小队「${squad?.name ?? input.assignee.id}」无 leader，无法开工`, code: 'readiness_failed', reason: 'no_leader' };
       }
     }
-    
+
     if (targetAgentId) {
-      const rd = await computeAgentReadiness(targetAgentId);
-      if (!rd) {
+      const agent = db.select().from(agents).where(eq(agents.id, targetAgentId)).get();
+      if (!agent) {
         return { ok: false, status: 404, error: 'agent 不存在' };
-      }
-      if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
-        return { 
-          ok: false, 
-          status: 400, 
-          error: rd.detail ?? `agent 就绪探测失败 (${rd.status})`, 
-          code: 'readiness_failed', 
-          reason: rd.status 
-        };
       }
     }
   }

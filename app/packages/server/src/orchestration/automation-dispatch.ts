@@ -171,6 +171,30 @@ function insertFailedRun(
   source: AutomationRunSource,
   error: string,
 ): AutomationRun {
+  return insertTerminalRun(ruleId, plannedAt, source, 'failed', error);
+}
+
+/**
+ * G2-2：run_only 离线语义（学 multica autopilot.go:466 `recordSkippedRun`）。
+ * 规则本身有效但当下不可派活（agent 离线 / 竞态消失）→ 记 skipped 不落死任务；
+ * 与 failed 区分：skipped 是瞬态、下次计划照常；failed 是配置/执行错误。
+ */
+function insertSkippedRun(
+  ruleId: string,
+  plannedAt: number,
+  source: AutomationRunSource,
+  reason: string,
+): AutomationRun {
+  return insertTerminalRun(ruleId, plannedAt, source, 'skipped', reason);
+}
+
+function insertTerminalRun(
+  ruleId: string,
+  plannedAt: number,
+  source: AutomationRunSource,
+  status: 'failed' | 'skipped',
+  error: string,
+): AutomationRun {
   const existing = loadExistingRun(ruleId, plannedAt);
   if (existing) return existing;
 
@@ -183,7 +207,7 @@ function insertFailedRun(
         ruleId,
         plannedAt,
         source,
-        status: 'failed',
+        status,
         issueId: null,
         error,
         createdAt,
@@ -251,7 +275,8 @@ async function dispatchRunOnly(
 ): Promise<AutomationRun> {
   const resolved = await resolveDispatchAgent(rule);
   if (!resolved.ok) {
-    return insertFailedRun(rule.id, plannedAt, source, resolved.error);
+    // 规则已过 validateAssignee 准入，此处失败 = 竞态（agent/squad 被删/归档）→ skipped（学 multica errDispatchSkipped）
+    return insertSkippedRun(rule.id, plannedAt, source, resolved.error);
   }
 
   const title = renderAutomationTemplate(rule.titleTemplate, {
@@ -273,21 +298,22 @@ async function dispatchRunOnly(
   if (!allowNotReadyEnqueue()) {
     const rd = await computeAgentReadiness(resolved.agentId);
     if (!rd) {
-      return insertFailedRun(rule.id, plannedAt, source, 'agent 不存在');
+      return insertSkippedRun(rule.id, plannedAt, source, 'agent 不存在');
     }
     if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
-      return insertFailedRun(
+      // G2-2：离线/不可派活 → skipped（瞬态，下次计划照常），不落 failed 死任务
+      return insertSkippedRun(
         rule.id,
         plannedAt,
         source,
-        `run_only 未开工：${rd.detail ?? rd.status}`,
+        `run_only 跳过（agent 离线）：${rd.detail ?? rd.status}`,
       );
     }
   }
 
   const agent = db.select().from(agents).where(eq(agents.id, resolved.agentId)).get();
   if (!agent) {
-    return insertFailedRun(rule.id, plannedAt, source, `agent 不存在: ${resolved.agentId}`);
+    return insertSkippedRun(rule.id, plannedAt, source, `agent 不存在: ${resolved.agentId}`);
   }
 
   const linkedRunId = crypto.randomUUID();
