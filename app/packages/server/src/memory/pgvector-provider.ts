@@ -14,6 +14,7 @@ import {
 import type {
   MemoryItemView,
   MemoryPrefetchResult,
+  MemoryPrefetchScope,
   MemoryProvider,
   MemorySyncInput,
 } from './types.js';
@@ -85,14 +86,17 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
 
   async prefetch(
     query: string,
-    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean },
+    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
   ): Promise<MemoryPrefetchResult> {
     if (!this.isAvailable()) return { items: [] };
     const limit = opts?.limit ?? 5;
     const includeInvalid = opts?.includeInvalid ?? false;
+    const scope = opts?.scope ?? null;
     const q = query.trim();
-    
+
     const condition = includeInvalid ? '1 = 1' : '(invalid_at IS NULL OR invalid_at > now())';
+    // G4-4：scope 过滤
+    const scopeClause = scope ? ` AND scope = '${scope.replace(/'/g, "''")}'` : '';
 
     if (!q) {
       const r = await memoryPgQuery<{
@@ -105,7 +109,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         invalid_at: Date | null;
       }>(
         `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at
-         FROM memory_vectors WHERE ${condition} ORDER BY created_at DESC LIMIT $1`,
+         FROM memory_vectors WHERE ${condition}${scopeClause} ORDER BY created_at DESC LIMIT $1`,
         [limit],
       );
       return {
@@ -136,7 +140,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at,
               GREATEST(0, 1 - (embedding <=> $1::vector))::float8 AS score
        FROM memory_vectors
-       WHERE ${condition}
+       WHERE ${condition}${scopeClause}
        ORDER BY embedding <=> $1::vector
        LIMIT $2`,
       [lit, limit],
@@ -166,6 +170,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       agentId: input.agentId ?? null,
       runId: input.runId,
       source: 'run-sync',
+      scope: input.scope ?? 'run',
     });
   }
 
@@ -175,6 +180,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      scope?: MemoryPrefetchScope;
     },
   ): Promise<MemoryItemView> {
     return this.insert(text, {
@@ -182,6 +188,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       agentId: meta?.agentId ?? null,
       runId: meta?.runId ?? null,
       source: 'curated',
+      scope: meta?.scope ?? 'workspace',
     });
   }
 
@@ -192,6 +199,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       agentId: string | null;
       runId: string | null;
       source: string;
+      scope: string;
     },
   ): Promise<MemoryItemView> {
     if (!this.isAvailable()) throw new Error('pgvector provider 不可用');
@@ -201,13 +209,14 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
     await memoryPgQuery(
       `INSERT INTO memory_vectors
         (id, text, embedding, metadata, issue_id, agent_id, run_id, scope, source)
-       VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6, 'workspace', $7)`,
-      [id, text, lit, meta.issueId, meta.agentId, meta.runId, meta.source],
+       VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6, $7, $8)`,
+      [id, text, lit, meta.issueId, meta.agentId, meta.runId, meta.scope, meta.source],
     );
     return {
       id,
       text,
       source: 'pgvector',
+      scope: meta.scope,
       issueId: meta.issueId,
       runId: meta.runId,
       createdAt: new Date().toISOString(),

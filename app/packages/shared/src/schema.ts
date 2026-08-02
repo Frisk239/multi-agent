@@ -1657,6 +1657,10 @@ export const InboxItemEvent = z.object({
 export type InboxItemEvent = z.infer<typeof InboxItemEvent>;
 
 // —— S09：Memory ——
+// G4-4：四级 scope（B-10，参考 mem0 User/Session/Agent/Run）
+export const MemoryScope = z.enum(['workspace', 'agent', 'issue', 'run']);
+export type MemoryScope = z.infer<typeof MemoryScope>;
+
 export const MemoryItem = z.object({
   id: BusinessId,
   scope: z.string(),
@@ -1673,6 +1677,8 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const CreateMemoryInput = z.object({
   text: z.string().min(1),
   issueId: BusinessId.optional(),
+  /** G4-4：四级 scope；缺省 = workspace（有 issueId 时落 issue） */
+  scope: MemoryScope.optional(),
 });
 export type CreateMemoryInput = z.infer<typeof CreateMemoryInput>;
 

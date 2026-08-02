@@ -1,9 +1,10 @@
-import { desc, eq, isNull, gt, or, sql } from 'drizzle-orm';
+import { desc, eq, isNull, gt, or, and, sql } from 'drizzle-orm';
 import { db, sqlite } from '../db/client.js';
 import { memoryItems } from '../db/schema.js';
 import type {
   MemoryItemView,
   MemoryPrefetchResult,
+  MemoryPrefetchScope,
   MemoryProvider,
   MemorySyncInput,
 } from './types.js';
@@ -64,15 +65,27 @@ export class SqliteTextProvider implements MemoryProvider {
     for (const r of rows) ins.run(r.rowid, tokenize(r.text).join(' '));
   }
 
-  prefetchSync(query: string, opts?: { limit?: number; includeInvalid?: boolean }): MemoryPrefetchResult {
+  prefetchSync(
+    query: string,
+    opts?: { limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+  ): MemoryPrefetchResult {
     const limit = opts?.limit ?? 5;
     const includeInvalid = opts?.includeInvalid ?? false;
+    const scopeFilter = opts?.scope ?? null;
     const tokens = tokenize(query);
     const now = Date.now();
-    
+
     let baseQuery = db.select().from(memoryItems);
+    const conds = [];
     if (!includeInvalid) {
-      baseQuery = baseQuery.where(or(isNull(memoryItems.invalidAt), gt(memoryItems.invalidAt, now))) as any;
+      conds.push(or(isNull(memoryItems.invalidAt), gt(memoryItems.invalidAt, now)));
+    }
+    // G4-4：检索 scope 过滤（传入则只召回该 scope）
+    if (scopeFilter) {
+      conds.push(eq(memoryItems.scope, scopeFilter));
+    }
+    if (conds.length > 0) {
+      baseQuery = baseQuery.where(and(...conds)) as any;
     }
     
     let rows: Array<{
@@ -90,6 +103,10 @@ export class SqliteTextProvider implements MemoryProvider {
       // G4-1：FTS5 全量召回（BM25 排序，不再受 200 行上限约束）+ 二次重排：
       // scope 加权 + 30 天时间衰减（记忆越多检索越准，不再退化）
       const matchQ = tokens.join(' '); // FTS5 隐式 AND = 原「全 token AND」语义
+      const scopeClause = scopeFilter ? 'AND m.scope = ?' : '';
+      const ftsParams = scopeFilter
+        ? [matchQ, scopeFilter, FTS_CANDIDATE_K]
+        : [matchQ, FTS_CANDIDATE_K];
       const raw = sqlite
         .prepare(
           `SELECT m.id AS id, m.scope AS scope, m.issue_id AS issueId, m.agent_id AS agentId,
@@ -97,11 +114,11 @@ export class SqliteTextProvider implements MemoryProvider {
                   m.created_at AS createdAt, bm25(${FTS_TABLE}) AS bm25
            FROM ${FTS_TABLE} f
            JOIN memory_item m ON m.rowid = f.rowid
-           WHERE ${FTS_TABLE} MATCH ?
+           WHERE ${FTS_TABLE} MATCH ? ${scopeClause}
            ORDER BY bm25(${FTS_TABLE})
            LIMIT ?`,
         )
-        .all(matchQ, FTS_CANDIDATE_K) as Array<{
+        .all(...ftsParams) as Array<{
         id: string; scope: string; issueId: string | null; agentId: string | null;
         runId: string | null; text: string; validAt: number | null; invalidAt: number | null;
         createdAt: number; bm25: number;
@@ -124,6 +141,7 @@ export class SqliteTextProvider implements MemoryProvider {
         text: r.text,
         score: r.score,
         source: 'sqlite-text',
+        scope: r.scope,
         issueId: r.issueId,
         runId: r.runId,
         createdAt: new Date(r.createdAt).toISOString(),
@@ -135,7 +153,7 @@ export class SqliteTextProvider implements MemoryProvider {
 
   async prefetch(
     query: string,
-    opts?: { limit?: number; includeInvalid?: boolean },
+    opts?: { limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
   ): Promise<MemoryPrefetchResult> {
     return this.prefetchSync(query, opts);
   }
@@ -149,6 +167,7 @@ export class SqliteTextProvider implements MemoryProvider {
       issueId: input.issueId,
       agentId: input.agentId ?? null,
       runId: input.runId,
+      scope: input.scope ?? 'run',
     });
   }
 
@@ -159,6 +178,7 @@ export class SqliteTextProvider implements MemoryProvider {
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      scope?: MemoryPrefetchScope;
     },
   ): MemoryItemView {
     const now = Date.now();
@@ -166,10 +186,11 @@ export class SqliteTextProvider implements MemoryProvider {
     const issueId = meta?.issueId ?? null;
     const agentId = meta?.agentId ?? null;
     const runId = meta?.runId ?? null;
+    const scope = meta?.scope ?? 'workspace';
     const ins = db.insert(memoryItems)
       .values({
         id,
-        scope: 'workspace',
+        scope,
         issueId,
         agentId,
         runId,
@@ -186,6 +207,7 @@ export class SqliteTextProvider implements MemoryProvider {
       id,
       text,
       source: 'sqlite-text',
+      scope,
       issueId,
       runId,
       createdAt: new Date(now).toISOString(),

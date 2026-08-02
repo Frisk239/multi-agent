@@ -30,13 +30,15 @@ vi.mock('../orchestration/inbox-writer.js', () => ({
 }));
 vi.mock('../memory/manager.js', () => ({
   memoryManager: {
-    addCurated: async (text: string, issueId?: string | null) => ({
+    addCurated: async (text: string, issueId?: string | null, scope?: string | null) => ({
       id: 'mem-contract-1',
       issueId: issueId ?? null,
       runId: null,
+      scope: scope ?? 'workspace',
       text,
       createdAt: Date.now(),
     }),
+    search: async () => [],
     getStatus: () => ({ backend: 'test' }),
     ambientCapture: vi.fn(),
   },
@@ -83,6 +85,42 @@ describe('W5 memory contracts', () => {
 
   it('POST /api/memory rejects empty text', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/memory', payload: { text: '' } });
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('G4-4 POST /api/memory 带 scope 写入并回读标签', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/memory',
+      payload: { text: 'scope contract', scope: 'run' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect((res.json() as { scope?: string }).scope).toBe('run');
+  });
+
+  it('G4-4 POST /api/memory 缺省 scope = workspace', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/memory',
+      payload: { text: 'default scope' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect((res.json() as { scope?: string }).scope).toBe('workspace');
+  });
+
+  it('G4-4 GET /api/memory 接受 scope 过滤参数', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/memory?scope=issue' });
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray((res.json() as { data?: unknown[] }).data)).toBe(true);
+  });
+
+  it('G4-4 POST /api/memory 拒绝非法 scope', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/memory',
+      payload: { text: 'bad scope', scope: 'galaxy' },
+    });
     expect(res.statusCode).toBe(400);
     expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
   });

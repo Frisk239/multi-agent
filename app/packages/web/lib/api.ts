@@ -2752,15 +2752,15 @@ export function useSetWorkspaceCwd() {
   });
 }
 
-// GET /api/memory?q= — 空 q 为最近 N 条
-export function useMemoryList(q: string) {
+// GET /api/memory?q=&scope= — 空 q 为最近 N 条；G4-4：可选 scope 过滤
+export function useMemoryList(q: string, scope?: string) {
   return useQuery({
-    queryKey: ['memory', q],
+    queryKey: ['memory', q, scope ?? ''],
     queryFn: async () => {
-      const url = q.trim()
-        ? `${API}/memory?q=${encodeURIComponent(q.trim())}&includeInvalid=1`
-        : `${API}/memory?includeInvalid=1`;
-      const res = await apiFetch(url);
+      const params = new URLSearchParams({ includeInvalid: '1' });
+      if (q.trim()) params.set('q', q.trim());
+      if (scope) params.set('scope', scope);
+      const res = await apiFetch(`${API}/memory?${params.toString()}`);
       if (!res.ok) throw new Error('加载记忆失败');
       type MemoryItem = any; // fallback if MemoryItem is not cleanly importable, though it should be already imported if used
       const json = await res.json() as PaginatedResponse<any>;
@@ -2782,11 +2782,11 @@ export function useMemoryItem(id: string | undefined) {
   });
 }
 
-// POST /api/memory — curated 写入
+// POST /api/memory — curated 写入（G4-4：可带 scope）
 export function useCreateMemory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { text: string; issueId?: string }) => {
+    mutationFn: async (input: { text: string; issueId?: string; scope?: string }) => {
       const res = await apiFetch(`${API}/memory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

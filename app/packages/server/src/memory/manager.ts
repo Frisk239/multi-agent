@@ -1,6 +1,7 @@
 // S09 MemoryManager（spec §4.2，≤1 external）
 // Slice 24：写路径 concurrency=1 + 连续失败 circuit breaker
-import type { MemoryItemView, MemoryProvider } from './types.js';
+import type { MemoryScope } from '@ma/shared';
+import type { MemoryItemView, MemoryPrefetchScope, MemoryProvider } from './types.js';
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n);
@@ -13,6 +14,7 @@ type ProviderWithAddRaw = MemoryProvider & {
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      scope?: MemoryPrefetchScope;
     },
   ) => MemoryItemView | Promise<MemoryItemView>;
 };
@@ -264,6 +266,8 @@ export class MemoryManager {
             issueId: input.issueId,
             agentId: null,
             runId: null,
+            // G4-4：comment / issue_done 都是 issue 维度记忆
+            scope: 'issue',
           }),
         );
       }).catch((e) => console.error('[memory] ambientCapture 失败:', e));
@@ -303,23 +307,36 @@ export class MemoryManager {
         agentId: input.run.agentId,
         userText,
         assistantText,
+        // G4-4：run 完成摘要 = run 维度记忆
+        scope: 'run',
       });
     }).catch((e) => console.error('[memory] sync 失败:', e));
   }
 
-  /** 供 API：透传 prefetch */
-  async search(query: string, limit = 1000, includeInvalid = false): Promise<MemoryItemView[]> {
+  /** 供 API：透传 prefetch（G4-4：可选 scope 过滤） */
+  async search(
+    query: string,
+    limit = 1000,
+    includeInvalid = false,
+    scope?: MemoryPrefetchScope,
+  ): Promise<MemoryItemView[]> {
     if (!this.external?.isAvailable()) return [];
-    const r = await this.external.prefetch(query, { limit, includeInvalid });
+    const r = await this.external.prefetch(query, { limit, includeInvalid, scope });
     return r.items;
   }
 
-  async addCurated(text: string, issueId?: string): Promise<MemoryItemView | void> {
+  async addCurated(
+    text: string,
+    issueId?: string,
+    scope?: MemoryScope,
+  ): Promise<MemoryItemView | void> {
     if (this.isBreakerOpen()) {
       throw new Error('memory circuit breaker open');
     }
     if (!this.external?.isAvailable()) throw new Error('memory provider 不可用');
     const provider = this.external;
+    // G4-4：显式 scope 优先；缺省 = 有 issue 落 issue、否则 workspace
+    const effectiveScope: MemoryScope = scope ?? (issueId ? 'issue' : 'workspace');
     return this.enqueueWrite(async () => {
       if (hasAddRaw(provider)) {
         // S10：PgvectorProvider.addRaw 返回 Promise；Sqlite 仍同步。统一 await。
@@ -328,6 +345,7 @@ export class MemoryManager {
             issueId: issueId ?? null,
             agentId: null,
             runId: null,
+            scope: effectiveScope,
           }),
         );
         return created;
@@ -339,6 +357,7 @@ export class MemoryManager {
         agentId: null,
         userText: 'curated',
         assistantText: text,
+        scope: effectiveScope,
       });
     });
   }

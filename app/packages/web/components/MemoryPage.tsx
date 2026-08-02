@@ -29,21 +29,34 @@ function inferKind(text: string): 'curated' | 'ambient' | 'other' {
 }
 
 // S11 /memory + URL ?q= 可分享搜索（日常知识入口）
+// G4-4：?scope= 四级过滤（workspace/agent/issue/run）
+const SCOPE_ZH: Record<string, string> = {
+  workspace: '全局',
+  agent: 'Agent',
+  issue: 'Issue',
+  run: 'Run',
+};
+
 function MemoryPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const qFromUrl = searchParams.get('q') ?? '';
   const kindFromUrl = searchParams.get('kind') ?? '';
+  const scopeFromUrl = searchParams.get('scope') ?? '';
 
   const { data: status } = useMemoryStatus();
   const { data: settings } = useSettingsStatus();
   const [qDraft, setQDraft] = useState(qFromUrl);
-  const { data, isFetching, isError, error, refetch } = useMemoryList(qFromUrl);
+  const { data, isFetching, isError, error, refetch } = useMemoryList(
+    qFromUrl,
+    scopeFromUrl || undefined,
+  );
   const create = useCreateMemory();
   const del = useDeleteMemory();
   const delMany = useDeleteMemoryMany();
   const [draft, setDraft] = useState('');
+  const [createScope, setCreateScope] = useState('workspace');
   const [formError, setFormError] = useState<string | null>(null);
   const [copyId, setCopyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -178,7 +191,7 @@ function MemoryPageInner() {
     }
     setFormError(null);
     try {
-      await create.mutateAsync({ text });
+      await create.mutateAsync({ text, scope: createScope });
       setDraft('');
     } catch (e) {
       setFormError(e instanceof Error ? e.message : '创建失败');
@@ -322,6 +335,19 @@ function MemoryPageInner() {
           data-testid="memory-create-input"
         />
         <div className="memory-create-actions">
+          <select
+            className="memory-scope-select"
+            value={createScope}
+            onChange={(e) => setCreateScope(e.target.value)}
+            aria-label="记忆 scope"
+            data-testid="memory-create-scope"
+            disabled={create.isPending || showUnavailable}
+          >
+            <option value="workspace">全局</option>
+            <option value="agent">Agent</option>
+            <option value="issue">Issue</option>
+            <option value="run">Run</option>
+          </select>
           {formError && (
             <span className="text-sm" style={{ color: 'var(--color-red)' }}>
               {formError}
@@ -352,6 +378,26 @@ function MemoryPageInner() {
             aria-label="搜索记忆"
             data-testid="memory-search"
           />
+          <select
+            className="memory-scope-select"
+            value={scopeFromUrl}
+            onChange={(e) => {
+              const sp = new URLSearchParams(searchParams.toString());
+              if (e.target.value) sp.set('scope', e.target.value);
+              else sp.delete('scope');
+              const qs = sp.toString();
+              router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+            }}
+            aria-label="按 scope 筛选"
+            data-testid="memory-scope-filter"
+            disabled={showUnavailable}
+          >
+            <option value="">全部 scope</option>
+            <option value="workspace">全局</option>
+            <option value="agent">Agent</option>
+            <option value="issue">Issue</option>
+            <option value="run">Run</option>
+          </select>
           {hasQuery || qDraft.trim() ? (
             <button
               type="button"
@@ -430,6 +476,21 @@ function MemoryPageInner() {
               onClick={() => setKindFilter('')}
             >
               类型 · {kindFilter} ×
+            </button>
+          ) : null}
+          {scopeFromUrl ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="memory-chip-scope"
+              onClick={() => {
+                const sp = new URLSearchParams(searchParams.toString());
+                sp.delete('scope');
+                const qs = sp.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+              }}
+            >
+              scope · {SCOPE_ZH[scopeFromUrl] ?? scopeFromUrl} ×
             </button>
           ) : null}
           <button
@@ -563,6 +624,13 @@ function MemoryPageInner() {
                         data-testid="memory-kind"
                       >
                         {kind}
+                      </span>{' '}
+                      <span
+                        className={`memory-scope-chip memory-scope-chip--${m.scope ?? 'workspace'}`}
+                        data-testid="memory-scope"
+                        title={`scope: ${m.scope ?? 'workspace'}`}
+                      >
+                        {SCOPE_ZH[m.scope ?? 'workspace'] ?? m.scope ?? '全局'}
                       </span>
                     </td>
                     <td>

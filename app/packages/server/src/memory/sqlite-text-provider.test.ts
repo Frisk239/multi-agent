@@ -152,4 +152,43 @@ describe('G4-1 FTS5 retrieval (SqliteTextProvider)', () => {
     expect(res.items[0].score! >= (res.items[1]?.score ?? -Infinity)).toBe(true);
     void now;
   });
+
+  it('G4-4 addRaw 带 scope 写入并回读标签', () => {
+    const workspace = provider.addRaw('scope 标签写入测试 workspace-hit');
+    const issue = provider.addRaw('scope 标签写入测试 issue-hit', { scope: 'issue' });
+    const run = provider.addRaw('scope 标签写入测试 run-hit', { scope: 'run' });
+    expect(workspace.scope).toBe('workspace');
+    expect(issue.scope).toBe('issue');
+    expect(run.scope).toBe('run');
+    // 缺省 = workspace
+    expect(provider.addRaw('scope 默认').scope).toBe('workspace');
+  });
+
+  it('G4-4 prefetch 空查询按 scope 过滤（最近 N 条）', async () => {
+    provider.addRaw('scope-a-1', { scope: 'workspace' });
+    provider.addRaw('scope-b-1', { scope: 'issue' });
+    provider.addRaw('scope-b-2', { scope: 'issue' });
+
+    const ws = await provider.prefetch('', { limit: 10, scope: 'workspace' });
+    expect(ws.items.map((i) => i.scope)).toEqual(['workspace']);
+    expect(ws.items).toHaveLength(1);
+
+    const issue = await provider.prefetch('', { limit: 10, scope: 'issue' });
+    expect(issue.items).toHaveLength(2);
+    expect(issue.items.every((i) => i.scope === 'issue')).toBe(true);
+  });
+
+  it('G4-4 prefetch 关键词查询按 scope 过滤（FTS 路径）', async () => {
+    provider.addRaw('统一投影关键字 alpha', { scope: 'workspace' });
+    provider.addRaw('统一投影关键字 beta', { scope: 'run' });
+    provider.addRaw('统一投影关键字 gamma', { scope: 'issue' });
+
+    const run = await provider.prefetch('统一投影关键字', { limit: 10, scope: 'run' });
+    expect(run.items).toHaveLength(1);
+    expect(run.items[0].text).toContain('beta');
+    expect(run.items[0].scope).toBe('run');
+
+    const all = await provider.prefetch('统一投影关键字', { limit: 10 });
+    expect(all.items).toHaveLength(3);
+  });
 });

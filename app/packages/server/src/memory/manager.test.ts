@@ -274,4 +274,43 @@ describe('MemoryManager (Slice 24: serial write + circuit breaker)', () => {
       'end:ambient-2',
     ]);
   });
+
+  it('G4-4 scope 标签：ambient=issue、curated 透传/缺省、run 完成=run', async () => {
+    const addRaw = vi.fn(
+      async (
+        _text: string,
+        meta?: {
+          issueId?: string | null;
+          agentId?: string | null;
+          runId?: string | null;
+          scope?: string | null;
+        },
+      ): Promise<MemoryItemView> => ({
+        id: 'x',
+        text: _text,
+        scope: meta?.scope ?? 'workspace',
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    const syncTurn = vi.fn(async (_input: MemorySyncInput) => undefined);
+    const provider = makeProvider({ addRaw, syncTurn });
+    mgr.setExternal(provider);
+
+    mgr.ambientCapture({ kind: 'comment', issueId: 'i1', text: 'ambient' });
+    await mgr.addCurated('curated-no-scope'); // 无 issue → workspace
+    await mgr.addCurated('curated-issue', 'i1'); // 有 issue → issue
+    await mgr.addCurated('curated-run', undefined, 'run'); // 显式 → run
+    mgr.syncRunCompleted({
+      issue: { id: 'i1', identifier: 'MA-1', title: 't', description: null },
+      run: { id: 'r1', agentId: 'a1', status: 'completed' },
+      assistantText: 'out',
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    const scopes = addRaw.mock.calls.map((c) => (c[1] as { scope?: string | null })?.scope);
+    expect(scopes).toEqual(['issue', 'workspace', 'issue', 'run']);
+    // syncRunCompleted → syncTurn 带 run scope
+    expect(syncTurn).toHaveBeenCalledTimes(1);
+    expect((syncTurn.mock.calls[0][0] as MemorySyncInput).scope).toBe('run');
+  });
 });

@@ -15,12 +15,16 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/memory/status', async () => memoryManager.getStatus());
 
   app.get('/api/memory', async (req) => {
-    const { q, limit, offset, includeInvalid } = req.query as { q?: string; limit?: string; offset?: string; includeInvalid?: string };
+    const { q, limit, offset, includeInvalid, scope } = req.query as { q?: string; limit?: string; offset?: string; includeInvalid?: string; scope?: string };
     const lim = Math.min(Number(limit) || 20, 100);
     const off = Number(offset) || 0;
     const includeInv = String(includeInvalid) === '1' || String(includeInvalid) === 'true';
+    // G4-4：scope 过滤（workspace/agent/issue/run；非法值忽略 = 全量）
+    const scopeFilter = ['workspace', 'agent', 'issue', 'run'].includes(scope ?? '')
+      ? (scope as 'workspace' | 'agent' | 'issue' | 'run')
+      : undefined;
     // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
-    const all = await memoryManager.search(q?.trim() ?? '', 1000, includeInv);
+    const all = await memoryManager.search(q?.trim() ?? '', 1000, includeInv, scopeFilter);
     const data = all.slice(off, off + lim);
     return { data, total: all.length, limit: lim, offset: off };
   });
@@ -41,11 +45,12 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
       const created = await memoryManager.addCurated(
         text,
         parsed.data.issueId,
+        parsed.data.scope,
       );
       if (created) {
         return reply.status(201).send({
           id: created.id,
-          scope: 'workspace',
+          scope: created.scope ?? 'workspace',
           issueId: created.issueId ?? null,
           agentId: null,
           runId: created.runId ?? null,
@@ -78,7 +83,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const item = res.item;
     return {
       id: item.id,
-      scope: 'workspace',
+      scope: item.scope ?? 'workspace',
       issueId: item.issueId ?? null,
       agentId: null,
       runId: item.runId ?? null,
