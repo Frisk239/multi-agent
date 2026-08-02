@@ -216,6 +216,14 @@ export type RunTreeNode = {
   summary?: string | null;
   tokensInput?: number | null;
   tokensOutput?: number | null;
+  /**
+   * G2-3：子树成本汇总（USD，本地价表推估）——节点成本 = 自身 + 直接子层
+   * （子节点已含其子树，嵌套自然汇总，学 hermes delegate_tool.py:2730）。
+   * 全部无可计价数据时为 null（禁止假 $0）。
+   */
+  costUsd?: number | null;
+  /** 汇总中是否有「有 token 但无价表/未知 model」的部分（总数可能不完整） */
+  uncosted?: boolean;
   /** Read projection: stable terminal reason (timeout/cancelled/failed/…); null while active. */
   terminalReason?: string | null;
   children: RunTreeNode[];
@@ -241,6 +249,8 @@ export const RunTreeNodeSchema: z.ZodType<RunTreeNode> = z.lazy(() =>
     summary: z.string().nullable().optional(),
     tokensInput: z.number().nullable().optional(),
     tokensOutput: z.number().nullable().optional(),
+    costUsd: z.number().nullable().optional(),
+    uncosted: z.boolean().optional(),
     terminalReason: z.string().min(1).nullable().optional(),
     children: z.array(RunTreeNodeSchema),
   })

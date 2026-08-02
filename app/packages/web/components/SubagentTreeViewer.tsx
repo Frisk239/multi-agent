@@ -26,6 +26,11 @@ function formatTokens(input?: number | null, output?: number | null): string {
   return `${total} tokens`;
 }
 
+// 与 RunDetailPage cost chip 同款格式：小金额保留更多小数
+function formatUsd(n: number): string {
+  return `$${n < 0.01 ? n.toFixed(6) : n.toFixed(4)}`;
+}
+
 function getStatusBadgeClass(status: string): string {
   switch (status) {
     case 'running':
@@ -196,6 +201,23 @@ export function SubagentTreeViewer({
               {stats.totalTokens > 0 && (
                 <span className="subagent-tree-stat-tokens">| {formatTokens(stats.totalTokens)}</span>
               )}
+              {tree.costUsd != null && (
+                <span
+                  className="subagent-tree-stat-cost"
+                  data-testid="subagent-tree-cost"
+                  title="本地价表推估（含全部子 run，非云账单）"
+                >
+                  | {formatUsd(tree.costUsd)}
+                </span>
+              )}
+              {tree.uncosted && (
+                <span
+                  className="subagent-tree-stat-uncosted"
+                  title="部分 run 有 token 但无价表/未知 model，总成本可能不完整"
+                >
+                  | 部分未计价
+                </span>
+              )}
             </div>
           )}
 
@@ -334,6 +356,11 @@ function TreeNodeItem({
             <span>耗时: {formatDuration(node.durationMs)}</span>
             {(node.tokensInput || node.tokensOutput) ? (
               <span>Token: {formatTokens(node.tokensInput, node.tokensOutput)}</span>
+            ) : null}
+            {node.costUsd != null ? (
+              <span title="本节点 + 其全部子 run 的推估成本">
+                成本: {formatUsd(node.costUsd)}
+              </span>
             ) : null}
 
             {onSelectRun ? (
@@ -503,6 +530,9 @@ function FlowCard({
       <div className="subagent-flow-card-footer">
         <span>{formatDuration(node.durationMs)}</span>
         <span>{formatTokens(node.tokensInput, node.tokensOutput)}</span>
+        {node.costUsd != null ? (
+          <span title="本节点 + 其全部子 run 的推估成本">{formatUsd(node.costUsd)}</span>
+        ) : null}
 
         {onSelectRun ? (
           <button

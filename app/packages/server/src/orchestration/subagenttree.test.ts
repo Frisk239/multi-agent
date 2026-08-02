@@ -71,6 +71,10 @@ import {
   getSubagentSummaryCap,
   projectTreeNodeTerminalReason,
 } from './subagent-tree';
+import {
+  setModelRatesForTest,
+  resetModelRatesCache,
+} from '../runtime/model-rates.js';
 
 describe('subagent-tree', () => {
   const originalEnv = { ...process.env };
@@ -346,5 +350,108 @@ describe('subagent-tree', () => {
     expect(children.length).toBe(1);
     expect(children[0].id).toBe('child-run-A');
     expect(children[0].summary).toBe('Child task A');
+  });
+});
+
+describe('G2-3 cost rollup (hermes delegate_tool.py:2730)', () => {
+  // 价表：prompt $1 / 1M，completion $2 / 1M —— 便于手算断言
+  const rate = { promptUsdPer1M: 1, completionUsdPer1M: 2 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.MA_SUBAGENT_SUMMARY_CAP;
+    setModelRatesForTest({ models: { 'gpt-4o-test': rate } });
+  });
+
+  afterEach(() => {
+    resetModelRatesCache();
+  });
+
+  function makeRun(partial: Record<string, unknown>): Record<string, unknown> {
+    return {
+      id: 'r',
+      parentRunId: null,
+      agentId: 'a1',
+      status: 'completed',
+      kind: 'issue',
+      quickPrompt: null,
+      isLeader: 0,
+      squadId: null,
+      createdAt: 1000,
+      startedAt: 1050,
+      finishedAt: 5000,
+      error: null,
+      tokensInput: null,
+      tokensOutput: null,
+      model: 'gpt-4o-test',
+      ...partial,
+    };
+  }
+
+  it('rolls child costs into parent (nested fold, all costed)', () => {
+    const root = makeRun({ id: 'p', tokensInput: 100, tokensOutput: 200 }); // 0.0005
+    const c1 = makeRun({ id: 'c1', parentRunId: 'p', tokensInput: 500, tokensOutput: 800 }); // 0.0021
+    const c2 = makeRun({ id: 'c2', parentRunId: 'p', tokensInput: 150, tokensOutput: 50 }); // 0.00025
+    const gc = makeRun({ id: 'gc', parentRunId: 'c1', tokensInput: 200, tokensOutput: 300 }); // 0.0008
+
+    mocks.agentRunsGet.mockReturnValue(root);
+    mocks.agentRunsAll
+      .mockReturnValueOnce([c1, c2])
+      .mockReturnValueOnce([gc])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([]);
+    mocks.agentsGet.mockReturnValue(null);
+    mocks.runMessagesGet.mockReturnValue(null);
+
+    const tree = getRunTree('p');
+    expect(tree?.costUsd).toBeCloseTo(0.00365, 6); // 自身 + c1(含 gc) + c2
+    expect(tree?.uncosted).toBe(false);
+    // 子节点已含子树（gc 折入 c1）
+    expect(tree?.children[0].costUsd).toBeCloseTo(0.0029, 6);
+    expect(tree?.children[0].children[0].costUsd).toBeCloseTo(0.0008, 6);
+    expect(tree?.children[1].costUsd).toBeCloseTo(0.00025, 6);
+  });
+
+  it('keeps partial uncosted when a node has tokens but no rates', () => {
+    const root = makeRun({ id: 'p', model: 'unknown-model', tokensInput: 100, tokensOutput: 200 });
+    const c1 = makeRun({ id: 'c1', parentRunId: 'p', tokensInput: 500, tokensOutput: 800 });
+    const c2 = makeRun({ id: 'c2', parentRunId: 'p', tokensInput: 150, tokensOutput: 50 });
+
+    mocks.agentRunsGet.mockReturnValue(root);
+    mocks.agentRunsAll.mockReturnValueOnce([c1, c2]).mockReturnValueOnce([]).mockReturnValueOnce([]);
+    mocks.agentsGet.mockReturnValue(null);
+    mocks.runMessagesGet.mockReturnValue(null);
+
+    const tree = getRunTree('p');
+    // 父自身 uncosted（未知 model），子全 costed → 总数 = 子成本之和 + 部分未计价标记
+    expect(tree?.costUsd).toBeCloseTo(0.00235, 6);
+    expect(tree?.uncosted).toBe(true);
+    expect(tree?.children[0].costUsd).toBeCloseTo(0.0021, 6);
+    expect(tree?.children[0].uncosted).toBe(false);
+  });
+
+  it('null cost when nothing is costed (no tokens → not flagged uncosted)', () => {
+    const root = makeRun({ id: 'p' }); // 无 token
+    const child = makeRun({ id: 'c1', parentRunId: 'p' }); // 无 token
+
+    mocks.agentRunsGet.mockReturnValue(root);
+    mocks.agentRunsAll.mockReturnValueOnce([child]).mockReturnValueOnce([]);
+    mocks.agentsGet.mockReturnValue(null);
+    mocks.runMessagesGet.mockReturnValue(null);
+
+    const tree = getRunTree('p');
+    expect(tree?.costUsd).toBeNull();
+    expect(tree?.uncosted).toBe(false); // no_tokens 不污染「部分未计价」
+  });
+
+  it('direct children endpoint carries own cost only', () => {
+    const child = makeRun({ id: 'c1', tokensInput: 500, tokensOutput: 800 });
+    mocks.agentRunsAll.mockReturnValue([child]);
+    mocks.agentsGet.mockReturnValue(null);
+    mocks.runMessagesGet.mockReturnValue(null);
+
+    const children = getDirectChildren('p');
+    expect(children[0].costUsd).toBeCloseTo(0.0021, 6);
+    expect(children[0].uncosted).toBe(false);
   });
 });

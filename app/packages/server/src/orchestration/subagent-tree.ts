@@ -3,6 +3,7 @@ import type { AgentRunStatus, AgentRunKind, RunTreeNode } from '@ma/shared';
 import { db } from '../db/client.js';
 import { agentRuns, agents, runMessages } from '../db/schema.js';
 import { deriveRunObservability } from './run-observability.js';
+import { estimateCost } from '../runtime/model-rates.js';
 
 type AgentRunRow = typeof agentRuns.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
@@ -163,6 +164,26 @@ function buildNode(
   const summary = truncateSubagentSummary(rawSummary);
   const terminalReason = projectTreeNodeTerminalReason(row);
 
+  const children = childrenRows.map((child) =>
+    buildNode(child, runsByParent, agentMap, summaryMap),
+  );
+
+  // G2-3：成本汇总（学 hermes delegate_tool.py:2730——每次只折直接子层，
+  // 子节点已含其子树，嵌套树靠逐层折叠自然汇总）。
+  // 自身无 token（no_tokens）不视为 uncosted：没跑过的 run 不污染「部分未计价」。
+  const own = estimateCost({
+    model: row.model,
+    tokensInput: row.tokensInput,
+    tokensOutput: row.tokensOutput,
+  });
+  let totalUsd = own.costUsd ?? 0;
+  let uncosted = own.uncosted && own.uncostedReason !== 'no_tokens';
+  for (const c of children) {
+    if (c.costUsd != null) totalUsd += c.costUsd;
+    if (c.uncosted) uncosted = true;
+  }
+  const costUsd = totalUsd > 0 ? Number(totalUsd.toFixed(6)) : null;
+
   return {
     id: row.id,
     parentRunId: row.parentRunId ?? null,
@@ -182,7 +203,9 @@ function buildNode(
     summary,
     tokensInput: row.tokensInput ?? null,
     tokensOutput: row.tokensOutput ?? null,
+    costUsd,
+    uncosted,
     terminalReason,
-    children: childrenRows.map((child) => buildNode(child, runsByParent, agentMap, summaryMap)),
+    children,
   };
 }
