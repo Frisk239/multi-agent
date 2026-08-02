@@ -1,4 +1,5 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import {
   autoRetryBackoffMs,
   autoRetryMaxAttempts,
@@ -7,7 +8,7 @@ import {
   type AgentRunFailureReason,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, agents } from '../db/schema.js';
+import { agentRuns, agents, issues } from '../db/schema.js';
 import * as schema from '../db/schema.js';
 import { toAgentRun, toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
@@ -15,7 +16,8 @@ import { recordActivityLog } from './activity-logger.js';
 import { notifyRunEscalated } from './inbox-writer.js';
 
 type RunRow = typeof agentRuns.$inferSelect;
-type RetryExecutor = any;
+/** db 或事务的统一执行句柄（生产 db / 事务内 tx 均满足；只暴露用到的三个方法） */
+type RetryExecutor = Pick<BetterSQLite3Database<typeof schema>, 'select' | 'update' | 'insert'>;
 
 type RetryOutcome = {
   row: RunRow;
@@ -73,15 +75,10 @@ function insertRetryChild(
   const reason = source.failureReason as AgentRunFailureReason | null;
   if (!isAutoRetryableFailureReason(reason)) return null;
 
-  const issueTable = (schema as {
-    issues?: { id?: unknown; originType?: unknown };
-  }).issues as any;
-  if (!issueTable?.originType || !issueTable.id) return null;
-
   const issue = executor
-    .select({ originType: issueTable.originType })
-    .from(issueTable)
-    .where(eq(issueTable.id, source.issueId))
+    .select({ originType: issues.originType })
+    .from(issues)
+    .where(eq(issues.id, source.issueId))
     .get();
   // Automation-linked issues use the same bounded infrastructure policy. The
   // execution-truth synchronizer keeps the automation row retrying until the
@@ -93,8 +90,10 @@ function insertRetryChild(
   const attempt = Math.max(1, Number(source.attempt ?? 1));
   if (attempt >= maxAttempts) return null;
 
-  // Fast path; the NOT EXISTS predicate and partial unique index below are
-  // the durable guards against duplicate children.
+  // 防重：JS 预检 + 部分唯一索引（uq_agent_run_auto_retry_of，NULL 可重复
+  // 即等效 partial unique）兜底并发赢家；源 run 已终态不可变，预检与
+  // 原条件 INSERT 谓词等价。SQLite 的 Drizzle insert 无 .select()，
+  // 故 child 用类型化 values 直插。
   const existing = executor
     .select({ id: agentRuns.id })
     .from(agentRuns)
@@ -107,33 +106,32 @@ function insertRetryChild(
   const childId = crypto.randomUUID();
 
   try {
-    const inserted = executor.run(sql`
-      INSERT INTO agent_run (
-        id, issue_id, agent_id, runtime, status, kind, quick_prompt,
-        chat_thread_id, is_leader, squad_id, error, failure_reason,
-        started_at, finished_at, last_heartbeat_at, waiting_local_entered_at,
-        prepare_lease_expires_at, rerun_of_run_id, cwd_path, cwd_mode,
-        project_id, session_poisoned, parent_run_id, attempt, max_attempts,
-        next_attempt_at, auto_retry_of_run_id, created_at
-      )
-      SELECT
-        ${childId}, p.issue_id, p.agent_id, p.runtime, 'queued', p.kind,
-        p.quick_prompt, p.chat_thread_id, p.is_leader, p.squad_id, NULL, NULL,
-        NULL, NULL, NULL, NULL, NULL, p.id, p.cwd_path, p.cwd_mode,
-        p.project_id, 0, p.parent_run_id, ${attempt + 1}, ${maxAttempts},
-        ${nextAttemptAt}, p.id, ${now}
-      FROM agent_run AS p
-      WHERE p.id = ${source.id}
-        AND p.status IN ('failed', 'timed_out')
-        AND p.kind = 'issue'
-        AND p.issue_id IS NOT NULL
-        AND p.failure_reason = ${reason}
-        AND p.attempt < ${maxAttempts}
-        AND NOT EXISTS (
-          SELECT 1 FROM agent_run AS c
-          WHERE c.auto_retry_of_run_id = p.id
-        )
-    `);
+    const inserted = executor
+      .insert(agentRuns)
+      .values({
+        id: childId,
+        issueId: source.issueId,
+        agentId: source.agentId,
+        runtime: source.runtime,
+        status: 'queued',
+        kind: source.kind,
+        quickPrompt: source.quickPrompt,
+        chatThreadId: source.chatThreadId,
+        isLeader: source.isLeader,
+        squadId: source.squadId,
+        rerunOfRunId: source.id,
+        cwdPath: source.cwdPath,
+        cwdMode: source.cwdMode,
+        projectId: source.projectId,
+        sessionPoisoned: source.sessionPoisoned,
+        parentRunId: source.parentRunId,
+        attempt: attempt + 1,
+        maxAttempts,
+        nextAttemptAt,
+        autoRetryOfRunId: source.id,
+        createdAt: now,
+      })
+      .run();
     if ((inserted.changes ?? 0) === 0) return null;
   } catch {
     // A concurrent invocation may have won the partial unique index. Treat it
@@ -226,40 +224,47 @@ export function insertEscalatedChild(
   const childId = crypto.randomUUID();
   const freshMaxAttempts = autoRetryMaxAttempts('runtime_offline', configuredMax);
 
-  // G2-1：deferred 升级路径放宽 failure_reason 谓词（原 run 已按
-  // deferred_escalated fail；attempt 门不适用，恒满足）。
+  // 同款防重：JS 预检 + 唯一索引（uq_agent_run_escalated_from）兜底并发赢家。
+  // attempt 门在 insertRetryChild 预算分流后已由 gateAttempt 表达；失败分支
+  // （deferred_escalated / connection failure）谓词在 isConnectionFailure 分流。
   const reasonGate = allowDeferred
-    ? `p.failure_reason = 'deferred_escalated'`
-    : `p.failure_reason IN ('runtime_offline','exec_error')`;
+    ? eq(agentRuns.failureReason, 'deferred_escalated')
+    : inArray(agentRuns.failureReason, ['runtime_offline', 'exec_error']);
+
+  // 仅当源 run 仍满足 reason 谓词时插入（deferred 升级放宽 + 常规 connection
+  // failure 双轨）；预检以 source 行 + SQL 谓词双保险。
+  const gate = executor
+    .select({ id: agentRuns.id })
+    .from(agentRuns)
+    .where(and(eq(agentRuns.id, source.id), reasonGate))
+    .get();
+  if (!gate) return null;
 
   try {
-    const inserted = executor.run(sql`
-      INSERT INTO agent_run (
-        id, issue_id, agent_id, runtime, status, kind, quick_prompt,
-        chat_thread_id, is_leader, squad_id, error, failure_reason,
-        started_at, finished_at, last_heartbeat_at, waiting_local_entered_at,
-        prepare_lease_expires_at, rerun_of_run_id, cwd_path, cwd_mode,
-        project_id, session_poisoned, parent_run_id, attempt, max_attempts,
-        next_attempt_at, auto_retry_of_run_id, escalated_from_run_id, created_at
-      )
-      SELECT
-        ${childId}, p.issue_id, ${fallback.id}, ${fallback.runtime}, 'queued', p.kind,
-        p.quick_prompt, p.chat_thread_id, 0, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, NULL, NULL, p.cwd_path, p.cwd_mode,
-        p.project_id, 0, p.parent_run_id, 1, ${freshMaxAttempts},
-        NULL, NULL, p.id, ${now}
-      FROM agent_run AS p
-      WHERE p.id = ${source.id}
-        AND p.status = 'failed'
-        AND p.kind = 'issue'
-        AND p.issue_id IS NOT NULL
-        AND ${sql.raw(reasonGate)}
-        AND (p.escalated_from_run_id IS NULL OR p.escalated_from_run_id = '')
-        AND p.attempt >= ${gateAttempt}
-        AND NOT EXISTS (
-          SELECT 1 FROM agent_run AS c WHERE c.escalated_from_run_id = p.id
-        )
-    `);
+    const inserted = executor
+      .insert(agentRuns)
+      .values({
+        id: childId,
+        issueId: source.issueId,
+        agentId: fallback.id,
+        runtime: fallback.runtime,
+        status: 'queued',
+        kind: source.kind,
+        quickPrompt: source.quickPrompt,
+        chatThreadId: source.chatThreadId,
+        isLeader: 0,
+        squadId: null,
+        cwdPath: source.cwdPath,
+        cwdMode: source.cwdMode,
+        projectId: source.projectId,
+        sessionPoisoned: source.sessionPoisoned,
+        parentRunId: source.parentRunId,
+        attempt: 1,
+        maxAttempts: freshMaxAttempts,
+        escalatedFromRunId: source.id,
+        createdAt: now,
+      })
+      .run();
     if ((inserted.changes ?? 0) === 0) return null;
   } catch {
     // 并发赢家：部分唯一索引兜底，重复调用视为幂等 no-op
@@ -386,22 +391,21 @@ export type TransitionAndRetryResult = {
  */
 export function transitionAndScheduleAutoRetry(args: {
   id: string;
-  fromStatuses: readonly string[];
-  patch: Record<string, unknown>;
+  fromStatuses: readonly RunRow['status'][];
+  patch: Partial<RunRow>;
   now?: number;
 }): TransitionAndRetryResult {
   const now = args.now ?? Date.now();
-  // A few isolated unit tests provide a minimal DB double without Drizzle's
-  // transaction method. Preserve their transition semantics while production
-  // always takes the atomic branch below.
-  if (typeof (db as { transaction?: unknown }).transaction !== 'function') {
+  // stale-runs.test.ts 等单元测试提供无 transaction 的 db double：
+  // 运行时能力检测走非事务路径（生产 db 恒有 transaction，走下方原子分支）。
+  if (typeof db.transaction !== 'function') {
     const changed = db
       .update(agentRuns)
-      .set(args.patch as Partial<RunRow>)
+      .set(args.patch)
       .where(
         and(
           eq(agentRuns.id, args.id),
-          inArray(agentRuns.status, [...args.fromStatuses] as RunRow['status'][]),
+          inArray(agentRuns.status, [...args.fromStatuses]),
         ),
       )
       .run();
@@ -422,11 +426,11 @@ export function transitionAndScheduleAutoRetry(args: {
   const result = db.transaction((tx) => {
     const changed = tx
       .update(agentRuns)
-      .set(args.patch as Partial<RunRow>)
+      .set(args.patch)
       .where(
         and(
           eq(agentRuns.id, args.id),
-          inArray(agentRuns.status, [...args.fromStatuses] as RunRow['status'][]),
+          inArray(agentRuns.status, [...args.fromStatuses]),
         ),
       )
       .run();
@@ -452,7 +456,9 @@ export function transitionAndScheduleAutoRetry(args: {
 
 /** Whether an Issue Run currently has an active auto-retry child. */
 export function hasActiveAutoRetryChild(runId: string): boolean {
-  if (!(agentRuns as { autoRetryOfRunId?: unknown }).autoRetryOfRunId) return false;
+  // 列存在性守卫：真 schema 恒存在；部分单元测试的 schema double 缺该列时
+  // 视为无活跃 child（避免对 double 执行查询误判）
+  if (!agentRuns.autoRetryOfRunId) return false;
   return Boolean(
     db
       .select({ id: agentRuns.id })
