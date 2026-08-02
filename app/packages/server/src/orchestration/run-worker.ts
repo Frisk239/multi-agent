@@ -11,7 +11,7 @@ import {
   chatThreads,
 } from '../db/schema.js';
 // chatThreads used for B1 chat project cwd
-import { toAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
+import { toAgentRun, toObservedAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { registerRunAbort, clearRunAbort } from './run-control.js';
 import {
@@ -151,7 +151,7 @@ export async function tick(): Promise<void> {
           },
         });
         if (waitTr.applied && waitTr.row) {
-          const run = enrichRunRowWithPathLock(waitTr.row, toAgentRun(waitTr.row));
+          const run = enrichRunRowWithPathLock(waitTr.row, toObservedAgentRun(waitTr.row));
           eventBus.publish({ type: 'run:waiting_local_directory', run });
         }
       }
@@ -197,7 +197,7 @@ export async function tick(): Promise<void> {
       claimedPathKeys.add(normalizePathLockKey(pathGate.path));
     }
 
-    const run = enrichRunRowWithPathLock(runRow, toAgentRun(runRow));
+    const run = enrichRunRowWithPathLock(runRow, toObservedAgentRun(runRow));
     eventBus.publish({ type: 'run:running', run });
 
     // fire-and-forget 并发执行（不 await）
@@ -615,7 +615,7 @@ export async function tick(): Promise<void> {
         },
       });
       if (cancelTr.applied && cancelTr.row) {
-        eventBus.publish({ type: 'run:cancelled', run: toAgentRun(cancelTr.row) });
+        eventBus.publish({ type: 'run:cancelled', run: toObservedAgentRun(cancelTr.row) });
       }
       return;
     }
@@ -750,7 +750,7 @@ export async function tick(): Promise<void> {
     }
 
     // 再读一次确保 status 已落库（QC link 等字段可能变更）
-    const rFresh = toAgentRun(
+    const rFresh = toObservedAgentRun(
       db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get()!,
     );
     eventBus.publish({ type: 'run:completed', run: rFresh });
@@ -848,7 +848,7 @@ export async function failRun(
   const autoRetryChild = tr.autoRetryChild ?? null;
   const escalatedChild = tr.escalatedChild ?? null;
   const freshRow = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get() ?? tr.row;
-  const baseRun = toAgentRun(freshRow);
+  const baseRun = toObservedAgentRun(freshRow);
   const r = autoRetryChild
     ? {
         ...baseRun,

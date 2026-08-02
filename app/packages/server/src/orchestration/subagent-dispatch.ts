@@ -6,7 +6,7 @@ import { enqueueAgentRun, enqueueLeaderRun } from './run-service.js';
 import { eventBus } from './event-bus.js';
 import { wakeRunWorker } from './run-worker.js';
 import { computeAgentReadiness } from './readiness.js';
-import { toAgentRun, toRunMessage } from '../db/reshape.js';
+import { toAgentRun, toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { logger } from '../logger.js';
 
 /** 默认 K=2：depth 0/1 可再派，parent depth≥2 拒绝。env: MA_SUBAGENT_MAX_DEPTH */
@@ -257,7 +257,7 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
     })
     .run();
   const row = db.select().from(agentRuns).where(eq(agentRuns.id, id)).get()!;
-  const run = toAgentRun(row);
+  const run = toObservedAgentRun(row);
   eventBus.publish({ type: 'run:queued', run });
   wakeRunWorker();
 }

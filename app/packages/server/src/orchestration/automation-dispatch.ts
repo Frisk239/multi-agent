@@ -8,7 +8,7 @@ import {
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
 import { agentRuns, agents, automationRules, automationRuns, squads } from '../db/schema.js';
-import { toAgentRun, toAutomationRun } from '../db/reshape.js';
+import { toAgentRun, toObservedAgentRun, toAutomationRun } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { createIssueCore } from './issue-create.js';
 import { eventBus } from './event-bus.js';
@@ -339,7 +339,7 @@ async function dispatchRunOnly(
     .run();
 
   const agentRow = db.select().from(agentRuns).where(eq(agentRuns.id, linkedRunId)).get()!;
-  eventBus.publish({ type: 'run:queued', run: toAgentRun(agentRow) });
+  eventBus.publish({ type: 'run:queued', run: toObservedAgentRun(agentRow) });
   wakeRunWorker();
 
   const automationRunId = crypto.randomUUID();

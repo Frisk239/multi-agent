@@ -9,7 +9,7 @@ import {
 import { db } from '../db/client.js';
 import { agentRuns, agents } from '../db/schema.js';
 import * as schema from '../db/schema.js';
-import { toAgentRun } from '../db/reshape.js';
+import { toAgentRun, toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { recordActivityLog } from './activity-logger.js';
 import { notifyRunEscalated } from './inbox-writer.js';
@@ -299,7 +299,7 @@ export function insertEscalatedChild(
 }
 
 function publishScheduledRetry(source: RunRow, outcome: RetryOutcome): AgentRun {
-  const child = toAgentRun(outcome.row);
+  const child = toObservedAgentRun(outcome.row);
   eventBus.publish({ type: 'run:queued', run: child });
   recordActivityLog({
     issueId: source.issueId!,
@@ -319,7 +319,7 @@ function publishScheduledRetry(source: RunRow, outcome: RetryOutcome): AgentRun 
 
 /** P2-4：改派落地后的可见性（run:queued + activity run_escalated + inbox）。 */
 function publishEscalation(source: RunRow, outcome: EscalationOutcome): AgentRun {
-  const child = toAgentRun(outcome.row);
+  const child = toObservedAgentRun(outcome.row);
   eventBus.publish({ type: 'run:queued', run: child });
   recordActivityLog({
     issueId: source.issueId!,

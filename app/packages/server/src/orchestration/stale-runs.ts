@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, lte, or, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents, activityLogs } from '../db/schema.js';
-import { toAgentRun } from '../db/reshape.js';
+import { toAgentRun, toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
 import { notifyDeferredUnclaimed, notifyRunTerminal, notifySquadEscalated } from './inbox-writer.js';
 import { readInboxPrefs } from './inbox-prefs.js';
@@ -21,7 +21,7 @@ function publishFailedRun(
   now: number,
   scheduledChild?: ReturnType<typeof toAgentRun> | null,
 ): void {
-  const baseRun = toAgentRun(row);
+  const baseRun = toObservedAgentRun(row);
   const run = scheduledChild
     ? {
         ...baseRun,

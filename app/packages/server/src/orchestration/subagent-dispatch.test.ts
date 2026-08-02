@@ -104,6 +104,7 @@ vi.mock('./event-bus.js', () => ({
 
 vi.mock('../db/reshape.js', () => ({
   toAgentRun: (row: any) => mocks.toAgentRun(row),
+  toObservedAgentRun: (row: any) => mocks.toAgentRun(row),
   toRunMessage: (row: any) => mocks.toRunMessage(row),
 }));
 

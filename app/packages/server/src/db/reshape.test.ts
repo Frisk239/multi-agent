@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toIssueLabel, toAgentRun } from './reshape';
+import { toIssueLabel, toAgentRun, toObservedAgentRun } from './reshape';
 
 describe('reshape transformers', () => {
   describe('toIssueLabel', () => {
@@ -162,6 +162,78 @@ describe('reshape transformers', () => {
       const result = toAgentRun(row as any);
       expect(result.status).toBe('running');
       expect(result.prepareLeaseExpiresAt).toBe(lease);
+    });
+  });
+
+  describe('toObservedAgentRun (G2-4 统一投影)', () => {
+    const baseRow = {
+      id: 'run-obs-1',
+      kind: 'issue' as const,
+      issueId: 'iss-1',
+      chatThreadId: null,
+      projectId: null,
+      agentId: 'agt-1',
+      failureReason: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      lastHeartbeatAt: null,
+      waitingLocalEnteredAt: null,
+      prepareLeaseExpiresAt: null,
+      isLeader: 0,
+      squadId: null,
+      rerunOfRunId: null,
+      quickPrompt: null,
+      runtime: 'claude-code' as const,
+      cwdMode: 'project_local' as const,
+      cwdPath: '/repo',
+      tokensInput: null,
+      tokensOutput: null,
+      tokensCacheRead: null,
+      tokensCacheWrite: null,
+    };
+
+    it('queued run carries queue ages / backoff block / no terminal reason', () => {
+      const now = Date.now();
+      const row = {
+        ...baseRow,
+        status: 'queued' as const,
+        createdAt: now - 30_000,
+        nextAttemptAt: now + 10_000,
+      };
+      const result = toObservedAgentRun(row as any, now);
+      expect(result.queueAgeMs).toBe(30_000);
+      expect(result.queueEligibleAt).toBe(row.nextAttemptAt);
+      expect(result.queueBlockedReason).toBe('retry_backoff');
+      expect(result.heartbeatAgeMs).toBeNull();
+      expect(result.terminalReason).toBeNull();
+    });
+
+    it('terminal run carries terminalReason and null dynamic ages', () => {
+      const now = Date.now();
+      const row = {
+        ...baseRow,
+        status: 'completed' as const,
+        createdAt: now - 60_000,
+        nextAttemptAt: null,
+      };
+      const result = toObservedAgentRun(row as any, now);
+      expect(result.terminalReason).toBe('completed');
+      expect(result.queueAgeMs).toBeNull();
+      expect(result.heartbeatAgeMs).toBeNull();
+      expect(result.id).toBe('run-obs-1'); // 仍含全部基础字段
+    });
+
+    it('failed run with failureReason projects it as terminalReason', () => {
+      const now = Date.now();
+      const row = {
+        ...baseRow,
+        status: 'failed' as const,
+        failureReason: 'provider_network' as const,
+        createdAt: now - 5_000,
+      };
+      const result = toObservedAgentRun(row as any, now);
+      expect(result.terminalReason).toBe('provider_network');
     });
   });
 });

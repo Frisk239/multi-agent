@@ -107,6 +107,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('../db/reshape.js', () => ({
   toAgentRun: (row: any) => mocks.toAgentRun(row),
+  toObservedAgentRun: (row: any) => mocks.toAgentRun(row),
 }));
 
 vi.mock('./event-bus.js', () => ({

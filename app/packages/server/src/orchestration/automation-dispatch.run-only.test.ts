@@ -134,6 +134,14 @@ describe('automation run_only (A5 / Multica)', () => {
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'run:queued' }),
     );
+    // G2-4：WS 发布统一 toObservedAgentRun 投影——run:queued 事件必须带可观测字段
+    const published = publish.mock.calls[0][0] as { type: string; run: Record<string, unknown> };
+    expect(published.type).toBe('run:queued');
+    expect(published.run.queueAgeMs).toBeTypeOf('number');
+    expect(published.run.queueEligibleAt).toBeNull();
+    expect(published.run.queueBlockedReason).toBeNull();
+    expect(published.run.heartbeatAgeMs).toBeNull();
+    expect(published.run.terminalReason).toBeNull();
   });
 
   it('syncAutomationRunFromAgentRun follows linkedRunId for run_only', async () => {
