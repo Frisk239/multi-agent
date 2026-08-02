@@ -655,6 +655,21 @@ export function SettingsPage() {
               ? ' (当前 env MA_INBOX_NOTIFY_SUCCESS 强制开启成功推送)'
               : null}
           </p>
+
+          {/* G5-5：系统/桌面通知（默认关；run 终态 + inbox 新项 → Windows 原生弹窗） */}
+          <label
+            className="text-sm"
+            data-testid="settings-system-notify"
+            style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}
+          >
+            <input
+              type="checkbox"
+              checked={Boolean(inboxPrefs?.systemNotifications)}
+              disabled={setInboxPrefs.isPending}
+              onChange={(e) => setInboxPrefs.mutate({ systemNotifications: e.target.checked })}
+            />
+            系统桌面通知（run 完成/失败、收件箱新项弹窗提醒；默认关，纯本地）
+          </label>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 12 }}>
             <div>

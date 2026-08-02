@@ -25,6 +25,11 @@ export type InboxPrefs = {
    * 阈值仍可由 `MA_DEFERRED_UNCLAIMED_MS` 覆盖；未设时用建议 30min。
    */
   deferredAutoEscalate: boolean;
+  /**
+   * G5-5：系统/桌面通知（run 终态 + inbox 新项 → Windows 原生弹窗）。
+   * **默认 false**（降噪，避免前台弹窗打扰）；Settings 可开。
+   */
+  systemNotifications: boolean;
 };
 
 const DEFAULTS: InboxPrefs = {
@@ -41,6 +46,7 @@ const DEFAULTS: InboxPrefs = {
     info: true,
   },
   deferredAutoEscalate: false,
+  systemNotifications: false,
 };
 
 function prefsPath(): string {
@@ -63,6 +69,7 @@ export function readInboxPrefs(): InboxPrefs {
         ...(raw.notifySeverities || {}),
       },
       deferredAutoEscalate: Boolean(raw.deferredAutoEscalate ?? DEFAULTS.deferredAutoEscalate),
+      systemNotifications: Boolean(raw.systemNotifications ?? DEFAULTS.systemNotifications),
     };
   } catch {
     return {

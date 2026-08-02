@@ -2635,6 +2635,8 @@ export type InboxPrefs = {
   effectiveDeferredAutoEscalate?: boolean;
   effectiveDeferredUnclaimedMs?: number;
   suggestedDeferredUnclaimedMs?: number;
+  /** G5-5：系统/桌面通知开关（run 终态 + inbox 新项 → Windows 弹窗；默认关） */
+  systemNotifications?: boolean;
 };
 
 /** GET/PUT /api/settings/inbox-prefs */

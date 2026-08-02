@@ -6,6 +6,7 @@ import { toInboxItem } from '../db/reshape.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { eventBus } from './event-bus.js';
 import { shouldNotifyIssueSuccess, readInboxPrefs } from './inbox-prefs.js';
+import { showSystemNotification } from './system-notify.js';
 
 const WS = 'ws-local';
 
@@ -152,6 +153,8 @@ export function notifyInbox(opts: {
   }
   const item = toInboxItem(row, issueMeta);
   eventBus.publish({ type: 'inbox:item', item });
+  // G5-5：inbox 新项（含 run 终态）→ 系统桌面通知（开关默认关；失败静默）
+  showSystemNotification({ title: opts.title, body: opts.body });
   return item;
 }
 

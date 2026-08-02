@@ -728,6 +728,10 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     if (typeof body.deferredAutoEscalate === 'boolean') {
       patch.deferredAutoEscalate = body.deferredAutoEscalate;
     }
+    // G5-5：系统桌面通知开关
+    if (typeof body.systemNotifications === 'boolean') {
+      patch.systemNotifications = body.systemNotifications;
+    }
 
     const prefs = writeInboxPrefs(patch as Parameters<typeof writeInboxPrefs>[0]);
     const { getDeferredUnclaimedMs, SUGGESTED_DEFERRED_UNCLAIMED_MS, isDeferredAutoEscalateOptIn } =
