@@ -7,11 +7,17 @@ import { IssueRunHistory } from './IssueRunHistory';
 const apiMocks = vi.hoisted(() => ({
   cancelMutate: vi.fn(),
   retryMutate: vi.fn(),
+  runMessages: [] as unknown[],
 }));
 
 vi.mock('@/lib/api', () => ({
   useCancelRun: () => ({ mutate: apiMocks.cancelMutate, isPending: false }),
   useRetryRun: () => ({ mutate: apiMocks.retryMutate, isPending: false }),
+  useRunMessages: (runId?: string) => ({
+    data: apiMocks.runMessages as never,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('next/link', () => ({
@@ -90,5 +96,50 @@ describe('IssueRunHistory execution controls', () => {
     expect(screen.getAllByTestId('issue-run-history-transcript').some(
       (el) => el.getAttribute('href') === '/runs?run=run-active&timeline=1&status=all',
     )).toBe(true);
+  });
+
+  it('G3-3：点「摘要」行内展开 transcript 预览，再点收起', () => {
+    apiMocks.runMessages = [
+      { kind: 'tool_start', body: JSON.stringify({ name: 'Read', args: 'readme.md' }), createdAt: '2026-07-30T00:00:00.000Z' },
+      { kind: 'tool_end', body: JSON.stringify({ name: 'Read', result: '文件内容' }), createdAt: '2026-07-30T00:00:00.100Z' },
+      { kind: 'assistant', body: '已读完 readme', createdAt: '2026-07-30T00:00:01.000Z' },
+    ];
+    const past = makeRun({ id: 'run-past-1' });
+    render(
+      <IssueRunHistory
+        runs={[past]}
+        selectedRunId={undefined}
+        onSelect={vi.fn()}
+        onOpenTimeline={vi.fn()}
+      />,
+    );
+
+    // 初始未展开
+    expect(screen.queryByTestId('issue-run-history-preview-panel')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('issue-run-history-preview'));
+    expect(screen.getByTestId('issue-run-history-preview-panel')).toHaveAttribute('data-run-id', 'run-past-1');
+    // 工具配对摘要 + 助手消息可见（不跳页可见产出）
+    expect(screen.getByTestId('run-preview')).toHaveAttribute('data-run-id', 'run-past-1');
+    expect(screen.getByTestId('run-preview-tool')).toHaveTextContent('Read');
+    expect(screen.getByTestId('run-preview-assistant')).toHaveTextContent('已读完 readme');
+
+    // 再点收起
+    fireEvent.click(screen.getByTestId('issue-run-history-preview'));
+    expect(screen.queryByTestId('issue-run-history-preview-panel')).toBeNull();
+  });
+
+  it('G3-3：无轨迹数据时展开显示空态', () => {
+    apiMocks.runMessages = [];
+    const past = makeRun({ id: 'run-empty-1' });
+    render(
+      <IssueRunHistory
+        runs={[past]}
+        selectedRunId={undefined}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('issue-run-history-preview'));
+    expect(screen.getByTestId('run-preview-empty')).toHaveTextContent('暂无轨迹数据');
   });
 });

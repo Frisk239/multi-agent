@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun } from '@ma/shared';
 import { useCancelRun, useWorkspaceRuns, useRetryRun } from '@/lib/api';
+import { RunTranscriptPreview } from './RunTranscriptPreview';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -80,6 +81,8 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
   const retry = useRetryRun();
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  // G3-3：行内 transcript 摘要展开（单开）
+  const [previewRunId, setPreviewRunId] = useState<string | null>(null);
   const escalatedRuns = runs.filter(r => r.failureReason === 'squad_member_escalated' && r.status === 'failed');
 
   function runHref(runId: string): string {
@@ -214,6 +217,7 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
               {activeRuns.map((r) => {
                 const elapsed = activeElapsedMs(r, now);
                 return (
+                  <>
                   <tr
                     key={r.id}
                     data-testid="squad-run-row"
@@ -271,11 +275,32 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
                       >
                         {cancel.isPending && cancellingId === r.id ? '停止中…' : '停止'}
                       </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        data-testid="squad-run-preview"
+                        data-run-id={r.id}
+                        aria-expanded={previewRunId === r.id}
+                        onClick={() => setPreviewRunId(previewRunId === r.id ? null : r.id)}
+                      >
+                        {previewRunId === r.id ? '收起' : '摘要'}
+                      </button>
                       <Link href={runHref(r.id)} className="btn btn-ghost btn-sm" data-testid="squad-run-transcript">
                         运行页
                       </Link>
                     </td>
                   </tr>
+                  {previewRunId === r.id ? (
+                    <tr
+                      data-testid="squad-run-preview-panel"
+                      data-run-id={r.id}
+                    >
+                      <td colSpan={5} className="squad-run-preview-cell">
+                        <RunTranscriptPreview runId={r.id} />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </>
                 );
               })}
               {pastRuns.length > 0 ? (
@@ -284,6 +309,7 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
                 </tr>
               ) : null}
               {pastRuns.map((r) => (
+                <>
                 <tr
                   key={r.id}
                   data-testid="squad-run-row"
@@ -330,11 +356,32 @@ export function SquadRunsTimeline({ squadId }: { squadId: string }) {
                         {retry.isPending && retryingId === r.id ? '重试中…' : '重试此 run'}
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      data-testid="squad-run-preview"
+                      data-run-id={r.id}
+                      aria-expanded={previewRunId === r.id}
+                      onClick={() => setPreviewRunId(previewRunId === r.id ? null : r.id)}
+                    >
+                      {previewRunId === r.id ? '收起' : '摘要'}
+                    </button>
                     <Link href={runHref(r.id)} className="btn btn-ghost btn-sm" data-testid="squad-run-transcript">
                       运行页
                     </Link>
                   </td>
                 </tr>
+                {previewRunId === r.id ? (
+                  <tr
+                    data-testid="squad-run-preview-panel"
+                    data-run-id={r.id}
+                  >
+                    <td colSpan={5} className="squad-run-preview-cell">
+                      <RunTranscriptPreview runId={r.id} />
+                    </td>
+                  </tr>
+                ) : null}
+                </>
               ))}
             </tbody>
           </table>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { AgentRun, IssueRunUsage } from '@ma/shared';
 import { useCancelRun, useRetryRun } from '@/lib/api';
+import { RunTranscriptPreview } from './RunTranscriptPreview';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -123,6 +124,8 @@ export function IssueRunHistory({
   const retry = useRetryRun();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  // G3-3：行内 transcript 摘要展开（单开）
+  const [previewRunId, setPreviewRunId] = useState<string | null>(null);
 
   if (runs.length === 0) return null;
 
@@ -238,10 +241,29 @@ export function IssueRunHistory({
               时间线
             </button>
           ) : null}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            data-testid="issue-run-history-preview"
+            data-run-id={r.id}
+            aria-expanded={previewRunId === r.id}
+            onClick={() => setPreviewRunId(previewRunId === r.id ? null : r.id)}
+          >
+            {previewRunId === r.id ? '收起' : '摘要'}
+          </button>
           <Link href={runHref(r.id)} className="btn btn-ghost btn-sm" data-testid="issue-run-history-transcript">
             运行页
           </Link>
         </div>
+        {previewRunId === r.id ? (
+          <div
+            className="issue-run-row-preview"
+            data-testid="issue-run-history-preview-panel"
+            data-run-id={r.id}
+          >
+            <RunTranscriptPreview runId={r.id} />
+          </div>
+        ) : null}
       </li>
     );
   }
