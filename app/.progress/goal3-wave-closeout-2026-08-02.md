@@ -17,11 +17,12 @@
 | **G3-5** | IssueDetail 附件区真实上传（文件选择 + 拖拽 + 下载/删除，≤25MiB） | `a215118` | 上传按钮（多选）+ 整区拖拽 dropzone + 前置校验（validateUploadFile）+ 上传中提示；+3 测试 |
 | **e2e** | M3 Playwright 冒烟证据 | `cc33ac1` | 真服务 + headless：G3-3 行内面板展开 / G3-4 编辑器可见可加行 / G3-5 上传按钮 + ≤25MiB 提示，**6/6 PASS** |
 | **G4-5**（部分） | `ma wiki query --roots` CLI flag（跨根检索） | `d57e214` | positional 剥离 flag；main 导出；+2 测试 |
+| **G3-6**（补做） | Issue 自定义字段 UI 回归网 + Playwright 证据 | `b887bcd` | 勘察确认 IssueCustomFields/schema/routes 链路已存在（roadmap 基线过期实例）→ 补 IssueCustomFields.test.tsx +5（回读/添加/内联编辑/删除/空列表）；冒烟加 G3-6 检查并修稳定性（waitFor + onboarding 跳过 + dev.db 补 0049 migration）→ **8/8 PASS 落 app/.progress/logs/m3-smoke-*.log** |
 
 ## 门禁数据（每刀全量）
 
 - 起点基线：1338（shared 121 / server 792 / web 425）
-- 终点：**1363**（shared 121 / server 809 / web 433）；typecheck 全绿
+- 终点：**1368**（shared 121 / server 809 / web 438）；typecheck 全绿
 - 新增测试：G5-1 +51、G3-4 +8、G3-3 +2、G3-5 +3、G4-5 +2、G5-4 +3、G5-3 +6（部分并入既有文件）
 
 ## 顺带修复 / 工程加固
@@ -40,12 +41,11 @@
 - [x] Issue/Squad 详情 run 历史行内展开 transcript（不跳页可见产出；Playwright 实证）
 - [x] Agent 详情可编辑环境变量/自定义参数（API 落库 + UI 保存/回读）
 - [x] IssueDetail 附件区真实上传（文件选择 + 拖拽 + 下载/删除，≤25MiB）
-- [x] （M4 部分）`ma wiki query --roots` 可用
+- [x] （M4 部分）`ma wiki query --roots` 可用；**G3-6 自定义字段 UI 可编辑回读**（测试 + Playwright 实证）
 - [x] 全程 typecheck 绿 + 每刀有测试 + Playwright 证据 + 全量 pnpm test 绿（含 shared）
 
 ## 未做（M4 其余，留给后续波）
 
-- G3-6 Issue 自定义字段 UI（schema 已有 customFields JSON）
 - G4-5 其余：health 一键报告 / backlink 相关页
 - G3-7 二阶体验池 / G5-5 通知 / G5-6 运营统计 / G5-7 导入导出 / G2-5 并发配额
 - G1-5 pgvector 软回退可观测（Wiki 半边已由 G4-3 覆盖）
@@ -53,5 +53,5 @@
 
 ## 下一步建议
 
-1. `git push origin main`（本波 9 commit 已落本地；当时代理 127.0.0.1:7890 未运行）
-2. 下一波首取：G3-6 自定义字段 UI（价值中成本小）或 G4-5 health 一键报告
+1. `git push origin main`（本波 11 commit 已落本地；代理 127.0.0.1:7890 需恢复）
+2. 下一波首取：G4-5 health 一键报告 / backlink 相关页

@@ -20,14 +20,14 @@ function makeIssue(customFields: Record<string, string> | null): Issue {
     status: 'todo',
     priority: 'none',
     assignee: null,
-    creatorType: 'user',
+    creatorType: 'member',
     creatorId: 'u-1',
     position: 0,
     labels: [],
     customFields,
     createdAt: '2026-08-02T00:00:00.000Z',
     updatedAt: '2026-08-02T00:00:00.000Z',
-  } as Issue;
+  } as unknown as Issue;
 }
 
 describe('G3-6 issue custom fields editor', () => {
