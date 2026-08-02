@@ -10,6 +10,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appendFileSync, mkdirSync } from 'node:fs';
 
 const SERVER = process.env.SERVER ?? 'http://127.0.0.1:3001';
 const WEB = process.env.WEB ?? 'http://127.0.0.1:3000';
@@ -21,7 +22,15 @@ const results: CheckRow[] = [];
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = join(__dirname, '../../../.progress/logs');
 
-function log(msg: string): void { console.log(msg); }
+const LOG_FILE = join(LOG_DIR, `m3-smoke-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+function log(msg: string): void {
+  console.log(msg);
+  try {
+    mkdirSync(LOG_DIR, { recursive: true });
+    appendFileSync(LOG_FILE, `${msg}
+`, 'utf8');
+  } catch { /* log best-effort */ }
+}
 function record(row: CheckRow): void { results.push(row); log(`  [${row.status}] ${row.id} — ${row.note}`); }
 
 function headers(): Record<string, string> {
@@ -78,6 +87,10 @@ async function main(): Promise<void> {
 
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    // 跳过 onboarding 全屏卡片（新 context 无 sessionStorage）
+    await page.addInitScript(() => {
+      sessionStorage.setItem('ma.day0-onboarding.v2.dismissed', '1');
+    });
 
     // —— 造数据：issue + run + agent ——
     const now = Date.now();
@@ -109,11 +122,15 @@ async function main(): Promise<void> {
     });
     if (issueWithRuns) {
       await page.goto(`${WEB}/issues/${issueWithRuns}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(3500);
+      try {
+        await page.getByTestId('issue-run-history-preview').first().waitFor({ timeout: 15000 });
+      } catch { /* button may not exist */ }
       const previewBtn = await page.getByTestId('issue-run-history-preview').first().count().catch(() => 0);
       if (previewBtn > 0) {
         await page.getByTestId('issue-run-history-preview').first().click();
-        await page.waitForTimeout(1500);
+        try {
+          await page.getByTestId('issue-run-history-preview-panel').waitFor({ timeout: 8000 });
+        } catch { /* panel may not appear */ }
         const panel = await page.getByTestId('issue-run-history-preview-panel').count().catch(() => 0);
         record({
           id: 'g3-3-inline-preview',
@@ -144,11 +161,36 @@ async function main(): Promise<void> {
       });
     }
 
+    // —— G3-6：Issue 自定义字段编辑器（props 区）+ 添加字段 ——
+    const cfEditor = await page.getByTestId('issue-custom-fields').count().catch(() => 0);
+    record({
+      id: 'g3-6-custom-fields-editor',
+      status: cfEditor > 0 ? 'PASS' : 'FAIL',
+      note: cfEditor > 0 ? '自定义字段编辑器可见（props 区）' : '未找到 issue-custom-fields',
+    });
+    if (cfEditor > 0) {
+      const addBtn = await page.getByTestId('add-custom-field').count().catch(() => 0);
+      if (addBtn > 0) {
+        await page.getByTestId('add-custom-field').click();
+        await page.waitForTimeout(300);
+        const keyInput = await page.getByTestId('custom-field-input-key').count().catch(() => 0);
+        record({
+          id: 'g3-6-add-field-form',
+          status: keyInput > 0 ? 'PASS' : 'FAIL',
+          note: keyInput > 0 ? '添加字段表单可见（key/value 输入）' : '添加表单未出现',
+        });
+      }
+    }
+
     // —— G3-4：Agent 详情 settings tab envVars 编辑器 ——
     await page.goto(`${WEB}/agents/${agentId}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(2500);
+    try {
+      await page.getByTestId('agent-tab-settings').waitFor({ timeout: 15000 });
+    } catch { /* page may not load */ }
     await page.getByTestId('agent-tab-settings').click().catch(() => null);
-    await page.waitForTimeout(800);
+    try {
+      await page.getByTestId('agent-envvars-editor').waitFor({ timeout: 8000 });
+    } catch { /* editor may not appear */ }
     const editor = await page.getByTestId('agent-envvars-editor').count().catch(() => 0);
     record({
       id: 'g3-4-envvars-editor',
