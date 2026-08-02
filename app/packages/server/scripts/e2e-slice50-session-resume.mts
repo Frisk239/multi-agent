@@ -5,10 +5,10 @@
  * 无服 → live 段 SKIP（不粉饰为 PASS）；unit 段必须绿。
  *
  * 覆盖：
- * 1. sessionResumeCapabilityMatrix：claude/opencode/cursor/grok true；pi false
+ * 1. sessionResumeCapabilityMatrix：claude/opencode/cursor true；grok/pi false（G1-2 fail-closed）
  * 2. 非支持 runtime resolvePriorSession → unsupported；支持者无 prior → fresh
  * 3. finalize resume_miss / unsupported
- * 4. buildGrokAgentArgs now passes --resume injection (A9)
+ * 4. buildGrokAgentArgs 顶层形态且不注入 --resume（G1-2：ACP 未实现，诚实降级）
  * 5. 可选：GET /api/settings/diagnostics 能力文案与矩阵一致
  *
  * 运行：

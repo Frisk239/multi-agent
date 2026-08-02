@@ -722,7 +722,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
             ) : null}
             {run.sessionResumeStatus === 'unsupported' ? (
               <p className="run-path-lock-note text-dim" data-testid="run-session-unsupported">
-                claude-code / opencode / cursor / Grok 支持真 session resume；Pi 仍不支持（honest stub）。
+                claude-code / opencode / cursor 支持真 session resume；Grok（单轮打印模式）与 Pi 暂不支持。
               </p>
             ) : null}
             {run.sessionResumeStatus === 'force_fresh' ? (

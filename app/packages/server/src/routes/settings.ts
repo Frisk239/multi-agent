@@ -558,11 +558,8 @@ export async function buildSettingsDiagnostics(): Promise<SettingsDiagnosticsRes
     },
     grok: {
       name: 'Grok Build',
-      capabilities: [
-        'ACP JSON-RPC Stdio',
-        'Print Mode (-p)',
-        'Effort Level Control',
-      ],
+      // G1-2 fail-closed：ACP 客户端未实现，不声明；如实标注单轮打印模式
+      capabilities: ['Print Mode (-p)', 'Effort Level Control'],
       recommendation:
         'xAI Grok CLI 适配器，适合跨领域多模态与快速模式匹配分析。',
     },

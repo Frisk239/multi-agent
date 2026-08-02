@@ -28,11 +28,13 @@ describe('runtime registry', () => {
     }
   });
 
-  // A9（2026-07-30）：grok 转 supportsSessionResume=true；pi 也已转真 backend（--session-id 注入）。
-  it('all five runtimes support session resume', () => {
-    for (const id of ['claude-code', 'opencode', 'cursor', 'grok', 'pi'] as RuntimeId[]) {
+  // G1-2（2026-08-02）：claude/opencode/cursor 真 resume；grok 摘除声明（ACP 未实现）；
+  // pi 真 backend（--session-id 注入）。
+  it('claude/opencode/cursor 支持真 resume；grok 诚实 false（G1-2 fail-closed）', () => {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'pi'] as RuntimeId[]) {
       expect(getBackend(id).supportsSessionResume).toBe(true);
     }
+    expect(getBackend('grok').supportsSessionResume).toBe(false);
   });
 
   it('throws error for unregistered runtime ID', () => {

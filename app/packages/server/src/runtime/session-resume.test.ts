@@ -29,13 +29,13 @@ vi.mock('../db/client.js', () => {
 });
 
 describe('Slice 50 session resume capability matrix', () => {
-  it('claude-code, opencode, cursor, grok, pi declare supportsSessionResume=true', () => {
+  it('claude-code, opencode, cursor 支持真 resume；grok/pi 诚实 false（G1-2）', () => {
     const matrix = sessionResumeCapabilityMatrix();
     expect(matrix).toEqual([
       { runtime: 'claude-code', supportsSessionResume: true },
       { runtime: 'opencode', supportsSessionResume: true },
       { runtime: 'cursor', supportsSessionResume: true },
-      { runtime: 'grok', supportsSessionResume: true },
+      { runtime: 'grok', supportsSessionResume: false },
       { runtime: 'pi', supportsSessionResume: true },
     ]);
   });

@@ -133,7 +133,7 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
   });
 
   describe('Grok Line Parsing & Args', () => {
-    it('buildsGrokAgentArgs now supports --resume injection (A9: supportsSessionResume=true)', () => {
+    it('buildsGrokAgentArgs 顶层形态（G1-2 fail-closed：-p/model/effort 顶层，不注入 --resume）', () => {
       const args = buildGrokAgentArgs(
         {
           prompt: 'do work',
@@ -144,13 +144,25 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
         { print: true }
       );
 
-      expect(args).toContain('-p');
+      expect(args[0]).toBe('--no-auto-update');
+      // `-p` 是 `--single <PROMPT>` 别名：prompt 紧跟 -p 作为其值（实测 0.2.118）
+      expect(args[1]).toBe('-p');
+      expect(args[2]).toBe('do work');
       expect(args).toContain('--model');
       expect(args).toContain('grok-3');
       expect(args).toContain('--effort');
       expect(args).toContain('high');
-      expect(args).toContain('--resume');
-      expect(args).toContain('grok-sess-456');
+      // 诚实性：resumeSessionId 存在也不注入 --resume（ACP 未实现）
+      expect(args).not.toContain('--resume');
+      expect(args).not.toContain('grok-sess-456');
+      // 不再使用 agent 子命令（0.2.118 不接受子命令后位置 prompt）
+      expect(args).not.toContain('agent');
+    });
+
+    it('parseGrokLine 纯文本行 → assistant message（G1-2：产出可观测，不丢在 log）', () => {
+      const events: unknown[] = [];
+      parseGrokLine('跑通了', (e) => events.push(e));
+      expect(events).toEqual([{ type: 'message', role: 'assistant', text: '跑通了' }]);
     });
   });
 });

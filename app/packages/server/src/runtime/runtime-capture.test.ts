@@ -36,11 +36,12 @@ describe('Slice 60 runtime capture matrix', () => {
       providerSessionId: true,
     });
 
-    // A9 2026-07-30: Grok now true (resume + --resume injection); pi also true (real RPC backend)
+    // G1-2 2026-08-02: grok fail-closed（ACP 未实现，false）；pi true（真 RPC backend）
     const resume = sessionResumeCapabilityMatrix();
-    for (const id of ['claude-code', 'opencode', 'cursor', 'grok', 'pi'] as const) {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'pi'] as const) {
       expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(true);
     }
+    expect(resume.find((r) => r.runtime === 'grok')?.supportsSessionResume).toBe(false);
   });
 });
 

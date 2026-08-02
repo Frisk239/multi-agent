@@ -97,33 +97,38 @@ export function parseGrokLine(
       return;
     }
   }
-  // 纯文本日志
+  // 纯文本 stdout 行（grok print 模式）：模型输出 → assistant message（G1-2：
+  // 此前只发 log 不落库，run 详情永远看不到 grok 的回复）
   if (t.length < 4000) {
-    onEvent({ type: 'log', text: `[grok] ${t.slice(0, 500)}` });
+    onEvent({ type: 'message', role: 'assistant', text: t.slice(0, 500) });
   }
 }
 
 /**
- * 构建 grok agent argv 公共段（print / fallback 共用 model+effort）。
- * A9（2026-07-30 起）：supportsSessionResume=true → 有 resumeSessionId 就注入 --resume。
- * （此前 Slice 50 声明为 false 且不注入，已由 A9 推翻，勿照旧注释理解。）
+ * 构建 grok argv（G1-2 fail-closed：`-p`/`--model`/`--effort`/`--resume` 均为**顶层** flag，
+ * 实测 grok 0.2.118 不接受 `agent` 子命令后的位置 prompt / `-p` / `--resume`——
+ * 旧实现（`grok agent --always-approve -p <prompt>`）在本机 100% 失败）。
+ *
+ * 诚实性（2026-08-02 G1-2）：
+ * - supportsSessionResume=false：本仓未实现 ACP stdio 客户端，`--resume` 不注入
+ * - 执行形态 = 顶层 `grok --no-auto-update -p <prompt>` 打印模式（实测可用）；
+ *   fallback 仅去掉 --model/--effort（老版本 flag 集差异），不再用 `agent` 子命令
  */
 export function buildGrokAgentArgs(
   input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId'>,
   opts: { print: boolean },
 ): string[] {
-  const args = ['--no-auto-update', 'agent', '--always-approve'];
-  if (opts.print) args.push('-p');
+  const args = ['--no-auto-update'];
+  if (opts.print) {
+    // `-p` 是 `--single <PROMPT>` 的别名：prompt 必须紧跟 -p 作为其值（实测 0.2.118）
+    args.push('-p', input.prompt);
+  } else {
+    args.push(input.prompt);
+  }
   const model = input.model?.trim();
   if (model) args.push('--model', model);
-  // DS4 / G22 residual：print 路径也要传 --effort（与 fallback 对齐）
   const effort = input.thinkingLevel?.trim();
   if (effort) args.push('--effort', effort);
-  // A9 / Slice 50：Grok now true — 支持 --resume injection（对齐 opencode/cursor）
-  const resume = input.resumeSessionId?.trim();
-  if (resume) args.push('--resume', resume);
-
-  args.push(input.prompt);
   return args;
 }
 
@@ -159,10 +164,12 @@ export class GrokBackend implements RuntimeBackend {
   readonly id = 'grok' as const;
   readonly label = 'Grok Build';
   /**
-   * A9 · Grok ACP / capability honesty (2026-07-30 phase)
-   * supportsSessionResume=true + --resume injection + matrix tests
+   * G1-2 fail-closed（2026-08-02）：false。
+   * 本仓无 ACP stdio 客户端；A9 的 true 声明 + `--resume` 注入在本机 grok 0.2.118
+   * 上不仅不生效，还让每次执行直接失败（`--resume` 不是 `agent` 子命令选项）。
+   * 恢复 ACP（`grok agent stdio`，Multica grok.go 蓝图）前保持 false，UI 诚实标注。
    */
-  readonly supportsSessionResume = true;
+  readonly supportsSessionResume = false;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('GROK_PATH', ['grok']);
@@ -187,16 +194,16 @@ export class GrokBackend implements RuntimeBackend {
 
     onEvent({ type: 'log', text: '[grok] starting Grok Build CLI…' });
 
-    // 1) 打印模式（最贴近 headless）
+    // 1) 打印模式（顶层 `-p`，实测可用；最贴近 headless）
     const printed = await tryPrintMode(det.path, input, onEvent, signal);
     if (printed) return printed;
 
-    // 2) 降级：agent --always-approve + prompt 作参数（部分版本）
-    const args = buildGrokAgentArgs(input, { print: false });
+    // 2) 降级：-p prompt 但去掉 --model/--effort（老版本 flag 集差异兜底）
+    const slim: string[] = ['--no-auto-update', '-p', input.prompt];
 
     const fallback = await spawnLineProcess(
       det.path,
-      args,
+      slim,
       input.cwd,
       signal,
       onEvent,
