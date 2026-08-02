@@ -20,6 +20,7 @@ import {
 } from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
+import { StreamScrubber, scrubFences } from '../runtime/stream-scrubber.js';
 import { resolveRunPrompt } from '../runtime/prompt.js';
 import {
   finalizeSessionFields,
@@ -404,6 +405,10 @@ export async function tick(): Promise<void> {
 
   const toolStartTime = new Map<string, number>();
 
+  // G4-2：流式围栏 scrubber（per-run；CLI 回显 user prompt 时剥系统注入的
+  // <retrieved-context>/<context-fence>/<think> 围栏，防漏进 UI 与回放）
+  const scrubber = new StreamScrubber();
+
   // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
   //   progress/log/delta → run:progress only（不进 DB）
   //   message/tool_* → run_message + run:message 事件
@@ -425,17 +430,20 @@ export async function tick(): Promise<void> {
       eventBus.publish({ type: 'runtime:event', event: rEvent });
     }
     if (e.type === 'message_delta' || e.type === 'log') {
+      // G4-2：流式 delta 过 scrubber（有状态跨 chunk；被剥内容不发布）
+      const visible = e.type === 'message_delta' ? scrubber.feed(e.text) : e.text;
+      if (!visible) return;
       eventBus.publish({
         type: 'run:progress',
         runId: runRow.id,
         issueId: runRow.issueId ?? null,
-        text: e.text,
+        text: visible,
       });
       eventBus.publish({
         type: 'run:stream_chunk',
         runId: runRow.id,
         kind: e.type === 'log' ? 'thinking' : 'text',
-        content: e.text,
+        content: visible,
       });
       return;
     }
@@ -443,7 +451,8 @@ export async function tick(): Promise<void> {
     let body = '';
     if (e.type === 'message') {
       kind = e.role === 'user' ? 'user' : 'assistant';
-      body = e.text;
+      // G4-2：整条消息一次性剥围栏（user 回显含完整 prompt 围栏）
+      body = scrubFences(e.text);
     } else if (e.type === 'tool_start') {
       kind = 'tool_start';
       body = JSON.stringify({ name: e.name, args: e.args ?? null });
@@ -549,6 +558,22 @@ export async function tick(): Promise<void> {
       signal,
     );
     clearRunAbort(runRow.id);
+    // G4-2：流结束 flush（未闭合 span 丢弃；部分标签尾部原样放出）
+    const scrubTail = scrubber.flush();
+    if (scrubTail) {
+      eventBus.publish({
+        type: 'run:progress',
+        runId: runRow.id,
+        issueId: runRow.issueId ?? null,
+        text: scrubTail,
+      });
+      eventBus.publish({
+        type: 'run:stream_chunk',
+        runId: runRow.id,
+        kind: 'text',
+        content: scrubTail,
+      });
+    }
     const finishedAt = Date.now();
     // DS4：有 usage 则落库（终态任意；失败/取消也尽量保留）
     const tokenPatch = {

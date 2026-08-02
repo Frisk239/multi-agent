@@ -90,7 +90,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
 | G4-1 | **记忆检索升级**（SQLite FTS5 索引或索引化扫描，替代 200 行硬上限；顺带 scope 加权） | 高 | 中 | — | ✅ |
-| G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ⬜ |
+| G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ✅ |
 | G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ⬜ |
 | G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ⬜ |
 | G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ⬜ |
@@ -122,7 +122,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 3 | G2-1 Deferred-escalation | G2 | ✅ 已关（2026-08-02，[closeout](app/.progress/g2-1-deferred-escalation-closeout-2026-08-02.md)） |
 | 4 | G1-2 Grok ACP/fail-closed | G1 | ✅ 已关（2026-08-02，[closeout](app/.progress/g1-2-grok-failclosed-closeout-2026-08-02.md)；fail-closed 基线，ACP 客户端另立后续刀） |
 | 5 | G4-1 记忆检索 FTS5 | G4 | ✅ 已关（2026-08-02，[closeout](app/.progress/g4-1-memory-fts-closeout-2026-08-02.md)） |
-| 6+ | G1-3 → G3-2 → G4-2 → G5-1 → G3-3 … | 其余 | 按 §3 各 Goal 价值排序逐刀取用 |
+| 6+ | G1-3 → G3-2 → G4-3 → G5-1 → G3-3 … | 其余 | 按 §3 各 Goal 价值排序逐刀取用（G4-2 已关 2026-08-02，[closeout](app/.progress/g4-2-stream-scrubber-closeout-2026-08-02.md)） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
