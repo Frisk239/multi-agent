@@ -171,17 +171,22 @@ function insertRetryChild(
  * SQL 用 failure_reason IN ('runtime_offline','exec_error') 做双保险
  * （CLI 未安装 / ENOENT 按 classifyFailure 规则表归 exec_error）。
  */
-function insertEscalatedChild(
+/** G2-1：fireDeferredRuns 复用改派守卫（深度 1 + 幂等；deferred_escalated 路径） */
+export function insertEscalatedChild(
   executor: RetryExecutor,
   source: RunRow,
   now: number,
+  opts: { allowDeferred?: boolean } = {},
 ): EscalationOutcome | null {
+  const allowDeferred = opts.allowDeferred === true;
   // 深度 1：改派而来的 run 不再链式改派
   if (source.escalatedFromRunId) return null;
   if (source.status !== 'failed') return null;
   if (source.kind !== 'issue' || !source.issueId) return null;
   const reason = source.failureReason as AgentRunFailureReason | null;
-  if (!isConnectionFailure(reason, source.error)) return null;
+  // 常规：仅 connection failure；G2-1 升级路径：deferred_escalated
+  if (!isConnectionFailure(reason, source.error) && !(allowDeferred && reason === 'deferred_escalated'))
+    return null;
 
   const configuredMax = Math.max(1, Number(source.maxAttempts ?? 2));
   // 预算分流：runtime_offline 必须预算用尽（insertRetryChild 返回 null 的
@@ -221,6 +226,12 @@ function insertEscalatedChild(
   const childId = crypto.randomUUID();
   const freshMaxAttempts = autoRetryMaxAttempts('runtime_offline', configuredMax);
 
+  // G2-1：deferred 升级路径放宽 failure_reason 谓词（原 run 已按
+  // deferred_escalated fail；attempt 门不适用，恒满足）。
+  const reasonGate = allowDeferred
+    ? `p.failure_reason = 'deferred_escalated'`
+    : `p.failure_reason IN ('runtime_offline','exec_error')`;
+
   try {
     const inserted = executor.run(sql`
       INSERT INTO agent_run (
@@ -242,7 +253,7 @@ function insertEscalatedChild(
         AND p.status = 'failed'
         AND p.kind = 'issue'
         AND p.issue_id IS NOT NULL
-        AND p.failure_reason IN ('runtime_offline','exec_error')
+        AND ${sql.raw(reasonGate)}
         AND (p.escalated_from_run_id IS NULL OR p.escalated_from_run_id = '')
         AND p.attempt >= ${gateAttempt}
         AND NOT EXISTS (

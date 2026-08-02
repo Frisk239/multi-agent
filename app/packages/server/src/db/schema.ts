@@ -268,6 +268,8 @@ export const agentRuns = sqliteTable(
         'queued',
         'waiting_local_directory',
         'running',
+        // G2-1：queued 超龄未 claim → deferred（等待 fire_at 后升级；不 claim 不执行）
+        'deferred',
         'completed',
         'failed',
         'cancelled',
@@ -293,6 +295,8 @@ export const agentRuns = sqliteTable(
     waitingLocalEnteredAt: integer('waiting_local_entered_at'),
     // Slice 68：claim→running 后 prepare 阶段 lease 到期（epoch ms）；稳定 executor 后清 null
     prepareLeaseExpiresAt: integer('prepare_lease_expires_at'),
+    // G2-1：deferred 状态的最早升级时刻（epoch ms）；到点由清扫器 fire（multica fire_at）
+    fireAt: integer('fire_at'),
     // run-observability：人工 rerun 血缘（可空）
     rerunOfRunId: text('rerun_of_run_id'),
     // A2 UX Trust：CLI cwd 审计（resolve-run-cwd）

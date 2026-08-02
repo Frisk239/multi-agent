@@ -49,6 +49,8 @@ describe('schema migrator drift gate (Slice 41)', () => {
     expect(agentRun.has('auto_retry_of_run_id')).toBe(true);
     // P2-4：改派血缘（0045）
     expect(agentRun.has('escalated_from_run_id')).toBe(true);
+    // G2-1：deferred 升级时刻（0048）
+    expect(agentRun.has('fire_at')).toBe(true);
     const retryIndexes = sqlite.pragma('index_list(agent_run)') as Array<{ name: string }>;
     expect(retryIndexes.some((index) => index.name === 'uq_agent_run_auto_retry_of')).toBe(true);
     expect(retryIndexes.some((index) => index.name === 'uq_agent_run_escalated_from')).toBe(true);

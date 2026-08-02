@@ -59,7 +59,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| G2-1 | **Deferred-escalation 惰性升级**（`deferred` 状态 + `fire_at` + 清扫器，复用 escalated_from_run_id；multica 的「N 分钟无响应则升级」） | 高 | 中 | — | ⬜ |
+| G2-1 | **Deferred-escalation 惰性升级**（`deferred` 状态 + `fire_at` + 清扫器，复用 escalated_from_run_id；multica 的「N 分钟无响应则升级」） | 高 | 中 | — | ✅ |
 | G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ⬜ |
 | G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ⬜ |
 | G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ⬜ |
@@ -119,7 +119,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 |---|---|---|---|
 | 1 | G3-1 错误态三件套 | G3 | ✅ 已关（2026-08-02，[closeout](app/.progress/g3-1-error-states-closeout-2026-08-02.md)） |
 | 2 | G1-1 Pi 真 backend | G1 | ✅ 已关（2026-08-02，[closeout](app/.progress/g1-1-pi-real-closeout-2026-08-02.md)） |
-| 3 | G2-1 Deferred-escalation | G2 | 半截基建差半截（复用 escalated_from_run_id）；编排闭环最后拼图 |
+| 3 | G2-1 Deferred-escalation | G2 | ✅ 已关（2026-08-02，[closeout](app/.progress/g2-1-deferred-escalation-closeout-2026-08-02.md)） |
 | 4 | G1-2 Grok ACP/fail-closed | G1 | 产品误导项，诚实性优先 |
 | 5 | G4-1 记忆检索 FTS5 | G4 | 决定记忆层长期可用性的根本问题 |
 | 6+ | G1-3 → G3-2 → G4-2 → G5-1 → G3-3 … | 其余 | 按 §3 各 Goal 价值排序逐刀取用 |

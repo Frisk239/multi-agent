@@ -711,16 +711,17 @@ export function SettingsPage() {
             </div>
           </div>
 
-          {/* Slice 70：Deferred 可选升级（默认关；仅 inbox + 建议改派草稿，不静默 reassign） */}
+          {/* Slice 70 + G2-1：Deferred 升级（默认关；queued 超龄 → deferred → 宽限后自动升级） */}
           <div
             style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-subtle, #e5e7eb)' }}
             data-testid="settings-deferred-escalate"
           >
             <div style={{ fontWeight: 500, marginBottom: 6, fontSize: 13 }}>Deferred 升级（可选）</div>
             <p className="text-dim text-sm" style={{ margin: '0 0 8px 0' }}>
-              默认关闭。开启后：queued 超时未 claim → 写 Inbox 事件 +「建议改派」草稿 note（不自动改 assignee）。
-              建议阈值 30min；也可用 env{' '}
-              <code>MA_DEFERRED_UNCLAIMED_MS</code> / <code>MA_DEFERRED_AUTO_ESCALATE=1</code>。
+              默认关闭。开启后：queued 超时未 claim → 转 <code>deferred</code>（宽限约 5min，UI
+              显示升级时刻）→ 到点自动升级：配了后备 agent 则自动改派（run 详情显示改派血缘），未配则失败并提示。
+              建议阈值 30min；也可用 env <code>MA_DEFERRED_UNCLAIMED_MS</code> /{' '}
+              <code>MA_DEFERRED_AUTO_ESCALATE=1</code> / <code>MA_DEFERRED_FIRE_MS</code>。
             </p>
             <label className="text-sm" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input

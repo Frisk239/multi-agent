@@ -314,6 +314,8 @@ export function toAgentRun(row: RunRow): AgentRun {
     // P2-4：显式 fallback 改派血缘（null=非改派 run）
     escalatedFromRunId:
       (row as { escalatedFromRunId?: string | null }).escalatedFromRunId ?? null,
+    // G2-1：deferred 升级时刻（epoch ms；旧行/他途 null）
+    fireAt: (row as { fireAt?: number | null }).fireAt ?? null,
     // G22 residual：run 快照（trim 空串 → null）
     model: (() => {
       const m = (row as { model?: string | null }).model?.trim();

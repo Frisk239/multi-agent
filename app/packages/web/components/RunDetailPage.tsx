@@ -286,7 +286,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const statusZh =
     run?.status === 'waiting_local_directory'
       ? '等待本地目录锁'
-      : run?.status === 'completed'
+      : run?.status === 'deferred'
+        ? '延迟升级等待中'
+        : run?.status === 'completed'
         ? '已完成'
         : run?.status === 'failed'
           ? '失败'
@@ -565,6 +567,15 @@ export function RunDetailPage({ runId }: { runId: string }) {
           >
             {statusZh}
           </span>
+          {run.status === 'deferred' && run.fireAt ? (
+            <span
+              className="run-detail-fire-at text-dim"
+              data-testid="run-detail-fire-at"
+              title="deferred 升级最早执行时刻（fire_at）"
+            >
+              升级于 {new Date(run.fireAt).toLocaleTimeString()}
+            </span>
+          ) : null}
           {isLive ? (
             <span className="run-trace-live-badge" data-testid="run-detail-live">
               live
@@ -789,7 +800,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
                 <Link href={`/runs/${run.escalatedFromRunId}`}>
                   {shortId(run.escalatedFromRunId)}
                 </Link>{' '}
-                自动改派而来（原 agent 运行时连接不上，任务转给了后备 agent）。
+                自动升级而来（原 run 无人认领超时或运行时连接不上，任务转给了后备 agent）。
               </p>
             ) : null}
             {run.cwdMode === 'chat_scratch' ? (

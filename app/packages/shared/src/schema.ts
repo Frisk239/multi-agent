@@ -42,6 +42,8 @@ export const AgentRunStatus = z.enum([
   'queued',
   'waiting_local_directory',
   'running',
+  // G2-1：queued 超龄未 claim → deferred（等待 fire_at 后升级）
+  'deferred',
   'completed',
   'failed',
   'cancelled',
@@ -67,6 +69,8 @@ export const AgentRunFailureReason = z.enum([
   'session_poisoned',
   'cancelled',
   'user_aborted',
+  // G2-1：queued 超龄无人认领 → deferred 宽限后自动升级（fireDeferredRuns）
+  'deferred_escalated',
 ]);
 export type AgentRunFailureReason = z.infer<typeof AgentRunFailureReason>;
 
@@ -186,6 +190,8 @@ export const AgentRun = z.object({
    * 连接不上 + auto-retry 预算用尽自动改派而来（深度 1，不再链式）。
    */
   escalatedFromRunId: BusinessId.nullable().optional(),
+  /** G2-1：deferred 状态的最早升级时刻（epoch ms；API 侧兼容旧行缺省） */
+  fireAt: z.number().nullable().optional(),
   createdAt: z.string().datetime(),
 });
 export type AgentRun = z.infer<typeof AgentRun>;

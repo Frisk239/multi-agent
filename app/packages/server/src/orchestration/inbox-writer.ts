@@ -383,7 +383,7 @@ export function notifyDeferredUnclaimed(
     reassignDraft?: { note: string; agentId?: string | null; applied: false };
   },
 ): ReturnType<typeof toInboxItem> | null {
-  if (run.status !== 'queued') return null;
+  if (run.status !== 'queued' && run.status !== 'deferred') return null;
 
   let issueIdentifier: string | null = null;
   if (run.issueId) {

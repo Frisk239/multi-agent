@@ -11,7 +11,7 @@ import type { RuntimeId } from '@ma/shared';
 
 // 全 runtime 均已过能力门：resolvePriorSession 会查 DB。
 // 空链 mock：无 prior session 行 → fresh（不落真库文件）。
-vi.mock('./db/client.js', () => {
+vi.mock('../db/client.js', () => {
   const chain = {
     select: () => chain,
     from: () => chain,

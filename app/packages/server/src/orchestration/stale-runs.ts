@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, lt } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lte, or, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun } from '../db/reshape.js';
@@ -9,8 +9,10 @@ import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
+import { transitionRun } from './run-transitions.js';
 import {
   hasActiveAutoRetryChild,
+  insertEscalatedChild,
   transitionAndScheduleAutoRetry,
 } from './auto-retry.js';
 
@@ -141,6 +143,17 @@ export function getDeferredUnclaimedMs(): number {
   if (explicit > 0) return explicit;
   if (isDeferredAutoEscalateOptIn()) return SUGGESTED_DEFERRED_UNCLAIMED_MS;
   return 0;
+}
+
+/**
+ * G2-1：deferred 状态的升级宽限窗（epoch ms，转 deferred 后 fire_at = now + 此值）。
+ * 默认 5min（可观测窗口：用户可在 UI 取消/改派）；0 = 立即升级；MA_DEFERRED_FIRE_MS 覆盖。
+ */
+export const DEFAULT_DEFERRED_FIRE_MS = 5 * 60_000;
+
+export function getDeferredFireDelayMs(): number {
+  const explicit = envMs('MA_DEFERRED_FIRE_MS', -1);
+  return explicit >= 0 ? explicit : DEFAULT_DEFERRED_FIRE_MS;
 }
 
 export function formatDurationMs(ms: number): string {
@@ -494,6 +507,8 @@ export function startStaleRunSweeper(): void {
       failQueuedMissingAgentRuns();
       // deferred 在 hard-fail 之前：仍为 queued 时可观测升级
       escalateDeferredUnclaimedRuns();
+      // G2-1：deferred 到点（fire_at 宽限结束）→ 自动升级（fail 原 run + 配 fallback 则改派）
+      fireDeferredRuns();
       failStaleQueuedRuns();
       failStaleWaitingLocalDirectoryRuns();
       escalateFailedSquadRuns();
@@ -638,13 +653,29 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     }
 
     const run = toAgentRun(row);
+    // G2-1：真升级路径——queued 超龄 → 转 deferred + fire_at 宽限窗（multica fire_at 门；
+    // 宽限内用户可从 UI 取消/改派干预；到点由 fireDeferredRuns 执行升级动作）。
+    // 条件 UPDATE（fromStatuses:['queued']）幂等：被别处处理过则跳过。
+    const fireDelayMs = getDeferredFireDelayMs();
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['queued'],
+      patch: {
+        status: 'deferred',
+        fireAt: now + fireDelayMs,
+      },
+    });
+    if (!tr.applied || !tr.row) continue;
+    const deferredRun = tr.row;
+    const deferredObs = toAgentRun(deferredRun);
+
     // Slice 70：草稿 reassign — 只写 note，不真改派
     const reassignDraft = {
-      note: '建议改派',
+      note: fireDelayMs > 0 ? '宽限后将自动升级（配后备 agent 则自动改派）' : '建议改派',
       agentId: row.agentId ?? null,
       applied: false as const,
     };
-    const inboxItem = notifyDeferredUnclaimed(run, { thresholdMs, reassignDraft });
+    const inboxItem = notifyDeferredUnclaimed(deferredObs, { thresholdMs, reassignDraft });
 
     if (row.issueId) {
       db.insert(activityLogs)
@@ -660,6 +691,8 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
             thresholdMs,
             ageMs: now - row.createdAt,
             reason: 'queued_unclaimed',
+            deferred: true,
+            fireAt: deferredRun.fireAt,
             reassignDraft,
           }),
           createdAt: now,
@@ -671,6 +704,50 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     if (inboxItem || row.issueId) {
       n++;
     }
+  }
+  return n;
+}
+
+/**
+ * G2-1：deferred 到点（fire_at <= now）→ 自动升级。
+ *
+ * - 原 run 终态 failed（failureReason=`deferred_escalated`，error 注明原因）
+ * - agent 配了 fallback（且存在/未归档）→ 建改派子 run（`escalated_from_run_id`=原 run；
+ *   复用 insertEscalatedChild 的深度 1 + 部分唯一索引幂等守卫）
+ * - 未配 fallback → **不自动改派**（宪法 §5 边界：默认路径 = 惰性升级，非无条件改派），
+ *   仅 fail + run:failed 事件 + 终端通知
+ *
+ * 条件 UPDATE（fromStatuses:['deferred']）保证幂等：同一 run 天然只升一次。
+ */
+export function fireDeferredRuns(now = Date.now()): number {
+  const candidates = db
+    .select()
+    .from(agentRuns)
+    .where(
+      and(
+        eq(agentRuns.status, 'deferred'),
+        or(isNull(agentRuns.fireAt), lte(agentRuns.fireAt, now)),
+      ),
+    )
+    .all();
+  let n = 0;
+  for (const row of candidates) {
+    const tr = transitionRun({
+      id: row.id,
+      fromStatuses: ['deferred'],
+      patch: {
+        status: 'failed',
+        finishedAt: now,
+        failureReason: 'deferred_escalated',
+        error: 'deferred: 排队无人认领超时，已自动升级',
+      },
+    });
+    if (!tr.applied || !tr.row) continue;
+    const failedRow = tr.row;
+    const outcome = insertEscalatedChild(db, failedRow, now, { allowDeferred: true });
+    const childRun = outcome?.row ? toAgentRun(outcome.row) : null;
+    publishFailedRun(failedRow, now, childRun);
+    n++;
   }
   return n;
 }

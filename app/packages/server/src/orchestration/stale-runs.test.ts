@@ -424,7 +424,7 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
     expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 
-  it('escalates only aged queued runs (inject now); writes activity + deferred inbox + reassign draft', () => {
+  it('escalates only aged queued runs (inject now); 转 deferred + fire_at + activity + inbox', () => {
     const threshold = 30 * 60_000;
     vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
     const now = 10_000_000;
@@ -448,26 +448,38 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
     };
 
     // 1st all(): agentRuns candidates; 2nd all(): activityLogs for oldQueued (empty)
+    // then transitionRun: update().set(deferred+fireAt).run() → changes:1, select().get() → deferred row
     mocks.selectAll
       .mockReturnValueOnce([oldQueued, freshQueued])
       .mockReturnValueOnce([]);
+    mocks.selectGet.mockReturnValue({
+      ...oldQueued,
+      status: 'deferred',
+      fireAt: now + 5 * 60_000,
+    });
 
     const n = escalateDeferredUnclaimedRuns(now);
     expect(n).toBe(1);
+    // G2-1：queued → deferred + fire_at 宽限窗（不再停留在 queued）
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'deferred',
+        fireAt: now + 5 * 60_000,
+      }),
+    );
     expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledTimes(1);
     expect(mocks.notifyDeferredUnclaimed).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'run-queued-old', status: 'queued' }),
+      expect.objectContaining({ id: 'run-queued-old', status: 'deferred' }),
       {
         thresholdMs: threshold,
         reassignDraft: {
-          note: '建议改派',
+          note: expect.stringContaining('宽限后将自动升级'),
           agentId: 'agt-1',
           applied: false,
         },
       },
     );
     expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
-    expect(mocks.updateSet).not.toHaveBeenCalled();
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
         issueId: 'iss-1',
@@ -477,8 +489,9 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
       }),
     );
     const payload = mocks.insertValues.mock.calls[0]?.[0]?.payload as string;
-    expect(payload).toContain('建议改派');
+    expect(payload).toContain('宽限后将自动升级');
     expect(payload).toContain('"applied":false');
+    expect(payload).toContain('"deferred":true');
   });
 
   it('Slice 70: prefs autoEscalate opt-in path writes inbox without env MS', () => {
@@ -495,6 +508,11 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
       kind: 'issue',
     };
     mocks.selectAll.mockReturnValueOnce([oldQueued]).mockReturnValueOnce([]);
+    mocks.selectGet.mockReturnValue({
+      ...oldQueued,
+      status: 'deferred',
+      fireAt: now + 5 * 60_000,
+    });
 
     const n = escalateDeferredUnclaimedRuns(now);
     expect(n).toBe(1);
@@ -502,11 +520,16 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
       expect.objectContaining({ id: 'run-prefs-optin' }),
       expect.objectContaining({
         thresholdMs: threshold,
-        reassignDraft: expect.objectContaining({ applied: false, note: '建议改派' }),
+        reassignDraft: expect.objectContaining({ applied: false }),
       }),
     );
-    // 不真改派
-    expect(mocks.updateSet).not.toHaveBeenCalled();
+    // G2-1：转 deferred + fire_at；不真改派（set 不含 agentId/assignee 变更）
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'deferred' }),
+    );
+    expect(mocks.updateSet).not.toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: expect.anything() }),
+    );
   });
 
   it('skips runs that already have run_deferred activity (dedupe)', () => {
@@ -558,7 +581,7 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
     expect(mocks.notifyDeferredUnclaimed).not.toHaveBeenCalled();
   });
 
-  it('does not use Squad Escalated path or mutate run status', () => {
+  it('does not use Squad Escalated path; 转 deferred 而非直接 fail', () => {
     const threshold = 1_000;
     vi.stubEnv('MA_DEFERRED_UNCLAIMED_MS', String(threshold));
     const now = 100_000;
@@ -575,12 +598,27 @@ describe('escalateDeferredUnclaimedRuns (Slice 42 D5 + Slice 70)', () => {
         },
       ])
       .mockReturnValueOnce([]);
+    mocks.selectGet.mockReturnValue({
+      id: 'run-d',
+      status: 'deferred',
+      fireAt: now + 5 * 60_000,
+      issueId: 'iss-d',
+      agentId: 'agt-d',
+      kind: 'issue',
+    });
 
     escalateDeferredUnclaimedRuns(now);
     expect(mocks.notifySquadEscalated).not.toHaveBeenCalled();
-    expect(mocks.updateSet).not.toHaveBeenCalled();
+    // 转 deferred（含 fire_at），不是硬 fail
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'deferred' }),
+    );
+    expect(mocks.updateSet).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' }),
+    );
     const payload = mocks.insertValues.mock.calls[0]?.[0]?.payload as string;
     expect(payload).not.toContain('Squad Escalated');
     expect(payload).toContain('queued_unclaimed');
+    expect(payload).toContain('"deferred":true');
   });
 });
