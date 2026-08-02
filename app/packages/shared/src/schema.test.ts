@@ -108,6 +108,8 @@ describe('Shared Schema Validators', () => {
         'queued',
         'waiting_local_directory',
         'running',
+        // G2-1：queued 超龄未 claim → deferred（等待 fire_at 后升级）
+        'deferred',
         'completed',
         'failed',
         'cancelled',
@@ -138,6 +140,8 @@ describe('Shared Schema Validators', () => {
         'session_poisoned',
         'cancelled',
         'user_aborted',
+        // G2-1：deferred 宽限后自动升级
+        'deferred_escalated',
       ];
       for (const r of reasons) {
         expect(AgentRunFailureReason.parse(r)).toBe(r);
