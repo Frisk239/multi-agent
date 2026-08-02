@@ -73,6 +73,7 @@ import type {
   PaginatedResponse,
   TokenUsageAnalyticsResponse,
   TokenUsageGroupItem,
+  OpsAnalyticsResponse,
   AgentTemplate,
 } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
@@ -2039,6 +2040,19 @@ export function useWorkspaceUsage(days = 30) {
       return res.json();
     },
     staleTime: 15_000,
+  });
+}
+
+/** G5-6：GET /api/analytics/ops?days=N —— 运营统计（cycle time / 利用率 / 失败率·改派趋势） */
+export function useOpsAnalytics(days = 30) {
+  return useQuery<OpsAnalyticsResponse>({
+    queryKey: ['ops-analytics', days],
+    queryFn: async () => {
+      const res = await apiFetch(`${API}/analytics/ops?days=${encodeURIComponent(String(days))}`);
+      if (!res.ok) throw new Error(await apiError(res, '加载运营统计失败'));
+      return res.json();
+    },
+    staleTime: 30_000,
   });
 }
 

@@ -1,8 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { gte } from 'drizzle-orm';
-import type { TokenUsageAnalyticsResponse, TokenUsageGroupItem } from '@ma/shared';
+import { eq } from 'drizzle-orm';
+import type {
+  TokenUsageAnalyticsResponse,
+  TokenUsageGroupItem,
+  OpsAnalyticsResponse,
+} from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, agents, issues, projects } from '../db/schema.js';
+import { agentRuns, agents, issues, projects, activityLogs } from '../db/schema.js';
 import {
   estimateCost,
   hasAnyRates,
@@ -293,5 +298,144 @@ export async function analyticsRoutes(app: FastifyInstance): Promise<void> {
     };
 
     return response;
+  });
+}
+
+// —— G5-6：运营统计加深 —— cycle time / agent 利用率 / 失败率·改派趋势（按日） ——
+// 数据源：issues.createdAt + activity_log status_changed→done（cycle time）；
+// agent_runs.startedAt/finishedAt（利用率）；agent_runs.finishedAt 日分组（失败率）；
+// activity_log assignee_changed 日计数（改派）。
+export function buildOpsAnalytics(windowDays: number): OpsAnalyticsResponse {
+  const until = Date.now();
+  // 窗口语义：最近 windowDays 个自然日（含今天），从今天零点回推，避免 30 天毫秒窗口
+  // 跨出 31 个日历日键的 off-by-one
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const since = todayMidnight.getTime() - (windowDays - 1) * 24 * 60 * 60 * 1000;
+
+  // 1) cycle time：done issue 的创建 → done 耗时（status_changed to=done 最近一次为 done 时刻）
+  const statusLogs = db
+    .select({ issueId: activityLogs.issueId, createdAt: activityLogs.createdAt, payload: activityLogs.payload })
+    .from(activityLogs)
+    .where(eq(activityLogs.eventType, 'status_changed'))
+    .all();
+  const doneAtByIssue = new Map<string, number>();
+  for (const l of statusLogs) {
+    try {
+      const p = JSON.parse(l.payload ?? '{}') as { to?: string };
+      if (p?.to === 'done') {
+        const cur = doneAtByIssue.get(l.issueId);
+        if (cur === undefined || l.createdAt > cur) doneAtByIssue.set(l.issueId, l.createdAt);
+      }
+    } catch {
+      /* 坏 payload 跳过 */
+    }
+  }
+  const doneIssues = db
+    .select({ id: issues.id, createdAt: issues.createdAt })
+    .from(issues)
+    .where(eq(issues.status, 'done'))
+    .all();
+  const cycles: number[] = [];
+  for (const iss of doneIssues) {
+    const doneAt = doneAtByIssue.get(iss.id);
+    if (doneAt != null && doneAt >= iss.createdAt) cycles.push(doneAt - iss.createdAt);
+  }
+  cycles.sort((a, b) => a - b);
+  const n = cycles.length;
+  const cycleTime: OpsAnalyticsResponse['cycleTime'] = {
+    samples: n,
+    medianMs: n ? cycles[Math.floor(n / 2)] : null,
+    meanMs: n ? Math.round(cycles.reduce((a, b) => a + b, 0) / n) : null,
+    p90Ms: n ? cycles[Math.min(n - 1, Math.floor(n * 0.9))] : null,
+  };
+
+  // 2) agent 利用率：窗口内 run 活跃时长（startedAt→finishedAt 截断）按 agent 聚合
+  const allRuns = db
+    .select({
+      agentId: agentRuns.agentId,
+      startedAt: agentRuns.startedAt,
+      finishedAt: agentRuns.finishedAt,
+      status: agentRuns.status,
+    })
+    .from(agentRuns)
+    .all();
+  const activeByAgent = new Map<string, number>();
+  for (const r of allRuns) {
+    if (r.startedAt == null) continue;
+    const s = Math.max(r.startedAt, since);
+    const e = r.finishedAt == null ? until : Math.min(r.finishedAt, until);
+    if (e > s) activeByAgent.set(r.agentId, (activeByAgent.get(r.agentId) ?? 0) + (e - s));
+  }
+  const agentNameMap = new Map(
+    db.select({ id: agents.id, name: agents.name }).from(agents).all().map((a) => [a.id, a.name] as const),
+  );
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const agentsUtil = [...activeByAgent.entries()]
+    .map(([agentId, activeMs]) => ({
+      agentId,
+      name: agentNameMap.get(agentId) ?? agentId,
+      activeMs,
+      utilization: activeMs / windowMs,
+    }))
+    .sort((a, b) => b.activeMs - a.activeMs);
+
+  // 3) 失败率 / 改派趋势（按日，空日 0 填充）
+  const runFailStatuses = new Set(['failed', 'timed_out']);
+  const dayAcc = new Map<string, { runs: number; failed: number; reassignments: number }>();
+  const dayKeys: string[] = [];
+  for (let i = 0; i < windowDays; i++) dayKeys.push(localDayKey(since + i * 24 * 60 * 60 * 1000));
+  const ensure = (k: string) => {
+    let acc = dayAcc.get(k);
+    if (!acc) {
+      acc = { runs: 0, failed: 0, reassignments: 0 };
+      dayAcc.set(k, acc);
+    }
+    return acc;
+  };
+  for (const r of allRuns) {
+    if (r.finishedAt == null || r.finishedAt < since || r.finishedAt > until) continue;
+    const acc = ensure(localDayKey(r.finishedAt));
+    acc.runs += 1;
+    acc.failed += runFailStatuses.has(r.status) ? 1 : 0;
+  }
+  const reassignLogs = db
+    .select({ createdAt: activityLogs.createdAt })
+    .from(activityLogs)
+    .where(eq(activityLogs.eventType, 'assignee_changed'))
+    .all();
+  for (const l of reassignLogs) {
+    if (l.createdAt < since || l.createdAt > until) continue;
+    ensure(localDayKey(l.createdAt)).reassignments += 1;
+  }
+  const trend = dayKeys.map((k) => {
+    const acc = dayAcc.get(k) ?? { runs: 0, failed: 0, reassignments: 0 };
+    return {
+      day: k,
+      runs: acc.runs,
+      failedRuns: acc.failed,
+      failRate: acc.runs ? acc.failed / acc.runs : null,
+      reassignments: acc.reassignments,
+    };
+  });
+
+  return {
+    windowDays,
+    cycleTime,
+    utilization: { windowMs, agents: agentsUtil },
+    trend,
+  };
+}
+
+export async function opsAnalyticsRoute(app: FastifyInstance): Promise<void> {
+  // GET /api/analytics/ops?days=30 —— 运营统计（cycle time / 利用率 / 失败率·改派趋势）
+  app.get('/api/analytics/ops', async (req) => {
+    const q = req.query as { days?: string };
+    let windowDays = 30;
+    if (q.days != null && q.days !== '') {
+      const num = Number(q.days);
+      if (Number.isFinite(num) && num > 0) windowDays = Math.min(Math.floor(num), 90);
+    }
+    return buildOpsAnalytics(windowDays);
   });
 }

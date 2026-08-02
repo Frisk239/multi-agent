@@ -3,7 +3,7 @@
 import { Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useWorkspaceUsage } from '@/lib/api';
+import { useWorkspaceUsage, useOpsAnalytics } from '@/lib/api';
 import { ErrorState } from './ErrorState';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -42,6 +42,8 @@ function UsagePageInner() {
   const searchParams = useSearchParams();
   const days = parseDays(searchParams.get('days'));
   const { data, isLoading, isError, error, refetch, isFetching } = useWorkspaceUsage(days);
+  // G5-6：运营统计（cycle time / 利用率 / 失败率·改派趋势）
+  const ops = useOpsAnalytics(days);
 
   const maxDayTotal = useMemo(() => {
     if (!data?.byDay?.length) return 1;
@@ -171,6 +173,68 @@ function UsagePageInner() {
         <div className="mt-8 pt-6 border-t border-gray-800">
           <TokenCostDashboard defaultDays={days} />
         </div>
+
+        {/* G5-6：运营统计（cycle time / agent 利用率 / 失败率·改派趋势） */}
+        <section className="usage-section" data-testid="usage-ops">
+          <div className="agent-overview-section-head">
+            <h2 className="agent-overview-title">运营统计</h2>
+            <span className="text-dim text-sm">最近 {days} 天 · 创建→done 中位数 · 活跃占比 · 按日失败/改派</span>
+          </div>
+          {ops.isError ? (
+            <p className="text-dim text-sm">运营统计暂不可用（{ops.error instanceof Error ? ops.error.message : 'API 未响应'}）</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 12 }}>
+              <div className="agent-stat-card" data-testid="usage-ops-cycle">
+                <div className="agent-stat-label">Cycle Time（创建 → done）</div>
+                <div className="agent-stat-value agent-stat-value--sm">
+                  中位 {formatDurationMs(ops.data?.cycleTime.medianMs ?? null)}
+                </div>
+                <div className="agent-stat-hint text-dim text-sm">
+                  均值 {formatDurationMs(ops.data?.cycleTime.meanMs ?? null)} · P90{' '}
+                  {formatDurationMs(ops.data?.cycleTime.p90Ms ?? null)} · 样本 {ops.data?.cycleTime.samples ?? 0}
+                </div>
+              </div>
+              <div className="agent-stat-card" data-testid="usage-ops-util">
+                <div className="agent-stat-label">Agent 利用率（活跃/窗口）</div>
+                {ops.data?.utilization.agents.length ? (
+                  <>
+                    <div className="agent-stat-value agent-stat-value--sm">
+                      {ops.data.utilization.agents[0].name}{' '}
+                      {rateLabel(ops.data.utilization.agents[0].utilization)}
+                    </div>
+                    <div className="agent-stat-hint text-dim text-sm">
+                      {ops.data.utilization.agents
+                        .slice(1, 4)
+                        .map((a) => `${a.name} ${rateLabel(a.utilization)}`)
+                        .join(' · ') || '其余 agent 无活跃'}
+                    </div>
+                  </>
+                ) : (
+                  <div className="agent-stat-value agent-stat-value--sm">—</div>
+                )}
+              </div>
+              <div className="agent-stat-card" data-testid="usage-ops-trend">
+                <div className="agent-stat-label">失败率 · 改派（近 7 天）</div>
+                <div className="agent-stat-value agent-stat-value--sm">
+                  {(() => {
+                    const recent = ops.data?.trend.slice(-7) ?? [];
+                    const runs = recent.reduce((a, d) => a + d.runs, 0);
+                    const failed = recent.reduce((a, d) => a + d.failedRuns, 0);
+                    const reas = recent.reduce((a, d) => a + d.reassignments, 0);
+                    return runs ? `失败率 ${rateLabel(failed / runs)}` : '窗口内无 run';
+                  })()}
+                </div>
+                <div className="agent-stat-hint text-dim text-sm">
+                  {(() => {
+                    const recent = ops.data?.trend.slice(-7) ?? [];
+                    const reas = recent.reduce((a, d) => a + d.reassignments, 0);
+                    return `改派 ${reas} 次` + (recent.length ? ` · 近 7 天 ${recent.length} 天数据` : '');
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="usage-section" data-testid="usage-by-day">
           <div className="agent-overview-section-head">

@@ -2572,3 +2572,47 @@ export const TokenUsageAnalyticsResponse = z.object({
 });
 export type TokenUsageAnalyticsResponse = z.infer<typeof TokenUsageAnalyticsResponse>;
 
+// —— G5-6：运营统计（cycle time / agent 利用率 / 失败率·改派趋势）——
+export const OpsCycleTimeStats = z.object({
+  /** 参与统计的 done issue 数（有 status_changed→done 记录） */
+  samples: z.number().int().nonnegative(),
+  /** issue 创建 → done 的中位耗时 ms（无样本为 null） */
+  medianMs: z.number().nonnegative().nullable(),
+  meanMs: z.number().nonnegative().nullable(),
+  p90Ms: z.number().nonnegative().nullable(),
+});
+export type OpsCycleTimeStats = z.infer<typeof OpsCycleTimeStats>;
+
+export const AgentUtilizationItem = z.object({
+  agentId: z.string(),
+  name: z.string(),
+  /** 窗口内该 agent 所有 run 的活跃时长（startedAt→finishedAt 截断到窗口）ms */
+  activeMs: z.number().nonnegative(),
+  /** 活跃时长 / 窗口时长（0..1；无活跃为 null） */
+  utilization: z.number().min(0).max(1).nullable(),
+});
+export type AgentUtilizationItem = z.infer<typeof AgentUtilizationItem>;
+
+export const OpsDailyTrendItem = z.object({
+  day: z.string(), // YYYY-MM-DD（本地时区）
+  runs: z.number().int().nonnegative(),
+  failedRuns: z.number().int().nonnegative(),
+  /** 失败率（failed+timed_out）/ runs；无 run 为 null */
+  failRate: z.number().min(0).max(1).nullable(),
+  /** 改派事件数（assignee_changed 活动日志） */
+  reassignments: z.number().int().nonnegative(),
+});
+export type OpsDailyTrendItem = z.infer<typeof OpsDailyTrendItem>;
+
+export const OpsAnalyticsResponse = z.object({
+  windowDays: z.number().int().positive(),
+  cycleTime: OpsCycleTimeStats,
+  utilization: z.object({
+    windowMs: z.number().nonnegative(),
+    agents: z.array(AgentUtilizationItem),
+  }),
+  /** 按日趋势（窗口内每天一条，空日 0 填充） */
+  trend: z.array(OpsDailyTrendItem),
+});
+export type OpsAnalyticsResponse = z.infer<typeof OpsAnalyticsResponse>;
+

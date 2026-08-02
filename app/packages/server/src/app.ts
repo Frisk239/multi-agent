@@ -20,7 +20,7 @@ import { chatRoutes } from './routes/chat.js';
 import { usageRoutes } from './routes/usage.js';
 import { projectRoutes } from './routes/projects.js';
 import { profileRoutes } from './routes/profile.js';
-import { analyticsRoutes } from './routes/analytics.js';
+import { analyticsRoutes, opsAnalyticsRoute } from './routes/analytics.js';
 import { healthzRoutes } from './routes/healthz.js';
 import { opsRoutes } from './routes/ops.js';
 import { attachmentRoutes } from './routes/attachments.js';
@@ -90,6 +90,7 @@ export async function buildApp() {
   await app.register(chatRoutes);
   await app.register(usageRoutes);
   await app.register(analyticsRoutes);
+  await app.register(opsAnalyticsRoute);
   await app.register(projectRoutes);
   await app.register(profileRoutes);
   await app.register(wsRoutes);
