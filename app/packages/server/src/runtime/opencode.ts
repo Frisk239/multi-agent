@@ -206,7 +206,10 @@ export function parseOpencodeLine(
  * Multica `pkg/agent/opencode.go`: `--session <id>` when ResumeSessionID set.
  */
 export function buildOpencodeArgs(
-  input: Pick<ExecutionInput, 'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId'>,
+  input: Pick<
+    ExecutionInput,
+    'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId' | 'customArgs'
+  >,
 ): string[] {
   // Multica：`opencode run --format json` —— 结构化捕获依赖 json 流
   const args = ['run', '--format', 'json'];
@@ -219,7 +222,10 @@ export function buildOpencodeArgs(
   const resume = input.resumeSessionId?.trim();
   if (resume) args.push('--session', resume);
 
-  args.push(input.prompt);
+  // G3-4b：custom_args 插在 prompt 位置参数之前（opencode run 的 prompt 是末尾
+  // 位置参数，追加在尾部会被当成额外消息/报错 —— 形态核对结论）
+  const customArgs = input.customArgs?.length ? input.customArgs : [];
+  args.push(...customArgs, input.prompt);
   return args;
 }
 
@@ -247,6 +253,10 @@ export class OpencodeBackend implements RuntimeBackend {
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'opencode CLI 未安装' };
 
     const args = buildOpencodeArgs(input);
+    const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+    if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
+    // G3-4b：agent.env_vars 显式覆盖子进程 env
+    if (input.envVars) opts.env = input.envVars;
     return spawnLineProcess(
       det.path,
       args,
@@ -255,7 +265,7 @@ export class OpencodeBackend implements RuntimeBackend {
       onEvent,
       parseOpencodeLine,
       undefined,
-      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
+      opts,
     );
   }
 }

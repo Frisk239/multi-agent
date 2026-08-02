@@ -20,6 +20,7 @@ import {
 } from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
+import { parseAgentEnvVars, parseAgentCustomArgs } from '../runtime/agent-inject.js';
 import { StreamScrubber, scrubFences } from '../runtime/stream-scrubber.js';
 import { resolveRunPrompt } from '../runtime/prompt.js';
 import {
@@ -340,12 +341,15 @@ export async function tick(): Promise<void> {
   // G22：agent.model → backend --model
   // DS4：agent.thinkingLevel → backend --effort/--variant（能传则传）
   // G22 residual：把本 run 使用的 model/thinking 快照到 agent_run（agent 后改不影响历史）
+  // G3-4b：agent.env_vars / custom_args → ExecutionInput（spawn env 合并 + CLI argv 注入）
   const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
   const mcpServers = agentRow?.mcpServers ?? null;
   const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
   const thinkingLevel = agentRow?.thinkingLevel?.trim()
     ? agentRow.thinkingLevel.trim()
     : null;
+  const envVars = parseAgentEnvVars(agentRow?.envVars ?? null);
+  const customArgs = parseAgentCustomArgs(agentRow?.customArgs ?? null);
   try {
     db.update(agentRuns)
       .set({ model, thinkingLevel })
@@ -539,6 +543,19 @@ export async function tick(): Promise<void> {
       type: 'log',
       text: `[thinking] ${thinkingLevel ?? 'default'}\n`,
     });
+    // G3-4b：注入前诚实 log（与 agent 行配置一致）
+    if (envVars) {
+      onEvent({
+        type: 'log',
+        text: `[env] 注入 ${Object.keys(envVars).length} 个环境变量\n`,
+      });
+    }
+    if (customArgs?.length) {
+      onEvent({
+        type: 'log',
+        text: `[args] 注入自定义 CLI 参数: ${customArgs.join(' ')}\n`,
+      });
+    }
 
     const backend = getBackend(runRow.runtime);
     const result = await backend.execute(
@@ -553,6 +570,8 @@ export async function tick(): Promise<void> {
         thinkingLevel, // DS4：空则 CLI 默认
         timeoutMs: wallTimeoutMs,
         resumeSessionId: priorSession.resumeSessionId, // DS1
+        envVars, // G3-4b：子进程 env 显式覆盖
+        customArgs, // G3-4b：CLI argv 注入
       },
       onEvent,
       signal,

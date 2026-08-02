@@ -191,7 +191,10 @@ export function parseCursorLine(
  * Prompt stays on `-p` (existing local shape; Multica may use stdin — not required for resume).
  */
 export function buildCursorArgs(
-  input: Pick<ExecutionInput, 'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId'>,
+  input: Pick<
+    ExecutionInput,
+    'prompt' | 'model' | 'thinkingLevel' | 'resumeSessionId' | 'customArgs'
+  >,
 ): string[] {
   const args = ['-p', input.prompt, '--output-format', 'stream-json', '--yolo', '--trust'];
   const model = input.model?.trim();
@@ -202,6 +205,10 @@ export function buildCursorArgs(
 
   const resume = input.resumeSessionId?.trim();
   if (resume) args.push('--resume', resume);
+
+  // G3-4b：custom_args 追加 argv 尾（cursor-agent 与 claude 同形态：flag 均可后置）
+  const customArgs = input.customArgs?.length ? input.customArgs : [];
+  args.push(...customArgs);
 
   return args;
 }
@@ -229,6 +236,10 @@ export class CursorBackend implements RuntimeBackend {
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
 
     const args = buildCursorArgs(input);
+    const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+    if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
+    // G3-4b：agent.env_vars 显式覆盖子进程 env
+    if (input.envVars) opts.env = input.envVars;
     return spawnLineProcess(
       det.path,
       args,
@@ -237,7 +248,7 @@ export class CursorBackend implements RuntimeBackend {
       onEvent,
       parseCursorLine,
       undefined,
-      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
+      opts,
     );
   }
 }

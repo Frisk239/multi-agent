@@ -181,6 +181,9 @@ export class PiBackend implements RuntimeBackend {
       // DS1：真 session resume —— spawn 直接带 --session-id
       const resume = input.resumeSessionId?.trim();
       if (resume) args.push('--session-id', resume);
+      // G3-4b：custom_args 追加 argv 尾（pi RPC 全 flag 形态，追加安全）
+      const customArgs = input.customArgs?.length ? input.customArgs : [];
+      args.push(...customArgs);
 
       let child: ChildProcess;
       try {
@@ -188,7 +191,8 @@ export class PiBackend implements RuntimeBackend {
           cwd: input.cwd, // pi 的 workspace
           shell: isCmdShim,
           windowsHide: true,
-          env: process.env,
+          // G3-4b：agent.env_vars 显式覆盖 process.env
+          env: { ...process.env, ...(input.envVars ?? {}) },
         });
       } catch (err) {
         resolve({ finalText: '', exitReason: 'failed', error: `pi spawn 失败: ${String(err)}` });

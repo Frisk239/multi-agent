@@ -35,6 +35,16 @@ export interface ExecutionInput {
    * （策略层 resolvePriorSession 只在能力 true 时注入）。
    */
   resumeSessionId?: string | null;
+  /**
+   * G3-4b：agent.env_vars → 子进程 env（显式覆盖 process.env，key/value 已由
+   * run-worker 从 agent 行 JSON 解析成对象；null/undefined 则原样 process.env）。
+   */
+  envVars?: Record<string, string> | null;
+  /**
+   * G3-4b：agent.custom_args → CLI argv 注入（各 backend 形态核对后在
+   * args 构建处追加/插入；null/undefined 不注入）。
+   */
+  customArgs?: string[] | null;
 }
 
 export interface ExecutionResult {

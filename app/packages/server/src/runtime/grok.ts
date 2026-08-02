@@ -115,7 +115,10 @@ export function parseGrokLine(
  *   fallback 仅去掉 --model/--effort（老版本 flag 集差异），不再用 `agent` 子命令
  */
 export function buildGrokAgentArgs(
-  input: Pick<ExecutionInput, 'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId'>,
+  input: Pick<
+    ExecutionInput,
+    'model' | 'thinkingLevel' | 'prompt' | 'resumeSessionId' | 'customArgs'
+  >,
   opts: { print: boolean },
 ): string[] {
   const args = ['--no-auto-update'];
@@ -129,6 +132,9 @@ export function buildGrokAgentArgs(
   if (model) args.push('--model', model);
   const effort = input.thinkingLevel?.trim();
   if (effort) args.push('--effort', effort);
+  // G3-4b：custom_args 追加 argv 尾（grok 顶层 flag 形态，追加安全）
+  const customArgs = input.customArgs?.length ? input.customArgs : [];
+  args.push(...customArgs);
   return args;
 }
 
@@ -140,6 +146,10 @@ async function tryPrintMode(
   signal: AbortSignal,
 ): Promise<ExecutionResult | null> {
   const args = buildGrokAgentArgs(input, { print: true });
+  const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+  if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
+  // G3-4b：agent.env_vars 显式覆盖子进程 env
+  if (input.envVars) opts.env = input.envVars;
   const result = await spawnLineProcess(
     bin,
     args,
@@ -148,7 +158,7 @@ async function tryPrintMode(
     onEvent,
     (line, oe, ctx) => parseGrokLine(line, oe, ctx),
     undefined,
-    input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
+    opts,
   );
   // 若 CLI 不认 -p，常以非 0 退出且 stderr 含 unknown/usage
   if (
@@ -200,6 +210,13 @@ export class GrokBackend implements RuntimeBackend {
 
     // 2) 降级：-p prompt 但去掉 --model/--effort（老版本 flag 集差异兜底）
     const slim: string[] = ['--no-auto-update', '-p', input.prompt];
+    // G3-4b：降级形态同样注入 custom_args（用户显式参数不因降级丢失）
+    const customArgs = input.customArgs?.length ? input.customArgs : [];
+    slim.push(...customArgs);
+    const fallbackOpts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+    if (input.timeoutMs) fallbackOpts.timeoutMs = input.timeoutMs;
+    // G3-4b：agent.env_vars 显式覆盖子进程 env
+    if (input.envVars) fallbackOpts.env = input.envVars;
 
     const fallback = await spawnLineProcess(
       det.path,
@@ -209,7 +226,7 @@ export class GrokBackend implements RuntimeBackend {
       onEvent,
       (line, oe, ctx) => parseGrokLine(line, oe, ctx),
       undefined,
-      input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
+      fallbackOpts,
     );
 
     if (fallback.exitReason === 'completed' && fallback.finalText.trim()) {

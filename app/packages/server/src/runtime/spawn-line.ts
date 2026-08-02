@@ -36,7 +36,7 @@ export function spawnLineProcess(
   onEvent: (e: AgentEvent) => void,
   onLine: LineHandler | null,
   stdinInput?: string, // S05：stdin pipe 传 prompt（claude stdin 修复，spec §8 R2 结构扩展）
-  opts?: { timeoutMs?: number },
+  opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv },
 ): Promise<ExecutionResult> {
   return new Promise((resolve) => {
     const timeoutMs = opts?.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : 0;
@@ -45,11 +45,12 @@ export function spawnLineProcess(
     // Windows 上 .cmd/.bat 启动器需要 shell:true（cursor-agent.cmd 坑，
     // 对齐 multica cursor_invocation_windows.go 的 .cmd 处理需求）
     const isCmdShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
+    // G3-4b：agent.env_vars 显式覆盖 process.env（存在即覆盖，缺则继承）
     const child = spawn(bin, args, {
       cwd,
       shell: isCmdShim,
       windowsHide: true,
-      env: process.env,
+      env: { ...process.env, ...(opts?.env ?? {}) },
     });
     if (child.pid) trackChildPid(child.pid);
     // S05：stdin pipe 传 prompt。claude-code 的 -p 无 prompt 参数时从 stdin 读

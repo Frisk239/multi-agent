@@ -70,6 +70,25 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
       expect(args).not.toContain('--session');
       expect(args).toContain('fresh');
     });
+
+    // G3-4b：custom_args 插在 prompt 位置参数之前（opencode run prompt 是末尾位置参数）
+    it('buildOpencodeArgs 注入 customArgs 且排在 prompt 前', () => {
+      const args = buildOpencodeArgs({
+        prompt: 'do work',
+        resumeSessionId: null,
+        customArgs: ['--dangerously-skip-permissions', '--models', 'gpt-5'],
+      });
+      const promptIdx = args.lastIndexOf('do work');
+      expect(promptIdx).toBe(args.length - 1);
+      expect(args).toContain('--dangerously-skip-permissions');
+      expect(args).toContain('--models');
+      expect(args).toContain('gpt-5');
+    });
+
+    it('buildOpencodeArgs 无 customArgs 时 prompt 仍为末尾', () => {
+      const args = buildOpencodeArgs({ prompt: 'solo', resumeSessionId: null });
+      expect(args[args.length - 1]).toBe('solo');
+    });
   });
 
   describe('Cursor Line Parsing & Session Resume', () => {
@@ -130,6 +149,17 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
       const args = buildCursorArgs({ prompt: 'start', resumeSessionId: null });
       expect(args).not.toContain('--resume');
     });
+
+    // G3-4b：custom_args 追加 argv 尾（cursor-agent flag 均可后置）
+    it('buildCursorArgs 注入 customArgs 追加尾部', () => {
+      const args = buildCursorArgs({
+        prompt: 'go',
+        resumeSessionId: null,
+        customArgs: ['--experimental', '--no-use-server'],
+      });
+      expect(args.slice(-2)).toEqual(['--experimental', '--no-use-server']);
+      expect(args).toContain('go');
+    });
   });
 
   describe('Grok Line Parsing & Args', () => {
@@ -157,6 +187,18 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
       expect(args).not.toContain('grok-sess-456');
       // 不再使用 agent 子命令（0.2.118 不接受子命令后位置 prompt）
       expect(args).not.toContain('agent');
+    });
+
+    // G3-4b：custom_args 追加 argv 尾（grok 顶层 flag 形态）
+    it('buildGrokAgentArgs 注入 customArgs 追加尾部', () => {
+      const args = buildGrokAgentArgs(
+        { prompt: 'work', model: null, thinkingLevel: null, resumeSessionId: null, customArgs: ['--verbose'] },
+        { print: true }
+      );
+      expect(args.slice(-1)).toEqual(['--verbose']);
+      // -p 值位置不受影响
+      expect(args[1]).toBe('-p');
+      expect(args[2]).toBe('work');
     });
 
     it('parseGrokLine 纯文本行 → assistant message（G1-2：产出可观测，不丢在 log）', () => {

@@ -160,9 +160,17 @@ export class ClaudeCodeBackend implements RuntimeBackend {
       }
     }
 
+    // G3-4b：agent.custom_args 追加 argv 尾（claude 全 flag 形态，追加安全）
+    const customArgs = input.customArgs?.length ? input.customArgs : [];
+    args.push(...customArgs);
+
     // try/finally 包临时文件清理（R3）：即使 abort 兜底（spawn-line 5s 强制 finish）
     // execute 的 await 返回后 finally 也能清理，防资源泄露。
     try {
+      const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+      if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
+      // G3-4b：agent.env_vars 显式覆盖子进程 env
+      if (input.envVars) opts.env = input.envVars;
       return await spawnLineProcess(
         det.path,
         args,
@@ -171,7 +179,7 @@ export class ClaudeCodeBackend implements RuntimeBackend {
         onEvent,
         parseClaudeLine,
         input.prompt, // stdinInput（S05 stdin 修复）
-        input.timeoutMs ? { timeoutMs: input.timeoutMs } : undefined,
+        opts,
       );
     } finally {
       if (mcpTmpPath) {

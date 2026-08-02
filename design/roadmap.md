@@ -77,6 +77,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-2 | **看板键盘拖拽 / 「移动到列」键盘路径**（注册 dnd-kit KeyboardSensor 或卡片菜单补键盘可达） | 中 | 小 | — | ✅ |
 | G3-3 | **Issue/Squad 详情 inline transcript 预览**（run 历史行内展开消息摘要，复用 `pairRunToolEvents`；现状仅深链跳走） | 中 | 中 | — | ✅ |
 | G3-4 | **Agent 环境变量/自定义参数编辑**（server schema `envVars` + AgentDetail UI，原型 Must 唯一双缺） | 中 | 中 | — | ✅ |
+| G3-4b | **执行层注入闭环**（G3-4 编辑已存未用：envVars 合并 spawn env 显式覆盖 process.env + customArgs 各 backend argv 注入，opencode 插 prompt 前、余尾部） | 中 | 小 | G3-4 | ✅ |
 | G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ✅ |
 | G3-6 | **Issue 自定义字段 UI**（schema 有 customFields JSON，缺编辑界面，GAP-05） | 中 | 中 | — | ✅ |
 | G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | ⬜ |
@@ -128,6 +129,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 9 | G2-4 · G4-4 | 其余 | ✅ 已关（2026-08-02 M3，[G2-4](app/.progress/g2-4-projection-cleanup-closeout-2026-08-02.md) · [G4-4](app/.progress/g4-4-memory-scope-closeout-2026-08-02.md)） |
 | 11 | **M3 Must 补全（G3-3/G3-4/G3-5）+ G4-5 CLI 部分** | G3/G4 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)；G4-5 余 health/backlink 留后续） |
 | 10 | M4 工程债（G5-1/G5-2）+ M2 可靠性（G5-3/G5-4） | G5 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)） |
+| 12 | **G3-4b 执行层注入（envVars/customArgs spawn 生效）** | G3 | ✅ 已关（2026-08-02 第四波 M1，[closeout](app/.progress/g34b-env-inject-closeout-2026-08-02.md)；printenv 实证 grok run completed 报告值一致；claude 无额度故 grok 实证） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
