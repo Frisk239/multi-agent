@@ -122,6 +122,8 @@ export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
     },
   });
   if (!tr.applied || !tr.row) return { ok: false };
+  // 崩溃窗口（G5-4）：UPDATE 已提交 cancelled、abortRun 前进程崩溃 → 终态=cancelled
+  // 已落库（重启不会重新执行）；未杀掉的孤儿 CLI 子进程由 OS 接管。
   abortRun(runId); // 触发 AbortController → spawn-line kill 子进程
   const run = toObservedAgentRun(tr.row, finishedAt);
   eventBus.publish({ type: 'run:cancelled', run });

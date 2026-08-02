@@ -253,7 +253,13 @@ export function failStaleRunningRuns(now = Date.now()): number {
   return n;
 }
 
-/** 启动时：DB 中 running 但本进程无 AbortController → 上轮崩溃残留 */
+/**
+ * 启动时：DB 中 running 但本进程无 AbortController → 上轮崩溃残留。
+ * G5-4 语义：取消中崩溃 / graceful-shutdown 中断 / executor 异常消失 的统一处置
+ * —— 重启后一律 failed（'orphan: no live executor after restart'，
+ * failureReason=stale_heartbeat），终态可解释；DB 已终态（cancel UPDATE 先提交）
+ * 的 run 不在此列（仅查 running，天然不碰）。
+ */
 export function recoverOrphanedRunningRuns(now = Date.now()): number {
   const rows = db
     .select()

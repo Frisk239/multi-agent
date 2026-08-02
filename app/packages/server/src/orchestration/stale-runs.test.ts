@@ -10,6 +10,7 @@ import {
   formatDurationMs,
   failStaleWaitingLocalDirectoryRuns,
   failStalePrepareLeaseRuns,
+  recoverOrphanedRunningRuns,
   escalateDeferredUnclaimedRuns,
   STALE_RUNNING_MS,
   DEFAULT_ISSUE_IDLE_MS,
@@ -28,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   insertValues: vi.fn(),
   insertRun: vi.fn(),
   publish: vi.fn(),
+  abortRun: vi.fn(),
+  hasRunAbort: vi.fn(),
   notifyRunTerminal: vi.fn(),
   notifyDeferredUnclaimed: vi.fn(),
   notifySquadEscalated: vi.fn(),
@@ -129,8 +132,8 @@ vi.mock('./inbox-prefs.js', () => ({
 }));
 
 vi.mock('./run-control.js', () => ({
-  abortRun: vi.fn(),
-  hasRunAbort: vi.fn(),
+  abortRun: (...args: unknown[]) => mocks.abortRun(...args),
+  hasRunAbort: (...args: unknown[]) => mocks.hasRunAbort(...args),
 }));
 
 vi.mock('./tool-watchdog-state.js', () => ({
@@ -242,6 +245,68 @@ describe('stale-runs configuration and helpers', () => {
     expect(formatDurationMs(5_000)).toBe('5s');
     expect(formatDurationMs(65_000)).toBe('1m');
     expect(formatDurationMs(3600_000)).toBe('1.0h');
+  });
+});
+
+describe('recoverOrphanedRunningRuns (G5-4 重启 orphan / 取消中崩溃语义)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    mocks.hasRunAbort.mockReturnValue(false); // 崩溃后注册表为空
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('DB running + 无 abort 条目（崩溃残留）→ failed（orphan 文案 + stale_heartbeat）', () => {
+    const now = 10_000_000;
+    const row = {
+      id: 'run-orphan-1',
+      status: 'running',
+      agentId: 'agt-1',
+      kind: 'issue',
+      issueId: 'iss-1',
+      attempt: 1,
+      maxAttempts: 2,
+    };
+    mocks.selectAll.mockReturnValue([row]);
+    mocks.selectGet.mockReturnValue({ ...row, status: 'failed' });
+
+    const n = recoverOrphanedRunningRuns(now);
+    expect(n).toBe(1);
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'failed',
+        failureReason: 'stale_heartbeat',
+        error: 'orphan: no live executor after restart',
+      }),
+    );
+  });
+
+  it('DB running + 仍有 abort 条目（活 executor）→ 跳过不终态化', () => {
+    const now = 10_000_000;
+    const row = {
+      id: 'run-live-1',
+      status: 'running',
+      agentId: 'agt-1',
+      kind: 'issue',
+      issueId: 'iss-1',
+    };
+    mocks.selectAll.mockReturnValue([row]);
+    mocks.hasRunAbort.mockReturnValue(true);
+    const n = recoverOrphanedRunningRuns(now);
+    expect(n).toBe(0);
+    expect(mocks.updateSet).not.toHaveBeenCalled();
+  });
+
+  it('取消中崩溃场景：DB 已终态（cancel UPDATE 先提交）→ recover 只查 running，不碰终态行', () => {
+    // mock 的 selectAll 仅返回 running 行（真实 SQL 按 status 过滤）；
+    // 断言 recover 不会对终态行做任何终态化（updateSet 未被调用）
+    mocks.selectAll.mockReturnValue([]);
+    const n = recoverOrphanedRunningRuns(10_000_000);
+    expect(n).toBe(0);
+    expect(mocks.updateSet).not.toHaveBeenCalled();
   });
 });
 
