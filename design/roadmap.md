@@ -1,166 +1,148 @@
-# 开发路线图
+# 路线与目标（2026-08-02 起为当前唯一真源）
 
-> **历史文档（2026-07-08 起骨架）。** 现行工程模式 / 北星 / 方位真源：  
-> [AGENTS.md](../AGENTS.md) · [docs/agents/workflow.md](../docs/agents/workflow.md) · [CONTEXT.md](../CONTEXT.md) · [multica-gap](../app/.progress/multica-gap-2026-07-17.md)  
-> 下文中的「计划者-执行者」「S03 进行中」「答辩 FRI-11 驱动」等**不驱动** 2026-07-17 后的排期；产品演进走 Slice Owner + 语义 slug。
+> **本文件 = 路线 + 目标 + 切片队列真源。** 历史阶段（S01–S12、补1–5、Phase A–F）见 [slices.md](slices.md) 历史段 · 技术选型 [synthesis.md](synthesis.md) · 领域词汇与方位 [CONTEXT.md](../CONTEXT.md) · 工程宪法 [AGENTS.md](../AGENTS.md)。
+>
+> **生成依据（2026-08-02）：** 三份子代理分析（后端功能现状 / 前端交互现状 / 对照 references 上游 multica·hermes·pi）+ `app/.progress/` 规划文档（improvement-analysis、optimization-plan、gap-analysis-full、gap-close-wave-plan、next-wave-plan、must-close-checklist）未做项清单。已剔除 08-01 两波 closeout（optimization-wave / hard-gap-close-wave）中确认关闭的项，不重复开刀。
 
-## 工程模式（现行摘要）
+## §1 产品定位与北星（不变）
 
-**垂直切片 × Slice Owner（自动迭代）。** 详见 [AGENTS.md](../AGENTS.md) §工程模式 · [workflow.md](../docs/agents/workflow.md)。
+**产品一句话：** 纯本地软件工程多智能体编排平台——人在 Web 控制台派任务 → Agent 驱动本机编码 CLI → 产出进 **Wiki**、经验进 **Memory**。
 
-核心：一刀 = 可演示用户路径（契约+API+UI）；Playwright 关刀；默认可 main 直推。目标 = **本地 Multica 控制台体验**，非 daemon 1:1。
+**目标定位：** 复刻本地版 Multica 控制台体验（看板派活、小队、run 观测/恢复、Wiki/Memory、Settings 诊断），**不是** Multica daemon/云协议 1:1。按真实产品建设，答辩/论文不驱动排期（详见 [CONTEXT.md](../CONTEXT.md)）。
 
----
+**架构钉死（勿在实现里推翻）：** 不自造 Agent loop（Backend adapter 驱动已有 CLI）· DB 行即锁（条件 UPDATE）· 多态指派 `(type, id)` · Squad = leader + briefing + mention · 纯本地（无 Redis/多节点/云托管）· 密钥不落库（ADR 0003）。
 
-## 当前状态
+## §2 迭代机制（goal 模式 + Slice Owner）
 
-- ✅ 调研 + 源码深读 + 技术选型 + 产品原型 全部完成
-- ✅ **S01 已合并 main**（PR #1）— Phase 0 看板地基
-- ✅ **S02 已合并 main**（PR #2 · `e1d42b9`）— 详情 + 时间线 + 评论
-- ⬜ **S03 进行中（计划者会话）** — 真实 agent 执行
-- ⬜ S04–S05 · Phase 2 Wiki · Phase 3 记忆
+```
+人（/goal 定义目标 · 定北星与禁区）
+   │
+   ▼
+Goal（本文件 §3 的 G1–G5；由用户用 /goal 创建/推进）
+   │
+   ▼
+Slice Owner（自动迭代 · docs/agents/workflow.md）
+   1) intake → 2) 探索/调研（子代理优先，查 references/deep）→ 3) 从 §4 切片队列取刀
+   4) 实现（子代理优先）→ 5) 路径验收 → Playwright → push main → 关刀
+   │
+   ▼
+progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
+```
 
-**最新交接：** [app/.progress/s02-planner-2.md](../app/.progress/s02-planner-2.md)
+- **本文件是「改进方向输入」**：每个 Goal 下是价值排序后的候选切片，供 `/goal` 定义目标时引用（Goal 编号 G1–G5 可直接引用）。
+- **Slice Owner 取刀原则：** 优先队列头部；一刀 = 一条可演示用户路径（契约+API+UI 同刀）；Playwright 关刀；默认可 main 直推。
+- **更新规则：** 切片关刀后由 Owner 更新 §4 状态列；Goal 增减需人点头（本文件是路线契约，不是流水账）。
 
----
+## §3 目标体系（G1–G5）
 
-## Phase 0 — 地基（1-2 月）
+> 排序依据：价值（日常使用频率 × 痛点强度）× 成本。每个 Goal 的子切片按价值降序。
 
-> 目标：看板端到端通 + WebSocket 实时推送。FRI-11 答辩路径的看板部分点亮。
-> 详细切片划分见 [slices.md](slices.md)
+### G1 执行层诚实性 — 产品可信
 
-| 切片 | 覆盖 | 验收画面 | 分支 |
+**目标陈述：** 每个 runtime backend 的「能力声明」与「真实行为」一致；失败可分类、可解释、可行动。
+
+**现状基线：** Pi 已是真 backend（`pi --mode rpc` JSONL 三通道）但无真机验收；Grok 声明 `supportsSessionResume=true` 但 ACP 半成品（print 模式降级）；CLI 探测无失败宽限窗，瞬态失败会误报 runtime 缺失。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G1-1 | **Pi runtime 真机验收 + RPC 命令面扩展**（`steer`/`compact`/`set_model` 等，上游 rpc-types.ts:20-72 有蓝图，mock 已全绿） | 高 | 中 | — | ⬜ |
+| G1-2 | **Grok ACP/fail-closed**（补 ACP stdio 客户端，或摘除 `supportsSessionResume` 声明 + UI 标注降级） | 高 | 中 | — | ⬜ |
+| G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ⬜ |
+| G1-4 | **失败分类精度**（provider_network vs auth/quota 边界，驱动更准的自动改派与文案） | 中 | 中 | — | ⬜ |
+| G1-5 | **Memory/Wiki 降级可观测**（pgvector 软回退、无 LLM key 时 Wiki ingest 不反复重试 15min，给出诚实提示） | 中 | 小 | — | ⬜ |
+
+### G2 编排闭环 — 任务有人接、状态诚实
+
+**目标陈述：** 任务从创建到完成的每个无人接/卡死场景都有兜底路径；run 在任何入口展示一致的状态真相。
+
+**现状基线：** P2-4 已建 `escalated_from_run_id` 改派 lineage；但「任务没人接/agent 卡死无响应」的惰性升级未做（multica `deferred` + `fire_at`，task.go:799）；automation 两种执行模式无「agent 离线」语义；WS/quick-run 等入口读投影与 `/api/runs` 不一致。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G2-1 | **Deferred-escalation 惰性升级**（`deferred` 状态 + `fire_at` + 清扫器，复用 escalated_from_run_id；multica 的「N 分钟无响应则升级」） | 高 | 中 | — | ⬜ |
+| G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ⬜ |
+| G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ⬜ |
+| G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ⬜ |
+| G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ⬜ |
+
+### G3 前端体验 — 少摩擦、可发现
+
+**目标陈述：** 每个页面加载失败都有可行动的错误态；核心操作有键盘路径；run 的产出在上下文内可见。
+
+**现状基线：** 三态（loading/error/empty）已系统性覆盖，但 Wiki 正文/Runtimes/记忆详情三处失败仍静默或无限 loading；看板拖拽仅 PointerSensor；Issue/Squad 详情的 run 历史只有深链无 inline 预览；Agent 环境变量编辑是原型 Must 里唯一 UI/API 双缺项。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G3-1 | **错误态三件套**（Wiki 页正文、RuntimesPage、记忆详情：isError → ErrorState + 重试；404 → 「页面不存在」） | 高 | 极小 | — | ⬜ |
+| G3-2 | **看板键盘拖拽 / 「移动到列」键盘路径**（注册 dnd-kit KeyboardSensor 或卡片菜单补键盘可达） | 中 | 小 | — | ⬜ |
+| G3-3 | **Issue/Squad 详情 inline transcript 预览**（run 历史行内展开消息摘要，复用 `pairRunToolEvents`；现状仅深链跳走） | 中 | 中 | — | ⬜ |
+| G3-4 | **Agent 环境变量/自定义参数编辑**（server schema `envVars` + AgentDetail UI，原型 Must 唯一双缺） | 中 | 中 | — | ⬜ |
+| G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ⬜ |
+| G3-6 | **Issue 自定义字段 UI**（schema 有 customFields JSON，缺编辑界面，GAP-05） | 中 | 中 | — | ⬜ |
+| G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | ⬜ |
+
+### G4 知识/记忆 — 长期价值
+
+**目标陈述：** 记忆检索质量不随数据量退化；注入上下文干净（围栏不进 UI）；Wiki/Memory 在无密钥时诚实降级。
+
+**现状基线：** sqlite-text 检索 = 最近 200 条内存过滤 + 全 token AND，无 FTS；prompt 注入有 `<memory-context>` 围栏但无剥离侧（CLI 回显会漏进 UI）；Wiki ingest 无 key 反复重试无提示。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G4-1 | **记忆检索升级**（SQLite FTS5 索引或索引化扫描，替代 200 行硬上限；顺带 scope 加权） | 高 | 中 | — | ⬜ |
+| G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ⬜ |
+| G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ⬜ |
+| G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ⬜ |
+| G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ⬜ |
+
+### G5 可靠性与运营 — 天天用不翻车
+
+**目标陈述：** 高风险代码有回归网；灾备覆盖 Wiki；长跑运营有被动提醒与统计视图。
+
+**现状基线：** skill/scanner + import-url（1095 行）无完整测试；auto-retry 核心逻辑有 `any` 类型退化；灾备 snapshot 已含 Wiki roots 但换入与覆盖报告未做；无系统通知、无运营统计。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G5-1 | **skill/scanner + import-url 完整测试**（全仓最大测试盲区，URL 导入涉及 GitHub API 解析/竞态） | 高 | 中 | — | ⬜ |
+| G5-2 | **auto-retry 类型安全化**（去 `any`/去反射，改 Drizzle 类型化路径） | 中 | 小 | — | ⬜ |
+| G5-3 | **灾备 Wiki 换入 + 覆盖报告**（stage.json 扩展 wiki 校验 → swap wiki 目录 → journal wiki 字段；reopenable-db 收尾） | 中 | 中 | — | ⬜ |
+| G5-4 | **进程生命周期收尾**（abort 注册表纯内存问题、重启 orphan、取消中崩溃的终态语义） | 中 | 中 | — | ⬜ |
+| G5-5 | **系统/桌面通知**（run 完成、inbox 新项；纯本地，可用 Electron shell/notify 类机制） | 中 | 中 | — | ⬜ |
+| G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ⬜ |
+| G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ⬜ |
+
+## §4 切片队列总表（建议迭代顺序）
+
+> 状态列：⬜ 未开 · 🔨 进行中 · ✅ 已关。关刀后由 Slice Owner 更新。
+
+| 序 | 切片 | Goal | 建议理由 |
 |---|---|---|---|
-| ~~S00~~ | ~~提交文档基线~~ | ✅ 已完成 | — |
-| **S01** | monorepo 骨架 + shared 契约 + DB schema/seed + Issue CRUD API + 六列看板 + 状态机最薄版 + WebSocket 实时推送 | ✅ 六列看板真实数据；拖拽/新建实时同步；双窗口联动 | `feat/s01-kanban-ws` → **已合 main** |
+| 1 | G3-1 错误态三件套 | G3 | 热身刀；每处约 10 行，用户影响最直接 |
+| 2 | G1-1 Pi 真 backend | G1 | closeout 钦定「最值得下一刀」；协议蓝图 + mock 已全绿，真机验收补上 |
+| 3 | G2-1 Deferred-escalation | G2 | 半截基建差半截（复用 escalated_from_run_id）；编排闭环最后拼图 |
+| 4 | G1-2 Grok ACP/fail-closed | G1 | 产品误导项，诚实性优先 |
+| 5 | G4-1 记忆检索 FTS5 | G4 | 决定记忆层长期可用性的根本问题 |
+| 6+ | G1-3 → G3-2 → G4-2 → G5-1 → G3-3 … | 其余 | 按 §3 各 Goal 价值排序逐刀取用 |
 
-**Phase 0 验收：** ✅ `pnpm dev` → 看板显示 FRI-11 → 拖拽改 status 实时同步 → 新建 issue 实时出现。
+**取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
-**论文：** 需求分析、总体架构、相关工作表
+## §5 刻意不做（边界，勿当 blocker）
 
----
+- 云 webhook 触发 / 云托管 / 多节点 / Redis 房间（宪法「纯本地」）
+- Multica daemon/云协议 1:1、daemon 化服务
+- 密钥写入 DB/UI（ADR 0003，env-only）
+- TipTap 全量富文本 / 多 Tab 壳 / Wiki 图谱大屏（vis.js 优先不做）
+- 泳道/甘特视图、多人 RBAC / 多用户、后端强制 storyline merge API
+- Deferred 默认强制改派（默认路径 = 惰性升级，见 G2-1；不做「无条件改派」）
+- Pi 真执行 harness（指自建完整 harness；Pi 作为 backend 驱动是真航道，见 G1-1）
+- 大规模 BI / 论文消融专属脚本（可选支线，不挡产品主线）
 
-## Phase 1 — 编排闭环 + 执行层（2-5 月）
-
-> 目标：真实 agent 跑任务，小队能委派，Issue 时间线完整。FRI-11 答辩路径全真实。
-
-| 切片 | 覆盖 | 验收画面 | 状态 |
-|---|---|---|---|
-| **S02** | Issue 详情 + 时间线 + 评论 CRUD + @mention pill 渲染 | ✅ 已合 main（PR #2） | ✅ |
-| **S03** | RuntimeBackend 接口 + Pi/Claude 真实接入 + 运行时发现 + 执行事件流进时间线 | Issue 指派 agent → 真实执行 → 时间线显示工具调用和产出；运行时页显示探测到的 CLI | ⬜ 计划中 |
-| **S04** | Squad CRUD + 成员管理 + briefing 注入 + mention-trigger 路由 | 指派小队 → leader claim 注入 briefing → @mention 委派 → 队列入任务 | ⬜ |
-| **S05** | Skill URL 导入 + 分配 + MCP 配置 | agent 详情可导入/分配 skill，MCP Tab 配 MCP server | ⬜ |
-| **S06+** | 待定（收件箱/智能体详情/运行时页/命令面板等，做到时定） | — | ⬜ |
-
-**Phase 1 验收：** FRI-11 答辩路径全真实——看板建 Issue 指派产品小队 → 队长 briefing → @mention 委派 → 队员执行（真实 Pi/Claude）→ 时间线显示汇报。
-
-**参考：** [deep/multica.md](../references/deep/multica.md) §2 §3 §5 / [deep/pi.md](../references/deep/pi.md)
-
----
-
-## Phase 2 — 项目 Wiki（5-8 月，创新点）
-
-> 目标：编排事件驱动 Wiki ingest；编译式 Wiki vs RAG 实验数据
-
-| 切片 | 目标 | 参考 |
-|---|---|---|
-| **S07+** | Wiki 存储结构（raw/ + wiki/ + index.md + log.md） | [concepts/llm-wiki-pattern.md](../concepts/llm-wiki-pattern.md) |
-| | ingest 管线（Issue 完成 → 抽取 → entity/concept 页） | openwiki（Git diff evidence）/ OpenDeepWiki（分阶段流水线） |
-| | query + health（零 LLM）+ lint（语义） | llm-wiki-agent 四操作 |
-| | Wiki 浏览器 UI | [chanpin prototype](../chanpin/prototype/) |
-| | AGENTS.md 桥梁（Wiki ingest → 更新 → runtime 加载） | agents.md 规范 |
-| | ingest 队列 + DLQ（产品化） | WeKnora |
-
-**论文实验：** 编译式 Wiki vs 朴素 RAG 的 ablation
-
-**参考：** [wiki.md](../references/wiki.md) / [synthesis.md §4 知识层](synthesis.md)
-
----
-
-## Phase 3 — 记忆与 Skill pack（8-11 月，创新点）
-
-> 目标：MemoryProvider + 向量检索；mem0 vs graphiti 对比
-
-| 切片 | 目标 | 参考 |
-|---|---|---|
-| **S13+** | MemoryProvider ABC + MemoryManager | hermes [deep/hermes-memory-delegate.md](../references/deep/hermes-memory-delegate.md) §1 |
-| | mem0 向量后端（TS SDK） | mem0 |
-| | brain-first 协议（搜→用→写回 + ambient capture） | GBrains 笔记 |
-| | graphiti 时序图后端（可选实验） | graphiti |
-| | Skill pack 预置（plan/review/QA/ship） | gstack |
-
-**论文实验：** 向量（mem0）vs 时序图（graphiti）记忆 ablation
-
-**参考：** [memory-and-skills.md](../references/memory-and-skills.md) / [synthesis.md §4 记忆层](synthesis.md)
-
----
-
-## Phase 4 — 产品硬化；然后进入「补充阶段」（暂停前推）
-
-> S12 起按**可用产品**补齐运营能力。  
-> **2026-07-17 决议：** S12 之后 **只做补充阶段（补1、补2…，刀数不固定）**，**不再前推**后续能力切片；补到差不多再开后续。
-
-### Phase 4a — S12 产品硬化 ✅
-
-- Chrome（toast / Ctrl+K / 可指派新建 / 空态 / 错误边界 / 诚实导航）
-- `run:progress` 消费；Squad 只读详情；**合成** Inbox
-- 详见 [s12 spec](../docs/superpowers/specs/2026-07-17-s12-product-hardening-design.md)
-
-### 补充阶段 — 补1 / 补2 / … ✅ 已收官
-
-真源：[补充阶段 spec](../docs/superpowers/specs/2026-07-17-phase4b-product-supplement-design.md)
-
-- ✅ 补1–5 已合 main（A+B → C+D → E → G → F）
-- ✅ 2026-07-17 退出清单勾满；人授权 Playwright 日常路径过则 **不开补6**
-- H/I/J 与体验债 **不自动开工**；有明确痛点再开独立切片
-- **不做：** Redis、多节点、完整 GitHub/Lark channel、Graphiti（另议）
-
-### Phase 5+ — 产品演进（当前主线）
-
-> **2026-07-17 产品立场：** 本项目按**真实产品**继续建设，**不以答辩/论文排期驱动切片**。  
-> 补充阶段解决的是「能运营」；之后解决的是「更好用、更深、更稳」。
-
-**开刀原则：**
-
-1. 人指定主题；计划者 grill → to-spec → to-tickets → 执行者 implement  
-2. 优先级 = **日常使用价值**（少摩擦、可诊断、知识/记忆累积、小队协作深度）  
-3. 不默认恢复旧「S13 接着 S14」编号；feature 用语义 slug（如 `feat/issue-labels`）  
-4. 论文实验 / Graphiti / 消融等 **可选支线**，不挡产品主线  
-5. seed 里的 FRI-11 等样例仅作回归锚点，**不是**产品目标本身  
-
-**能力方向池（非合同、按痛点抽）：**
-
-| 方向 | 例 |
-|---|---|
-| 工作项厚度 | labels、筛选、附件路径、父子 issue |
-| 运行可观测 | run 错误聚合、失败可行动提示、轻量 usage |
-| Wiki / Memory 产品化 | DLQ 可操作、键缺失引导、空态与失败文案、检索体验 |
-| 协作深度 | Squad 体验打磨、mention 闭环可发现性、briefing 可见性 |
-| 自动化延伸 | webhook、更丰富 schedule（明确需要时再开） |
-| 执行可靠 | 多 backend 边界、cwd/密钥引导与恢复 |
-
-**不做（除非产品明确需要并另开刀）：** 云端多租户、Redis 舰队、为答辩单独做的一次性脚本仓库主线。
-
-### 可选支线（论文 / 展示，非产品主线）
-
-- 测量与消融、图表、对外演示脚本——**并行、非挡板**；不占用「下一刀必须是答辩」的默认位。
-
----
-
-## 风险与对策
+## §6 风险与对策
 
 | 风险 | 对策 |
 |---|---|
-| 范围过大 | Phase 1 稳定前不开 Wiki；每切片端到端可跑 |
-| Agent 不可控 | 沙箱 + approve 门禁；执行者子会话 scope 限定 |
-| 创新点不足 | 编排事件→Wiki + Wiki/Memory 分工 + 两组 ablation 实验 |
-| 跨会话上下文丢失 | handoff 文档（见 [AGENTS.md](../AGENTS.md) §工程模式） |
-| 会话质量随长度下降 | 切片内部拆短会话；计划者-执行者串行 |
-
----
-
-## 切片 → Handoff 文档
-
-每个切片的 handoff 存 [`app/.progress/`](../app/.progress/)，命名 `<slice-id>-<role>-<seq>.md`。
-
-**最新 handoff 是下一个会话的第一份读物。**
+| 范围过大 / 一刀变重构 | 每刀端到端可演示（契约+API+UI 同刀）；G3-7 二阶体验池按痛点单点取用 |
+| 分析结论过时 | 取刀前先 grep 对应 closeout；§3 每条来源已注明，开工时复核状态 |
+| Goal 漂移 / 文档失真 | §4 状态列随关刀更新；Goal 增减需人点头；CONTEXT.md 方位段只指路不重复队列 |
+| 跨会话上下文丢失 | 一切片一会话 + handoff + progress；本文件是跨会话唯一路线记忆 |
+| 上游参考过期 | 以 `references/deep/` 深读为准（带 file:line）；必要时 grep `references/repos/` 复核 |

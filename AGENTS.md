@@ -15,7 +15,7 @@
 
 **工程状态。** S01–S12 + 补1–5 已合 main；补充阶段已收官（phase4b，**不开补6**）。  
 **主航道（本地控制台日用路径）已可用**——cwd 可 DB 持久化（[ADR 0003](docs/adr/0003-workspace-cwd-persistence.md)）、run 收尸/批量取消、Settings 健康、Wiki/Memory 运维闭环。  
-**当前主线：** 体验加深的厚切片（非答辩清单、非自动 S 编号）；**工作流 = 自动迭代 Slice Owner**（调研 → 选题拍板 → Playwright → main 直推）。见 §工程模式 · [workflow.md](docs/agents/workflow.md) · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · 差距表 [app/.progress/multica-gap-2026-07-17.md](app/.progress/multica-gap-2026-07-17.md)。
+**当前主线：** **Goal 体系驱动**（[design/roadmap.md](design/roadmap.md) 的 G1–G5，2026-08-02 起为路线真源）：`/goal` 定义目标 → Slice Owner 从队列取刀。**工作流 = 自动迭代 Slice Owner**（调研 → 选题拍板 → Playwright → main 直推）。见 §工程模式 · [workflow.md](docs/agents/workflow.md) · [ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md)。
 
 ## 目录地图
 
@@ -102,10 +102,10 @@
 - ✅ **补5** 最小自动化（PR #16 合 main）— schedule + run-now + `/automation`
 - ✅ **补充阶段收官**（2026-07-17）— 不开补6；H/I/J 不自动开工
 - ✅ **本地 Multica 主航道日用路径** — 派活/小队/run 观测与恢复/cwd 持久化/Settings 健康/Wiki·Memory 运维（持续加深中）
-- ▶ **产品演进主线** — 体验对标本地 Multica；**不必** daemon/云协议 1:1；主题可由 Owner 按差距表自选（人可否决）
+- ▶ **Goal 体系驱动（G1–G5）** — 2026-08-02 起路线真源 = [design/roadmap.md](design/roadmap.md)：G1 执行层诚实性 · G2 编排闭环 · G3 前端体验 · G4 知识/记忆 · G5 可靠性与运营；`/goal` 定义目标，Owner 从队列取刀（人可否决）
 - ▶ **工程编排** — Slice Owner；调研子代理；**默认可 main 直推** + Playwright 关刀（[ADR 0001](docs/adr/0001-slice-owner-and-research-subagents.md) · [merge.md](docs/agents/merge.md)）
 
-**产品/阶段真源：** [CONTEXT.md](CONTEXT.md)（方位）· [workflow.md](docs/agents/workflow.md)（北星）· [multica-gap](app/.progress/multica-gap-2026-07-17.md)（对照）· phase4b / [roadmap](design/roadmap.md)（历史阶段，不挡现行排期）
+**产品/阶段真源：** [roadmap](design/roadmap.md)（路线+目标+队列）· [CONTEXT.md](CONTEXT.md)（方位）· [workflow.md](docs/agents/workflow.md)（北星）· [multica-gap](app/.progress/multica-gap-2026-07-17.md)（对照）· phase4b（历史，不挡现行排期）
 
 ## 不可破坏的约束
 
