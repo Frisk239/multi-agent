@@ -73,7 +73,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| G3-1 | **错误态三件套**（Wiki 页正文、RuntimesPage、记忆详情：isError → ErrorState + 重试；404 → 「页面不存在」） | 高 | 极小 | — | ⬜ |
+| G3-1 | **错误态三件套**（Wiki 页正文、RuntimesPage、记忆详情：isError → ErrorState + 重试；404 → 「页面不存在」） | 高 | 极小 | — | ✅ |
 | G3-2 | **看板键盘拖拽 / 「移动到列」键盘路径**（注册 dnd-kit KeyboardSensor 或卡片菜单补键盘可达） | 中 | 小 | — | ⬜ |
 | G3-3 | **Issue/Squad 详情 inline transcript 预览**（run 历史行内展开消息摘要，复用 `pairRunToolEvents`；现状仅深链跳走） | 中 | 中 | — | ⬜ |
 | G3-4 | **Agent 环境变量/自定义参数编辑**（server schema `envVars` + AgentDetail UI，原型 Must 唯一双缺） | 中 | 中 | — | ⬜ |
@@ -117,7 +117,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 序 | 切片 | Goal | 建议理由 |
 |---|---|---|---|
-| 1 | G3-1 错误态三件套 | G3 | 热身刀；每处约 10 行，用户影响最直接 |
+| 1 | G3-1 错误态三件套 | G3 | ✅ 已关（2026-08-02，[closeout](app/.progress/g3-1-error-states-closeout-2026-08-02.md)） |
 | 2 | G1-1 Pi 真 backend | G1 | closeout 钦定「最值得下一刀」；协议蓝图 + mock 已全绿，真机验收补上 |
 | 3 | G2-1 Deferred-escalation | G2 | 半截基建差半截（复用 escalated_from_run_id）；编排闭环最后拼图 |
 | 4 | G1-2 Grok ACP/fail-closed | G1 | 产品误导项，诚实性优先 |

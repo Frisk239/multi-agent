@@ -60,8 +60,16 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+let mockRuntimesState: {
+  data: RuntimesResponse | undefined;
+  refetch: ReturnType<typeof vi.fn>;
+  isFetching: boolean;
+  isError: boolean;
+  error: Error | null;
+} = { data, refetch: vi.fn(), isFetching: false, isError: false, error: null };
+
 vi.mock('@/lib/api', () => ({
-  useRuntimes: () => ({ data, refetch: vi.fn(), isFetching: false }),
+  useRuntimes: () => mockRuntimesState,
 }));
 
 import { RuntimesPage } from './RuntimesPage';
@@ -135,5 +143,22 @@ describe('RuntimesPage 筛选', () => {
     const add = screen.getByTestId('runtimes-add');
     expect(add).toHaveAttribute('href', '/settings?tab=health');
     expect(add.textContent).toContain('添加运行时');
+  });
+
+  it('G3-1 加载失败：显示 ErrorState + 重试按钮（不再无限「加载中…」）', () => {
+    mockRuntimesState = {
+      data: undefined,
+      refetch: vi.fn(),
+      isFetching: false,
+      isError: true,
+      error: new Error('探测失败'),
+    };
+    renderPage();
+
+    expect(screen.getByText('加载运行时失败')).toBeTruthy();
+    expect(screen.getByText('探测失败')).toBeTruthy();
+    const retry = screen.getByRole('button', { name: '重试' });
+    fireEvent.click(retry);
+    expect(mockRuntimesState.refetch).toHaveBeenCalledTimes(1);
   });
 });

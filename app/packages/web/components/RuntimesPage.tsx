@@ -3,12 +3,21 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRuntimes } from '@/lib/api';
 import { Icon } from './Icon';
+import { ErrorState } from './ErrorState';
 
 type RuntimeFilter = 'all' | 'installed';
 
 export function RuntimesPage() {
-  const { data, refetch, isFetching } = useRuntimes();
+  const { data, refetch, isFetching, isError, error } = useRuntimes();
   const [filter, setFilter] = useState<RuntimeFilter>('all');
+  if (isError)
+    return (
+      <ErrorState
+        title="加载运行时失败"
+        description={error instanceof Error ? error.message : '未知错误'}
+        onRetry={() => void refetch()}
+      />
+    );
   if (!data) return <div className="runtime-page">加载中…</div>;
 
   const { machine, runtimes } = data;

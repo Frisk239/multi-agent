@@ -15,6 +15,7 @@ import { WikiHealthPanel } from './WikiHealthPanel';
 import { WikiJobsPanel } from './WikiJobsPanel';
 import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { PageSkeleton, Skeleton } from './Skeleton';
 import { Select } from './Select';
 
@@ -30,8 +31,19 @@ function WikiPageInner() {
   const [qDraft, setQDraft] = useState(qFromUrl);
 
   const { data: projects = [] } = useProjects();
-  const { data: pages, isFetching } = useWikiPages(projectIdFromUrl || null);
-  const { data: currentPage } = useWikiPage(selectedSlug, projectIdFromUrl || null);
+  const {
+    data: pages,
+    isFetching,
+    isError: pagesError,
+    error: pagesErrorInfo,
+    refetch: refetchPages,
+  } = useWikiPages(projectIdFromUrl || null);
+  const {
+    data: currentPage,
+    isError: pageError,
+    error: pageErrorInfo,
+    refetch: refetchPage,
+  } = useWikiPage(selectedSlug, projectIdFromUrl || null);
   const { data: wikiMeta } = useWikiMeta(projectIdFromUrl || null);
 
   useEffect(() => {
@@ -377,8 +389,23 @@ function WikiPageInner() {
         </div>
 
         <div className="wiki-content" data-testid="wiki-content">
-          {!selectedSlug && <div className="text-dim">← 从左侧选择一个页面</div>}
-          {selectedSlug && !currentPage && <PageSkeleton />}
+          {pagesError ? (
+            <ErrorState
+              title="加载 Wiki 失败"
+              description={pagesErrorInfo instanceof Error ? pagesErrorInfo.message : '未知错误'}
+              onRetry={() => void refetchPages()}
+            />
+          ) : !selectedSlug ? (
+            <div className="text-dim">← 从左侧选择一个页面</div>
+          ) : pageError ? (
+            <ErrorState
+              title="加载页面失败"
+              description={pageErrorInfo instanceof Error ? pageErrorInfo.message : '未知错误'}
+              onRetry={() => void refetchPage()}
+            />
+          ) : (
+            !currentPage && <PageSkeleton />
+          )}
           {currentPage && (
             <div data-testid="wiki-page-body" data-slug={currentPage.slug ?? selectedSlug}>
               <div className="wiki-page-meta" data-testid="wiki-page-meta">

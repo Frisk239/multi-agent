@@ -18,6 +18,7 @@ import { useFocusTrap } from '@/lib/use-focus-trap';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
 import { PageSkeleton, TableSkeleton, Skeleton } from './Skeleton';
 
 function inferKind(text: string): 'curated' | 'ambient' | 'other' {
@@ -38,7 +39,7 @@ function MemoryPageInner() {
   const { data: status } = useMemoryStatus();
   const { data: settings } = useSettingsStatus();
   const [qDraft, setQDraft] = useState(qFromUrl);
-  const { data, isFetching, isError, error } = useMemoryList(qFromUrl);
+  const { data, isFetching, isError, error, refetch } = useMemoryList(qFromUrl);
   const create = useCreateMemory();
   const del = useDeleteMemory();
   const delMany = useDeleteMemoryMany();
@@ -209,7 +210,13 @@ function MemoryPageInner() {
     () => (data ?? []).find((m) => m.id === detailId) ?? null,
     [data, detailId],
   );
-  const { data: fetchedDetail, isFetching: detailFetching } = useMemoryItem(
+  const {
+    data: fetchedDetail,
+    isFetching: detailFetching,
+    isError: detailError,
+    error: detailErrorInfo,
+    refetch: refetchDetail,
+  } = useMemoryItem(
     detailId && !listItem ? detailId : undefined,
   );
   const detail: MemoryItem | null = listItem ?? fetchedDetail ?? null;
@@ -516,10 +523,15 @@ function MemoryPageInner() {
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={7} className="text-dim" style={{ textAlign: 'center' }}>
-                  {error instanceof Error ? error.message : '加载失败'}
-                  {' · '}
-                  <Link href="/settings">打开设置诊断</Link>
+                <td colSpan={7} style={{ textAlign: 'center' }}>
+                  <ErrorState
+                    title="加载记忆失败"
+                    description={error instanceof Error ? error.message : '未知错误'}
+                    onRetry={() => void refetch()}
+                  />
+                  <div className="text-dim text-sm" style={{ marginTop: 8 }}>
+                    <Link href="/settings">打开设置诊断</Link>
+                  </div>
                 </td>
               </tr>
             )}
@@ -870,6 +882,12 @@ function MemoryPageInner() {
                   </button>
                 </div>
               </>
+            ) : detailError ? (
+              <ErrorState
+                title="加载记忆详情失败"
+                description={detailErrorInfo instanceof Error ? detailErrorInfo.message : '未知错误'}
+                onRetry={() => void refetchDetail()}
+              />
             ) : (
               <div className="memory-detail-empty text-dim" data-testid="memory-detail-missing">
                 {detailFetching ? '加载详情…' : '记忆不存在或已被删除'}
