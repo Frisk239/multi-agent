@@ -2,7 +2,16 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type { IssueStatus, Priority, Issue } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
@@ -455,6 +464,11 @@ function KanbanBoardInner({
       activationConstraint: {
         distance: 5,
       },
+    }),
+    // G3-2：键盘可达（a11y）——卡片聚焦后 Space/Enter 拾起、方向键移动、再按放下；
+    // 与指针拖拽走同一 onDragEnd → reorder API（position 一并维护）。
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 

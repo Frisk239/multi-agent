@@ -56,6 +56,7 @@ vi.mock('@dnd-kit/core', () => ({
   ),
   closestCorners: vi.fn(),
   PointerSensor: vi.fn(),
+  KeyboardSensor: vi.fn(),
   useSensor: vi.fn(),
   useSensors: () => [],
 }));
