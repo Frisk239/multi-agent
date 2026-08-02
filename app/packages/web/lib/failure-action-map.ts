@@ -31,6 +31,21 @@ export const FAILURE_ACTION_MAP: Record<string, MapEntry> = {
     action: '检查额度或稍后再试',
     variant: 'human',
   },
+  provider_network: {
+    label: '网络/服务中断',
+    action: '网络抖动可自动重试；稍后再试',
+    variant: 'retry',
+  },
+  runtime_offline: {
+    label: '运行时离线',
+    action: '确认 CLI/环境就绪后重试',
+    variant: 'human',
+  },
+  deferred_escalated: {
+    label: '延迟升级',
+    action: '查看升级/改派后的 run',
+    variant: 'neutral',
+  },
   session_poisoned: {
     label: '会话损坏',
     action: '强制新会话后重试',

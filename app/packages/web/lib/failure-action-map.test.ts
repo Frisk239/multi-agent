@@ -24,6 +24,24 @@ const EXPECTED: Array<{
     variant: 'human',
   },
   {
+    reason: 'provider_network',
+    label: '网络/服务中断',
+    action: '网络抖动可自动重试；稍后再试',
+    variant: 'retry',
+  },
+  {
+    reason: 'runtime_offline',
+    label: '运行时离线',
+    action: '确认 CLI/环境就绪后重试',
+    variant: 'human',
+  },
+  {
+    reason: 'deferred_escalated',
+    label: '延迟升级',
+    action: '查看升级/改派后的 run',
+    variant: 'neutral',
+  },
+  {
     reason: 'session_poisoned',
     label: '会话损坏',
     action: '强制新会话后重试',
@@ -152,7 +170,6 @@ describe('resolveFailureActionUi', () => {
         error: 'session poisoned after resume',
       }).reason,
     ).toBe('session_poisoned');
-
     expect(
       resolveFailureActionUi({
         error: 'idle timeout (no events)',
@@ -164,6 +181,20 @@ describe('resolveFailureActionUi', () => {
         error: 'stale: orphan heartbeat',
       }).reason,
     ).toBe('stale_heartbeat');
+  });
+
+  it('G1-4 infers Chinese auth/quota/network errors to the right chip', () => {
+    expect(resolveFailureActionUi({ error: '未登录：请先登录 CLI' }).reason).toBe(
+      'auth_required',
+    );
+    expect(resolveFailureActionUi({ error: '额度不足' }).reason).toBe('quota_exceeded');
+    expect(resolveFailureActionUi({ error: '连接被重置' }).reason).toBe(
+      'provider_network',
+    );
+    expect(
+      resolveFailureActionUi({ error: '网络错误：请求失败' }).label,
+    ).toBe('网络/服务中断');
+    expect(resolveFailureActionUi({ error: '执行超时' }).reason).toBe('timeout');
   });
 
   it('uses status=cancelled when no error string', () => {

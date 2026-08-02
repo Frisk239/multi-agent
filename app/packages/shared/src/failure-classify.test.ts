@@ -61,6 +61,22 @@ describe('classifyFailure', () => {
     ['provider_network: connection closed mid-response', 'provider_network'],
     ['ECONNRESET while reading provider stream', 'provider_network'],
     ['[Squad Escalated] original_reason: provider_network', 'squad_member_escalated'],
+    // G1-4：中文与常见凭据/基础设施形态
+    ['未登录：请先登录 CLI', 'auth_required'],
+    ['认证失败 (401 Unauthorized)', 'auth_required'],
+    ['登录已过期，请重新认证', 'auth_required'],
+    ['API key 无效', 'auth_required'],
+    ['api key required for this provider', 'auth_required'],
+    ['凭据无效，请检查 token', 'auth_required'],
+    ['token expired after resume', 'auth_required'],
+    ['额度不足，请充值', 'quota_exceeded'],
+    ['请求过于频繁，触发限流', 'quota_exceeded'],
+    ['rate limit: 429 Too Many Requests', 'quota_exceeded'],
+    ['连接被重置（network）', 'provider_network'],
+    ['网络错误：请求失败', 'provider_network'],
+    ['connect ETIMEDOUT to api.example.com', 'provider_network'],
+    ['fetch failed: socket hang up', 'provider_network'],
+    ['服务不可达：502 Bad Gateway', 'provider_network'],
   ];
 
   it.each(cases)('classifies %j → %s', (error, expected) => {
@@ -79,6 +95,21 @@ describe('classifyFailure', () => {
 
   it('orders idle_timeout before generic timeout', () => {
     expect(classifyFailure('idle timeout (no events)')).toBe('idle_timeout');
+  });
+
+  it('G1-4 keeps generic Chinese timeout as timeout (not provider_network)', () => {
+    expect(classifyFailure('执行超时：超过 600s 无输出')).toBe('timeout');
+    expect(classifyFailure('进程 timed out')).toBe('timeout');
+  });
+
+  it('G1-4 does not treat setup-hint text as auth (no bare login/api_key)', () => {
+    expect(classifyFailure('grok 执行失败。请确认已 grok login 或设置 XAI_API_KEY。')).toBe(
+      'exec_error',
+    );
+  });
+
+  it('G1-4 auth before network when both appear', () => {
+    expect(classifyFailure('请求失败：401 未授权')).toBe('auth_required');
   });
 
   it('keeps auto-retry allowlist narrow and backoff bounded', () => {

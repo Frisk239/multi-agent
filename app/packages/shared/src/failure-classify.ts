@@ -87,16 +87,21 @@ export function classifyFailure(
     if (/\bcancell?ed\b|\bcancel\b/i.test(e)) {
       return 'cancelled';
     }
-    // 3. auth_required
+    // 3. auth_required（G1-4：补中文与常见凭据形态；刻意不含裸 login/api_key，
+    //    避免「请确认已 grok login 或设置 XAI_API_KEY」这类建议文案误判为 auth）
     if (
-      /\bunauthorized\b|\b401\b|auth(?:entication)?\s*required|login\s*required|not\s+logged\s+in|unauthenticated|\bauthentication\b/i.test(
+      /\bunauthorized\b|\b401\b|auth(?:entication)?\s*required|login\s*required|not\s+logged\s+in|unauthenticated|\bauthentication\b|未授权|未认证|未登录|登录已过期|登录失效|认证失败|凭据(?:无效|过期|错误)|invalid\s+credentials?|(?:token|session|credential)\s+expired|expired\s+(?:token|session|credential)|api[_-]?\s*key[^\n]{0,20}(?:invalid|required|missing|无效|未配置)/i.test(
         e,
       )
     ) {
       return 'auth_required';
     }
     // 4. quota_exceeded
-    if (/\bquota\b|rate\s*limit|\b429\b|usage\s*limit|\bbilling\b/i.test(e)) {
+    if (
+      /\bquota\b|rate\s*limit|\b429\b|usage\s*limit|\bbilling\b|额度|配额|限流|频率限制|请求过于频繁|余额不足|超限|超额/i.test(
+        e,
+      )
+    ) {
       return 'quota_exceeded';
     }
     // 5. session_poisoned
@@ -110,8 +115,10 @@ export function classifyFailure(
     }
     // Infrastructure provider disconnects are retry-safe; classify before
     // generic timeout/exec_error so an ECONNRESET is not lost as unknown.
+    // G1-4：补中文网络词与 ETIMEDOUT/ECONNREFUSED 等；刻意不含裸「超时」
+    //（中文「执行超时」仍归 timeout，见规则 11）。
     if (
-      /provider[_\s-]?network|network[_\s-]?error|fetch\s+failed|connection\s+(?:closed|reset|reset\s+by\s+peer)|network\s+(?:disconnect|unavailable|error)|econnreset|socket\s+hang\s*up|stream\s+(?:ended|closed)|\b(?:502|503|504)\b/i.test(
+      /provider[_\s-]?network|network[_\s-]?error|fetch\s+failed|connection\s+(?:closed|reset|reset\s+by\s+peer)|network\s+(?:disconnect|unavailable|error)|econnreset|socket\s+hang\s*up|stream\s+(?:ended|closed)|\b(?:502|503|504)\b|etimedout|econnrefused|enotfound|connect(?:ion)?\s*(?:timeout|timed\s*out)|网络|连接(?:被)?(?:重置|关闭|断开|失败)|连接不上|连接超时|请求失败|服务不可达|无法连接|网络超时/i.test(
         e,
       )
     ) {
@@ -151,8 +158,8 @@ export function classifyFailure(
     if (/heartbeat|orphan|^stale:|stale_heartbeat/i.test(e)) {
       return 'stale_heartbeat';
     }
-    // 11. timeout / timed out（通用硬超时；idle/tool 已在前）
-    if (/timed?\s*out|\btimeout\b/i.test(e)) {
+    // 11. timeout / timed out（通用硬超时；idle/tool 已在前；G1-4 补中文「超时」）
+    if (/timed?\s*out|\btimeout\b|超时/i.test(e)) {
       return 'timeout';
     }
   }
