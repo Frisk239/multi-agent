@@ -60,7 +60,8 @@ type Detected =
   | { kind: 'clawhub'; slug: string; sourceUrl: string }
   | { kind: 'raw_md'; url: string; sourceUrl: string };
 
-function detectUrl(raw: string): Detected {
+/** URL 来源识别（导出供测试；导入流程入口 detectUrl → fetchSkillBundle） */
+export function detectUrl(raw: string): Detected {
   const sourceUrl = normalizeUrl(raw);
   let u: URL;
   try {
@@ -230,16 +231,9 @@ async function fetchSkillBundle(d: Detected): Promise<Fetched> {
 
   if (d.kind === 'github') {
     const ref = d.ref || (await fetchGitHubDefaultBranch(d.owner, d.repo));
-    const dirs = d.skillDir != null ? [d.skillDir] : [''];
-    // also try common multi-skill layouts when no path given
-    if (d.skillDir == null) {
-      dirs.push('skills', '.claude/skills');
-    }
-    // When skillDir given, only that path; when empty, try root first
+    // 无 skillDir 时：root → skills → .claude/skills 多 skill 布局兜底
     const tryDirs =
-      d.skillDir != null
-        ? [d.skillDir]
-        : ['', /* root first */];
+      d.skillDir != null ? [d.skillDir] : ['', 'skills', '.claude/skills'];
     let content: string;
     try {
       const got = await tryFetchSkillMd(d.owner, d.repo, ref, tryDirs);
@@ -308,9 +302,15 @@ async function fetchSkillBundle(d: Detected): Promise<Fetched> {
   }
 
   // clawhub —— 优先 API 元数据 + file 下载；失败则报错
-  const metaRaw = await fetchText(
-    `${CLAWHUB_API}/skills/${encodeURIComponent(d.slug)}`,
-  );
+  // meta 请求是可选的（仅用于 displayName/summary）：HTTP 失败不应阻断导入
+  let metaRaw = '';
+  try {
+    metaRaw = await fetchText(
+      `${CLAWHUB_API}/skills/${encodeURIComponent(d.slug)}`,
+    );
+  } catch {
+    /* meta optional */
+  }
   let displayName = d.slug;
   let summary = '';
   try {
