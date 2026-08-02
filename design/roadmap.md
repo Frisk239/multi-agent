@@ -47,7 +47,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 |---|---|---|---|---|---|
 | G1-1 | **Pi runtime 真机验收 + RPC 命令面扩展**（`steer`/`compact`/`set_model` 等，上游 rpc-types.ts:20-72 有蓝图，mock 已全绿） | 高 | 中 | — | ✅ |
 | G1-2 | **Grok ACP/fail-closed**（补 ACP stdio 客户端，或摘除 `supportsSessionResume` 声明 + UI 标注降级） | 高 | 中 | — | ✅ |
-| G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ⬜ |
+| G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ✅ |
 | G1-4 | **失败分类精度**（provider_network vs auth/quota 边界，驱动更准的自动改派与文案） | 中 | 中 | — | ⬜ |
 | G1-5 | **Memory/Wiki 降级可观测**（pgvector 软回退、无 LLM key 时 Wiki ingest 不反复重试 15min，给出诚实提示） | 中 | 小 | — | ⬜ |
 
@@ -60,7 +60,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
 | G2-1 | **Deferred-escalation 惰性升级**（`deferred` 状态 + `fire_at` + 清扫器，复用 escalated_from_run_id；multica 的「N 分钟无响应则升级」） | 高 | 中 | — | ✅ |
-| G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ⬜ |
+| G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ✅ |
 | G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ⬜ |
 | G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ⬜ |
 | G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ⬜ |
@@ -91,7 +91,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 |---|---|---|---|---|---|
 | G4-1 | **记忆检索升级**（SQLite FTS5 索引或索引化扫描，替代 200 行硬上限；顺带 scope 加权） | 高 | 中 | — | ✅ |
 | G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ✅ |
-| G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ⬜ |
+| G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ✅ |
 | G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ⬜ |
 | G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ⬜ |
 
@@ -122,7 +122,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 3 | G2-1 Deferred-escalation | G2 | ✅ 已关（2026-08-02，[closeout](app/.progress/g2-1-deferred-escalation-closeout-2026-08-02.md)） |
 | 4 | G1-2 Grok ACP/fail-closed | G1 | ✅ 已关（2026-08-02，[closeout](app/.progress/g1-2-grok-failclosed-closeout-2026-08-02.md)；fail-closed 基线，ACP 客户端另立后续刀） |
 | 5 | G4-1 记忆检索 FTS5 | G4 | ✅ 已关（2026-08-02，[closeout](app/.progress/g4-1-memory-fts-closeout-2026-08-02.md)） |
-| 6+ | G1-3 → G3-2 → G4-3 → G5-1 → G3-3 … | 其余 | 按 §3 各 Goal 价值排序逐刀取用（G4-2 已关 2026-08-02，[closeout](app/.progress/g4-2-stream-scrubber-closeout-2026-08-02.md)） |
+| 6+ | G1-3 · G2-2 · G4-3 | 其余 | ✅ 已关（2026-08-02，[G1-3](app/.progress/g1-3-probe-grace-closeout-2026-08-02.md) · [G2-2](app/.progress/g2-2-autopilot-offline-closeout-2026-08-02.md) · [G4-3](app/.progress/g4-3-wiki-nokey-honest-closeout-2026-08-02.md)） |
+| 7 | **下一刀 M2（Goal 第二波顺序）** | G1 | G1-4 失败分类精度 → G2-3 子代理成本汇总 → G3-2 看板键盘可达（M2 按目标陈述顺序；此后按 §3 各 Goal 价值排序取用：G5-1 → G3-3 …） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
