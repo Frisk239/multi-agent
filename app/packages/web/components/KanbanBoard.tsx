@@ -10,8 +10,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  KeyboardCode,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import type { KeyboardCoordinateGetter } from '@dnd-kit/core';
 import type { IssueStatus, Priority, Issue } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
@@ -77,6 +78,91 @@ const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
   { title: '已阻塞', status: 'blocked', color: 'var(--status-blocked)' },
   { title: '已取消', status: 'cancelled', color: 'var(--status-cancelled)' },
 ];
+
+type BoardDirection = 'up' | 'down' | 'left' | 'right';
+
+function boardDirection(code: string): BoardDirection | null {
+  switch (code) {
+    case KeyboardCode.Down:
+      return 'down';
+    case KeyboardCode.Up:
+      return 'up';
+    case KeyboardCode.Left:
+      return 'left';
+    case KeyboardCode.Right:
+      return 'right';
+    default:
+      return null;
+  }
+}
+
+/**
+ * G3-2：看板键盘坐标（dnd-kit 多容器官方模式的自定义 getter）。
+ * sortableKeyboardCoordinates 只支持「列内相邻卡片」；看板是横向 7 列，
+ * 需要左右跨列：
+ * - 左右 → 目标相邻「列」（type=Column droppable）内侧点
+ * - 上下 → 当前列内相邻「卡片」（type=Issue droppable）中心点
+ * Space/Enter 仍由 KeyboardSensor 默认处理（拾起/放下）。
+ */
+const kanbanKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  { context: { active, droppableRects, droppableContainers, collisionRect } },
+) => {
+  const direction = boardDirection(event.code);
+  if (!direction || !active) return undefined;
+
+  const cur = active.rect.current;
+  const translated = cur && 'translated' in cur ? cur.translated : null;
+  const activeRect =
+    collisionRect ?? translated ?? (cur && 'translated' in cur ? cur.initial : cur);
+  if (!activeRect) return undefined;
+
+  const containers = [...droppableContainers.values()]
+    .map((c) => ({ id: c.id, data: c.data?.current, rect: droppableRects.get(c.id) }))
+    .filter((c) => c.rect != null) as Array<{
+    id: unknown;
+    data: { type?: string } | undefined;
+    rect: { left: number; right: number; top: number; bottom: number; width: number; height: number };
+  }>;
+
+  const columns = containers.filter((c) => c.data?.type === 'Column');
+  const items = containers.filter((c) => c.data?.type === 'Issue');
+  if (columns.length < 2) return undefined;
+
+  const cx = activeRect.left + activeRect.width / 2;
+  const cy = activeRect.top + activeRect.height / 2;
+
+  if (direction === 'left' || direction === 'right') {
+    // 当前所在列 = 包含活动元素中心的列；取左右相邻列
+    const current =
+      columns.find(
+        (c) => c.rect.left <= cx && cx <= c.rect.right && c.rect.top <= cy && cy <= c.rect.bottom,
+      ) ?? columns[0];
+    const sorted = [...columns].sort((a, b) => a.rect.left - b.rect.left);
+    const idx = sorted.findIndex((c) => c.id === current.id);
+    const target = direction === 'right' ? sorted[idx + 1] : sorted[idx - 1];
+    if (!target) return undefined;
+    return {
+      x: direction === 'right' ? target.rect.left + 20 : target.rect.right - 20,
+      y: Math.min(Math.max(cy, target.rect.top + 10), target.rect.bottom - 10),
+    };
+  }
+
+  // 上下：当前列内卡片按 y 排序，取相邻卡片中心
+  const currentColumn = columns.find(
+    (c) => c.rect.left <= cx && cx <= c.rect.right && c.rect.top <= cy && cy <= c.rect.bottom,
+  );
+  const inColumn = currentColumn
+    ? items.filter(
+        (i) => i.rect.left >= currentColumn.rect.left - 4 && i.rect.right <= currentColumn.rect.right + 4,
+      )
+    : [];
+  const sorted = [...inColumn].sort((a, b) => a.rect.top - b.rect.top);
+  const idx = sorted.findIndex((i) => String(i.id) === String(active.id));
+  const target = direction === 'down' ? sorted[idx + 1] : sorted[idx - 1];
+  if (!target) return undefined;
+  return { x: target.rect.left + target.rect.width / 2, y: target.rect.top + target.rect.height / 2 };
+};
 
 /** URL `assignee=` → IssuesQuery 字段 */
 function parseAssigneeParam(raw: string | null): {
@@ -465,10 +551,11 @@ function KanbanBoardInner({
         distance: 5,
       },
     }),
-    // G3-2：键盘可达（a11y）——卡片聚焦后 Space/Enter 拾起、方向键移动、再按放下；
+    // G3-2：键盘可达（a11y）——卡片聚焦后 Space/Enter 拾起、方向键移动
+    // （左右跨列 / 上下列内，自定义 kanbanKeyboardCoordinates）、再按放下；
     // 与指针拖拽走同一 onDragEnd → reorder API（position 一并维护）。
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: kanbanKeyboardCoordinates,
     })
   );
 
