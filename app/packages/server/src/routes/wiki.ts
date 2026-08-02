@@ -25,6 +25,7 @@ import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import { generateSlug } from '../wiki/slug.js';
 import { queryWiki } from '../wiki/query.js';
 import { checkHealth } from '../wiki/health.js';
+import { listBacklinks } from '../wiki/backlinks.js';
 import { checkLint } from '../wiki/lint.js';
 import {
   listWikiIngestJobs,
@@ -83,13 +84,14 @@ export async function wikiRoutes(app: FastifyInstance): Promise<void> {
     return { data, total: all.length, limit: lim, offset: off };
   });
 
-  // GET /api/wiki/pages/:slug — 单页（spec §6）
+  // GET /api/wiki/pages/:slug — 单页（spec §6）；G4-5b：附 backlinks（引用自其他页）
   app.get('/api/wiki/pages/:slug', async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const opts = rootOptsFromQuery(req.query as { projectId?: string });
     const page = readWikiPage(slug, opts);
     if (!page) return reply.status(404).send({ success: false, error: 'wiki 页不存在'  });
-    return page;
+    const backlinks = listBacklinks(slug, opts);
+    return { ...page, backlinks };
   });
 
   // POST /api/wiki/query — 问答（spec §5.2）；body 可选 roots:'all' 跨根检索（缺省单根）

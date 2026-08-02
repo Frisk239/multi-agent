@@ -1497,6 +1497,8 @@ export const WikiPage = z.object({
   slug: z.string(),
   title: z.string(),
   content: z.string(),
+  /** G4-5b：引用自其他页（backlink 反查；缺省空数组） */
+  backlinks: z.array(z.object({ from: z.string(), title: z.string() })).optional(),
 });
 export type WikiPage = z.infer<typeof WikiPage>;
 

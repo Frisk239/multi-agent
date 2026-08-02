@@ -423,6 +423,39 @@ function WikiPageInner() {
                 </Link>
               </div>
               <MarkdownBody source={currentPage.content} />
+              {/* G4-5b：引用自其他页（backlink 反查） */}
+              <div
+                className="wiki-backlinks"
+                data-testid="wiki-backlinks"
+                data-count={currentPage.backlinks?.length ?? 0}
+              >
+                <div className="wiki-page-meta">
+                  <strong className="text-sm">引用自其他页</strong>
+                  <span className="text-dim text-sm">
+                    {currentPage.backlinks?.length ? `${currentPage.backlinks.length} 页` : '暂无引用'}
+                  </span>
+                </div>
+                {currentPage.backlinks?.length ? (
+                  <div className="wiki-backlinks-list" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {currentPage.backlinks.map((b) => (
+                      <button
+                        key={b.from}
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        data-testid="wiki-backlink-item"
+                        data-slug={b.from}
+                        onClick={() => setSelectedSlug(b.from)}
+                      >
+                        {b.title}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-dim text-sm" style={{ marginTop: 6 }}>
+                    没有其他页面链接到本页（本页为「孤儿」候选，可做结构检查确认）
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
