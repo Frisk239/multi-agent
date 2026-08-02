@@ -75,9 +75,9 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 |---|---|---|---|---|---|
 | G3-1 | **错误态三件套**（Wiki 页正文、RuntimesPage、记忆详情：isError → ErrorState + 重试；404 → 「页面不存在」） | 高 | 极小 | — | ✅ |
 | G3-2 | **看板键盘拖拽 / 「移动到列」键盘路径**（注册 dnd-kit KeyboardSensor 或卡片菜单补键盘可达） | 中 | 小 | — | ✅ |
-| G3-3 | **Issue/Squad 详情 inline transcript 预览**（run 历史行内展开消息摘要，复用 `pairRunToolEvents`；现状仅深链跳走） | 中 | 中 | — | ⬜ |
-| G3-4 | **Agent 环境变量/自定义参数编辑**（server schema `envVars` + AgentDetail UI，原型 Must 唯一双缺） | 中 | 中 | — | ⬜ |
-| G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ⬜ |
+| G3-3 | **Issue/Squad 详情 inline transcript 预览**（run 历史行内展开消息摘要，复用 `pairRunToolEvents`；现状仅深链跳走） | 中 | 中 | — | ✅ |
+| G3-4 | **Agent 环境变量/自定义参数编辑**（server schema `envVars` + AgentDetail UI，原型 Must 唯一双缺） | 中 | 中 | — | ✅ |
+| G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ✅ |
 | G3-6 | **Issue 自定义字段 UI**（schema 有 customFields JSON，缺编辑界面，GAP-05） | 中 | 中 | — | ⬜ |
 | G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | ⬜ |
 
@@ -93,7 +93,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ✅ |
 | G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ✅ |
 | G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ✅ |
-| G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ⬜ |
+| G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | 🔨 |
 
 ### G5 可靠性与运营 — 天天用不翻车
 
@@ -103,10 +103,10 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| G5-1 | **skill/scanner + import-url 完整测试**（全仓最大测试盲区，URL 导入涉及 GitHub API 解析/竞态） | 高 | 中 | — | ⬜ |
-| G5-2 | **auto-retry 类型安全化**（去 `any`/去反射，改 Drizzle 类型化路径） | 中 | 小 | — | ⬜ |
-| G5-3 | **灾备 Wiki 换入 + 覆盖报告**（stage.json 扩展 wiki 校验 → swap wiki 目录 → journal wiki 字段；reopenable-db 收尾） | 中 | 中 | — | ⬜ |
-| G5-4 | **进程生命周期收尾**（abort 注册表纯内存问题、重启 orphan、取消中崩溃的终态语义） | 中 | 中 | — | ⬜ |
+| G5-1 | **skill/scanner + import-url 完整测试**（全仓最大测试盲区，URL 导入涉及 GitHub API 解析/竞态） | 高 | 中 | — | ✅ |
+| G5-2 | **auto-retry 类型安全化**（去 `any`/去反射，改 Drizzle 类型化路径） | 中 | 小 | — | ✅ |
+| G5-3 | **灾备 Wiki 换入 + 覆盖报告**（stage.json 扩展 wiki 校验 → swap wiki 目录 → journal wiki 字段；reopenable-db 收尾） | 中 | 中 | — | ✅ |
+| G5-4 | **进程生命周期收尾**（abort 注册表纯内存问题、重启 orphan、取消中崩溃的终态语义） | 中 | 中 | — | ✅ |
 | G5-5 | **系统/桌面通知**（run 完成、inbox 新项；纯本地，可用 Electron shell/notify 类机制） | 中 | 中 | — | ⬜ |
 | G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ⬜ |
 | G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ⬜ |
@@ -126,7 +126,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 7 | G1-4 · G2-3 · G3-2 | 其余 | ✅ 已关（2026-08-02 M2，[G1-4](app/.progress/g1-4-failure-classify-closeout-2026-08-02.md) · [G2-3](app/.progress/g2-3-cost-rollup-closeout-2026-08-02.md) · [G3-2](app/.progress/g3-2-kanban-keyboard-closeout-2026-08-02.md)） |
 | 8 | **下一刀 M3（Goal 第二波顺序）** | G2/G4 | G2-4 读投影残留清理 → G4-4 Memory scope 多维精化（M3 按目标陈述顺序；此后 M4：G5-1 → G5-2，再按 §3 价值取用） |
 | 9 | G2-4 · G4-4 | 其余 | ✅ 已关（2026-08-02 M3，[G2-4](app/.progress/g2-4-projection-cleanup-closeout-2026-08-02.md) · [G4-4](app/.progress/g4-4-memory-scope-closeout-2026-08-02.md)） |
-| 10 | **下一刀 M4（Goal 收尾）** | G5 | G5-1 skill/scanner + import-url 完整测试 → G5-2 auto-retry 类型安全化（去 any/去反射） |
+| 11 | **M3 Must 补全（G3-3/G3-4/G3-5）+ G4-5 CLI 部分** | G3/G4 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)；G4-5 余 health/backlink 留后续） |
+| 10 | M4 工程债（G5-1/G5-2）+ M2 可靠性（G5-3/G5-4） | G5 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
