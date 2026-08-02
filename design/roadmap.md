@@ -62,7 +62,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G2-1 | **Deferred-escalation 惰性升级**（`deferred` 状态 + `fire_at` + 清扫器，复用 escalated_from_run_id；multica 的「N 分钟无响应则升级」） | 高 | 中 | — | ✅ |
 | G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ✅ |
 | G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ✅ |
-| G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ⬜ |
+| G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ✅ |
 | G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ⬜ |
 
 ### G3 前端体验 — 少摩擦、可发现
@@ -92,7 +92,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G4-1 | **记忆检索升级**（SQLite FTS5 索引或索引化扫描，替代 200 行硬上限；顺带 scope 加权） | 高 | 中 | — | ✅ |
 | G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ✅ |
 | G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ✅ |
-| G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ⬜ |
+| G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ✅ |
 | G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ⬜ |
 
 ### G5 可靠性与运营 — 天天用不翻车
@@ -125,6 +125,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 6+ | G1-3 · G2-2 · G4-3 | 其余 | ✅ 已关（2026-08-02，[G1-3](app/.progress/g1-3-probe-grace-closeout-2026-08-02.md) · [G2-2](app/.progress/g2-2-autopilot-offline-closeout-2026-08-02.md) · [G4-3](app/.progress/g4-3-wiki-nokey-honest-closeout-2026-08-02.md)） |
 | 7 | G1-4 · G2-3 · G3-2 | 其余 | ✅ 已关（2026-08-02 M2，[G1-4](app/.progress/g1-4-failure-classify-closeout-2026-08-02.md) · [G2-3](app/.progress/g2-3-cost-rollup-closeout-2026-08-02.md) · [G3-2](app/.progress/g3-2-kanban-keyboard-closeout-2026-08-02.md)） |
 | 8 | **下一刀 M3（Goal 第二波顺序）** | G2/G4 | G2-4 读投影残留清理 → G4-4 Memory scope 多维精化（M3 按目标陈述顺序；此后 M4：G5-1 → G5-2，再按 §3 价值取用） |
+| 9 | G2-4 · G4-4 | 其余 | ✅ 已关（2026-08-02 M3，[G2-4](app/.progress/g2-4-projection-cleanup-closeout-2026-08-02.md) · [G4-4](app/.progress/g4-4-memory-scope-closeout-2026-08-02.md)） |
+| 10 | **下一刀 M4（Goal 收尾）** | G5 | G5-1 skill/scanner + import-url 完整测试 → G5-2 auto-retry 类型安全化（去 any/去反射） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
