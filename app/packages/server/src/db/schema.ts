@@ -52,6 +52,9 @@ export const agents = sqliteTable('agent', {
   mcpServers: text('mcp_servers'), // S05：MCP 配置 JSON 字符串
   instructions: text('instructions').notNull().default(''),
   allowedPaths: text('allowed_paths'),
+  // G3-4：环境变量 / 自定义参数（JSON 文本；null=未配置，executor 注入点后续接）
+  envVars: text('env_vars'),
+  customArgs: text('custom_args'),
   // G25：软归档；null=活跃（对齐 Multica archived_at）
   archivedAt: integer('archived_at'),
   // P2-4：显式后备 agent（runtime 连接不上 + auto-retry 预算用尽时改派目标；null=不启用）

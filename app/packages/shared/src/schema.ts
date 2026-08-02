@@ -1045,6 +1045,13 @@ export type AgentSummary = z.infer<typeof AgentSummary>;
 // G22：+ model（runtime 内模型）
 // DS4：+ thinkingLevel
 // G25：+ archivedAt
+// G3-4：+ envVars / customArgs（环境变量与 CLI 自定义参数；executor 注入点后续接）
+export const AgentEnvVar = z.object({
+  key: z.string().min(1).max(200),
+  value: z.string().max(4000),
+});
+export type AgentEnvVar = z.infer<typeof AgentEnvVar>;
+
 export const AgentDetail = AgentSummary.extend({
   category: z.string().nullable(),
   model: z.string().nullable(),
@@ -1056,6 +1063,8 @@ export const AgentDetail = AgentSummary.extend({
   archivedAt: z.string().datetime().nullable(),
   liveStatus: AgentPulseStatus.optional().default('idle'),
   activeRunCount: z.number().int().nonnegative().optional().default(0),
+  envVars: z.array(AgentEnvVar).default([]),
+  customArgs: z.array(z.string().max(500)).default([]),
 });
 export type AgentDetail = z.infer<typeof AgentDetail>;
 
@@ -1080,6 +1089,9 @@ export const CreateAgentInput = z.object({
   fallbackAgentId: BusinessId.nullable().optional(),
   // W7：被触发方式（缺省 auto）
   invocationPermission: z.enum(['auto', 'mention-only']).optional(),
+  // G3-4：环境变量 / 自定义参数（可选；缺省不写）
+  envVars: z.array(AgentEnvVar).max(50).optional(),
+  customArgs: z.array(z.string().max(500)).max(50).optional(),
   id: OptionalClientId.optional(),
 });
 export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
@@ -1099,6 +1111,9 @@ export const UpdateAgentInput = z
     fallbackAgentId: BusinessId.nullable().optional(),
     // W7：被触发方式（null=清除回 auto）
     invocationPermission: z.enum(['auto', 'mention-only']).nullable().optional(),
+    // G3-4：环境变量 / 自定义参数（null=清除）
+    envVars: z.array(AgentEnvVar).max(50).nullable().optional(),
+    customArgs: z.array(z.string().max(500)).max(50).nullable().optional(),
     // G25：true=归档，false=取消归档
     archived: z.boolean().optional(),
   })

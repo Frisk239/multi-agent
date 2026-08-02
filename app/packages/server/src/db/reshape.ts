@@ -395,6 +395,36 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
   };
 }
 
+/** G3-4：JSON 文本列安全解析（脏数据回退空） */
+function parseAgentEnvVars(raw: string | null | undefined): { key: string; value: string }[] {
+  if (!raw?.trim()) return [];
+  try {
+    const j = JSON.parse(raw) as unknown;
+    if (!Array.isArray(j)) return [];
+    return j
+      .filter(
+        (x): x is { key: string; value: string } =>
+          typeof x === 'object' &&
+          x != null &&
+          typeof (x as { key?: unknown }).key === 'string' &&
+          typeof (x as { value?: unknown }).value === 'string',
+      )
+      .map((x) => ({ key: x.key, value: x.value }));
+  } catch {
+    return [];
+  }
+}
+
+function parseAgentCustomArgs(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  try {
+    const j = JSON.parse(raw) as unknown;
+    return Array.isArray(j) ? j.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export function toAgentDetail(row: AgentRow): AgentDetail {
   const live = computeAgentLiveStatus(row.id);
   return {
@@ -415,6 +445,8 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     liveStatus: live.status,
     activeRunCount: live.activeRunCount,
+    envVars: parseAgentEnvVars(row.envVars),
+    customArgs: parseAgentCustomArgs(row.customArgs),
   };
 }
 

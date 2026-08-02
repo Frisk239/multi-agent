@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { AgentReadiness, RuntimeId } from '@ma/shared';
+import type { AgentEnvVar, AgentReadiness, RuntimeId } from '@ma/shared';
 import {
   useAgent,
   useAgents,
@@ -465,6 +465,8 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 agentId={agentId}
                 initial={agent.instructions ?? ''}
                 allowedPathsInitial={agent.allowedPaths ?? ''}
+                envVarsInitial={agent.envVars ?? []}
+                customArgsInitial={agent.customArgs ?? []}
               />
             )}
           </div>
@@ -897,18 +899,114 @@ function RunsTab({ agentId }: { agentId: string }) {
   );
 }
 
+// G3-4：环境变量 / 自定义参数编辑器（API 落库 + 保存/回读）
+function EnvVarsEditor({
+  envVars,
+  customArgs,
+  onChangeEnvVars,
+  onChangeCustomArgs,
+}: {
+  envVars: AgentEnvVar[];
+  customArgs: string[];
+  onChangeEnvVars: (v: AgentEnvVar[]) => void;
+  onChangeCustomArgs: (v: string[]) => void;
+}) {
+  function setRow(index: number, patch: Partial<AgentEnvVar>) {
+    onChangeEnvVars(envVars.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+  function removeRow(index: number) {
+    onChangeEnvVars(envVars.filter((_, i) => i !== index));
+  }
+  return (
+    <div className="mcp-editor" data-testid="agent-envvars-editor">
+      <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
+        环境变量：随该 Agent 的 CLI 执行注入（<code>KEY=VALUE</code>；executor 注入点见运行文档）。
+        仅填 key 的行会被忽略。
+      </div>
+      {envVars.length === 0 ? (
+        <p className="text-dim text-sm" data-testid="agent-envvars-empty">
+          尚未配置环境变量
+        </p>
+      ) : null}
+      {envVars.map((row, i) => (
+        <div key={i} className="envvar-row" data-testid="agent-envvar-row">
+          <input
+            className="envvar-key"
+            value={row.key}
+            onChange={(e) => setRow(i, { key: e.target.value })}
+            placeholder="KEY"
+            spellCheck={false}
+            data-testid="agent-envvar-key"
+          />
+          <span className="envvar-eq">=</span>
+          <input
+            className="envvar-value"
+            value={row.value}
+            onChange={(e) => setRow(i, { value: e.target.value })}
+            placeholder="value"
+            spellCheck={false}
+            data-testid="agent-envvar-value"
+          />
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            aria-label="删除该环境变量"
+            onClick={() => removeRow(i)}
+            data-testid="agent-envvar-remove"
+          >
+            删除
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        onClick={() => onChangeEnvVars([...envVars, { key: '', value: '' }])}
+        data-testid="agent-envvar-add"
+      >
+        + 添加环境变量
+      </button>
+
+      <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
+        自定义参数：追加到 CLI 启动参数（每行一个；executor 注入点见运行文档）。
+      </div>
+      <textarea
+        value={customArgs.join('\n')}
+        onChange={(e) =>
+          onChangeCustomArgs(
+            e.target.value
+              .split('\n')
+              .map((s) => s.trim())
+              .filter(Boolean),
+          )
+        }
+        placeholder={"例如：--permission-mode acceptEdits\n--max-turns 40"}
+        spellCheck={false}
+        rows={3}
+        data-testid="agent-customargs-input"
+      />
+    </div>
+  );
+}
+
 function InstructionsTab({
   agentId,
   initial,
   allowedPathsInitial,
+  envVarsInitial,
+  customArgsInitial,
 }: {
   agentId: string;
   initial: string;
   allowedPathsInitial: string;
+  envVarsInitial: AgentEnvVar[];
+  customArgsInitial: string[];
 }) {
   const update = useUpdateAgent(agentId);
   const [draft, setDraft] = useState(initial);
   const [draftPaths, setDraftPaths] = useState(allowedPathsInitial);
+  const [envVars, setEnvVars] = useState<AgentEnvVar[]>(envVarsInitial);
+  const [customArgs, setCustomArgs] = useState<string[]>(customArgsInitial);
 
   useEffect(() => {
     setDraft(initial);
@@ -918,14 +1016,31 @@ function InstructionsTab({
     setDraftPaths(allowedPathsInitial);
   }, [allowedPathsInitial]);
 
+  useEffect(() => {
+    setEnvVars(envVarsInitial);
+  }, [envVarsInitial]);
+
+  useEffect(() => {
+    setCustomArgs(customArgsInitial);
+  }, [customArgsInitial]);
+
   function save() {
     const cleanedPaths = draftPaths
       .split(/[\n,]+/)
       .map((p) => p.trim())
       .filter(Boolean)
       .join('\n');
+    const cleanedEnvVars = envVars
+      .map((row) => ({ key: row.key.trim(), value: row.value }))
+      .filter((row) => row.key.length > 0);
     setDraftPaths(cleanedPaths);
-    update.mutate({ instructions: draft, allowedPaths: cleanedPaths });
+    setEnvVars(cleanedEnvVars);
+    update.mutate({
+      instructions: draft,
+      allowedPaths: cleanedPaths,
+      envVars: cleanedEnvVars,
+      customArgs,
+    });
   }
 
   return (
@@ -953,7 +1068,14 @@ function InstructionsTab({
         spellCheck={false}
         rows={4}
       />
-      
+
+      <EnvVarsEditor
+        envVars={envVars}
+        customArgs={customArgs}
+        onChangeEnvVars={setEnvVars}
+        onChangeCustomArgs={setCustomArgs}
+      />
+
       <div className="mcp-editor-actions">
         <button
           type="button"

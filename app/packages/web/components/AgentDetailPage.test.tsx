@@ -44,6 +44,8 @@ function makeAgent(overrides: Partial<AgentDetail>): AgentDetail {
     archivedAt: null,
     liveStatus: 'idle',
     activeRunCount: 0,
+    envVars: [],
+    customArgs: [],
     ...overrides,
   };
 }
@@ -152,5 +154,74 @@ describe('AgentDetailPage · fallback agent（后备 agent）', () => {
         expect.objectContaining({ fallbackAgentId: null }),
       );
     });
+  });
+});
+
+describe('G3-4 agent envVars / customArgs settings', () => {
+  beforeEach(() => {
+    mocks.updateMutate.mockReset();
+    mocks.agent = makeAgent({
+      envVars: [{ key: 'LANG', value: 'zh-CN' }],
+      customArgs: ['--max-turns 40'],
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('settings tab 回读已配置 envVars 与 customArgs', async () => {
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-settings'));
+    const rows = await screen.findAllByTestId('agent-envvar-row');
+    expect(rows).toHaveLength(1);
+    expect(screen.getByTestId('agent-envvar-key')).toHaveValue('LANG');
+    expect(screen.getByTestId('agent-envvar-value')).toHaveValue('zh-CN');
+    expect(screen.getByTestId('agent-customargs-input')).toHaveValue('--max-turns 40');
+  });
+
+  it('添加/删除 envVars 行并随保存提交（空 key 行被清理）', async () => {
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-settings'));
+    await screen.findAllByTestId('agent-envvar-row');
+
+    fireEvent.click(screen.getByTestId('agent-envvar-add'));
+    const rows = screen.getAllByTestId('agent-envvar-row');
+    expect(rows).toHaveLength(2);
+    // 填第二行
+    fireEvent.change(screen.getAllByTestId('agent-envvar-key')[1], {
+      target: { value: 'API_BASE' },
+    });
+    fireEvent.change(screen.getAllByTestId('agent-envvar-value')[1], {
+      target: { value: 'http://localhost:8080' },
+    });
+    // 自定义参数追加
+    fireEvent.change(screen.getByTestId('agent-customargs-input'), {
+      target: { value: '--max-turns 40\n--permission-mode acceptEdits' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }));
+    await waitFor(() => {
+      expect(mocks.updateMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          envVars: [
+            { key: 'LANG', value: 'zh-CN' },
+            { key: 'API_BASE', value: 'http://localhost:8080' },
+          ],
+          customArgs: ['--max-turns 40', '--permission-mode acceptEdits'],
+        }),
+      );
+    });
+
+    // 删除行
+    fireEvent.click(screen.getAllByTestId('agent-envvar-remove')[1]);
+    expect(screen.getAllByTestId('agent-envvar-row')).toHaveLength(1);
+  });
+
+  it('空 envVars（无配置）显示空态提示', async () => {
+    mocks.agent = makeAgent({});
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-settings'));
+    expect(await screen.findByTestId('agent-envvars-empty')).toHaveTextContent('尚未配置环境变量');
   });
 });

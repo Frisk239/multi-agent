@@ -121,6 +121,9 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         mcpServers: input.mcpServers ?? null,
         fallbackAgentId: input.fallbackAgentId ?? null,
         invocationPermission: input.invocationPermission ?? 'auto',
+        // G3-4：envVars/customArgs（JSON 序列化落库）
+        envVars: input.envVars != null ? JSON.stringify(input.envVars) : null,
+        customArgs: input.customArgs != null ? JSON.stringify(input.customArgs) : null,
         createdAt: now,
       })
       .run();
@@ -171,6 +174,13 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     // W7：被触发方式；null=清除回 auto
     if (patch.invocationPermission !== undefined) {
       updates.invocationPermission = patch.invocationPermission ?? 'auto';
+    }
+    // G3-4：环境变量 / 自定义参数；null=清除
+    if (patch.envVars !== undefined) {
+      updates.envVars = patch.envVars == null ? null : JSON.stringify(patch.envVars);
+    }
+    if (patch.customArgs !== undefined) {
+      updates.customArgs = patch.customArgs == null ? null : JSON.stringify(patch.customArgs);
     }
     if (patch.archived !== undefined) {
       updates.archivedAt = patch.archived ? Date.now() : null;
