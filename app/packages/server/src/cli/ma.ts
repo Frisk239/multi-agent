@@ -44,6 +44,9 @@ function positional(args: string[]): string[] {
     if (a.startsWith('--format=')) continue;
     if (a === '--sync') continue;
     if (a.startsWith('--status=')) continue;
+    // G4-5：wiki query 跨根 flag（布尔；--roots=all 形态在下方 = 分支）
+    if (a === '--roots') continue;
+    if (a.startsWith('--roots=')) continue;
     // bu03 issue create flags（有值的都 skip）
     if (
       a === '--title' ||
@@ -187,7 +190,7 @@ export async function handleIssueCreate(args: string[], wantText: boolean): Prom
   emitOk({ issue: data });
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   ensureWikiDir();
   // pnpm run ma -- wiki ... 会把单独的 `--` 传进 argv，需剥离
   const args = process.argv.slice(2).filter((a) => a !== '--');
@@ -235,8 +238,11 @@ async function main(): Promise<void> {
 
     if (cmd === 'query') {
       const q = pos[2];
-      if (!q) emitErr('input.invalid', 'ma wiki query "<question>"', 5);
-      const data = await queryWiki(q);
+      if (!q) emitErr('input.invalid', 'ma wiki query "<question>" [--roots]', 5);
+      // G4-5：--roots / --roots=all → 跨根合并检索（global + project roots）
+      const acrossRoots =
+        args.includes('--roots') || args.some((a) => a.startsWith('--roots='));
+      const data = await queryWiki(q, {}, acrossRoots ? { roots: 'all' } : undefined);
       if (wantText) {
         process.stdout.write(data.answer + '\n');
         process.exit(0);

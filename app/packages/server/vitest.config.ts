@@ -11,5 +11,9 @@ export default defineConfig({
     // 默认 5s/10s —— 放宽降低波动；单测本身不依赖紧超时
     testTimeout: 10_000,
     hookTimeout: 20_000,
+    // 本机常驻 MCP 进程多、内存余量小：限制 worker 数防 VirtualAlloc 峰值
+    poolOptions: {
+      forks: { maxForks: 4 },
+    },
   },
 });

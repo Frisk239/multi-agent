@@ -115,3 +115,65 @@ describe('CLI issue create 转发 local token (B2)', () => {
     // 注：真实 emitErr 会 process.exit；mock 不中断，后续 emitOk 属 mock 假象，不在此断言
   });
 });
+
+describe('G4-5 wiki query --roots flag', () => {
+  const queryWikiMock = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    queryWikiMock.mockReset();
+    queryWikiMock.mockResolvedValue({ answer: '答案', citations: [] });
+    vi.doMock('../wiki/query.js', () => ({
+      queryWiki: queryWikiMock,
+    }));
+    vi.doMock('../wiki/store.js', () => ({
+      ensureWikiDir: vi.fn(),
+      listWikiPages: vi.fn(() => []),
+    }));
+    vi.doMock('../wiki/health.js', () => ({ checkHealth: vi.fn() }));
+    vi.doMock('../wiki/lint.js', () => ({ checkLint: vi.fn() }));
+    vi.doMock('../wiki/ingest-queue.js', () => ({
+      enqueueWikiIngest: vi.fn(),
+      retryWikiIngestJob: vi.fn(),
+      listWikiIngestJobs: vi.fn(() => []),
+    }));
+    vi.doMock('../wiki/ingest.js', () => ({ ingestIssue: vi.fn() }));
+  });
+
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  const savedArgv = process.argv;
+
+  function setArgv(rest: string[]) {
+    process.argv = ['node', 'ma.ts', ...rest];
+  }
+
+  it('--roots 传跨根检索选项', async () => {
+    const { main } = await import('./ma.js');
+    setArgv(['wiki', 'query', '什么是 Wiki', '--roots']);
+    await main();
+    expect(queryWikiMock).toHaveBeenCalledWith(
+      '什么是 Wiki',
+      {},
+      { roots: 'all' },
+    );
+  });
+
+  it('--roots=all 等价；不带 flag 保持单根行为', async () => {
+    const { main } = await import('./ma.js');
+    setArgv(['wiki', 'query', '什么是 Wiki', '--roots=all']);
+    await main();
+    expect(queryWikiMock).toHaveBeenCalledWith(
+      '什么是 Wiki',
+      {},
+      { roots: 'all' },
+    );
+
+    queryWikiMock.mockClear();
+    setArgv(['wiki', 'query', '什么是 Wiki']);
+    await main();
+    expect(queryWikiMock).toHaveBeenCalledWith('什么是 Wiki', {}, undefined);
+  });
+});
