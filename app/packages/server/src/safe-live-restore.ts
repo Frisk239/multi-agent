@@ -1,6 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
 import { db } from './db/client.js';
 import { agentRuns } from './db/schema.js';
 import { inArray } from 'drizzle-orm';
@@ -9,6 +16,7 @@ import {
   migrateDatabaseFile,
   swapDatabaseUnderMaintenance,
 } from './orchestration/db-lifecycle.js';
+import { getWikiDir } from './wiki/store.js';
 
 export type RestoreJournalStatus =
   | 'staged'
@@ -17,6 +25,19 @@ export type RestoreJournalStatus =
   | 'applied'
   | 'rolled_back'
   | 'failed';
+
+/** G5-3：恢复时 Wiki 目录换入的 journal 记录 */
+export type RestoreJournalWiki = {
+  status: 'pending' | 'swapped' | 'skipped' | 'failed';
+  /** 换入前 live wiki 根（preview 时刻） */
+  liveRoot: string | null;
+  /** staging 内的 wiki 根 */
+  stagedRoot: string | null;
+  includedFiles: number;
+  /** swap 成功后旧 wiki 目录的保留位置（审计/回滚用；null=未移动或已清理） */
+  movedOldTo: string | null;
+  error: string | null;
+};
 
 export type RestoreJournal = {
   journalId: string;
@@ -31,6 +52,7 @@ export type RestoreJournal = {
   rollbackSnapshotName: string | null;
   liveApplyEnabled: boolean;
   error: string | null;
+  wiki: RestoreJournalWiki;
 };
 
 const CONFIRMATION_PHRASE = '恢复此快照';
@@ -67,7 +89,78 @@ export function readRestoreJournal(id: string): RestoreJournal | null {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const p = journalPath(id);
   if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, 'utf8')) as RestoreJournal;
+  const parsed = JSON.parse(readFileSync(p, 'utf8')) as Partial<RestoreJournal>;
+  // 兼容旧 journal（G5-3 前无 wiki 字段）
+  if (!parsed.wiki) {
+    parsed.wiki = {
+      status: 'pending',
+      liveRoot: null,
+      stagedRoot: null,
+      includedFiles: 0,
+      movedOldTo: null,
+      error: null,
+    };
+  }
+  return parsed as RestoreJournal;
+}
+
+/** G5-3：恢复执行时的 Wiki 目录换入结果 */
+export type WikiSwapOutcome = {
+  status: 'swapped' | 'skipped' | 'failed';
+  liveRoot: string;
+  stagedRoot: string;
+  movedOldTo: string | null;
+  error: string | null;
+};
+
+/**
+ * G5-3：把 staging 解压的 wiki 目录原子换入 live wiki 根。
+ * 旧目录先 rename 到同级备份（同盘保证 rename 原子性），新目录 rename 进；
+ * 失败时把旧目录放回。swap 成功保留旧备份（journal.movedOldTo 供审计/手动清理）。
+ */
+export function swapWikiUnderMaintenance(
+  stageId: string,
+  opts: { backupDir?: string; liveWikiRoot?: string } = {},
+): WikiSwapOutcome {
+  const stagingDir = join(
+    resolve(opts.backupDir ?? process.env.MA_BACKUP_DIR ?? '.ma-backups'),
+    '.ma-restore-staging',
+    stageId,
+  );
+  const stagedRoot = join(stagingDir, 'wiki');
+  const liveRoot = resolve(opts.liveWikiRoot ?? getWikiDir());
+  // 快照 wiki 为空（includedFiles=0）：无可换入
+  if (!existsSync(stagedRoot)) {
+    return { status: 'skipped', liveRoot, stagedRoot, movedOldTo: null, error: null };
+  }
+  const movedOldTo = join(dirname(liveRoot), `.wiki.restore-bak.${stageId}`);
+  try {
+    if (existsSync(liveRoot)) {
+      renameSync(liveRoot, movedOldTo);
+    }
+    try {
+      renameSync(stagedRoot, liveRoot);
+    } catch (e) {
+      // 换入失败：放回旧 wiki，保持现场
+      if (existsSync(movedOldTo)) {
+        try {
+          renameSync(movedOldTo, liveRoot);
+        } catch {
+          /* 放回失败时旧目录仍在 movedOldTo，journal 会记录 */
+        }
+      }
+      throw e;
+    }
+    return { status: 'swapped', liveRoot, stagedRoot, movedOldTo, error: null };
+  } catch (e) {
+    return {
+      status: 'failed',
+      liveRoot,
+      stagedRoot,
+      movedOldTo: null,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
 
 export function previewSafeRestore(stageId: string): RestoreJournal {
@@ -79,9 +172,31 @@ export function previewSafeRestore(stageId: string): RestoreJournal {
     snapshotName: string;
     expiresAt: string;
     database: { integrity: string };
+    wiki?: {
+      path?: unknown;
+      includedFiles?: unknown;
+      projectScopedExcluded?: unknown;
+      pages?: unknown;
+      projectPages?: unknown;
+    };
   };
   if (stage.stageId !== stageId || stage.database.integrity !== 'ok') {
     throw new Error('staged snapshot is not verified');
+  }
+  // G5-3：stage 校验扩展 —— wiki 元数据必须完整（path/includedFiles），
+  // includedFiles > 0 时 staging wiki 目录必须实际存在（roots 可恢复）。
+  const wikiMeta = stage.wiki;
+  const wikiIncludedFiles =
+    typeof wikiMeta?.includedFiles === 'number' && wikiMeta.includedFiles >= 0
+      ? wikiMeta.includedFiles
+      : null;
+  if (typeof wikiMeta?.path !== 'string' || wikiIncludedFiles == null) {
+    throw new Error(
+      'staged snapshot has incomplete Wiki metadata (re-stage to include Wiki roots)',
+    );
+  }
+  if (wikiIncludedFiles > 0 && !existsSync(wikiMeta.path)) {
+    throw new Error(`staged Wiki directory missing: ${wikiMeta.path}`);
   }
   if (Date.parse(stage.expiresAt) <= Date.now()) throw new Error('staged snapshot expired');
   const activeRunIds = db
@@ -106,6 +221,14 @@ export function previewSafeRestore(stageId: string): RestoreJournal {
     // live binding 全消费方跟随）；worker stop/start 与在途 run 终态化已编排。
     liveApplyEnabled: true,
     error: null,
+    wiki: {
+      status: 'pending',
+      liveRoot: getWikiDir(),
+      stagedRoot: wikiMeta.path,
+      includedFiles: wikiIncludedFiles,
+      movedOldTo: null,
+      error: null,
+    },
   });
 }
 
@@ -183,6 +306,23 @@ export async function confirmSafeRestore(input: {
     if (!swap.ok) {
       row.status = 'failed';
       row.error = `db swap failed: ${swap.error ?? 'unknown'}`;
+      row.updatedAt = new Date().toISOString();
+      return writeJournal(row);
+    }
+    // G5-3：DB 换入成功后执行 Wiki 目录换入（同 maintenance 窗口内）。
+    // swap 失败 → journal failed（DB 已换、wiki 未换，error 说明现场）。
+    const wikiSwap = swapWikiUnderMaintenance(row.stageId);
+    row.wiki = {
+      status: wikiSwap.status,
+      liveRoot: wikiSwap.liveRoot,
+      stagedRoot: wikiSwap.stagedRoot,
+      includedFiles: row.wiki.includedFiles,
+      movedOldTo: wikiSwap.movedOldTo,
+      error: wikiSwap.error,
+    };
+    if (wikiSwap.status === 'failed') {
+      row.status = 'failed';
+      row.error = `wiki swap failed: ${wikiSwap.error ?? 'unknown'}（DB 已换入；旧 wiki 保留在 ${wikiSwap.movedOldTo ?? '原位'}）`;
       row.updatedAt = new Date().toISOString();
       return writeJournal(row);
     }

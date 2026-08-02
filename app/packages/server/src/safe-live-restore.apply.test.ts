@@ -147,6 +147,7 @@ describe('D5 safe-live-restore apply', () => {
         snapshotName: made.name,
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
         database: { integrity: 'ok' },
+        wiki: { path: join(tmpDir, 'wiki'), includedFiles: 0, projectScopedExcluded: false },
       }),
     );
 
@@ -182,6 +183,7 @@ describe('D5 safe-live-restore apply', () => {
         snapshotName: 'missing.ma-backup.zip',
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
         database: { integrity: 'ok' },
+        wiki: { path: join(tmpDir, 'wiki'), includedFiles: 0, projectScopedExcluded: false },
       }),
     );
     const preview = restore.previewSafeRestore(stageId);

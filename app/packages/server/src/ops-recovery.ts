@@ -87,7 +87,17 @@ export type SnapshotDryRun = SnapshotValidation & {
   mutatesLiveState: false;
   report: {
     database: { included: boolean; bytes: number; target: string };
-    wiki: { includedFiles: number; root: string; projectScopedExcluded: boolean };
+    wiki: {
+      includedFiles: number;
+      root: string;
+      projectScopedExcluded: boolean;
+      /** G5-3：受影响 global wiki 页 */
+      pages: string[];
+      /** G5-3：受影响项目级 Wiki */
+      projectPages: NonNullable<
+        SnapshotManifest['wiki']['includedProjectWikiRoots']
+      >;
+    };
     wouldOverwrite: string[];
     actions: string[];
   };
@@ -110,6 +120,12 @@ export type SnapshotStage = {
     path: string;
     includedFiles: number;
     projectScopedExcluded: boolean;
+    /** 受影响 global wiki 页（wiki/ 前缀剥离）；G5-3 恢复覆盖报告用 */
+    pages: string[];
+    /** 受影响项目级 Wiki（A4 打包的 project roots） */
+    projectPages: NonNullable<
+      SnapshotManifest['wiki']['includedProjectWikiRoots']
+    >;
   };
 };
 
@@ -522,6 +538,15 @@ export function validateSnapshotByName(input: string | undefined, opts: { backup
 export function dryRunRestore(input: string | undefined, opts: { backupDir?: string; workspace?: ResolvedWorkspaceCwd } = {}): SnapshotDryRun {
   const v = validateSnapshotByName(input, opts);
   const m = v.manifest;
+  const wikiPages =
+    m?.files
+      .filter(
+        (f) =>
+          f.kind === 'wiki' &&
+          f.path.startsWith('wiki/') &&
+          !f.path.startsWith('wiki/projects/'),
+      )
+      .map((f) => f.path.slice('wiki/'.length)) ?? [];
   return {
     ...v,
     dryRun: true,
@@ -532,6 +557,10 @@ export function dryRunRestore(input: string | undefined, opts: { backupDir?: str
         includedFiles: v.wikiFiles,
         root: m?.wiki.root ?? 'configured global Wiki root',
         projectScopedExcluded: m?.wiki.projectScopedExcluded ?? false,
+        /** G5-3：受影响 global wiki 页（覆盖报告） */
+        pages: wikiPages,
+        /** G5-3：受影响项目级 Wiki（覆盖报告） */
+        projectPages: m?.wiki.includedProjectWikiRoots ?? [],
       },
       wouldOverwrite: [],
       actions: v.valid ? ['validate archive', 'stage database and Wiki entries (not executed)', 'await explicit restore implementation'] : [],
@@ -664,6 +693,17 @@ export function stageSnapshotRestore(
         path: join(finalPath, 'wiki'),
         includedFiles: validation.wikiFiles,
         projectScopedExcluded: false,
+        pages:
+          validation.manifest?.files
+            .filter(
+              (f) =>
+                f.kind === 'wiki' &&
+                f.path.startsWith('wiki/') &&
+                !f.path.startsWith('wiki/projects/'),
+            )
+            .map((f) => f.path.slice('wiki/'.length)) ?? [],
+        projectPages:
+          validation.manifest?.wiki.includedProjectWikiRoots ?? [],
       },
     };
     writeFileSync(join(temporaryPath, 'stage.json'), `${JSON.stringify(stage, null, 2)}\n`, 'utf8');
