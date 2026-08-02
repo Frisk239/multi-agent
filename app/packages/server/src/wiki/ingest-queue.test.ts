@@ -123,6 +123,65 @@ describe('wiki ingest backoff (Slice 39)', () => {
     const claimed = claimNextWikiIngestJob(t0);
     expect(claimed?.id).toBe(jobId);
   });
+
+  it('G4-3 no-key error → dead immediately (no backoff burn, even with maxRetries=3)', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    expect(jobId).toBeTruthy();
+    const t0 = 1_700_000_000_000;
+
+    claimNextWikiIngestJob(t0);
+    failWikiIngestJob(jobId!, 'WIKI_LLM_API_KEY 未配置', t0);
+
+    const dead = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(dead.status).toBe('dead');
+    expect(dead.failCount).toBe(1); // 一次失败即 dead，不烧 5s/10s/20s 三轮
+    expect(dead.nextAttemptAt).toBeNull();
+    expect(dead.lastError).toContain('WIKI_LLM_API_KEY');
+    // 不落 pending：不会在退避时间到后自动重试
+    expect(claimNextWikiIngestJob(t0 + 999_999_999)).toBeNull();
+  });
+
+  it('G4-3 no-key 人工 retry（仍未配 key）→ 再次直接 dead，不烧一轮退避', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    expect(jobId).toBeTruthy();
+    const t0 = 1_700_000_000_000;
+
+    claimNextWikiIngestJob(t0);
+    failWikiIngestJob(jobId!, 'WIKI_LLM_API_KEY 未配置', t0);
+    expect(retryWikiIngestJob(jobId!)).toBe(true);
+
+    claimNextWikiIngestJob(t0);
+    failWikiIngestJob(jobId!, 'WIKI_LLM_API_KEY 未配置', t0);
+    const after = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(after.status).toBe('dead');
+    expect(after.failCount).toBe(1);
+    expect(after.nextAttemptAt).toBeNull();
+  });
+
+  it('G4-3 非 no-key 错误仍走指数退避（不误伤重试语义）', () => {
+    const jobId = enqueueWikiIngest('iss-test-1');
+    expect(jobId).toBeTruthy();
+    const t0 = 1_700_000_000_000;
+
+    claimNextWikiIngestJob(t0);
+    failWikiIngestJob(jobId!, 'provider network timeout', t0);
+    const after = testState.db!
+      .select()
+      .from(wikiIngestJobs)
+      .where(eq(wikiIngestJobs.id, jobId!))
+      .get()!;
+    expect(after.status).toBe('pending');
+    expect(after.failCount).toBe(1);
+    expect(after.nextAttemptAt).toBe(t0 + wikiIngestBackoffMs(1));
+  });
 });
 
 describe('wiki ingest running lease (Slice 47)', () => {

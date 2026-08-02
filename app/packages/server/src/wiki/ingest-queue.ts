@@ -133,12 +133,15 @@ export function completeWikiIngestJob(id: string, now = Date.now()): void {
 /**
  * failCount++；< maxRetries → 回 pending + nextAttemptAt 退避；否则 dead。
  * 仅当仍为 running 时生效（lease requeue 后迟到的 execute fail 不二次计次）。
+ * G4-3：无 LLM key（WIKI_LLM_API_KEY 未配置）是环境问题，退避重试无意义 ——
+ * 直接 dead（含人工 retry 未配 key 的场景，不再烧一轮 5s/10s/20s）。
  */
 export function failWikiIngestJob(id: string, error: string, now = Date.now()): void {
   const row = db.select().from(wikiIngestJobs).where(eq(wikiIngestJobs.id, id)).get();
   if (!row || row.status !== 'running') return;
   const failCount = row.failCount + 1;
-  if (failCount < row.maxRetries) {
+  const missingKey = String(error).includes('WIKI_LLM_API_KEY');
+  if (!missingKey && failCount < row.maxRetries) {
     const nextAttemptAt = now + wikiIngestBackoffMs(failCount);
     db.update(wikiIngestJobs)
       .set({
