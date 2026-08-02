@@ -49,7 +49,7 @@
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（G1–G5 Goal 体系 + 切片队列）——迭代走 goal 模式（`/goal` 定义目标，引用 G1–G5）+ Slice Owner。
 - **最新关刀（08-01 两波）：** [optimization-wave-closeout-2026-08-01.md](app/.progress/optimization-wave-closeout-2026-08-01.md)（W4→W2→W3→W5→W6→W7→P2 尾巴，14 commit）· [hard-gap-close-wave-closeout-2026-08-01.md](app/.progress/hard-gap-close-wave-closeout-2026-08-01.md)（F1–F4 + 小修包）· 同组 [reopenable-db-closeout](app/.progress/reopenable-db-closeout-2026-08-01.md)（D1–D5 已关；Wiki 换入未做 = 现 G5-3）· [comment-routing-closeout](app/.progress/comment-routing-closeout-2026-08-01.md)（B3 escalation fallback 刻意不做，改走 G2-1 惰性升级）。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一。
-- **▶ 下一刀默认（roadmap §4）：** **G4-1 记忆检索 FTS5**（决定记忆层长期可用性的根本问题）→ G1-3 CLI 探测失败宽限窗。已关：**G3-1**（[closeout](app/.progress/g3-1-error-states-closeout-2026-08-02.md)）· **G1-1**（[closeout](app/.progress/g1-1-pi-real-closeout-2026-08-02.md)）· **G2-1**（[closeout](app/.progress/g2-1-deferred-escalation-closeout-2026-08-02.md)）· **G1-2 Grok fail-closed**（[closeout](app/.progress/g1-2-grok-failclosed-closeout-2026-08-02.md)；grok 单轮可用 + 诚实标注；ACP 客户端后续刀）。
+- **▶ 下一刀默认（roadmap §4）：** **G1-3 CLI 探测失败宽限窗** → G4-2 流式围栏 scrubber → G3-2 看板键盘可达。已关：**G3-1** · **G1-1** · **G2-1** · **G1-2**（fail-closed；ACP 客户端后续刀）· **G4-1 记忆检索 FTS5**（[closeout](app/.progress/g4-1-memory-fts-closeout-2026-08-02.md)；>200 行上限移除，BM25+scope 加权）。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 
 - **阶段：** S01–S12 + 补1–5 + Phase A–F + 优化波 **全部已关** · **▶ 现行：Goal 体系（G1–G5）驱动**

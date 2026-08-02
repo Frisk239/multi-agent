@@ -1,5 +1,5 @@
-import { desc, eq, isNull, gt, or } from 'drizzle-orm';
-import { db } from '../db/client.js';
+import { desc, eq, isNull, gt, or, sql } from 'drizzle-orm';
+import { db, sqlite } from '../db/client.js';
 import { memoryItems } from '../db/schema.js';
 import type {
   MemoryItemView,
@@ -21,6 +21,24 @@ export function tokenize(query: string): string[] {
   return [...tokens];
 }
 
+/**
+ * G4-1：FTS5 虚拟表名。存 gram 化文本（tokenize 同规则：ASCII 词 + CJK 双字 gram），
+ * rowid 关联 memory_item。裸 unicode61 会把连续 CJK 当单个 token（2 字查询失配），
+ * 故索引与查询两侧统一 gram 化。
+ */
+export const FTS_TABLE = 'memory_item_fts';
+
+/** scope 加权（G4-1 只加权重；多维 scope 体系留 G4-4） */
+const SCOPE_WEIGHT: Record<string, number> = {
+  workspace: 1.0,
+  agent: 1.1,
+  issue: 1.2,
+  run: 1.3,
+};
+
+/** 重排候选窗口（原 200 行硬上限 → FTS 全量召回 + 二次重排） */
+const FTS_CANDIDATE_K = 100;
+
 export class SqliteTextProvider implements MemoryProvider {
   readonly name = 'sqlite-text';
 
@@ -28,8 +46,22 @@ export class SqliteTextProvider implements MemoryProvider {
     return true;
   }
 
+  /**
+   * G4-1：幂等重建 FTS5 索引（独立虚拟表，非 external content——gram 化无法用
+   * SQL 触发器表达，写路径同步 + 启动全量回填双保险防漂移；换库/测试重建表场景
+   * 由调用方在重建后重调本方法）。
+   */
   initialize(): void {
-    // no-op：表靠 migration
+    sqlite.exec(`
+      DROP TABLE IF EXISTS ${FTS_TABLE};
+      CREATE VIRTUAL TABLE ${FTS_TABLE} USING fts5(text);
+    `);
+    const rows = db
+      .select({ rowid: sql<number>`rowid`, text: memoryItems.text })
+      .from(memoryItems)
+      .all();
+    const ins = sqlite.prepare(`INSERT INTO ${FTS_TABLE}(rowid, text) VALUES (?, ?)`);
+    for (const r of rows) ins.run(r.rowid, tokenize(r.text).join(' '));
   }
 
   prefetchSync(query: string, opts?: { limit?: number; includeInvalid?: boolean }): MemoryPrefetchResult {
@@ -43,41 +75,54 @@ export class SqliteTextProvider implements MemoryProvider {
       baseQuery = baseQuery.where(or(isNull(memoryItems.invalidAt), gt(memoryItems.invalidAt, now))) as any;
     }
     
-    let rows;
+    let rows: Array<{
+      id: string; scope: string; issueId: string | null; agentId: string | null;
+      runId: string | null; text: string; validAt: number | null; invalidAt: number | null;
+      createdAt: number; score: number;
+    }>;
     if (tokens.length === 0) {
-      rows = baseQuery
+      rows = (baseQuery
         .orderBy(desc(memoryItems.createdAt))
         .limit(limit)
-        .all();
+        .all() as never as Array<{ id: string; scope: string; issueId: string | null; agentId: string | null; runId: string | null; text: string; validAt: number | null; invalidAt: number | null; createdAt: number }>)
+        .map((r) => ({ ...r, score: 0 }));
     } else {
-      // 简化：取最近 200 条再内存过滤（S09 数据量小）
-      const all = baseQuery
-        .orderBy(desc(memoryItems.createdAt))
-        .limit(200)
-        .all();
-      // 收紧：须命中全部 token（AND）；分值=匹配次数 + 整串命中加权
-      const needle = query.trim().toLowerCase();
-      rows = all
+      // G4-1：FTS5 全量召回（BM25 排序，不再受 200 行上限约束）+ 二次重排：
+      // scope 加权 + 30 天时间衰减（记忆越多检索越准，不再退化）
+      const matchQ = tokens.join(' '); // FTS5 隐式 AND = 原「全 token AND」语义
+      const raw = sqlite
+        .prepare(
+          `SELECT m.id AS id, m.scope AS scope, m.issue_id AS issueId, m.agent_id AS agentId,
+                  m.run_id AS runId, m.text AS text, m.valid_at AS validAt, m.invalid_at AS invalidAt,
+                  m.created_at AS createdAt, bm25(${FTS_TABLE}) AS bm25
+           FROM ${FTS_TABLE} f
+           JOIN memory_item m ON m.rowid = f.rowid
+           WHERE ${FTS_TABLE} MATCH ?
+           ORDER BY bm25(${FTS_TABLE})
+           LIMIT ?`,
+        )
+        .all(matchQ, FTS_CANDIDATE_K) as Array<{
+        id: string; scope: string; issueId: string | null; agentId: string | null;
+        runId: string | null; text: string; validAt: number | null; invalidAt: number | null;
+        createdAt: number; bm25: number;
+      }>;
+      rows = raw
+        .filter((r) => includeInvalid || r.invalidAt == null || r.invalidAt > now)
         .map((r) => {
-          const lower = r.text.toLowerCase();
-          let hits = 0;
-          for (const t of tokens) {
-            if (lower.includes(t.toLowerCase())) hits += 1;
-          }
-          if (hits < tokens.length) return { r, score: 0 };
-          let score = hits;
-          if (needle && lower.includes(needle)) score += 2;
-          return { r, score };
+          const w = SCOPE_WEIGHT[r.scope] ?? 1.0;
+          const ageDays = (now - r.createdAt) / 86_400_000;
+          const recency = Math.max(0, 1 - ageDays / 30);
+          const score = Number(r.bm25 ?? 0) + (w - 1) * 0.5 + recency * 0.3;
+          return { ...r, score };
         })
-        .filter((x) => x.score > 0)
-        .sort((a, b) => b.score - a.score || b.r.createdAt - a.r.createdAt)
-        .slice(0, limit)
-        .map((x) => x.r);
+        .sort((a, b) => b.score - a.score || b.createdAt - a.createdAt)
+        .slice(0, limit);
     }
     return {
       items: rows.map((r) => ({
         id: r.id,
         text: r.text,
+        score: r.score,
         source: 'sqlite-text',
         issueId: r.issueId,
         runId: r.runId,
@@ -121,7 +166,7 @@ export class SqliteTextProvider implements MemoryProvider {
     const issueId = meta?.issueId ?? null;
     const agentId = meta?.agentId ?? null;
     const runId = meta?.runId ?? null;
-    db.insert(memoryItems)
+    const ins = db.insert(memoryItems)
       .values({
         id,
         scope: 'workspace',
@@ -132,6 +177,11 @@ export class SqliteTextProvider implements MemoryProvider {
         createdAt: now,
       })
       .run();
+    // G4-1：FTS 同步（rowid = memory_item rowid；gram 化文本）
+    const rowid = Number(ins.lastInsertRowid);
+    sqlite
+      .prepare(`INSERT INTO ${FTS_TABLE}(rowid, text) VALUES (?, ?)`)
+      .run(rowid, tokenize(text).join(' '));
     return {
       id,
       text,
@@ -143,7 +193,15 @@ export class SqliteTextProvider implements MemoryProvider {
   }
 
   deleteById(id: string): boolean {
+    const row = db
+      .select({ rowid: sql<number>`rowid` })
+      .from(memoryItems)
+      .where(eq(memoryItems.id, id))
+      .get();
     const r = db.delete(memoryItems).where(eq(memoryItems.id, id)).run();
+    if (row) {
+      sqlite.prepare(`DELETE FROM ${FTS_TABLE} WHERE rowid = ?`).run(row.rowid);
+    }
     return (r.changes ?? 0) > 0;
   }
 
