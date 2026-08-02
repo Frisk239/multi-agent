@@ -16,8 +16,13 @@ import {
   useIssueRunUsage,
   useRuns,
   useUpdateIssue,
+  useUploadAttachment,
 } from '@/lib/api';
-import { formatBytes } from '@/lib/attachment-upload';
+import {
+  formatBytes,
+  validateUploadFile,
+  MAX_UPLOAD_BYTES,
+} from '@/lib/attachment-upload';
 import { confirmDialog } from '@/lib/confirm-store';
 import { IssueHeader } from './IssueHeader';
 import { Timeline } from './Timeline';
@@ -195,10 +200,37 @@ export function IssueDetail({
   const { data: attachments = [], isLoading: attachmentsLoading } =
     useIssueAttachments(id);
   const deleteAttachment = useDeleteAttachment(id);
+  const uploadAttachment = useUploadAttachment(id);
+  const [uploadingNames, setUploadingNames] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [execOpen, setExecOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(true);
+
+  /** G3-5：文件选择 / 拖拽上传（≤25MiB 前置校验；逐个串行，失败 toast 不中断其余） */
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
+    const accepted: File[] = [];
+    for (const f of files) {
+      const v = validateUploadFile(f);
+      if (!v.ok) {
+        toastError(v.error);
+        continue;
+      }
+      accepted.push(f);
+    }
+    if (accepted.length === 0) return;
+    setUploadingNames((prev) => [...prev, ...accepted.map((f) => f.name)]);
+    try {
+      for (const f of accepted) {
+        await uploadAttachment.mutateAsync(f);
+      }
+    } finally {
+      setUploadingNames([]);
+    }
+  }
+
   /** Slice 72：默认故事线；保留评论 / 活动 tab */
   const [activityTab, setActivityTab] = useState<
     'storyline' | 'comments' | 'activity'
@@ -591,16 +623,53 @@ export function IssueDetail({
 
             {/* W1 · 附件区：真实字节存储在本机，下载走 /api/attachments/:id */}
             <section
-              className="issue-attachments-section"
+              className={`issue-attachments-section${dragOver ? ' is-dragover' : ''}`}
               data-testid="issue-attachments-section"
               data-count={attachments.length}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                void uploadFiles(Array.from(e.dataTransfer.files ?? []));
+              }}
             >
               <div className="issue-exec-head-row">
                 <span className="issue-section-title">附件</span>
                 <span className="text-dim text-sm" data-testid="issue-attachments-summary">
                   {attachments.length > 0 ? `${attachments.length} 个` : '暂无'}
                 </span>
+                <label
+                  className={`btn btn-ghost btn-sm${uploadAttachment.isPending ? ' is-disabled' : ''}`}
+                  data-testid="issue-attachment-upload"
+                  title={`选择文件上传（单个 ≤${formatBytes(MAX_UPLOAD_BYTES)}）`}
+                >
+                  上传
+                  <input
+                    type="file"
+                    multiple
+                    className="visually-hidden"
+                    disabled={uploadAttachment.isPending}
+                    onChange={(e) => {
+                      void uploadFiles(Array.from(e.target.files ?? []));
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
+              {dragOver ? (
+                <div className="issue-attachment-dropzone" data-testid="issue-attachment-dropzone">
+                  松开以上传文件（单个 ≤{formatBytes(MAX_UPLOAD_BYTES)}）
+                </div>
+              ) : null}
+              {uploadingNames.length > 0 ? (
+                <p className="text-dim text-sm" data-testid="issue-attachment-uploading">
+                  上传中：{uploadingNames.join('、')}…
+                </p>
+              ) : null}
               {attachmentsLoading ? (
                 <Skeleton variant="text" lines={2} />
               ) : attachments.length === 0 ? (

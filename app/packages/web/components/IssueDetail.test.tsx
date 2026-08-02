@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { IssueDetail } from './IssueDetail';
 
@@ -56,6 +56,8 @@ const attachments = [
   },
 ];
 
+const uploadMutateAsync = vi.fn();
+
 vi.mock('@/lib/api', () => ({
   useIssue: () => ({ data: issue, isLoading: false, error: null }),
   useComments: () => ({ data: comments, isLoading: false }),
@@ -105,6 +107,10 @@ vi.mock('@/lib/api', () => ({
   attachmentHref: (u: string) => `http://test${u}`,
   useIssueAttachments: () => ({ data: attachments, isLoading: false }),
   useDeleteAttachment: () => ({ mutate: vi.fn(), isPending: false }),
+  useUploadAttachment: () => ({
+    mutateAsync: uploadMutateAsync,
+    isPending: false,
+  }),
 }));
 
 vi.mock('./IssueHeader', () => ({
@@ -202,6 +208,8 @@ vi.mock('../lib/toast', () => ({
 describe('IssueDetail variant', () => {
   beforeEach(() => {
     cleanup();
+    uploadMutateAsync.mockReset();
+    uploadMutateAsync.mockResolvedValue({ id: 'att-new', originalName: '新文件.txt' });
   });
   afterEach(() => {
     cleanup();
@@ -263,5 +271,53 @@ describe('IssueDetail variant', () => {
     );
     expect(screen.getByTestId('run-status-bar')).toBeTruthy();
     expect(screen.getByText('最近运行')).toBeTruthy();
+  });
+});
+
+describe('G3-5 issue attachment upload', () => {
+  beforeEach(() => {
+    cleanup();
+    uploadMutateAsync.mockReset();
+    uploadMutateAsync.mockResolvedValue({ id: 'att-new', originalName: '新文件.txt' });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('文件选择上传：选文件 → mutateAsync 收到 File，显示上传中', async () => {
+    render(<IssueDetail id="iss-1" />);
+    const input = screen.getByTestId('issue-attachment-upload').querySelector('input');
+    expect(input).not.toBeNull();
+    const file = new File(['hello'], '说明.txt', { type: 'text/plain' });
+    fireEvent.change(input!, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(uploadMutateAsync).toHaveBeenCalledTimes(1);
+      expect(uploadMutateAsync.mock.calls[0][0]).toBeInstanceOf(File);
+      expect(uploadMutateAsync.mock.calls[0][0].name).toBe('说明.txt');
+    });
+  });
+
+  it('拖拽上传：drop 文件 → mutateAsync 收到；拖入显示 dropzone', async () => {
+    render(<IssueDetail id="iss-1" />);
+    const section = screen.getByTestId('issue-attachments-section');
+    const file = new File(['data'], '拖拽.bin', { type: 'application/octet-stream' });
+    fireEvent.dragOver(section);
+    expect(screen.getByTestId('issue-attachment-dropzone')).toBeTruthy();
+    fireEvent.drop(section, { dataTransfer: { files: [file] } });
+    await waitFor(() => {
+      expect(uploadMutateAsync).toHaveBeenCalledTimes(1);
+      expect(uploadMutateAsync.mock.calls[0][0].name).toBe('拖拽.bin');
+    });
+  });
+
+  it('超过 25MiB 的文件被前置校验拒绝（不调 mutateAsync）', async () => {
+    render(<IssueDetail id="iss-1" />);
+    const input = screen.getByTestId('issue-attachment-upload').querySelector('input');
+    const big = new File([new Uint8Array(25 * 1024 * 1024 + 1)], '超大.bin');
+    fireEvent.change(input!, { target: { files: [big] } });
+    await waitFor(() => {
+      expect(uploadMutateAsync).not.toHaveBeenCalled();
+    });
   });
 });

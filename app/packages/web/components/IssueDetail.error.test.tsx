@@ -51,6 +51,7 @@ vi.mock('@/lib/api', () => ({
   attachmentHref: (u: string) => `http://test${u}`,
   useIssueAttachments: () => ({ data: [], isLoading: false }),
   useDeleteAttachment: () => ({ mutate: vi.fn(), isPending: false }),
+  useUploadAttachment: () => ({ mutateAsync: vi.fn().mockResolvedValue({ id: "att-new", originalName: "x" }), isPending: false }),
 }));
 
 vi.mock('./IssueHeader', () => ({
