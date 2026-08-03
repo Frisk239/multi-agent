@@ -108,6 +108,31 @@ function parseClaudeLine(
   }
 }
 
+/**
+ * G6-3：claude-code argv 纯函数构造（可直测；无 I/O）。
+ * base：`-p --output-format stream-json --verbose`（S05 stdin 修复：prompt 走 stdin）。
+ * model/thinkingLevel/resumeSessionId 空则省略（CLI 默认）；customArgs 追加尾部。
+ */
+export function buildClaudeArgv(opts: {
+  model?: string | null;
+  thinkingLevel?: string | null;
+  resumeSessionId?: string | null;
+  customArgs?: string[] | null;
+}): string[] {
+  const args = ['-p', '--output-format', 'stream-json', '--verbose'];
+  const model = opts.model?.trim();
+  if (model) args.push('--model', model);
+  // DS4：thinking → claude --effort（CLI 不支持时失败体现在 run error，用户可清空）
+  const effort = opts.thinkingLevel?.trim();
+  if (effort) args.push('--effort', effort);
+  // DS1：真 session resume（Multica claude.go --resume）
+  const resume = opts.resumeSessionId?.trim();
+  if (resume) args.push('--resume', resume);
+  const customArgs = opts.customArgs?.length ? opts.customArgs : [];
+  args.push(...customArgs);
+  return args;
+}
+
 export class ClaudeCodeBackend implements RuntimeBackend {
   readonly id = 'claude-code' as const;
   readonly label = 'Claude Code';
@@ -130,16 +155,12 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     // S05 stdin 修复（spec §8）：claude -p 不带 prompt 参数时从 stdin 读
     // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose 跑通）。
     // argv 不含 prompt，prompt 经 spawnLineProcess 的 stdinInput → child.stdin pipe 传。
-    const args = ['-p', '--output-format', 'stream-json', '--verbose'];
-    // G22：agent.model → claude --model（空则 CLI 默认）
-    const model = input.model?.trim();
-    if (model) args.push('--model', model);
-    // DS4：thinking → claude --effort（CLI 不支持时失败体现在 run error，用户可清空）
-    const effort = input.thinkingLevel?.trim();
-    if (effort) args.push('--effort', effort);
-    // DS1：真 session resume（Multica claude.go --resume）
-    const resume = input.resumeSessionId?.trim();
-    if (resume) args.push('--resume', resume);
+    const args = buildClaudeArgv({
+      model: input.model,
+      thinkingLevel: input.thinkingLevel,
+      resumeSessionId: input.resumeSessionId,
+      customArgs: input.customArgs,
+    });
 
     // S05 MCP 注入（spec §7.2 R3）：mcpServers JSON → 写临时文件 → --mcp-config argv。
     // claude-code 的 --mcp-config 接受 {"mcpServers": {<name>: {...}}} 格式（object，spike 确认）。

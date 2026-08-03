@@ -194,9 +194,12 @@ describe('W5 run-worker fault injection', () => {
     // executeRun 首段含 await import（stale-runs 动态加载），全量负载下首次
     // 转译可能 >20ms；用 vi.waitFor 等两条 execute 链收敛（顺序仍由微任务
     // FIFO 保证 = claim 顺序投影）
-    await vi.waitFor(() => {
-      expect(claimedOrder).toEqual(['run-urgent', 'run-low']);
-    });
+    await vi.waitFor(
+      () => {
+        expect(claimedOrder).toEqual(['run-urgent', 'run-low']);
+      },
+      { timeout: 5000, interval: 50 },
+    );
     expect(runRow('run-urgent').status).toBe('completed');
     expect(runRow('run-low').status).toBe('completed');
   });
@@ -233,9 +236,12 @@ describe('W5 run-worker fault injection', () => {
       return { finalText: 'ok', exitReason: 'completed' };
     };
     await tick();
-    await vi.waitFor(() => {
-      expect(claimedOrder).toEqual(['run-tie-early', 'run-tie-late']);
-    });
+    await vi.waitFor(
+      () => {
+        expect(claimedOrder).toEqual(['run-tie-early', 'run-tie-late']);
+      },
+      { timeout: 5000, interval: 50 },
+    );
   });
 
   it('prepare-lease expiry: half-claimed run is swept to failed and tick does not touch it', async () => {
