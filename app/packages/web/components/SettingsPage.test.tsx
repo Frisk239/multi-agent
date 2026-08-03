@@ -150,4 +150,53 @@ describe('SettingsPage', () => {
     expect(screen.getByTestId('settings-nav-shortcuts')).not.toHaveClass('is-active');
     expect(screen.getByTestId('settings-nav-profile')).toHaveClass('is-active');
   });
+
+  it('运行健康卡显示「在途 x / 上限 y」比例（G2-5 收尾）', () => {
+    (statusData as any).runHealth = {
+      active: { total: 3, queued: 1, waitingLocalDirectory: 0, running: 2 },
+      oldestQueuedAgeMs: 0,
+      oldestWaitingLocalDirectoryAgeMs: 0,
+      oldestRunningAgeMs: 0,
+      oldestRunningHeartbeatAgeMs: 0,
+      thresholds: {
+        staleRunningMs: 60_000,
+        staleQueuedMs: 60_000,
+        waitingLocalMaxMs: 600_000,
+        sweepIntervalMs: 5_000,
+      },
+      atRisk: { runningNearStale: 0, queuedNearStale: 0, waitingLocalNearStale: 0 },
+      maxConcurrentRuns: 5,
+    };
+    renderPage();
+    fireEvent.click(screen.getByTestId('settings-nav-health'));
+
+    const inflight = screen.getByTestId('settings-run-health-inflight');
+    expect(inflight.textContent).toContain('在途 3 / 5');
+    // 上限来源 title 提示
+    expect(inflight.getAttribute('title')).toContain('上限 5');
+  });
+
+  it('未设上限（maxConcurrentRuns=null）→ 只显示在途数', () => {
+    (statusData as any).runHealth = {
+      active: { total: 2, queued: 0, waitingLocalDirectory: 0, running: 2 },
+      oldestQueuedAgeMs: 0,
+      oldestWaitingLocalDirectoryAgeMs: 0,
+      oldestRunningAgeMs: 0,
+      oldestRunningHeartbeatAgeMs: 0,
+      thresholds: {
+        staleRunningMs: 60_000,
+        staleQueuedMs: 60_000,
+        waitingLocalMaxMs: 600_000,
+        sweepIntervalMs: 5_000,
+      },
+      atRisk: { runningNearStale: 0, queuedNearStale: 0, waitingLocalNearStale: 0 },
+      maxConcurrentRuns: null,
+    };
+    renderPage();
+    fireEvent.click(screen.getByTestId('settings-nav-health'));
+
+    const inflight = screen.getByTestId('settings-run-health-inflight');
+    expect(inflight.textContent).toContain('在途 2');
+    expect(inflight.textContent).not.toContain(' / ');
+  });
 });

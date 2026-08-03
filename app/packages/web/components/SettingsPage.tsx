@@ -1242,8 +1242,19 @@ export function SettingsPage() {
         >
           <div className="settings-cwd-guide-title">
             <strong>运行健康</strong>
-            <span className="text-dim text-sm">
+            <span
+              className="text-dim text-sm"
+              data-testid="settings-run-health-inflight"
+              title={
+                data.runHealth.maxConcurrentRuns != null
+                  ? `在途 ${data.runHealth.active.total} / 上限 ${data.runHealth.maxConcurrentRuns}（达到上限后新任务排队等待）`
+                  : '在途（未设全局并发上限）'
+              }
+            >
               在途 {data.runHealth.active.total}
+              {data.runHealth.maxConcurrentRuns != null
+                ? ` / ${data.runHealth.maxConcurrentRuns}`
+                : ''}
               {data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale + data.runHealth.atRisk.waitingLocalNearStale > 0
                 ? ` · 近收尸 ${data.runHealth.atRisk.runningNearStale + data.runHealth.atRisk.queuedNearStale + data.runHealth.atRisk.waitingLocalNearStale}`
                 : ''}
