@@ -7,8 +7,36 @@ import { LOCAL_MEMBER } from '../local-member.js';
 import { eventBus } from './event-bus.js';
 import { shouldNotifyIssueSuccess, readInboxPrefs } from './inbox-prefs.js';
 import { showSystemNotification } from './system-notify.js';
+import { logger } from '../logger.js';
 
 const WS = 'ws-local';
+
+/**
+ * G6-10：inbox 写失败计数（进程内；进 ops-snapshot）。
+ * 写失败不再 throw 进执行路径（run 完成/评论流程不因 inbox 故障中断）——
+ * logger.warn 可观测 + 计数可查。
+ */
+const inboxWriteFailures = new Map<string, number>();
+
+export function getInboxWriteFailures(): Record<string, number> {
+  return Object.fromEntries(inboxWriteFailures);
+}
+
+export function resetInboxWriteFailures(): void {
+  inboxWriteFailures.clear();
+}
+
+function safeInboxWrite(channel: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    inboxWriteFailures.set(channel, (inboxWriteFailures.get(channel) ?? 0) + 1);
+    logger.warn(
+      { channel, err: err instanceof Error ? err.message : String(err) },
+      '[inbox] 写失败（已降级 warn，不中断执行路径）',
+    );
+  }
+}
 
 export function ensureIssueSubscriber(
   issueId: string,
@@ -16,28 +44,30 @@ export function ensureIssueSubscriber(
   userId: string,
   reason: string,
 ): void {
-  const existing = db
-    .select()
-    .from(issueSubscribers)
-    .where(
-      and(
-        eq(issueSubscribers.issueId, issueId),
-        eq(issueSubscribers.userType, userType),
-        eq(issueSubscribers.userId, userId),
-      ),
-    )
-    .get();
-  if (existing) return;
+  safeInboxWrite('ensure_subscriber', () => {
+    const existing = db
+      .select()
+      .from(issueSubscribers)
+      .where(
+        and(
+          eq(issueSubscribers.issueId, issueId),
+          eq(issueSubscribers.userType, userType),
+          eq(issueSubscribers.userId, userId),
+        ),
+      )
+      .get();
+    if (existing) return;
 
-  db.insert(issueSubscribers)
-    .values({
-      issueId,
-      userType,
-      userId,
-      reason,
-      createdAt: Date.now(),
-    })
-    .run();
+    db.insert(issueSubscribers)
+      .values({
+        issueId,
+        userType,
+        userId,
+        reason,
+        createdAt: Date.now(),
+      })
+      .run();
+  });
 }
 
 export function getIssueSubscription(
@@ -83,6 +113,27 @@ export function removeIssueSubscriber(
 }
 
 export function notifyInbox(opts: {
+  type: 'comment' | 'run_completed' | 'run_failed' | 'assigned';
+  severity: 'action_required' | 'attention' | 'info';
+  title: string;
+  body?: string | null;
+  issueId: string | null;
+  runId?: string | null;
+  actorType?: string | null;
+  actorId?: string | null;
+  dedupeKey: string;
+  recipientType?: 'member' | 'agent';
+  recipientId?: string;
+}): ReturnType<typeof toInboxItem> | null {
+  // G6-10：写失败降级 warn（不中断执行路径）；失败计数进 ops-snapshot
+  let result: ReturnType<typeof toInboxItem> | null = null;
+  safeInboxWrite(opts.type, () => {
+    result = notifyInboxInner(opts);
+  });
+  return result;
+}
+
+function notifyInboxInner(opts: {
   type: 'comment' | 'run_completed' | 'run_failed' | 'assigned';
   severity: 'action_required' | 'attention' | 'info';
   title: string;

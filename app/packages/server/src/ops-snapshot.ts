@@ -15,6 +15,7 @@ import {
   wikiIngestJobs,
 } from './db/schema.js';
 import { memoryManager } from './memory/manager.js';
+import { getInboxWriteFailures } from './orchestration/inbox-writer.js';
 import {
   buildProcessHealth,
   type ProcessHealthResponse,
@@ -334,6 +335,8 @@ export type OpsSnapshot = {
   sqlite: OpsSqliteSnapshot;
   /** Slice 69：poison / resume_miss / deferred 近窗计数 */
   resumeStats: OpsResumeStats;
+  /** G6-10：inbox 写失败计数（进程内；写失败降级 warn 不中断执行路径） */
+  inboxWriteFailures: Record<string, number>;
 };
 
 function percentileSorted(sortedAsc: number[], p: number): number | null {
@@ -712,5 +715,7 @@ export function buildOpsSnapshot(opts?: {
     automation,
     sqlite: sqliteSnap,
     resumeStats,
+    // G6-10：inbox/activity 写失败计数（进程内；写失败不再静默吞）
+    inboxWriteFailures: getInboxWriteFailures(),
   };
 }
