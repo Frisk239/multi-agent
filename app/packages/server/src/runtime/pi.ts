@@ -346,6 +346,8 @@ export class PiBackend implements RuntimeBackend {
       this.activeCommands.set(input.runId, { send: sendCommand, settled: () => settled });
 
       // ---- 三通道 demux ----
+      // G6-6：CLI 等确认（extension_ui_request）已提示过（per-run，防刷屏）
+      let uiRequestNotified = false;
       const handleResponse = (resp: PiResponse) => {
         if (resp.id) {
           const p = pending.get(resp.id);
@@ -378,8 +380,16 @@ export class PiBackend implements RuntimeBackend {
           return;
         }
         if (rec.type === 'extension_ui_request') {
-          // 无 UI 会话：忽略（log 一条便于观测）
-          onEvent({ type: 'log', text: '[pi] extension_ui_request：无 UI 会话，忽略' });
+          // G6-6：CLI 在等宿主应答（confirm/select/input…）——不再静默无文案；
+          // 告知将按 idle 超时收尸（CLI 等待期间无心跳即 idle）；同 run 只提示一次
+          if (!uiRequestNotified) {
+            uiRequestNotified = true;
+            const method = typeof rec.method === 'string' ? rec.method : 'unknown';
+            onEvent({
+              type: 'log',
+              text: `[pi] CLI 正在等待确认（${method}）：无人应答时按 idle 超时收尸，不会无限挂起`,
+            });
+          }
           return;
         }
         handleAgentEvent(rec as unknown as PiEvent);

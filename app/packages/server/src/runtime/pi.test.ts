@@ -301,6 +301,33 @@ describe('PiBackend (real pi RPC backend)', () => {
     expect(f.child.stdin.end).toHaveBeenCalledTimes(1);
   });
 
+  it('G6-6 extension_ui_request → run 提示「CLI 在等确认，按 idle 收尸」，不静默；同 run 只提示一次', async () => {
+    const f = setupInstalled();
+    const events: AgentEvent[] = [];
+    const promise = new PiBackend().execute(baseInput, (e) => events.push(e), new AbortController().signal);
+    await tick();
+
+    // CLI 中途请求宿主确认（confirm ×2：第二次不应重复提示）
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'extension_ui_request', id: 'u1', method: 'confirm', title: 'run command?', message: 'bash pwd?' },
+      { type: 'extension_ui_request', id: 'u2', method: 'select', title: 'pick', options: ['a', 'b'] },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+
+    const result = await promise;
+    expect(result.exitReason).toBe('completed');
+    const uiLogs = events.filter(
+      (e): e is AgentEvent & { text: string } =>
+        e.type === 'log' && typeof (e as { text?: unknown }).text === 'string',
+    );
+    expect(uiLogs).toHaveLength(1); // 只提示一次（防刷屏）
+    expect(uiLogs[0]!.text).toContain('confirm'); // 首个请求的 method
+    expect(uiLogs[0]!.text).toContain('idle 超时收尸');
+    expect(uiLogs[0]!.text).toContain('不会无限挂起');
+  });
+
   // ---- 补充：prompt success response 不是完成信号；退出码不可当完成信号 ----
   it('prompt success 后 exit 0 但无 agent_end → failed（退出码不是完成信号）', async () => {
     const f = setupInstalled();
