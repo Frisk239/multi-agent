@@ -80,7 +80,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-4b | **执行层注入闭环**（G3-4 编辑已存未用：envVars 合并 spawn env 显式覆盖 process.env + customArgs 各 backend argv 注入，opencode 插 prompt 前、余尾部） | 中 | 小 | G3-4 | ✅ |
 | G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ✅ |
 | G3-6 | **Issue 自定义字段 UI**（schema 有 customFields JSON，缺编辑界面，GAP-05） | 中 | 中 | — | ✅ |
-| G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | ⬜ |
+| G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | 🔨（第四波已落 CmdK 高亮 + 失败卡一键重试；余项池内多已存在：拼音/scroll restoration/指派搜索——待按痛点续取） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -94,7 +94,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G4-2 | **流式围栏 scrubber**（学 hermes `StreamingContextScrubber`：跨流 chunk 有状态剥 `<memory-context>`/`<think>`，防围栏漏进 UI 与回放） | 中 | 小 | — | ✅ |
 | G4-3 | **Wiki ingest 无 key 降级诚实化**（不反复重试；UI 明确「未配 LLM key，Wiki 编译不可用」） | 中 | 小 | — | ✅ |
 | G4-4 | **Memory scope 多维精化 + 注入跳过原因可观测**（B-10：四级 scope + 检索 AccessLog 薄版） | 中 | 中 | — | ✅ |
-| G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | 🔨 |
+| G4-5 | **Wiki 二阶**（health 一键报告 / backlink 相关页 / `ma wiki query --roots` CLI flag） | 低·中 | 小 | — | ✅（第三波 CLI --roots + 第四波 backlink；health 一键报告第四波确认已闭环） |
 
 ### G5 可靠性与运营 — 天天用不翻车
 
@@ -108,9 +108,9 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G5-2 | **auto-retry 类型安全化**（去 `any`/去反射，改 Drizzle 类型化路径） | 中 | 小 | — | ✅ |
 | G5-3 | **灾备 Wiki 换入 + 覆盖报告**（stage.json 扩展 wiki 校验 → swap wiki 目录 → journal wiki 字段；reopenable-db 收尾） | 中 | 中 | — | ✅ |
 | G5-4 | **进程生命周期收尾**（abort 注册表纯内存问题、重启 orphan、取消中崩溃的终态语义） | 中 | 中 | — | ✅ |
-| G5-5 | **系统/桌面通知**（run 完成、inbox 新项；纯本地，可用 Electron shell/notify 类机制） | 中 | 中 | — | ⬜ |
-| G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ⬜ |
-| G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ⬜ |
+| G5-5 | **系统/桌面通知**（run 完成、inbox 新项；纯本地，可用 Electron shell/notify 类机制） | 中 | 中 | — | ✅（第四波：零依赖 PowerShell 弹窗 + Settings 开关默认关） |
+| G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ✅（第四波：/api/analytics/ops + UsagePage 运营区） |
+| G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ✅（第四波：/api/issues/export + import，看板按钮） |
 
 ## §4 切片队列总表（建议迭代顺序）
 
@@ -130,6 +130,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 11 | **M3 Must 补全（G3-3/G3-4/G3-5）+ G4-5 CLI 部分** | G3/G4 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)；G4-5 余 health/backlink 留后续） |
 | 10 | M4 工程债（G5-1/G5-2）+ M2 可靠性（G5-3/G5-4） | G5 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)） |
 | 12 | **G3-4b 执行层注入（envVars/customArgs spawn 生效）** | G3 | ✅ 已关（2026-08-02 第四波 M1，[closeout](app/.progress/g34b-env-inject-closeout-2026-08-02.md)；printenv 实证 grok run completed 报告值一致；claude 无额度故 grok 实证） |
+| 13 | **第四波（运营闭环+最终打磨）：G5-5 · G5-6 · G4-5b · G5-7 · G3-7×2** | G3/G4/G5 | ✅ 已关（2026-08-02/03，[closeout](app/.progress/goal4-wave-closeout-2026-08-02.md)：系统通知 · 运营统计 · wiki backlink · JSON 导入导出 · CmdK 高亮+失败卡重试；Playwright 7/7 PASS；**G1–G5 池仅剩 G1-2 ACP 大工程**） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
