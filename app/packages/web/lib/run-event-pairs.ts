@@ -66,21 +66,43 @@ export type RunEventViewItem =
   | { type: 'single'; message: RunMessage };
 
 /**
+ * M4a：相邻 assistant 文本块合并（流式 chunk 语义）。
+ * 同一 run 的流式 assistant 输出按 chunk 落库（「记住了42」→ 记/住了/42 三条），
+ * 显示层把它们合并为连续段落；**中间有其他事件（tool/user/system）则不合并**
+ * ——以事件边界判定真实分隔，不破坏 tool 事件前后的独立消息。
+ * 合并消息沿用第一块的 id/seq/createdAt（渲染 key 与时间戳取流式起点）。
+ */
+export function mergeAdjacentAssistantChunks(messages: RunMessage[]): RunMessage[] {
+  const out: RunMessage[] = [];
+  for (const m of messages) {
+    const last = out[out.length - 1];
+    if (m.kind === 'assistant' && last?.kind === 'assistant') {
+      out[out.length - 1] = { ...last, body: (last.body ?? '') + (m.body ?? '') };
+    } else {
+      out.push(m);
+    }
+  }
+  return out;
+}
+
+/**
  * G23：将相邻 tool_start + 匹配 tool_end 折成一组。
  * - 优先同工具名（LIFO）
  * - 无名时与最近未配对 start 配对
  * - 未配对的 start/end 保持单条
  * - 非 tool 事件不变
+ * M4a：入口先合并相邻 assistant 块（显示层；原始落库消息不变）。
  */
 export function pairRunToolEvents(messages: RunMessage[]): RunEventViewItem[] {
-  if (messages.length === 0) return [];
+  const merged = mergeAdjacentAssistantChunks(messages);
+  if (merged.length === 0) return [];
 
   const startIndexes: number[] = [];
   const pairEndByStart = new Map<number, number>();
   const pairedEnd = new Set<number>();
 
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i]!;
+  for (let i = 0; i < merged.length; i++) {
+    const m = merged[i]!;
     if (m.kind === 'tool_start') {
       startIndexes.push(i);
       continue;
@@ -93,7 +115,7 @@ export function pairRunToolEvents(messages: RunMessage[]): RunEventViewItem[] {
     if (endName) {
       for (let s = startIndexes.length - 1; s >= 0; s--) {
         const si = startIndexes[s]!;
-        const sn = parseToolName(messages[si]!.body);
+        const sn = parseToolName(merged[si]!.body);
         if (sn == null || sn.toLowerCase() === 'tool' || sn === endName) {
           startIdx = si;
           startIndexes.splice(s, 1);
@@ -109,12 +131,12 @@ export function pairRunToolEvents(messages: RunMessage[]): RunEventViewItem[] {
   }
 
   const out: RunEventViewItem[] = [];
-  for (let i = 0; i < messages.length; i++) {
+  for (let i = 0; i < merged.length; i++) {
     if (pairedEnd.has(i)) continue;
-    const m = messages[i]!;
+    const m = merged[i]!;
     const endIdx = pairEndByStart.get(i);
     if (m.kind === 'tool_start' && endIdx != null) {
-      const end = messages[endIdx]!;
+      const end = merged[endIdx]!;
       let startName = parseToolName(m.body);
       let endNameParsed = parseToolName(end.body);
       if (endNameParsed?.toLowerCase() === 'tool') endNameParsed = null;

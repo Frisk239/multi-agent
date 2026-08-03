@@ -4,6 +4,7 @@ import {
   parseToolName,
   previewBody,
   pairRunToolEvents,
+  mergeAdjacentAssistantChunks,
   filterRunEventView,
   pairCollapsedPreview,
   pairArgsLinePreview,
@@ -129,6 +130,72 @@ describe('run-event-pairs', () => {
       const items = pairRunToolEvents(messages);
       expect(items.length).toBe(1);
       expect(items[0].type).toBe('single');
+    });
+  });
+
+  describe('mergeAdjacentAssistantChunks（M4a 流式分块合并）', () => {
+    function mkAssistant(id: string, seq: number, body: string): RunMessage {
+      return {
+        id,
+        runId: 'run-1',
+        seq,
+        kind: 'assistant',
+        body,
+        createdAt: new Date(seq * 1000).toISOString(),
+      };
+    }
+    function mkTool(id: string, seq: number, kind: 'tool_start' | 'tool_end', body: string): RunMessage {
+      return {
+        id,
+        runId: 'run-1',
+        seq,
+        kind,
+        body,
+        createdAt: new Date(seq * 1000).toISOString(),
+      };
+    }
+
+    it('相邻 assistant 块合并为连续段落（记/住了/42 → 记住了42）', () => {
+      const merged = mergeAdjacentAssistantChunks([
+        mkAssistant('m1', 1, '记'),
+        mkAssistant('m2', 2, '住了'),
+        mkAssistant('m3', 3, '42'),
+      ]);
+      expect(merged).toHaveLength(1);
+      expect(merged[0].body).toBe('记住了42');
+      expect(merged[0].id).toBe('m1'); // 沿用第一块 id/seq
+    });
+
+    it('中间有 tool 事件 → 不合并（保留真实分隔）', () => {
+      const merged = mergeAdjacentAssistantChunks([
+        mkAssistant('m1', 1, '先看文件'),
+        mkTool('t1', 2, 'tool_start', JSON.stringify({ name: 'read' })),
+        mkTool('t2', 3, 'tool_end', JSON.stringify({ name: 'read' })),
+        mkAssistant('m2', 4, '结论是…'),
+      ]);
+      expect(merged).toHaveLength(4);
+      expect(merged[0].body).toBe('先看文件');
+      expect(merged[3].body).toBe('结论是…');
+    });
+
+    it('pairRunToolEvents 入口自动合并（显示层语义）', () => {
+      const items = pairRunToolEvents([
+        mkAssistant('m1', 1, '记'),
+        mkAssistant('m2', 2, '住了'),
+        mkAssistant('m3', 3, '42'),
+        mkTool('t1', 4, 'tool_start', JSON.stringify({ name: 'read' })),
+        mkTool('t2', 5, 'tool_end', JSON.stringify({ name: 'read' })),
+      ]);
+      expect(items).toHaveLength(2);
+      expect(items[0].type).toBe('single');
+      if (items[0].type === 'single') {
+        expect(items[0].message.body).toBe('记住了42');
+      }
+      expect(items[1].type).toBe('pair');
+    });
+
+    it('空输入 → 空输出', () => {
+      expect(mergeAdjacentAssistantChunks([])).toEqual([]);
     });
   });
 
