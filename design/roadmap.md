@@ -49,7 +49,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G1-2 | **Grok ACP/fail-closed**（补 ACP stdio 客户端，或摘除 `supportsSessionResume` 声明 + UI 标注降级） | 高 | 中 | — | ✅ |
 | G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ✅ |
 | G1-4 | **失败分类精度**（provider_network vs auth/quota 边界，驱动更准的自动改派与文案） | 中 | 中 | — | ✅ |
-| G1-5 | **Memory/Wiki 降级可观测**（pgvector 软回退、无 LLM key 时 Wiki ingest 不反复重试 15min，给出诚实提示） | 中 | 小 | — | ⬜ |
+| G1-5 | **Memory/Wiki 降级可观测**（pgvector 软回退、无 LLM key 时 Wiki ingest 不反复重试 15min，给出诚实提示） | 中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g1-5-pgvector-fallback-closeout-2026-08-03.md)：pgvector 启动软回退状态标记 + Settings 降级徽标；运行时切换刻意不做——两套物理存储会分叉数据） |
 
 ### G2 编排闭环 — 任务有人接、状态诚实
 
@@ -63,7 +63,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G2-2 | **Autopilot 离线语义**（学 multica autopilot.go:200：`run_only` 离线时跳过记 `skipped`；`create_issue` 离线时允许） | 中 | 小 | — | ✅ |
 | G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ✅ |
 | G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ✅ |
-| G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ⬜ |
+| G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md)：workspace max_concurrent_runs，拦 claim 不拦 enqueue，排队不算在途） |
 
 ### G3 前端体验 — 少摩擦、可发现
 
@@ -131,6 +131,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 10 | M4 工程债（G5-1/G5-2）+ M2 可靠性（G5-3/G5-4） | G5 | ✅ 已关（2026-08-02 第三波，[closeout](app/.progress/goal3-wave-closeout-2026-08-02.md)） |
 | 12 | **G3-4b 执行层注入（envVars/customArgs spawn 生效）** | G3 | ✅ 已关（2026-08-02 第四波 M1，[closeout](app/.progress/g34b-env-inject-closeout-2026-08-02.md)；printenv 实证 grok run completed 报告值一致；claude 无额度故 grok 实证） |
 | 13 | **第四波（运营闭环+最终打磨）：G5-5 · G5-6 · G4-5b · G5-7 · G3-7×2** | G3/G4/G5 | ✅ 已关（2026-08-02/03，[closeout](app/.progress/goal4-wave-closeout-2026-08-02.md)：系统通知 · 运营统计 · wiki backlink · JSON 导入导出 · CmdK 高亮+失败卡重试；Playwright 7/7 PASS；**G1–G5 池仅剩 G1-2 ACP 大工程**） |
+| 14 | **第五波（剩余小刀收尾）：G2-5 · G1-5** | G2/G1 | ✅ 已关（2026-08-03，[G2-5](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md) 全局并发配额 · [G1-5](app/.progress/g1-5-pgvector-fallback-closeout-2026-08-03.md) pgvector 软回退可观测；全量 1401 用例绿；**G1–G5 池仅剩 G1-2 ACP 大工程（唯一剩余）**） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
