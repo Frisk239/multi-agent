@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, lte, or, lt } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lte, or, lt, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns, agents, activityLogs } from '../db/schema.js';
 import { toAgentRun, toObservedAgentRun } from '../db/reshape.js';
@@ -534,7 +534,11 @@ export function stopStaleRunSweeper(): void {
 }
 
 export function escalateFailedSquadRuns(now = Date.now()): number {
-  // 先查询需要 escalation 的 squad member runs（排除已 escalation 的）
+  // 候选：squad member run 已终态（failed/timed_out）且未打过 escalation 标记。
+  // G6-4：逐条**条件 UPDATE**（学 multica FailStaleTasks 单条条件 UPDATE 幂等形态，
+  // agent.sql:569）—— 每条带「未标记」谓词，重复扫描不重复打标、不重发通知。
+  // error 拼接依赖每行原文（failureReason/error），无法纯 SQL 批拼 —— 注释如实，
+  // 不再是「批量更新」假描述。
   const candidates = db
     .select()
     .from(agentRuns)
@@ -542,47 +546,32 @@ export function escalateFailedSquadRuns(now = Date.now()): number {
       and(
         isNotNull(agentRuns.squadId),
         eq(agentRuns.isLeader, 0),
-        inArray(agentRuns.status, ['failed', 'timed_out'])
-      )
+        inArray(agentRuns.status, ['failed', 'timed_out']),
+        sql`COALESCE(${agentRuns.error}, '') NOT LIKE '[Squad Escalated]%'`,
+      ),
     )
     .all();
 
-  // 过滤并构建新的 error 信息
-  const toEscalate = candidates.filter((row) => !row.error?.startsWith('[Squad Escalated]'));
-
-  if (toEscalate.length === 0) return 0;
-
-  // 批量构建新的 error 字符串
-  const escalationPatches = toEscalate.map((row) => ({
-    id: row.id,
-    newError: `[Squad Escalated] original_reason: ${row.failureReason || 'unknown'}${row.error ? '; ' + row.error : ''}`,
-    newFailureReason: row.failureReason || 'squad_member_escalated',
-  }));
-
-  // 批量更新（减少 N 次 UPDATE 为 1 次）
-  const runIds = escalationPatches.map((p) => p.id);
-
-  // 使用 IN 子句批量更新（SQLite 支持）
-  for (const patch of escalationPatches) {
-    db.update(agentRuns)
-      .set({
-        error: patch.newError,
-        failureReason: patch.newFailureReason,
-      })
-      .where(eq(agentRuns.id, patch.id))
-      .run();
-  }
-
-  // 查询更新后的行并发送通知
-  const updatedRows = db
-    .select()
-    .from(agentRuns)
-    .where(inArray(agentRuns.id, runIds))
-    .all();
-
   let n = 0;
-  for (const row of updatedRows) {
-    const run = toAgentRun(row);
+  for (const row of candidates) {
+    const newError = `[Squad Escalated] original_reason: ${row.failureReason || 'unknown'}${row.error ? '; ' + row.error : ''}`;
+    const newFailureReason = row.failureReason || 'squad_member_escalated';
+    // 条件 UPDATE：id + status 谓词 + 未标记谓词；被别处处理过（changes=0）→ 跳过不重发
+    const res = db
+      .update(agentRuns)
+      .set({ error: newError, failureReason: newFailureReason })
+      .where(
+        and(
+          eq(agentRuns.id, row.id),
+          inArray(agentRuns.status, ['failed', 'timed_out']),
+          sql`COALESCE(${agentRuns.error}, '') NOT LIKE '[Squad Escalated]%'`,
+        ),
+      )
+      .run();
+    if ((res.changes ?? 0) === 0) continue;
+
+    const updated = db.select().from(agentRuns).where(eq(agentRuns.id, row.id)).get()!;
+    const run = toAgentRun(updated);
 
     if (row.issueId) {
       db.insert(activityLogs).values({
@@ -628,35 +617,42 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     .where(eq(agentRuns.status, 'queued'))
     .all();
 
+  // G6-4：deferred 查重去 N+1 —— 预查一次本批所有 issue 的 run_deferred activity，
+  // 内存 Set 去重（原实现对每个候选各查一次 activityLogs）
+  const candidateIssueIds = [
+    ...new Set(candidates.map((c) => c.issueId).filter((x): x is string => x != null)),
+  ];
+  const deferredActivity = candidateIssueIds.length
+    ? db
+        .select()
+        .from(activityLogs)
+        .where(
+          and(
+            inArray(activityLogs.issueId, candidateIssueIds),
+            eq(activityLogs.eventType, 'run_deferred'),
+          ),
+        )
+        .all()
+    : [];
+  const alreadyDeferredRunIds = new Set<string>();
+  for (const act of deferredActivity) {
+    if (!act.payload) continue;
+    try {
+      const p = JSON.parse(act.payload) as { runId?: string };
+      if (typeof p.runId === 'string') alreadyDeferredRunIds.add(p.runId);
+    } catch {
+      /* 脏 payload 忽略 */
+    }
+  }
+
   let n = 0;
   for (const row of candidates) {
     if (row.createdAt > cutoff) continue;
     // 已 claim 过（有 startedAt）则不算 unclaimed；正常 invariant 下 queued 应为空
     if (row.startedAt != null) continue;
 
-    // activity 去重：同 run 只升一次
-    if (row.issueId) {
-      const existingActs = db
-        .select()
-        .from(activityLogs)
-        .where(
-          and(
-            eq(activityLogs.issueId, row.issueId),
-            eq(activityLogs.eventType, 'run_deferred'),
-          ),
-        )
-        .all();
-      const already = existingActs.some((act) => {
-        if (!act.payload) return false;
-        try {
-          const p = JSON.parse(act.payload) as { runId?: string };
-          return p.runId === row.id;
-        } catch {
-          return false;
-        }
-      });
-      if (already) continue;
-    }
+    // activity 去重：同 run 只升一次（内存 Set，一次查询）
+    if (row.issueId && alreadyDeferredRunIds.has(row.id)) continue;
 
     const run = toAgentRun(row);
     // G2-1：真升级路径——queued 超龄 → 转 deferred + fire_at 宽限窗（multica fire_at 门；

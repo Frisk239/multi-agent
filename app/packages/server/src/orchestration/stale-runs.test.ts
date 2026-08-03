@@ -106,6 +106,8 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args: unknown[]) => args),
   inArray: vi.fn((...args: unknown[]) => args),
   isNotNull: vi.fn((...args: unknown[]) => args),
+  // G6-4：escalateFailedSquadRuns 用 sql 模板谓词（COALESCE NOT LIKE）；mock 仅占位
+  sql: (() => 'sql') as unknown as typeof import('drizzle-orm').sql,
 }));
 
 vi.mock('../db/reshape.js', () => ({
