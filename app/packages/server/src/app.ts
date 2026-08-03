@@ -32,8 +32,42 @@ import { registerLocalTokenGuard } from './local-token.js';
 import { syncAutomationRunFromAgentRun } from './orchestration/automation-execution.js';
 import { isMaintenanceMode } from './safe-live-restore.js';
 
+/**
+ * G6-8：慢请求阈值（ms）。≥ 阈值记 warn —— 用户报「某页慢」有据可查。
+ * 纯函数判定：< 阈值返回 null（不记）；≥ 阈值返回日志条目（method/path/耗时/状态码）。
+ */
+export const SLOW_REQUEST_THRESHOLD_MS = 1_000;
+
+export function buildSlowRequestLog(opts: {
+  method: string;
+  path: string;
+  durationMs: number;
+  statusCode: number;
+}): { method: string; path: string; durationMs: number; statusCode: number } | null {
+  if (opts.durationMs < SLOW_REQUEST_THRESHOLD_MS) return null;
+  return {
+    method: opts.method,
+    path: opts.path,
+    durationMs: Math.round(opts.durationMs),
+    statusCode: opts.statusCode,
+  };
+}
+
 export async function buildApp() {
   const app = Fastify({ logger: true });
+
+  // G6-8：请求级慢日志（onResponse，Fastify elapsedTime 内置计时）
+  app.addHook('onResponse', async (req, reply) => {
+    const entry = buildSlowRequestLog({
+      method: req.method,
+      path: req.url,
+      durationMs: reply.elapsedTime,
+      statusCode: reply.statusCode,
+    });
+    if (entry) {
+      req.log.warn({ ...entry }, '[slow-request] 响应超过 1s');
+    }
+  });
 
   // Slice 38：CORS 默认收紧到本机 web origin（MA_CORS_ORIGIN 可配）
   const corsAllowed = resolveCorsOrigins();
