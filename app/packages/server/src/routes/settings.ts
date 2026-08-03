@@ -846,11 +846,12 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     const projectRows = db.select().from(projects).all();
     const runRows = db.select().from(agentRuns).all();
 
-    let installedRuntimesCount = 0;
-    for (const b of allBackends()) {
-      const d = await b.detect();
-      if (d.installed) installedRuntimesCount++;
-    }
+    // M4b：复用 M3 的 detect 并发 + TTL 缓存（OnboardingCard 每次导航都拉本端点；
+    // 顺序探测 5 CLI 曾让 layout 层每次 3s+）
+    const dets = await Promise.all(
+      allBackends().map(async (b) => ({ d: await detectRuntimeCached(b) })),
+    );
+    const installedRuntimesCount = dets.filter(({ d }) => d.installed).length;
 
     const hasCwd = Boolean(cwd.configured && cwd.exists);
     const progress = calculateDay0Progress({

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('./toast', () => ({
   toastError: vi.fn(),
@@ -15,6 +15,7 @@ import {
   useRunProgressStore,
   topicsForPath,
   invalidateForPath,
+  deriveWsBase,
 } from './ws';
 
 describe('ws Zustand stores', () => {
@@ -177,5 +178,41 @@ describe('invalidateForPath (Slice 26)', () => {
     const keys = invalidateForPath('/chat');
     expect(hasKey(keys, ['chat-threads'])).toBe(true);
     expect(hasKey(keys, ['chat-messages'])).toBe(true);
+  });
+});
+
+describe('deriveWsBase（M4b WS 地址推导）', () => {
+  const origApi = process.env.NEXT_PUBLIC_API_URL;
+  const origWs = process.env.NEXT_PUBLIC_WS_URL;
+
+  afterEach(() => {
+    if (origApi === undefined) delete process.env.NEXT_PUBLIC_API_URL;
+    else process.env.NEXT_PUBLIC_API_URL = origApi;
+    if (origWs === undefined) delete process.env.NEXT_PUBLIC_WS_URL;
+    else process.env.NEXT_PUBLIC_WS_URL = origWs;
+  });
+
+  it('从 NEXT_PUBLIC_API_URL 推导同 host:port 的 ws 地址', () => {
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3011/api';
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    expect(deriveWsBase()).toBe('ws://localhost:3011/ws');
+  });
+
+  it('https API → wss', () => {
+    process.env.NEXT_PUBLIC_API_URL = 'https://example.com/api';
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    expect(deriveWsBase()).toBe('wss://example.com/ws');
+  });
+
+  it('NEXT_PUBLIC_WS_URL 显式设置优先（兼容既有配置）', () => {
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3011/api';
+    process.env.NEXT_PUBLIC_WS_URL = 'ws://custom:9000/ws';
+    expect(deriveWsBase()).toBe('ws://custom:9000/ws');
+  });
+
+  it('无任何配置 → 默认 3001', () => {
+    delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    expect(deriveWsBase()).toBe('ws://localhost:3001/ws');
   });
 });

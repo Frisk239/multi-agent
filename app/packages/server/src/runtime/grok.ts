@@ -513,14 +513,8 @@ export function listGrokStaticModels(): {
   provider?: string;
   isDefault?: boolean;
 }[] {
-  return [
-    { id: 'grok-4.5', label: 'Grok 4.5', provider: 'xai', isDefault: true },
-    {
-      id: 'grok-composer-2.5-fast',
-      label: 'Grok Composer 2.5 Fast',
-      provider: 'xai',
-    },
-    { id: 'grok-3', label: 'Grok 3', provider: 'xai' },
-    { id: 'grok-3-mini', label: 'Grok 3 Mini', provider: 'xai' },
-  ];
+  // M4b：只列 grok 0.2.118 真机验证可用的模型。session/set_model 实测：
+  // grok-4.5 ✅ 可用；grok-3 / grok-3-mini / grok-composer-2.5-fast 均被拒
+  // （unknown model id）。列表给出不可用项会让用户在模型下拉选中后 run 诚实失败。
+  return [{ id: 'grok-4.5', label: 'Grok 4.5', provider: 'xai', isDefault: true }];
 }

@@ -18,6 +18,23 @@ export const useWsStore = create<WsState>((set) => ({
   setStatus: (s) => set({ status: s }),
 }));
 
+// M4b：WS 地址从 NEXT_PUBLIC_API_URL 推导（host:port 一致，http→ws），
+// 避免「API 指向 3011 但 WS 仍连默认 3001」的配置不一致（e2e/自部署摩擦）。
+// NEXT_PUBLIC_WS_URL 显式设置时优先（兼容既有配置）。
+export function deriveWsBase(): string {
+  const explicit = process.env.NEXT_PUBLIC_WS_URL;
+  if (explicit) return explicit;
+  const api = process.env.NEXT_PUBLIC_API_URL;
+  if (api) {
+    const u = new URL(api, 'http://localhost:3001');
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    u.pathname = '/ws';
+    u.search = '';
+    return u.toString();
+  }
+  return 'ws://localhost:3001/ws';
+}
+
 // S12 + D1：run 活过程短时状态（progress / 最近 tool / partial 助手文本；不进 RQ）
 interface RunProgressState {
   byRunId: Record<string, string>;
@@ -251,8 +268,7 @@ export function useWsEvents() {
     function connect() {
       if (!mounted) return;
       // Slice 59：有 NEXT_PUBLIC_MA_LOCAL_TOKEN 时追加 ?token=（浏览器 WS 无法自定义 header）
-      const wsBase =
-        process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3001/ws';
+      const wsBase = deriveWsBase();
       ws = new WebSocket(withLocalTokenWsUrl(wsBase));
       wsRef.current = ws;
 
