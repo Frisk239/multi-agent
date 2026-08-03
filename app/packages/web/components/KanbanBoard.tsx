@@ -60,138 +60,16 @@ import {
 import { confirmDialog } from '@/lib/confirm-store';
 import { Select } from './Select';
 
-const PRIORITY_OPTIONS: { value: '' | Priority; label: string }[] = [
-  { value: '', label: '全部优先级' },
-  { value: 'urgent', label: '紧急' },
-  { value: 'high', label: '高' },
-  { value: 'medium', label: '中' },
-  { value: 'low', label: '低' },
-  { value: 'none', label: '无' },
-];
+import {
+  PRIORITY_OPTIONS,
+  COLUMNS,
+  kanbanKeyboardCoordinates,
+  parseAssigneeParam,
+  type KanbanScopeFilter,
+} from './KanbanBoard.shared';
+import { computeDragReorder } from './KanbanBoard.dnd';
+import { KanbanToolbar } from './KanbanBoard.toolbar';
 
-// Multica 真站 7 列：backlog…cancelled（STATUS_ORDER）
-// G5：展示名对齐 Multica 中文产品列；status 枚举不变
-const COLUMNS: { title: string; status: IssueStatus; color: string }[] = [
-  { title: '待规划', status: 'backlog', color: 'var(--status-backlog)' },
-  { title: '待办', status: 'todo', color: 'var(--status-todo)' },
-  { title: '进行中', status: 'in_progress', color: 'var(--status-in-progress)' },
-  { title: '审核中', status: 'in_review', color: 'var(--status-in-review)' },
-  { title: '已完成', status: 'done', color: 'var(--status-done)' },
-  { title: '已阻塞', status: 'blocked', color: 'var(--status-blocked)' },
-  { title: '已取消', status: 'cancelled', color: 'var(--status-cancelled)' },
-];
-
-type BoardDirection = 'up' | 'down' | 'left' | 'right';
-
-function boardDirection(code: string): BoardDirection | null {
-  switch (code) {
-    case KeyboardCode.Down:
-      return 'down';
-    case KeyboardCode.Up:
-      return 'up';
-    case KeyboardCode.Left:
-      return 'left';
-    case KeyboardCode.Right:
-      return 'right';
-    default:
-      return null;
-  }
-}
-
-/**
- * G3-2：看板键盘坐标（dnd-kit 多容器官方模式的自定义 getter）。
- * sortableKeyboardCoordinates 只支持「列内相邻卡片」；看板是横向 7 列，
- * 需要左右跨列：
- * - 左右 → 目标相邻「列」（type=Column droppable）内侧点
- * - 上下 → 当前列内相邻「卡片」（type=Issue droppable）中心点
- * Space/Enter 仍由 KeyboardSensor 默认处理（拾起/放下）。
- */
-const kanbanKeyboardCoordinates: KeyboardCoordinateGetter = (
-  event,
-  { context: { active, droppableRects, droppableContainers, collisionRect } },
-) => {
-  const direction = boardDirection(event.code);
-  if (!direction || !active) return undefined;
-
-  const cur = active.rect.current;
-  const translated = cur && 'translated' in cur ? cur.translated : null;
-  const activeRect =
-    collisionRect ?? translated ?? (cur && 'translated' in cur ? cur.initial : cur);
-  if (!activeRect) return undefined;
-
-  const containers = [...droppableContainers.values()]
-    .map((c) => ({ id: c.id, data: c.data?.current, rect: droppableRects.get(c.id) }))
-    .filter((c) => c.rect != null) as Array<{
-    id: unknown;
-    data: { type?: string } | undefined;
-    rect: { left: number; right: number; top: number; bottom: number; width: number; height: number };
-  }>;
-
-  const columns = containers.filter((c) => c.data?.type === 'Column');
-  const items = containers.filter((c) => c.data?.type === 'Issue');
-  if (columns.length < 2) return undefined;
-
-  const cx = activeRect.left + activeRect.width / 2;
-  const cy = activeRect.top + activeRect.height / 2;
-
-  if (direction === 'left' || direction === 'right') {
-    // 当前所在列 = 包含活动元素中心的列；取左右相邻列
-    const current =
-      columns.find(
-        (c) => c.rect.left <= cx && cx <= c.rect.right && c.rect.top <= cy && cy <= c.rect.bottom,
-      ) ?? columns[0];
-    const sorted = [...columns].sort((a, b) => a.rect.left - b.rect.left);
-    const idx = sorted.findIndex((c) => c.id === current.id);
-    const target = direction === 'right' ? sorted[idx + 1] : sorted[idx - 1];
-    if (!target) return undefined;
-    return {
-      x: direction === 'right' ? target.rect.left + 20 : target.rect.right - 20,
-      y: Math.min(Math.max(cy, target.rect.top + 10), target.rect.bottom - 10),
-    };
-  }
-
-  // 上下：当前列内卡片按 y 排序，取相邻卡片中心
-  const currentColumn = columns.find(
-    (c) => c.rect.left <= cx && cx <= c.rect.right && c.rect.top <= cy && cy <= c.rect.bottom,
-  );
-  const inColumn = currentColumn
-    ? items.filter(
-        (i) => i.rect.left >= currentColumn.rect.left - 4 && i.rect.right <= currentColumn.rect.right + 4,
-      )
-    : [];
-  const sorted = [...inColumn].sort((a, b) => a.rect.top - b.rect.top);
-  const idx = sorted.findIndex((i) => String(i.id) === String(active.id));
-  const target = direction === 'down' ? sorted[idx + 1] : sorted[idx - 1];
-  if (!target) return undefined;
-  return { x: target.rect.left + target.rect.width / 2, y: target.rect.top + target.rect.height / 2 };
-};
-
-/** URL `assignee=` → IssuesQuery 字段 */
-function parseAssigneeParam(raw: string | null): {
-  assigneeType?: 'agent' | 'squad';
-  assigneeId?: string;
-  unassigned?: boolean;
-  assigned?: boolean;
-} {
-  if (!raw) return {};
-  if (raw === 'none') return { unassigned: true };
-  if (raw === 'any') return { assigned: true };
-  if (raw.startsWith('agent:')) {
-    const id = raw.slice('agent:'.length);
-    return id ? { assigneeType: 'agent', assigneeId: id } : {};
-  }
-  if (raw.startsWith('squad:')) {
-    const id = raw.slice('squad:'.length);
-    return id ? { assigneeType: 'squad', assigneeId: id } : {};
-  }
-  return {};
-}
-
-/**
- * 可选 scope 过滤（仅 MyIssuesPage 复用）：在主数据流之上做客户端视角裁剪，
- * 不改任何既有 filter 语义；缺省 undefined = 原行为。
- */
-export type KanbanScopeFilter = (issue: Issue) => boolean;
 
 function KanbanBoardInner({
   scopeFilter,
@@ -817,84 +695,19 @@ function KanbanBoardInner({
     );
   }
 
+
   function handleDragStart(event: any) {
     setDragId(event.active.id);
   }
 
   function handleDragEnd(event: any) {
-    const { active, over } = event;
-    if (!over) {
-      setDragId(null);
-      return;
-    }
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    let targetStatus: IssueStatus;
-    let beforeId: string | null = null;
-
-    if (over.data.current?.type === 'Column') {
-      targetStatus = over.data.current.status;
-    } else if (over.data.current?.type === 'Issue') {
-      targetStatus = over.data.current.issue.status;
-      beforeId = overId;
-    } else {
-      setDragId(null);
-      return;
-    }
-
-    const dragged = (issues ?? []).find((i) => i.id === activeId);
-    if (!dragged) {
-      setDragId(null);
-      return;
-    }
-    if (beforeId === activeId) {
-      setDragId(null);
-      return;
-    }
-
-    const columnIds = (issues ?? [])
-      .filter((i) => i.status === targetStatus && i.id !== activeId)
-      .sort((a, b) => {
-        if (a.position !== b.position) return a.position - b.position;
-        return a.createdAt < b.createdAt ? 1 : -1;
-      })
-      .map((i) => i.id);
-
-    let orderedIds: string[];
-    if (beforeId && columnIds.includes(beforeId)) {
-      const idx = columnIds.indexOf(beforeId);
-      orderedIds = [
-        ...columnIds.slice(0, idx),
-        activeId,
-        ...columnIds.slice(idx),
-      ];
-    } else {
-      orderedIds = [...columnIds, activeId];
-    }
-
-    // 同列且顺序未变 → 跳过
-    if (dragged.status === targetStatus) {
-      const prevIds = (issues ?? [])
-        .filter((i) => i.status === targetStatus)
-        .sort((a, b) => {
-          if (a.position !== b.position) return a.position - b.position;
-          return a.createdAt < b.createdAt ? 1 : -1;
-        })
-        .map((i) => i.id);
-      if (
-        prevIds.length === orderedIds.length &&
-        prevIds.every((id, i) => id === orderedIds[i])
-      ) {
-        setDragId(null);
-        return;
-      }
-    }
-
-    reorder.mutate({ status: targetStatus, orderedIds });
+    const result = computeDragReorder(event, issues ?? []);
     setDragId(null);
+    if (result) {
+      reorder.mutate(result);
+    }
   }
+
 
   const assigneeChipLabel = (() => {
     if (!assigneeFromUrl) return '';
@@ -929,496 +742,57 @@ function KanbanBoardInner({
       data-testid="kanban-board"
     >
       <AgentsWorkingBanner />
-      <div className="kanban-toolbar" data-testid="kanban-toolbar">
-        <div className="kanban-toolbar-primary">
-          <Suspense fallback={<button type="button" className="btn-new-issue" disabled>新建 Issue</button>}>
-            <NewIssueForm quickCreate={quickCreate} />
-          </Suspense>
-          <div className="kanban-scope-tabs" role="tablist" aria-label="范围" data-testid="kanban-scope-tabs">
-            <button
-              type="button"
-              role="tab"
-              className={`kanban-scope-tab${selectValue === '' ? ' is-active' : ''}`}
-              aria-selected={selectValue === ''}
-              onClick={() => setAssigneeFilter('')}
-            >
-              全部
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={`kanban-scope-tab${selectValue === 'any' ? ' is-active' : ''}`}
-              aria-selected={selectValue === 'any'}
-              onClick={() => setAssigneeFilter('any')}
-            >
-              已指派
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={`kanban-scope-tab${selectValue.startsWith('agent:') ? ' is-active' : ''}`}
-              aria-selected={selectValue.startsWith('agent:')}
-              onClick={() => {
-                if (!selectValue.startsWith('agent:') && agents[0]) {
-                  setAssigneeFilter(`agent:${agents[0].id}`);
-                }
-              }}
-              title="再从下拉选具体智能体"
-            >
-              智能体
-            </button>
-          </div>
-          <input
-            className="kanban-search-input"
-            type="search"
-            placeholder="搜索标题 / FRI-…"
-            value={qDraft}
-            onChange={(e) => setQDraft(e.target.value)}
-            aria-label="搜索 Issue"
-          />
-          <Select
-            className="kanban-assignee-select"
-            value={selectValue}
-            onChange={(e) => setAssigneeFilter(e.target.value)}
-            aria-label="按指派筛选"
-            data-testid="kanban-assignee-filter"
-          >
-            <option value="">全部指派</option>
-            <option value="any">已指派</option>
-            <option value="none">未指派</option>
-            <optgroup label="智能体">
-              {agents.map((a) => (
-                <option key={a.id} value={`agent:${a.id}`}>
-                  {a.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="小队">
-              {squads.map((s) => (
-                <option key={s.id} value={`squad:${s.id}`}>
-                  {s.name}
-                </option>
-              ))}
-            </optgroup>
-          </Select>
-          <div
-            className="kanban-view-tabs"
-            role="tablist"
-            aria-label="视图"
-            data-testid="kanban-view-tabs"
-          >
-            <button
-              type="button"
-              role="tab"
-              className={`kanban-scope-tab${viewMode === 'board' ? ' is-active' : ''}`}
-              aria-selected={viewMode === 'board'}
-              data-testid="kanban-view-board"
-              onClick={() => setViewMode('board')}
-            >
-              看板
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={`kanban-scope-tab${viewMode === 'list' ? ' is-active' : ''}`}
-              aria-selected={viewMode === 'list'}
-              data-testid="kanban-view-list"
-              onClick={() => setViewMode('list')}
-            >
-              列表
-            </button>
-          </div>
-          {viewMode === 'list' ? (
-            <div
-              className="kanban-sort-tabs"
-              role="tablist"
-              aria-label="列表排序"
-              data-testid="kanban-sort-tabs"
-            >
-              <button
-                type="button"
-                role="tab"
-                className={`kanban-scope-tab${sortMode === 'manual' ? ' is-active' : ''}`}
-                aria-selected={sortMode === 'manual'}
-                data-testid="kanban-sort-manual"
-                onClick={() => setSortMode('manual')}
-              >
-                手动序
-              </button>
-              <button
-                type="button"
-                role="tab"
-                className={`kanban-scope-tab${sortMode === 'updated' ? ' is-active' : ''}`}
-                aria-selected={sortMode === 'updated'}
-                data-testid="kanban-sort-updated"
-                onClick={() => setSortMode('updated')}
-              >
-                最近更新
-              </button>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className={`kanban-more-toggle${showMore ? ' is-open' : ''}${moreFilterCount ? ' has-active' : ''}`}
-            data-testid="kanban-more-filters"
-            aria-expanded={showMore}
-            onClick={() => setMoreFiltersOpen((v) => !v)}
-          >
-            筛选{moreFilterCount > 0 ? ` · ${moreFilterCount}` : ''}
-          </button>
-          {/* G5-7：看板快照 JSON 导出/导入 */}
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            data-testid="kanban-export-json"
-            onClick={() => void handleExportJson()}
-          >
-            导出 JSON
-          </button>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            data-testid="kanban-import-json"
-            onClick={() => importFileRef.current?.click()}
-          >
-            导入 JSON
-          </button>
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            data-testid="kanban-import-file"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleImportFile(f);
-              e.target.value = '';
-            }}
-          />
-          {jsonNotice ? (
-            <span className="text-dim text-sm" data-testid="kanban-json-notice">
-              {jsonNotice}
-            </span>
-          ) : null}
-        </div>
 
-        {showMore ? (
-          <div className="kanban-toolbar-more" data-testid="kanban-toolbar-more">
-            <div className="kanban-density-tabs" role="tablist" aria-label="密度">
-              <button
-                type="button"
-                role="tab"
-                className={`kanban-scope-tab${density === 'compact' ? ' is-active' : ''}`}
-                aria-selected={density === 'compact'}
-                onClick={() => setDensity('compact')}
-              >
-                紧凑
-              </button>
-              <button
-                type="button"
-                role="tab"
-                className={`kanban-scope-tab${density === 'default' ? ' is-active' : ''}`}
-                aria-selected={density === 'default'}
-                onClick={() => setDensity('default')}
-              >
-                默认
-              </button>
-              <button
-                type="button"
-                role="tab"
-                className={`kanban-scope-tab${density === 'comfortable' ? ' is-active' : ''}`}
-                aria-selected={density === 'comfortable'}
-                onClick={() => setDensity('comfortable')}
-              >
-                舒适
-              </button>
-            </div>
-            <Select
-              className="kanban-priority-select"
-              value={priorityQuery ?? ''}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              aria-label="按优先级筛选"
-              data-testid="kanban-priority-filter"
-            >
-              {PRIORITY_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-            <div className="kanban-priority-pills" role="toolbar" aria-label="快捷优先级" data-testid="kanban-priority-pills">
-              {(
-                [
-                  { value: 'urgent', label: '紧急' },
-                  { value: 'high', label: '高' },
-                  { value: 'medium', label: '中' },
-                ] as const
-              ).map((p) => (
-                <button
-                  key={p.value}
-                  type="button"
-                  className={`kanban-filter-pill${priorityQuery === p.value ? ' active' : ''}`}
-                  data-testid={`kanban-priority-pill-${p.value}`}
-                  aria-pressed={priorityQuery === p.value}
-                  onClick={() =>
-                    setPriorityFilter(priorityQuery === p.value ? '' : p.value)
-                  }
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <Select
-              className="kanban-origin-select"
-              value={originQuery ?? ''}
-              onChange={(e) => setOriginFilter(e.target.value)}
-              aria-label="按来源筛选"
-              data-testid="kanban-origin-filter"
-            >
-              <option value="">全部来源</option>
-              <option value="automation">自动化</option>
-              <option value="quick_create">快速派活</option>
-            </Select>
-            <Select
-              className="kanban-project-select"
-              value={projectFromUrl}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              aria-label="按项目筛选"
-              data-testid="kanban-project-filter"
-            >
-              <option value="">全部项目</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </Select>
-            <Select
-              className="kanban-status-select"
-              value={statusQuery ?? ''}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label="按状态聚焦列"
-              data-testid="kanban-status-filter"
-            >
-              <option value="">全部列</option>
-              {COLUMNS.map((c) => (
-                <option key={c.status} value={c.status}>
-                  {c.title}
-                </option>
-              ))}
-            </Select>
-            <button
-              type="button"
-              className={`kanban-filter-pill kanban-failed-toggle${failedOnly ? ' active' : ''}`}
-              aria-pressed={failedOnly}
-              aria-label="仅显示有失败运行的 Issue"
-              data-testid="kanban-failed-only"
-              title={
-                failedCount > 0
-                  ? `最近失败 run 覆盖 ${failedCount} 个 Issue`
-                  : '最近无失败 run'
-              }
-              onClick={() => setFailedOnly(!failedOnly)}
-            >
-              仅失败{failedCount > 0 ? ` ${failedCount}` : ''}
-            </button>
-            {failedOnly ? (
-              <span
-                className="kanban-filter-note"
-                data-testid="kanban-failed-filter-note"
-                title="当前筛选下的可见 Issue 数（与列计数之和一致）"
-              >
-                <span>
-                  显示 {visibleCount}
-                  {failedCount > 0 && visibleCount !== failedCount
-                    ? ` / 失败集 ${failedCount}`
-                    : ''}
-                </span>
-                <span aria-hidden="true">·</span>
-                <Link href="/runs?status=failed" className="kanban-filter-note-link" data-testid="kanban-fail-to-runs">
-                  失败运行
-                </Link>
-                <span aria-hidden="true">·</span>
-                <Link
-                  href="/inbox?kind=run_failed&read=unread"
-                  className="kanban-filter-note-link"
-                  data-testid="kanban-fail-to-inbox"
-                >
-                  收件箱
-                </Link>
-                <span aria-hidden="true">·</span>
-                <Link href="/settings" className="kanban-filter-note-link" data-testid="kanban-fail-to-settings">
-                  环境
-                </Link>
-              </span>
-            ) : null}
-            <div className="kanban-label-filters" role="toolbar" aria-label="按标签筛选">
-              <button
-                type="button"
-                className={`kanban-filter-pill${labelFilter === '' ? ' active' : ''}`}
-                onClick={() => setLabelFilter('')}
-              >
-                全部标签
-              </button>
-              {(labels ?? []).map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  className={`kanban-filter-pill${labelFilter === l.id ? ' active' : ''}`}
-                  style={{ ['--label-color' as string]: l.color }}
-                  onClick={() => setLabelFilter(l.id)}
-                  title={l.name}
-                >
-                  <span className="issue-label-dot" />
-                  {l.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </div>
-      {hasActiveFilters ? (
-        <div
-          className="kanban-active-filters"
-          data-testid="kanban-active-filters"
-          aria-label="当前筛选"
-        >
-          {qFromUrl.trim() ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-q"
-              onClick={() => {
-                setQDraft('');
-                const sp = new URLSearchParams(searchParams.toString());
-                sp.delete('q');
-                const qs = sp.toString();
-                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-              }}
-            >
-              搜索「{qFromUrl.trim()}」 ×
-            </button>
-          ) : null}
-          {assigneeFromUrl ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-assignee"
-              onClick={() => setAssigneeFilter('')}
-            >
-              指派 · {assigneeChipLabel} ×
-            </button>
-          ) : null}
-          {priorityQuery ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-priority"
-              onClick={() => setPriorityFilter('')}
-            >
-              优先级 · {priorityChip} ×
-            </button>
-          ) : null}
-          {statusQuery ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-status"
-              onClick={() => setStatusFilter('')}
-            >
-              状态 · {statusChipLabel} ×
-            </button>
-          ) : null}
-          {originQuery ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-origin"
-              onClick={() => setOriginFilter('')}
-            >
-              来源 · {originQuery === 'automation' ? '自动化' : '快速派活'} ×
-            </button>
-          ) : null}
-          {projectFromUrl ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-project"
-              onClick={() => setProjectFilter('')}
-            >
-              项目 · {projectChipName} ×
-            </button>
-          ) : null}
-          {failedOnly ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-failed"
-              onClick={() => setFailedOnly(false)}
-            >
-              仅失败 ×
-            </button>
-          ) : null}
-          {labelFilter ? (
-            <button
-              type="button"
-              className="kanban-active-chip"
-              data-testid="kanban-chip-label"
-              onClick={() => setLabelFilter('')}
-            >
-              标签 · {labelChipName} ×
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="kanban-active-chip kanban-active-chip--clear"
-            data-testid="kanban-chip-clear-all"
-            onClick={() => router.replace(pathname, { scroll: false })}
-          >
-            清除全部
-          </button>
-        </div>
-      ) : null}
-      {visibleCount === 0 && hasActiveFilters ? (
-        <div className="kanban-empty-filter" data-testid="kanban-empty-filter">
-          <EmptyState
-            title="没有符合筛选的 Issue"
-            icon="📭"
-            description="试试清除筛选，或换到来源 / 指派 / 失败条件。"
-            action={
-              <div className="kanban-empty-actions">
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  data-testid="kanban-clear-filters"
-                  onClick={() => router.replace(pathname, { scroll: false })}
-                >
-                  清除全部筛选
-                </button>
-                {originQuery === 'automation' ? (
-                  <Link href="/automation" className="btn-secondary btn-sm">
-                    打开自动化
-                  </Link>
-                ) : null}
-                {failedOnly ? (
-                  <>
-                    <Link
-                      href="/runs?status=failed"
-                      className="btn-secondary btn-sm"
-                      data-testid="kanban-empty-failed-runs"
-                    >
-                      失败运行
-                    </Link>
-                    <Link href="/settings" className="btn-ghost btn-sm" data-testid="kanban-empty-settings">
-                      环境诊断
-                    </Link>
-                  </>
-                ) : null}
-              </div>
-            }
-          />
-        </div>
-      ) : null}
+      <KanbanToolbar
+        selectValue={selectValue}
+        setAssigneeFilter={setAssigneeFilter}
+        agents={agents}
+        squads={squads}
+        qDraft={qDraft}
+        setQDraft={setQDraft}
+        qFromUrl={qFromUrl}
+        searchParams={searchParams}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        sortMode={sortMode}
+        setSortMode={setSortMode}
+        quickCreate={quickCreate}
+        showMore={showMore}
+        setMoreFiltersOpen={setMoreFiltersOpen}
+        moreFilterCount={moreFilterCount}
+        density={density}
+        setDensity={setDensity}
+        priorityQuery={priorityQuery}
+        setPriorityFilter={setPriorityFilter}
+        originQuery={originQuery}
+        setOriginFilter={setOriginFilter}
+        projectFromUrl={projectFromUrl}
+        assigneeFromUrl={assigneeFromUrl}
+        setProjectFilter={setProjectFilter}
+        projects={projects}
+        statusQuery={statusQuery}
+        setStatusFilter={setStatusFilter}
+        failedOnly={failedOnly}
+        setFailedOnly={setFailedOnly}
+        failedCount={failedCount}
+        visibleCount={visibleCount}
+        labelFilter={labelFilter}
+        setLabelFilter={setLabelFilter}
+        labels={labels}
+        importFileRef={importFileRef}
+        handleImportFile={handleImportFile}
+        handleExportJson={handleExportJson}
+        jsonNotice={jsonNotice}
+        assigneeChipLabel={assigneeChipLabel}
+        labelChipName={labelChipName}
+        priorityChip={priorityChip}
+        statusChipLabel={statusChipLabel}
+        projectChipName={projectChipName}
+        hasActiveFilters={hasActiveFilters}
+        router={router}
+        pathname={pathname}
+      />
+
       {viewMode === 'list' ? (
         sortedVisible.length === 0 ? (
           <div className="issue-list-view" data-testid="issue-list-view" data-virtualized="0">
@@ -1688,3 +1062,4 @@ export function KanbanBoard({
     </Suspense>
   );
 }
+
