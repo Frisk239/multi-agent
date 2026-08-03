@@ -58,6 +58,10 @@ export type MemoryManagerStatus = {
   breakerFailures: number;
   /** 冷却结束时间 ISO；未打开则为 null */
   breakerOpenUntil: string | null;
+  /** G1-5：启动时期望 provider 初始化失败、已回退 sqlite-text（只标记，不做运行时切换） */
+  degraded: boolean;
+  /** G1-5：降级原因（幂等，只记录第一条） */
+  degradedNote?: string;
 };
 
 export class MemoryManager {
@@ -71,8 +75,22 @@ export class MemoryManager {
   /** 打开截止时间戳（ms）；null 表示未打开 */
   private openUntilMs: number | null = null;
 
+  /** G1-5：启动降级标记（期望 pgvector 实际 sqlite-text）；null=未降级 */
+  private fallbackNote: string | null = null;
+
   setExternal(provider: MemoryProvider | null): void {
     this.external = provider;
+  }
+
+  /**
+   * G1-5：记录启动降级（幂等，只保留第一条原因）。
+   * 仅观测标记 —— 运行时不做 provider 自动切换（pgvector 与 sqlite-text
+   * 是两套物理存储，切换会分叉数据，见 G1-5 closeout）。
+   */
+  markFallback(reason: string): void {
+    if (this.fallbackNote === null) {
+      this.fallbackNote = reason;
+    }
   }
 
   getExternalName(): string | null {
@@ -235,6 +253,8 @@ export class MemoryManager {
       breakerOpen: open,
       breakerFailures: this.consecutiveFailures,
       breakerOpenUntil: until,
+      degraded: this.fallbackNote !== null,
+      degradedNote: this.fallbackNote ?? undefined,
     };
   }
 

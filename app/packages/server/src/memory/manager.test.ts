@@ -235,6 +235,25 @@ describe('MemoryManager (Slice 24: serial write + circuit breaker)', () => {
     });
   });
 
+  it('G1-5 markFallback: 默认未降级；标记后 degraded + note 透出，幂等只记第一条', () => {
+    const provider = makeProvider({ name: 'sqlite-text' });
+    mgr.setExternal(provider);
+
+    const clean = mgr.getStatus();
+    expect(clean.degraded).toBe(false);
+    expect(clean.degradedNote).toBeUndefined();
+
+    mgr.markFallback('pgvector 初始化失败：conn refused');
+    const degraded = mgr.getStatus();
+    expect(degraded.degraded).toBe(true);
+    expect(degraded.degradedNote).toBe('pgvector 初始化失败：conn refused');
+
+    // 幂等：再次标记不覆盖首条原因
+    mgr.markFallback('pgvector 初始化失败：timeout');
+    expect(mgr.getStatus().degradedNote).toBe('pgvector 初始化失败：conn refused');
+    expect(mgr.getStatus().degraded).toBe(true);
+  });
+
   it('mixes ambientCapture + addCurated on the same serial queue', async () => {
     const order: string[] = [];
     let active = 0;

@@ -1969,6 +1969,10 @@ export const SettingsMemoryHealth = z.object({
   breakerFailures: z.number().int().nonnegative().optional(),
   /** 冷却结束时间 ISO；未打开为 null */
   breakerOpenUntil: z.string().datetime().nullable().optional(),
+  /** G1-5：启动时期望 pgvector 初始化失败、已回退 sqlite-text（只标记，不做运行时切换） */
+  degraded: z.boolean().optional(),
+  /** G1-5：降级原因（幂等，只记录第一条） */
+  degradedNote: z.string().optional(),
 });
 export type SettingsMemoryHealth = z.infer<typeof SettingsMemoryHealth>;
 

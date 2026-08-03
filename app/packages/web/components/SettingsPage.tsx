@@ -1072,6 +1072,16 @@ export function SettingsPage() {
         >
           <div className="settings-cwd-guide-title">
             <strong>记忆层</strong>
+            {/* G1-5：启动降级徽标（期望 pgvector 实际 sqlite-text） */}
+            {data.memoryHealth.degraded ? (
+              <span
+                className="settings-cwd-guide-badge"
+                data-testid="memory-degraded-note"
+                title={data.memoryHealth.degradedNote ?? ''}
+              >
+                已降级回退 sqlite-text
+              </span>
+            ) : null}
             <span className="text-dim text-sm">
               {data.memoryHealth.available ? '可用' : '不可用'}
               {' · '}

@@ -23,11 +23,13 @@ import { PgvectorProvider } from './memory/pgvector-provider.js';
 
 import { resolveListenHost } from './bind.js';
 import { evaluateLocalTokenStartup } from './local-token.js';
+import { logger } from './logger.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = resolveListenHost();
 
 // S10：MEMORY_PROVIDER 选择；pgvector 失败回退 sqlite-text（R11：先 initialize 再 isAvailable）
+// G1-5：回退时打降级标记（markFallback 幂等），Settings/健康页可见「期望 pgvector 实际 sqlite-text」
 async function initMemoryProvider(): Promise<void> {
   const mode = (process.env.MEMORY_PROVIDER ?? 'sqlite-text').toLowerCase();
   if (mode === 'pgvector') {
@@ -36,16 +38,25 @@ async function initMemoryProvider(): Promise<void> {
       await p.initialize();
       if (p.isAvailable()) {
         memoryManager.setExternal(p);
-        console.log('[memory] provider=pgvector');
+        logger.info({ provider: 'pgvector' }, '[memory] provider=pgvector');
         return;
       }
-      console.warn('[memory] pgvector unavailable, fallback sqlite-text');
+      memoryManager.markFallback('pgvector 初始化失败：pgvector unavailable');
+      logger.warn(
+        { provider: 'pgvector', fallback: 'sqlite-text' },
+        '[memory] pgvector unavailable, fallback sqlite-text',
+      );
     } catch (e) {
-      console.warn('[memory] pgvector init failed, fallback sqlite-text:', e);
+      const reason = e instanceof Error ? e.message : String(e);
+      memoryManager.markFallback(`pgvector 初始化失败：${reason}`);
+      logger.warn(
+        { provider: 'pgvector', fallback: 'sqlite-text', err: reason },
+        '[memory] pgvector init failed, fallback sqlite-text',
+      );
     }
   }
   memoryManager.setExternal(new SqliteTextProvider());
-  console.log('[memory] provider=sqlite-text');
+  logger.info({ provider: 'sqlite-text' }, '[memory] provider=sqlite-text');
 }
 
 async function main() {

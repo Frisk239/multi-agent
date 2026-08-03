@@ -243,7 +243,7 @@ function buildAutomationHealth(): SettingsAutomationHealth {
   };
 }
 
-function buildMemoryHealth(): SettingsMemoryHealth {
+export function buildMemoryHealth(): SettingsMemoryHealth {
   const st = memoryManager.getStatus();
   const rows = db.select({ text: memoryItems.text, createdAt: memoryItems.createdAt }).from(memoryItems).all();
   let ambient = 0;
@@ -264,6 +264,8 @@ function buildMemoryHealth(): SettingsMemoryHealth {
     breakerOpen: st.breakerOpen,
     breakerFailures: st.breakerFailures,
     breakerOpenUntil: st.breakerOpenUntil,
+    degraded: st.degraded,
+    degradedNote: st.degradedNote,
   };
 }
 
@@ -395,21 +397,26 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   });
 
   // --- memory ---
+  // G1-5：degraded（启动回退）也报 warn，用户可知「期望 pgvector 实际 sqlite-text」
   const mem = memoryManager.getStatus();
   const memStatus = !mem.available
     ? 'error'
-    : mem.breakerOpen
+    : mem.degraded
       ? 'warn'
-      : 'ok';
+      : mem.breakerOpen
+        ? 'warn'
+        : 'ok';
   const memDetail = !mem.available
     ? `不可用（provider=${mem.provider ?? 'null'}）`
-    : mem.breakerOpen
-      ? `provider=${mem.provider ?? 'unknown'} · 断路器打开（连续失败 ${mem.breakerFailures}${
-          mem.breakerOpenUntil
-            ? `，冷却至 ${new Date(mem.breakerOpenUntil).toLocaleString()}`
-            : ''
-        }）`
-      : `provider=${mem.provider ?? 'unknown'}`;
+    : mem.degraded
+      ? 'MEMORY_PROVIDER=pgvector 初始化失败，已回退 sqlite-text'
+      : mem.breakerOpen
+        ? `provider=${mem.provider ?? 'unknown'} · 断路器打开（连续失败 ${mem.breakerFailures}${
+            mem.breakerOpenUntil
+              ? `，冷却至 ${new Date(mem.breakerOpenUntil).toLocaleString()}`
+              : ''
+          }）`
+        : `provider=${mem.provider ?? 'unknown'}`;
   checks.push({
     id: 'memory',
     label: '记忆层',
