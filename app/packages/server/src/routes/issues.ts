@@ -12,7 +12,9 @@ import {
   BulkUpdateIssueStatusInput,
   BulkUpdateIssueAssigneeInput,
   BulkDeleteIssuesInput,
+  IssueImportInput,
   type IssueRunUsage,
+  type IssueExportV1,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
 import { estimateCost, loadModelRates } from '../runtime/model-rates.js';
@@ -1193,6 +1195,94 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       }
     })();
     return { success: true, deletedCount };
+  });
+
+  // —— G5-7：Issue/看板 JSON 导入导出（迁移场景；identifier/position 不导出，导入重新生成） ——
+
+  // GET /api/issues/export?projectId= —— 看板快照导出（全 workspace 或单项目）
+  app.get('/api/issues/export', async (req) => {
+    const { projectId } = req.query as { projectId?: string };
+    const cond = projectId ? and(eq(issues.workspaceId, WS_ID), eq(issues.projectId, projectId)) : eq(issues.workspaceId, WS_ID);
+    const rows = db.select().from(issues).where(cond).all();
+    const labelMap = loadLabelsByIssueIds(rows.map((r) => r.id));
+    const issuesOut = rows.map((r) => {
+      const labels = (labelMap.get(r.id) ?? []).map((l) => l.id);
+      return {
+        title: r.title,
+        description: r.description ?? null,
+        priority: r.priority,
+        status: r.status,
+        assignee: r.assigneeType && r.assigneeId ? { type: r.assigneeType, id: r.assigneeId } : null,
+        labels,
+        projectId: r.projectId ?? null,
+        customFields: r.customFields ?? null,
+        stage: r.stage ?? undefined,
+      };
+    });
+    const snapshot: IssueExportV1 = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      workspaceId: WS_ID,
+      issues: issuesOut,
+    };
+    return snapshot;
+  });
+
+  // POST /api/issues/import —— 快照导入（静默不 enqueue；逐条 createIssueCore + labels）
+  app.post('/api/issues/import', async (req, reply) => {
+    const parsed = IssueImportInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+    }
+    const created: string[] = [];
+    const failed: { title: string; error: string }[] = [];
+    for (const item of parsed.data.issues) {
+      try {
+        // labels 校验（照 create handler：存在/未归档），失败该条跳过
+        const labelIds = item.labels ? [...new Set(item.labels)] : [];
+        if (labelIds.length > 0) {
+          const found = db
+            .select()
+            .from(issueLabels)
+            .where(and(eq(issueLabels.workspaceId, WS_ID), inArray(issueLabels.id, labelIds)))
+            .all();
+          if (found.length !== labelIds.length) {
+            failed.push({ title: item.title, error: '存在无效 labelId' });
+            continue;
+          }
+          if (found.some((l) => l.archivedAt != null)) {
+            failed.push({ title: item.title, error: '不能挂载已归档的标签' });
+            continue;
+          }
+        }
+        const result = await createIssueCore({
+          title: item.title,
+          description: item.description ?? null,
+          priority: item.priority ?? 'none',
+          status: item.status ?? 'backlog',
+          assignee: item.assignee ?? null,
+          projectId: item.projectId ?? null,
+          customFields: item.customFields ?? null,
+          stage: item.stage ?? null,
+          enqueue: false, // 迁移场景静默建卡，不触发 run
+        });
+        if (!result.ok) {
+          failed.push({ title: item.title, error: result.error });
+          continue;
+        }
+        if (labelIds.length > 0) {
+          sqlite.transaction(() => {
+            for (const labelId of labelIds) {
+              db.insert(issueToLabels).values({ issueId: result.issue.id, labelId }).run();
+            }
+          })();
+        }
+        created.push(result.issue.id);
+      } catch (e) {
+        failed.push({ title: item.title, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return { ok: true, created: created.length, failed };
   });
 }
 

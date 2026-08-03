@@ -2618,3 +2618,43 @@ export const OpsAnalyticsResponse = z.object({
 });
 export type OpsAnalyticsResponse = z.infer<typeof OpsAnalyticsResponse>;
 
+
+// —— G5-7：Issue/看板 JSON 导入导出（迁移场景；identifier/position 不导出，导入重新生成） ——
+export const IssueExportItem = z.object({
+  title: z.string().min(1),
+  description: z.string().nullable().optional(),
+  priority: Priority.optional(),
+  status: IssueStatus.optional(),
+  /** 指派（多态）；导入时 id 不存在则忽略该指派 */
+  assignee: z
+    .object({ type: AssigneeType, id: BusinessId })
+    .nullable()
+    .optional(),
+  /** 标签 id 列表；导入时校验存在/未归档，否则该条失败 */
+  labels: z.array(BusinessId).optional(),
+  projectId: BusinessId.nullable().optional(),
+  customFields: z.record(z.string()).nullable().optional(),
+  /** 阶段号（子任务屏障）；不导出父引用（跨库迁移父 id 无意义） */
+  stage: z.number().int().nonnegative().optional(),
+});
+export type IssueExportItem = z.infer<typeof IssueExportItem>;
+
+export const IssueExportV1 = z.object({
+  version: z.literal(1),
+  exportedAt: z.string(),
+  workspaceId: z.string(),
+  issues: z.array(IssueExportItem),
+});
+export type IssueExportV1 = z.infer<typeof IssueExportV1>;
+
+export const IssueImportInput = z.object({
+  issues: z.array(IssueExportItem).max(500),
+});
+export type IssueImportInput = z.infer<typeof IssueImportInput>;
+
+export const IssueImportResult = z.object({
+  ok: z.boolean(),
+  created: z.number().int().nonnegative(),
+  failed: z.array(z.object({ title: z.string(), error: z.string() })),
+});
+export type IssueImportResult = z.infer<typeof IssueImportResult>;

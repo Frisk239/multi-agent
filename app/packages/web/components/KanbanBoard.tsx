@@ -16,6 +16,8 @@ import type { KeyboardCoordinateGetter } from '@dnd-kit/core';
 import type { IssueStatus, Priority, Issue } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAgentsReadinessMap,
   useIssues,
@@ -498,6 +500,61 @@ function KanbanBoardInner({
     ...assigneeQuery,
   });
   const issues = issuesPage?.data ?? [];
+
+  // —— G5-7：看板快照 JSON 导出/导入（迁移场景）——
+  const [jsonNotice, setJsonNotice] = useState<string | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  async function handleExportJson() {
+    setJsonNotice(null);
+    try {
+      const res = await apiFetch(`${API}/issues/export`);
+      if (!res.ok) {
+        setJsonNotice('导出失败：请确认 API 已启动');
+        return;
+      }
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kanban-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setJsonNotice(`已导出 ${data.issues?.length ?? 0} 条 issue`);
+    } catch {
+      setJsonNotice('导出失败：请确认 API 已启动');
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    setJsonNotice(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { issues?: unknown[] } | unknown[];
+      const issuesArr = Array.isArray(parsed) ? parsed : parsed.issues;
+      if (!Array.isArray(issuesArr)) {
+        setJsonNotice('导入失败：JSON 不是看板快照（缺 issues 数组）');
+        return;
+      }
+      const res = await apiFetch(`${API}/issues/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issues: issuesArr }),
+      });
+      const body = (await res.json()) as { ok?: boolean; created?: number; failed?: { title: string; error: string }[]; error?: string };
+      if (!res.ok || body.ok !== true) {
+        setJsonNotice(`导入失败：${body.error ?? '未知错误'}`);
+        return;
+      }
+      setJsonNotice(
+        `导入完成：创建 ${body.created ?? 0} 条${(body.failed?.length ?? 0) > 0 ? `，失败 ${body.failed!.length} 条（${body.failed![0].title}: ${body.failed![0].error}）` : ''}`,
+      );
+      void refetch();
+    } catch (e) {
+      setJsonNotice(`导入失败：${e instanceof Error ? e.message : 'JSON 解析错误'}`);
+    }
+  }
   const paging = summarizeIssuePaging(issues.length, issuesPage?.total);
 
   // S1：离开该视图前存下页数 + 顶部锚点行，供返回时恢复
@@ -1009,6 +1066,40 @@ function KanbanBoardInner({
           >
             筛选{moreFilterCount > 0 ? ` · ${moreFilterCount}` : ''}
           </button>
+          {/* G5-7：看板快照 JSON 导出/导入 */}
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="kanban-export-json"
+            onClick={() => void handleExportJson()}
+          >
+            导出 JSON
+          </button>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            data-testid="kanban-import-json"
+            onClick={() => importFileRef.current?.click()}
+          >
+            导入 JSON
+          </button>
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            data-testid="kanban-import-file"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleImportFile(f);
+              e.target.value = '';
+            }}
+          />
+          {jsonNotice ? (
+            <span className="text-dim text-sm" data-testid="kanban-json-notice">
+              {jsonNotice}
+            </span>
+          ) : null}
         </div>
 
         {showMore ? (
