@@ -34,6 +34,7 @@ function run(
     agentId: 'ag-1',
     runtime: 'claude-code',
     kind: 'issue',
+    priority: 'none',
     quickPrompt: null,
     error: null,
     startedAt: null,

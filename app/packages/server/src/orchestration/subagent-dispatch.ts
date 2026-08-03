@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { agentRuns, agents, runMessages } from '../db/schema.js';
+import { agentRuns, agents, runMessages, issues } from '../db/schema.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { enqueueAgentRun, enqueueLeaderRun } from './run-service.js';
 import { eventBus } from './event-bus.js';
@@ -235,6 +235,10 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
 
   const id = crypto.randomUUID();
   const createdAt = Date.now();
+  // G6-1：子代理 run 继承父 issue 的优先级快照（无 issue 的 QC/chat 默认 none）
+  const parentIssueRow = parentRun.issueId
+    ? db.select().from(issues).where(eq(issues.id, parentRun.issueId)).get()
+    : null;
   db.insert(agentRuns)
     .values({
       id,
@@ -243,6 +247,7 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
       runtime: realAgent.runtime,
       status: 'queued',
       kind: 'quick_create', // Since it has a prompt, treat it as quick_create
+      priority: parentIssueRow?.priority ?? 'none',
       quickPrompt: prompt,
       isLeader: isLeader ? 1 : 0,
       squadId,

@@ -6,6 +6,7 @@ import {
   agentRuns,
   automationRules,
   automationRuns,
+  issues,
 } from '../db/schema.js';
 
 /**
@@ -131,6 +132,45 @@ describe('critical-path integration (Slice 41)', () => {
 
     const rows = testState.db!.select().from(agentRuns).all();
     expect(rows).toHaveLength(0);
+  });
+
+  it('G6-1 enqueue snapshot: run.priority copies issue.priority at enqueue time', async () => {
+    // seed fixture iss-test-1 priority='high' → 新 run 快照应为 high
+    mocks.computeAgentReadiness.mockResolvedValue({
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/bin/opencode',
+      runtimeVersion: '1.0',
+      concurrency: 2,
+      runningCount: 0,
+      slotsAvailable: 2,
+      cwdConfigured: true,
+      status: 'ready',
+      detail: '',
+    });
+
+    const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(res.skipped).toBe(false);
+    const row1 = testState.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.id, res.run!.id))
+      .get()!;
+    expect(row1.priority).toBe('high');
+
+    // 改 issue 优先级后再 enqueue（另一 agent，绕过 per-(issue,agent) 去重）
+    // → 新 run 拿新快照，旧 run 快照不动（enqueue 时点拷贝语义）
+    testState.db!.update(issues).set({ priority: 'low' }).where(eq(issues.id, 'iss-test-1')).run();
+    const res2 = await enqueueAgentRun('iss-test-1', 'agt-test-2');
+    expect(res2.skipped).toBe(false);
+    const row2 = testState.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.id, res2.run!.id))
+      .get()!;
+    expect(row2.priority).toBe('low');
+    expect(row1.priority).toBe('high');
   });
 
   it('automation idempotent: same plannedAt double dispatch → one automation_run', async () => {

@@ -3,6 +3,7 @@
 > **本文件 = 路线 + 目标 + 切片队列真源。** 历史阶段（S01–S12、补1–5、Phase A–F）见 [slices.md](slices.md) 历史段 · 技术选型 [synthesis.md](synthesis.md) · 领域词汇与方位 [CONTEXT.md](../CONTEXT.md) · 工程宪法 [AGENTS.md](../AGENTS.md)。
 >
 > **生成依据（2026-08-02）：** 三份子代理分析（后端功能现状 / 前端交互现状 / 对照 references 上游 multica·hermes·pi）+ `app/.progress/` 规划文档（improvement-analysis、optimization-plan、gap-analysis-full、gap-close-wave-plan、next-wave-plan、must-close-checklist）未做项清单。已剔除 08-01 两波 closeout（optimization-wave / hard-gap-close-wave）中确认关闭的项，不重复开刀。
+> **追加（2026-08-03）：** G1–G5 池 + 第七波全部收官后，新派两份子代理差距分析（后端 10 条 / 前端 13 条，已剔除已修项与宪法禁区项）→ 注册 **G6（后端执行与运营精细度）** 与 **G7（前端体验第二波）**。
 
 ## §1 产品定位与北星（不变）
 
@@ -112,6 +113,46 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ✅（第四波：/api/analytics/ops + UsagePage 运营区） |
 | G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ✅（第四波：/api/issues/export + import，看板按钮） |
 
+### G6 后端执行与运营精细度 — 调度公平、副作用诚实、盲区清零（新，2026-08-03 注册）
+
+**目标陈述：** run 调度按优先级公平（紧急不排后）；自动化派发的副作用严格发生在幂等占位之后；失败/跳过/静默吞错全部可观测；主路径模块测试盲区清零。
+
+**现状基线：** run 认领 FCFS（`run-worker.ts:116` 仅按 createdAt）；automation 派发先副作用后守卫行（`automation-dispatch.ts:321→347`，重叠 tick 可致重复 Issue/孤儿 run）；sweeper 多处全表扫描 + N+1 + 「假批量」注释（`stale-runs.ts:191-630`）；claude-code / run-service（519 行熔断·改派）/ wiki-llm 无直测；pi `extension_ui_request` 静默丢弃（`pi.ts:380`）；无请求级慢日志；inbox/activity 写失败静默吞。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G6-1 | **run 认领按优先级调度**（agent_run 加 priority 快照列，enqueue 时从 issue 拷贝；tick 按 `priority DESC + createdAt ASC` 认领；学 multica `agent.sql:349` `ORDER BY atq.priority DESC, atq.created_at ASC`） | 中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-1-priority-scheduling-closeout-2026-08-03.md)；快照列 + 5 处 enqueue 拷贝/继承 + CASE 数值序认领 + 3 用例；全量 1491 用例绿） |
+| G6-2 | **Automation 派发幂等顺序修复**（先插 `(rule_id, planned_at)` 占位行/事务，赢家才干活；或进程内单飞互斥；学 multica tryClaim「先占位后 Handler」`manager.go:95`） | 中 | 小 | — | ⬜ |
+| G6-3 | **核心模块测试补网**（claude-code args 抽纯函数 + run-service enqueue 决策/熔断阈值边界 + wiki-llm 降级分支直测；复用 `__test-helpers__/livebind` 基建） | 高 | 中 | — | ⬜ |
+| G6-4 | **Sweeper 收尸路径原子化 + 假批量注释修正**（无内存依赖路径改单条条件 UPDATE，学 multica `agent.sql:569`；deferred 查重去 N+1；修「批量更新」注释与行为不符的诚实性污点） | 低·中 | 小 | — | ⬜ |
+| G6-5 | **消息/列表端点游标分页 + 形状统一**（`/api/runs/:id/messages` 加 `?afterSeq=&limit=`；列表端点统一 `{data}` 形状，PaginatedResponse 契约全量执行） | 低 | 小 | — | ⬜ |
+| G6-6 | **pi extension_ui_request 诚实提示**（CLI 中途求确认时 run:progress 告知「CLI 在等确认，超时按 idle 收尸」，不再静默卡 30 分钟无文案） | 低·中 | 小 | — | ⬜ |
+| G6-7 | **Automation 连续 skipped 运营警示**（最近 N 次 dispatch 全 skipped → Settings 规则标黄 + 文案；可选复用 G5-5 系统通知） | 低·中 | 小 | — | ⬜ |
+| G6-8 | **请求级慢日志**（Fastify onResponse：>1s 请求记 warn，含 path/耗时/状态码；用户报「某页慢」有据可查） | 低 | 极小 | — | ⬜ |
+| G6-9 | **memory pgvector/embedder 测试**（provider 选择/软回退逻辑直测，防 G1-5 降级行为漂移；embedder 无 key/网络失败分支钉死） | 低 | 小 | — | ⬜ |
+| G6-10 | **inbox/activity 写失败可观测**（logger.warn + 计数进 ops-snapshot，不再静默吞） | 低 | 极小 | — | ⬜ |
+
+### G7 前端体验第二波 — 高频往返零摩擦、页面活性诚实、长列表流畅（新，2026-08-03 注册）
+
+**目标陈述：** 看板-详情高频往返零摩擦（后退可关面板、返回不闪屏）；页面活性诚实（Memory 实时可见）；长列表流畅（transcript 虚拟化）；表单/键盘/文案一致性补齐。
+
+**现状基线：** 看板 Sheet 用 `router.replace` 打开、无 popstate 处理，后退键不关面板（`KanbanBoard.tsx:304-320`）；`useIssues` 无 staleTime，看板返回全量 refetch + skeleton 闪烁（`lib/api/issues.ts:39-47`）；Memory 页无 WS topic/轮询，ambient 记忆不实时（`lib/ws.ts:111-146`）；RunDetail transcript 全量 DOM 无虚拟化（`RunDetailPage.tsx:892-1035`，`@tanstack/react-virtual` 依赖已在）；新建 Issue 指派是原生 select 不可搜（`AssigneeSelect` 未复用）。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G7-1 | **看板 Sheet 后退键关闭**（openIssueSheet 改 `router.push` + popstate/useSearchParams 变化时关面板，Back 一次即关；学 Linear/Notion 侧滑面板心智；需防污染筛选历史） | 高 | 小 | — | ⬜ |
+| G7-2 | **useIssues staleTime 30s**（看板返回不整板重拉白闪；invalidateQueries 仍强制 refetch，WS 实时性不受影响） | 中 | 小 | — | ⬜ |
+| G7-3 | **Memory 页实时更新**（WS memory topic 订阅或 `useMemoryList` refetchInterval 15s，完成 issue 的 ambient 记忆即时可见） | 中 | 极小 | — | ⬜ |
+| G7-4 | **Run transcript 虚拟化**（复用 `@tanstack/react-virtual` 窗口化事件列表，长 run 首屏/展开/筛选不卡；行高可估，展开态从 `Record<string, boolean>` 改为窗口感知） | 中 | 中 | — | ⬜ |
+| G7-5 | **Sheet 属性补强**（优先级 Select 入 SheetMeta + 标签行内编辑复用 `IssueLabelsEditor`；「扫板-处理」不跳出看板） | 中 | 小·中 | — | ⬜ |
+| G7-6 | **新建 Issue 表单可搜指派**（复用 `AssigneeSelect` combobox + readiness 显示，与详情页一致） | 低 | 小 | — | ⬜ |
+| G7-7 | **Inbox j/k 键盘导航**（上下行移动选中 + Enter 打开，与现有 Enter handler 合并；看板键盘已开先例） | 低 | 小 | — | ⬜ |
+| G7-8 | **Toast 堆叠上限 + hover 暂停**（上限 3-4 条挤掉最旧；hover 暂停计时；带 action 消息体与关闭钮分离） | 低 | 小 | — | ⬜ |
+| G7-9 | **各页 document.title 区分**（`usePageTitle` hook：issue 标题/run 短 id 拼接，多标签可辨） | 低 | 极小 | — | ⬜ |
+| G7-10 | **Wiki 分享链改复制按钮**（复制到剪贴板 + 「已复制」toast，与 Memory 页 copyText 模式一致；现渲染为 Link 点后无操作） | 低 | 极小 | — | ⬜ |
+| G7-11 | **Memory 空/错/loading 行 colSpan 修复**（8 列对齐或从 thead 派生列数常量） | 低 | 极小 | — | ⬜ |
+| G7-12 | **看板工具栏收纳导入/导出**（低频运维按钮收进「筛选」展开区或菜单，不稀释高频操作权重；功能本身 G5-7 已关不动） | 低 | 极小 | — | ⬜ |
+
 ## §4 切片队列总表（建议迭代顺序）
 
 > 状态列：⬜ 未开 · 🔨 进行中 · ✅ 已关。关刀后由 Slice Owner 更新。
@@ -134,6 +175,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 14 | **第五波（剩余小刀收尾）：G2-5 · G1-5** | G2/G1 | ✅ 已关（2026-08-03，[G2-5](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md) 全局并发配额 · [G1-5](app/.progress/g1-5-pgvector-fallback-closeout-2026-08-03.md) pgvector 软回退可观测；全量 1401 用例绿；**G1–G5 池仅剩 G1-2 ACP 大工程（唯一剩余）**） |
 | 15 | **第六波（G1-2 ACP 大工程收官）：Grok ACP stdio 客户端** | G1 | ✅ 已关（2026-08-03，[closeout](app/.progress/grok-acp-closeout-2026-08-03.md)：ACP 传输层 + mock 测试网（51 契约用例）+ 真机 2 回合验收（fresh「记住了42」/ resumed「42」上下文延续 + usage 落库）+ Playwright 7/7 PASS；**G1–G5 池全部收官**） |
 | 16 | **第七波（品质波）：M1 ACP 边界 · M2 技术债 · M3 性能 · M4 摩擦清扫**（Q1–Q7，Goal 自编号） | — | ✅ 已关（2026-08-03：Q1 [set_model UI](app/.progress/q1-set-model-ui-closeout-2026-08-03.md) 真机 pi 200/grok-4.5 绑定回读 · Q2 [MCP 经 ACP 注入](app/.progress/q2-mcp-inject-closeout-2026-08-03.md) 真机 fs__read_text_file 读到文件 · Q3 api.ts 拆分 10 领域模块 barrel 兼容 · Q4 KanbanBoard 拆分 3 模块 + dnd 纯函数 · M2c Settings「在途 x/上限 y」· M4a 流式分块合并 35 chunk→1 段落 · Q6 [settings/status 3s→0.21s](app/.progress/q6-perf-settings-status-closeout-2026-08-03.md) · Q7 [全链路走查摩擦清扫](app/.progress/q7-walkthrough-closeout-2026-08-03.md)（WS URL 推导 / grok 模型列表可用项 / onboarding-status 缓存）；全量 1488 用例绿（shared 121 + server 902 + web 465）） |
+| 17 | **第八波（后端精细度）：G6-1 → G6-2 → G6-3** | G6 | G6-1 ✅（2026-08-03，[closeout](app/.progress/g6-1-priority-scheduling-closeout-2026-08-03.md)，全量 1491 用例绿）→ 下一刀 G6-2 自动化幂等顺序 → G6-3 测试补网；G6-4 起按 §3 价值取用 |
+| 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | 新（2026-08-03 注册，来源：前端差距子代理分析；高频往返三刀优先，G7-4 起按 §3 价值取用） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 

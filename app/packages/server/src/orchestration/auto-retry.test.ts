@@ -76,6 +76,7 @@ function insertRun(
     failureReason?: string | null;
     attempt?: number;
     maxAttempts?: number;
+    priority?: 'urgent' | 'high' | 'medium' | 'low' | 'none';
   },
 ) {
   db.insert(agentRuns)
@@ -86,6 +87,7 @@ function insertRun(
       runtime: 'opencode',
       status: args.status,
       kind: 'issue',
+      priority: args.priority ?? 'none',
       failureReason: args.failureReason ?? null,
       error: args.failureReason ?? null,
       attempt: args.attempt ?? 1,
@@ -112,6 +114,7 @@ describe('bounded infrastructure auto-retry', () => {
       id: 'run-atomic',
       issueId,
       status: 'running',
+      priority: 'urgent', // G6-1：重试 child 应继承父 run 优先级快照
     });
     const first = transitionAndScheduleAutoRetry({
       id: parent.id,
@@ -128,6 +131,9 @@ describe('bounded infrastructure auto-retry', () => {
     expect(first.autoRetryChild?.attempt).toBe(2);
     expect(first.autoRetryChild?.nextAttemptAt).toBeNull();
     expect(db.select().from(agentRuns).all().filter((r) => r.autoRetryOfRunId === parent.id)).toHaveLength(1);
+    // G6-1：child.priority === parent.priority（不因重试掉队）
+    const child = db.select().from(agentRuns).where(eq(agentRuns.autoRetryOfRunId, parent.id)).get()!;
+    expect(child.priority).toBe('urgent');
 
     const second = transitionAndScheduleAutoRetry({
       id: parent.id,

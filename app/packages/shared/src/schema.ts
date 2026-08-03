@@ -99,6 +99,9 @@ export const AgentRun = z.object({
   terminalReason: z.string().min(1).nullable().optional(),
   // bu03 / agent-chat：issue | quick_create | chat
   kind: AgentRunKind.default('issue'),
+  // G6-1：enqueue 时从 issue 拷贝的优先级快照（tick 认领排序 + 展示；
+  // QC/chat/automation 无 issue 时默认 none，不与后续 issue 改优先级联动）
+  priority: Priority.default('none'),
   // bu03 / chat：quick_create|chat 使用；issue run 为 null
   quickPrompt: z.string().nullable(),
   chatThreadId: BusinessId.nullable().optional(),

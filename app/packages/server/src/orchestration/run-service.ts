@@ -324,6 +324,9 @@ async function checkAndEnqueue(
 
   const id = crypto.randomUUID();
   const createdAt = Date.now();
+  // G6-1：priority 快照自 issue（enqueue 时点拷贝；后续 issue 改优先级不影响
+  // 已排队 run 的认领顺序；无 issue 时默认 none）
+  const issueRow = db.select().from(issues).where(eq(issues.id, issueId)).get();
   db.insert(agentRuns)
     .values({
       id,
@@ -332,6 +335,7 @@ async function checkAndEnqueue(
       runtime: agent.runtime,
       status: 'queued',
       kind: quickPrompt ? 'quick_create' : 'issue',
+      priority: issueRow?.priority ?? 'none',
       quickPrompt,
       error: null,
       startedAt: null,

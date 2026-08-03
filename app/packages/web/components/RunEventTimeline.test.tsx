@@ -14,6 +14,7 @@ const run: AgentRun = {
   status: 'running',
   runtime: 'opencode',
   kind: 'issue',
+  priority: 'none',
   quickPrompt: null,
   error: null,
   startedAt: '2026-07-27T00:00:00.000Z',

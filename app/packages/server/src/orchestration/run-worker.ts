@@ -113,7 +113,13 @@ export async function tick(): Promise<void> {
         or(isNull(agentRuns.nextAttemptAt), lte(agentRuns.nextAttemptAt, Date.now())),
       ),
     )
-    .orderBy(asc(agentRuns.createdAt))
+    // G6-1：认领按优先级公平（学 multica ClaimAgentTask `ORDER BY atq.priority
+    // DESC, atq.created_at ASC`）；priority 是文本 enum，用 CASE 映射数值序：
+    // urgent(0) > high(1) > medium(2) > low(3) > none/未知(4)，同级仍 FCFS
+    .orderBy(
+      sql<number>`CASE ${agentRuns.priority} WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`,
+      asc(agentRuns.createdAt),
+    )
     .all();
 
   /** 本 tick 已 claim 的 project_local path key，防同批双开 */

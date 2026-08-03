@@ -114,7 +114,7 @@ vi.mock('../process-health.js', () => ({
 
 import { tick } from './run-worker.js';
 
-function insertQueuedRun(id: string, agentId = 'agt-test-1'): void {
+function insertQueuedRun(id: string, agentId = 'agt-test-1', priority = 'none'): void {
   const now = Date.now();
   state.db!.insert(agentRuns)
     .values({
@@ -124,6 +124,7 @@ function insertQueuedRun(id: string, agentId = 'agt-test-1'): void {
       runtime: 'opencode',
       status: 'queued',
       kind: 'issue',
+      priority: priority as 'urgent' | 'high' | 'medium' | 'low' | 'none',
       createdAt: now,
     })
     .run();
@@ -166,6 +167,75 @@ describe('W5 run-worker fault injection', () => {
     await flush();
     expect(executeCalls).toBe(1);
     expect(runRow('run-race').status).toBe('completed');
+  });
+
+  it('G6-1 priority claim: urgent run is claimed before an earlier low-priority run', async () => {
+    // low 先入队（createdAt 更早），urgent 后入队 → 认领顺序应 urgent 先
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-low',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'queued',
+        kind: 'issue',
+        priority: 'low',
+        createdAt: now - 1_000,
+      })
+      .run();
+    insertQueuedRun('run-urgent', 'agt-test-1', 'urgent');
+    const claimedOrder: string[] = [];
+    state.executeImpl = async (input) => {
+      claimedOrder.push((input as { runId: string }).runId);
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+    await tick();
+    // executeRun 首段含 await import（stale-runs 动态加载），全量负载下首次
+    // 转译可能 >20ms；用 vi.waitFor 等两条 execute 链收敛（顺序仍由微任务
+    // FIFO 保证 = claim 顺序投影）
+    await vi.waitFor(() => {
+      expect(claimedOrder).toEqual(['run-urgent', 'run-low']);
+    });
+    expect(runRow('run-urgent').status).toBe('completed');
+    expect(runRow('run-low').status).toBe('completed');
+  });
+
+  it('G6-1 priority tie: same priority keeps FCFS by createdAt', async () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-tie-early',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'queued',
+        kind: 'issue',
+        priority: 'medium',
+        createdAt: now - 1_000, // 更早入队
+      })
+      .run();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-tie-late',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'queued',
+        kind: 'issue',
+        priority: 'medium',
+        createdAt: now,
+      })
+      .run();
+    const claimedOrder: string[] = [];
+    state.executeImpl = async (input) => {
+      claimedOrder.push((input as { runId: string }).runId);
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+    await tick();
+    await vi.waitFor(() => {
+      expect(claimedOrder).toEqual(['run-tie-early', 'run-tie-late']);
+    });
   });
 
   it('prepare-lease expiry: half-claimed run is swept to failed and tick does not touch it', async () => {

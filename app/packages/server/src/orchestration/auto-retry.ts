@@ -115,6 +115,7 @@ function insertRetryChild(
         runtime: source.runtime,
         status: 'queued',
         kind: source.kind,
+        priority: source.priority, // G6-1：重试继承父 run 优先级快照，不因重试掉队
         quickPrompt: source.quickPrompt,
         chatThreadId: source.chatThreadId,
         isLeader: source.isLeader,
@@ -250,6 +251,7 @@ export function insertEscalatedChild(
         runtime: fallback.runtime,
         status: 'queued',
         kind: source.kind,
+        priority: source.priority, // G6-1：改派 child 同样继承优先级快照
         quickPrompt: source.quickPrompt,
         chatThreadId: source.chatThreadId,
         isLeader: 0,

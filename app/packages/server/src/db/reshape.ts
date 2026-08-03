@@ -238,6 +238,9 @@ export function toAgentRun(row: RunRow): AgentRun {
     runtime: row.runtime,
     status: row.status,
     kind: (row.kind as 'issue' | 'quick_create' | 'chat') ?? 'issue',
+    priority:
+      ((row as { priority?: AgentRun['priority'] }).priority as AgentRun['priority']) ??
+      'none', // G6-1：enqueue 快照；旧行/未知兜底 none
     quickPrompt: row.quickPrompt ?? null,
     chatThreadId: (row as { chatThreadId?: string | null }).chatThreadId ?? null,
     parentRunId: row.parentRunId ?? null,

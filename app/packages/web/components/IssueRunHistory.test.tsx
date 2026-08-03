@@ -34,6 +34,7 @@ function makeRun(overrides: Partial<AgentRun>): AgentRun {
     runtime: 'opencode',
     status: 'completed',
     kind: 'issue',
+    priority: 'none',
     quickPrompt: null,
     error: null,
     startedAt: '2026-07-30T00:00:00.000Z',

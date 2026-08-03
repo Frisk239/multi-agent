@@ -284,6 +284,14 @@ export const agentRuns = sqliteTable(
     kind: text('kind', { enum: ['issue', 'quick_create', 'chat'] })
       .notNull()
       .default('issue'),
+    // G6-1：enqueue 时从 issue 拷贝的优先级快照（tick 认领按 priority DESC +
+    // createdAt ASC，学 multica ClaimAgentTask agent.sql `ORDER BY atq.priority
+    // DESC, atq.created_at ASC`）；QC/chat/automation 无 issue 默认 none
+    priority: text('priority', {
+      enum: ['urgent', 'high', 'medium', 'low', 'none'],
+    })
+      .notNull()
+      .default('none'),
     quickPrompt: text('quick_prompt'),
     // agent-chat：可选关联会话
     chatThreadId: text('chat_thread_id'),

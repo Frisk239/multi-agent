@@ -13,13 +13,13 @@ const apiMocks = vi.hoisted(() => ({
 const runs: AgentRun[] = [
   {
     id: 'squad-active', issueId: 'issue-1', agentId: 'agent-1', runtime: 'opencode',
-    status: 'running', kind: 'issue', quickPrompt: null, error: null,
+    status: 'running', kind: 'issue', priority: 'none', quickPrompt: null, error: null,
     startedAt: '2026-07-30T00:01:00.000Z', finishedAt: null, lastHeartbeatAt: null,
     isLeader: true, squadId: 'squad-1', createdAt: '2026-07-30T00:00:00.000Z',
   },
   {
     id: 'squad-failed', issueId: 'issue-2', agentId: 'agent-2', runtime: 'opencode',
-    status: 'failed', kind: 'issue', quickPrompt: null, error: 'boom',
+    status: 'failed', kind: 'issue', priority: 'none', quickPrompt: null, error: 'boom',
     startedAt: '2026-07-30T00:00:00.000Z', finishedAt: '2026-07-30T00:00:10.000Z', lastHeartbeatAt: null,
     isLeader: false, squadId: 'squad-1', createdAt: '2026-07-30T00:00:00.000Z',
   },
