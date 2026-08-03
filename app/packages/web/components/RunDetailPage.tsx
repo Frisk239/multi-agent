@@ -34,6 +34,7 @@ import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { confirmDialog } from '@/lib/confirm-store';
 import { FailureActionChip } from './FailureActionChip';
 import { SubagentTreeViewer } from './SubagentTreeViewer';
+import { RunModelSwitcher } from './RunModelSwitcher';
 
 
 
@@ -426,6 +427,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
               >
                 压缩上下文
               </button>
+              <RunModelSwitcher runId={run.id} runtime={run.runtime} currentModel={run.model} />
             </div>
           ) : null}
           {recovery === 'issue_retry' ? (
