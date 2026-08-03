@@ -222,6 +222,47 @@ describe('automation run_only (A5 / Multica)', () => {
     expect(count).toBe(1);
   });
 
+  it('G6-2 concurrent dispatch for run_only: overlapping ticks enqueue exactly one agent run', async () => {
+    const now = Date.now();
+    state.db!.insert(automationRules).values({
+      id: 'rule-idem-conc',
+      name: 'idem-conc',
+      enabled: 1,
+      scheduleKind: 'interval_minutes',
+      intervalMinutes: 15,
+      dailyTime: null,
+      cronExpression: null,
+      assigneeType: 'agent',
+      assigneeId: 'agt-test-1',
+      titleTemplate: 't',
+      bodyTemplate: '',
+      executionMode: 'run_only',
+      lastPlannedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    const plannedAt = 1_700_000_100_001;
+    const [a, b] = await Promise.all([
+      dispatchAutomationRule('rule-idem-conc', plannedAt, 'schedule'),
+      dispatchAutomationRule('rule-idem-conc', plannedAt, 'manual'),
+    ]);
+    expect(b.id).toBe(a.id);
+    expect(a.status).toBe('issue_created');
+    const count = state.db!
+      .select()
+      .from(agentRuns)
+      .all()
+      .filter((r) => r.kind === 'quick_create' && r.quickPrompt?.includes('run_only')).length;
+    expect(count).toBe(1);
+    const autoRows = state.db!
+      .select()
+      .from(automationRuns)
+      .where(eq(automationRuns.ruleId, 'rule-idem-conc'))
+      .all();
+    expect(autoRows).toHaveLength(1);
+    expect(autoRows[0]!.linkedRunId).not.toBeNull();
+  });
+
   it.each(['runtime_missing', 'cwd_missing', 'error'] as const)(
     'G2-2 run_only + agent 离线（%s）→ skipped（非 failed），不落死任务',
     async (status) => {

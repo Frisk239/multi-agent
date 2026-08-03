@@ -165,39 +165,22 @@ function loadExistingRun(ruleId: string, plannedAt: number): AutomationRun | nul
   return row ? toAutomationRun(row) : null;
 }
 
-function insertFailedRun(
-  ruleId: string,
-  plannedAt: number,
-  source: AutomationRunSource,
-  error: string,
-): AutomationRun {
-  return insertTerminalRun(ruleId, plannedAt, source, 'failed', error);
-}
+/**
+ * G6-2：派发中断（进程重启等）占位行的超龄阈值 —— 超过即视为孤儿，
+ * 诚实升级 failed（不再重发同 plannedAt，同 plannedAt 只发一次的语义保持）。
+ */
+const DISPATCH_STALE_MS = 60_000;
 
 /**
- * G2-2：run_only 离线语义（学 multica autopilot.go:466 `recordSkippedRun`）。
- * 规则本身有效但当下不可派活（agent 离线 / 竞态消失）→ 记 skipped 不落死任务；
- * 与 failed 区分：skipped 是瞬态、下次计划照常；failed 是配置/执行错误。
+ * 阶段 1：原子占位（学 multica tryClaim「先占位后 Handler」）。
+ * UNIQUE(rule_id, planned_at) 判定赢家：insert 成功 = 赢家（拿回占位行）；
+ * unique conflict = 输家（返回 null，调用方直接返回已有行，绝不再执行副作用）。
  */
-function insertSkippedRun(
+function insertDispatchPlaceholder(
   ruleId: string,
   plannedAt: number,
   source: AutomationRunSource,
-  reason: string,
-): AutomationRun {
-  return insertTerminalRun(ruleId, plannedAt, source, 'skipped', reason);
-}
-
-function insertTerminalRun(
-  ruleId: string,
-  plannedAt: number,
-  source: AutomationRunSource,
-  status: 'failed' | 'skipped',
-  error: string,
-): AutomationRun {
-  const existing = loadExistingRun(ruleId, plannedAt);
-  if (existing) return existing;
-
+): AutomationRun | null {
   const id = crypto.randomUUID();
   const createdAt = Date.now();
   try {
@@ -207,22 +190,60 @@ function insertTerminalRun(
         ruleId,
         plannedAt,
         source,
-        status,
+        status: 'dispatching',
         issueId: null,
-        error,
+        linkedRunId: null,
+        error: null,
         createdAt,
         updatedAt: createdAt,
       })
       .run();
   } catch (e) {
-    if (isUniqueConflict(e)) {
-      const again = loadExistingRun(ruleId, plannedAt);
-      if (again) return again;
-    }
+    if (isUniqueConflict(e)) return null;
     throw e;
   }
   const row = db.select().from(automationRuns).where(eq(automationRuns.id, id)).get()!;
   return toAutomationRun(row);
+}
+
+/**
+ * 阶段 2 完成：条件 UPDATE（仅 dispatching 占位态可写终态）。
+ * 赢家是唯一持有占位行的执行者；写终态即释放占位。
+ */
+function finishAutomationRun(
+  id: string,
+  patch: {
+    status: 'issue_created' | 'pending_dispatch' | 'failed' | 'skipped';
+    issueId?: string | null;
+    linkedRunId?: string | null;
+    error?: string | null;
+  },
+): AutomationRun {
+  db.update(automationRuns)
+    .set({ ...patch, updatedAt: Date.now() })
+    .where(and(eq(automationRuns.id, id), eq(automationRuns.status, 'dispatching')))
+    .run();
+  const row = db.select().from(automationRuns).where(eq(automationRuns.id, id)).get()!;
+  return toAutomationRun(row);
+}
+
+/**
+ * 派发前预检：已有行（含占位）→ 直接返回不干活；
+ * 超龄 dispatching（派发中断残留）→ 升级 failed（诚实展示，不静默重发）。
+ */
+function preflightExistingRun(ruleId: string, plannedAt: number): AutomationRun | null {
+  const existing = loadExistingRun(ruleId, plannedAt);
+  if (!existing) return null;
+  if (existing.status === 'dispatching') {
+    const createdAtMs = Date.parse(existing.createdAt);
+    if (Number.isFinite(createdAtMs) && Date.now() - createdAtMs > DISPATCH_STALE_MS) {
+      return finishAutomationRun(existing.id, {
+        status: 'failed',
+        error: '派发中断（占位超龄，可能进程重启）',
+      });
+    }
+  }
+  return existing;
 }
 
 function validateAssignee(rule: RuleRow): string | null {
@@ -267,16 +288,21 @@ async function resolveDispatchAgent(rule: RuleRow): Promise<
 /**
  * Multica run_only: enqueue quick_create agent run without Issue card.
  * Readiness hard-gate aligns with quick-runs (unless MA_ENQUEUE_ALLOW_NOT_READY).
+ * G6-2：由赢家（占位行持有者）执行；所有终态经 finishAutomationRun 写占位行。
  */
 async function dispatchRunOnly(
   rule: RuleRow,
   plannedAt: number,
   source: AutomationRunSource,
+  placeholderId: string,
 ): Promise<AutomationRun> {
   const resolved = await resolveDispatchAgent(rule);
   if (!resolved.ok) {
     // 规则已过 validateAssignee 准入，此处失败 = 竞态（agent/squad 被删/归档）→ skipped（学 multica errDispatchSkipped）
-    return insertSkippedRun(rule.id, plannedAt, source, resolved.error);
+    return finishAutomationRun(placeholderId, {
+      status: 'skipped',
+      error: resolved.error,
+    });
   }
 
   const title = renderAutomationTemplate(rule.titleTemplate, {
@@ -298,22 +324,26 @@ async function dispatchRunOnly(
   if (!allowNotReadyEnqueue()) {
     const rd = await computeAgentReadiness(resolved.agentId);
     if (!rd) {
-      return insertSkippedRun(rule.id, plannedAt, source, 'agent 不存在');
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: 'agent 不存在',
+      });
     }
     if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
       // G2-2：离线/不可派活 → skipped（瞬态，下次计划照常），不落 failed 死任务
-      return insertSkippedRun(
-        rule.id,
-        plannedAt,
-        source,
-        `run_only 跳过（agent 离线）：${rd.detail ?? rd.status}`,
-      );
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: `run_only 跳过（agent 离线）：${rd.detail ?? rd.status}`,
+      });
     }
   }
 
   const agent = db.select().from(agents).where(eq(agents.id, resolved.agentId)).get();
   if (!agent) {
-    return insertSkippedRun(rule.id, plannedAt, source, `agent 不存在: ${resolved.agentId}`);
+    return finishAutomationRun(placeholderId, {
+      status: 'skipped',
+      error: `agent 不存在: ${resolved.agentId}`,
+    });
   }
 
   const linkedRunId = crypto.randomUUID();
@@ -342,46 +372,17 @@ async function dispatchRunOnly(
   eventBus.publish({ type: 'run:queued', run: toObservedAgentRun(agentRow) });
   wakeRunWorker();
 
-  const automationRunId = crypto.randomUUID();
-  try {
-    db.insert(automationRuns)
-      .values({
-        id: automationRunId,
-        ruleId: rule.id,
-        plannedAt,
-        source,
-        // Reuse open status bucket (UI: 已触发); no issueId for run_only.
-        status: 'issue_created',
-        issueId: null,
-        linkedRunId,
-        error: null,
-        createdAt,
-        updatedAt: createdAt,
-      })
-      .run();
-  } catch (e) {
-    if (isUniqueConflict(e)) {
-      const again = loadExistingRun(rule.id, plannedAt);
-      if (again) return again;
-    }
-    throw e;
-  }
-
-  db.update(automationRules)
-    .set({ lastPlannedAt: plannedAt, updatedAt: Date.now() })
-    .where(eq(automationRules.id, rule.id))
-    .run();
-
-  const row = db
-    .select()
-    .from(automationRuns)
-    .where(eq(automationRuns.id, automationRunId))
-    .get()!;
-  return toAutomationRun(row);
+  return finishAutomationRun(placeholderId, {
+    // Reuse open status bucket (UI: 已触发); no issueId for run_only.
+    status: 'issue_created',
+    linkedRunId,
+  });
 }
 
 /**
- * 幂等派发：UNIQUE(rule_id, planned_at)；冲突静默返回已有 run。
+ * G6-2 幂等派发：两阶段（学 multica tryClaim「先占位后 Handler」）。
+ * 阶段 1 原子占位（UNIQUE(rule_id, planned_at) 判定赢家）→ 阶段 2 仅赢家执行副作用
+ * （建卡/enqueue/直派 run）→ finishAutomationRun 写终态。输家/已有行直接返回，绝无重复副作用。
  * 非法 assignee → failed run，不建卡。
  * create_issue：建卡 + enqueue；run_only：无 Issue 直派 quick_create（学 Multica）。
  * B3：enqueue 跳过时 error 字段写明原因（不装作已开工）。
@@ -401,105 +402,108 @@ export async function dispatchAutomationRule(
     throw new Error(`automation rule not found: ${ruleId}`);
   }
 
-  const existing = loadExistingRun(ruleId, plannedAt);
+  // 预检：已有行（含占位）→ 直接返回不干活；超龄占位升级 failed
+  const existing = preflightExistingRun(ruleId, plannedAt);
   if (existing) return existing;
 
-  const assigneeErr = validateAssignee(rule);
-  if (assigneeErr) {
-    return insertFailedRun(ruleId, plannedAt, source, assigneeErr);
+  // 阶段 1：原子占位；输家返回赢家行（占位或终态），不再执行任何副作用
+  const placeholder = insertDispatchPlaceholder(ruleId, plannedAt, source);
+  if (!placeholder) {
+    const winner = loadExistingRun(ruleId, plannedAt);
+    if (winner) return winner;
+    // 理论不可达（冲突行必存在）；防御：直接报错
+    throw new Error(`automation dispatch race lost without winner row: ${ruleId}@${plannedAt}`);
   }
 
-  const mode = resolveAutomationExecutionMode(
-    (rule as { executionMode?: string }).executionMode,
-  );
-  if (mode === 'run_only') {
-    return dispatchRunOnly(rule, plannedAt, source);
-  }
+  // 占位成功即视为本次 plannedAt 已处理（学 multica：claim 后更新规则指针）
+  db.update(automationRules)
+    .set({ lastPlannedAt: plannedAt, updatedAt: Date.now() })
+    .where(eq(automationRules.id, rule.id))
+    .run();
 
-  const title = renderAutomationTemplate(rule.titleTemplate, {
-    plannedAt,
-    ruleName: rule.name,
-  });
-  const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
-    plannedAt,
-    ruleName: rule.name,
-  });
-  const footer = `\n\n---\n由自动化规则「${rule.name}」创建（source=${source}, planned_at=${new Date(plannedAt).toISOString()}）`;
-  const description = `${bodyBase}${footer}`;
-
-  let created;
+  // 阶段 2：仅赢家执行副作用；任何终态经 finishAutomationRun 写占位行
   try {
-    created = await createIssueCore({
-      title,
-      description,
-      priority: 'medium',
-      assignee: {
-        type: rule.assigneeType,
-        id: rule.assigneeId,
-      },
-      originType: 'automation',
-      originRuleId: rule.id,
-      enqueue: true,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return insertFailedRun(ruleId, plannedAt, source, `create issue failed: ${msg}`);
-  }
+    const assigneeErr = validateAssignee(rule);
+    if (assigneeErr) {
+      return finishAutomationRun(placeholder.id, { status: 'failed', error: assigneeErr });
+    }
 
-  if (!created.ok) {
-    return insertFailedRun(
-      ruleId,
-      plannedAt,
-      source,
-      created.error || 'create issue failed',
+    const mode = resolveAutomationExecutionMode(
+      (rule as { executionMode?: string }).executionMode,
     );
-  }
+    if (mode === 'run_only') {
+      return dispatchRunOnly(rule, plannedAt, source, placeholder.id);
+    }
 
-  // 建卡成功不等于执行成功：待派发/已排队均保持非终态。
-  let enqueueNote: string | null = null;
-  const enq = created.enqueue;
-  if (enq?.status === 'skipped') {
-    enqueueNote = `Issue 已建，但未开工：${enq.detail ?? enq.reason ?? '派发被跳过'}`;
-    console.warn('[automation-dispatch] enqueue skipped', {
-      ruleId,
-      issueId: created.issue.id,
-      reason: enq.reason,
-      detail: enq.detail,
+    const title = renderAutomationTemplate(rule.titleTemplate, {
+      plannedAt,
+      ruleName: rule.name,
     });
-  } else if (enq?.status === 'queued' && enq.runId) {
-    enqueueNote = null;
-  }
+    const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
+      plannedAt,
+      ruleName: rule.name,
+    });
+    const footer = `\n\n---\n由自动化规则「${rule.name}」创建（source=${source}, planned_at=${new Date(plannedAt).toISOString()}）`;
+    const description = `${bodyBase}${footer}`;
 
-  const runId = crypto.randomUUID();
-  const createdAt = Date.now();
-  try {
-    db.insert(automationRuns)
-      .values({
-        id: runId,
+    let created;
+    try {
+      created = await createIssueCore({
+        title,
+        description,
+        priority: 'medium',
+        assignee: {
+          type: rule.assigneeType,
+          id: rule.assigneeId,
+        },
+        originType: 'automation',
+        originRuleId: rule.id,
+        enqueue: true,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return finishAutomationRun(placeholder.id, {
+        status: 'failed',
+        error: `create issue failed: ${msg}`,
+      });
+    }
+
+    if (!created.ok) {
+      return finishAutomationRun(placeholder.id, {
+        status: 'failed',
+        error: created.error || 'create issue failed',
+      });
+    }
+
+    // 建卡成功不等于执行成功：待派发/已排队均保持非终态。
+    let enqueueNote: string | null = null;
+    const enq = created.enqueue;
+    if (enq?.status === 'skipped') {
+      enqueueNote = `Issue 已建，但未开工：${enq.detail ?? enq.reason ?? '派发被跳过'}`;
+      console.warn('[automation-dispatch] enqueue skipped', {
         ruleId,
-        plannedAt,
-        source,
-        status: automationStatusForEnqueue(enq?.status),
         issueId: created.issue.id,
-        linkedRunId: enq?.runId ?? null,
-        error: enqueueNote,
-        createdAt,
-        updatedAt: createdAt,
-      })
-      .run();
+        reason: enq.reason,
+        detail: enq.detail,
+      });
+    } else if (enq?.status === 'queued' && enq.runId) {
+      enqueueNote = null;
+    }
+
+    return finishAutomationRun(placeholder.id, {
+      status: automationStatusForEnqueue(enq?.status),
+      issueId: created.issue.id,
+      linkedRunId: enq?.runId ?? null,
+      error: enqueueNote,
+    });
   } catch (e) {
-    if (isUniqueConflict(e)) {
-      const again = loadExistingRun(ruleId, plannedAt);
-      if (again) return again;
+    // 兜底：未预期异常 → 占位不残留（诚实 failed），再上抛给调用方（worker 有 catch）
+    const msg = e instanceof Error ? e.message : String(e);
+    try {
+      finishAutomationRun(placeholder.id, { status: 'failed', error: `dispatch aborted: ${msg}` });
+    } catch {
+      /* 写失败不掩盖原始异常 */
     }
     throw e;
   }
-
-  db.update(automationRules)
-    .set({ lastPlannedAt: plannedAt, updatedAt: Date.now() })
-    .where(eq(automationRules.id, ruleId))
-    .run();
-
-  const row = db.select().from(automationRuns).where(eq(automationRuns.id, runId)).get()!;
-  return toAutomationRun(row);
 }

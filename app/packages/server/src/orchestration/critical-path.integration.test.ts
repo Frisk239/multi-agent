@@ -211,6 +211,174 @@ describe('critical-path integration (Slice 41)', () => {
     expect(all[0]!.plannedAt).toBe(plannedAt);
   });
 
+  it('G6-2 concurrent dispatch: overlapping ticks create one issue + one run', async () => {
+    const now = Date.now();
+    const ruleId = 'rule-conc-1';
+    const plannedAt = 1_700_000_000_000;
+    testState.db!.insert(automationRules)
+      .values({
+        id: ruleId,
+        name: 'Conc Rule',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 60,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'auto {{ruleName}}',
+        bodyTemplate: '',
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    mocks.computeAgentReadiness.mockResolvedValue({
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/bin/opencode',
+      runtimeVersion: '1.0',
+      concurrency: 2,
+      runningCount: 0,
+      slotsAvailable: 2,
+      cwdConfigured: true,
+      status: 'ready',
+      detail: '',
+    });
+
+    // 两个重叠 tick（schedule + manual）并发派发同一 plannedAt
+    const [a, b] = await Promise.all([
+      dispatchAutomationRule(ruleId, plannedAt, 'schedule'),
+      dispatchAutomationRule(ruleId, plannedAt, 'manual'),
+    ]);
+
+    expect(b.id).toBe(a.id); // 输家返回赢家行
+    expect(a.status).toBe('issue_created');
+    // 副作用严格一份：一张卡 + 一个 run
+    const cards = testState.db!
+      .select()
+      .from(issues)
+      .where(eq(issues.originRuleId, ruleId))
+      .all();
+    expect(cards).toHaveLength(1);
+    const runs = testState.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.issueId, cards[0]!.id))
+      .all();
+    expect(runs).toHaveLength(1);
+    const autoRows = testState.db!
+      .select()
+      .from(automationRuns)
+      .where(eq(automationRuns.ruleId, ruleId))
+      .all();
+    expect(autoRows).toHaveLength(1);
+    expect(autoRows[0]!.linkedRunId).toBe(runs[0]!.id);
+  });
+
+  it('G6-2 dispatching placeholder blocks side effects: pre-inserted placeholder wins', async () => {
+    const now = Date.now();
+    const ruleId = 'rule-ph-1';
+    const plannedAt = 1_700_000_000_001;
+    testState.db!.insert(automationRules)
+      .values({
+        id: ruleId,
+        name: 'PH Rule',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 60,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'auto {{ruleName}}',
+        bodyTemplate: '',
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    // 预插占位行（模拟另一 tick 已认领，副作用尚未完成）
+    testState.db!.insert(automationRuns)
+      .values({
+        id: 'auto-ph',
+        ruleId,
+        plannedAt,
+        source: 'schedule',
+        status: 'dispatching',
+        issueId: null,
+        linkedRunId: null,
+        error: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const res = await dispatchAutomationRule(ruleId, plannedAt, 'manual');
+    expect(res.id).toBe('auto-ph');
+    expect(res.status).toBe('dispatching'); // 不吞掉进行中状态
+    // 零副作用：无卡、无 run、automation_run 仍只有占位一行
+    const cards = testState.db!
+      .select()
+      .from(issues)
+      .where(eq(issues.originRuleId, ruleId))
+      .all();
+    expect(cards).toHaveLength(0);
+    expect(testState.db!.select().from(agentRuns).all()).toHaveLength(0);
+  });
+
+  it('G6-2 stale dispatching placeholder (interrupted dispatch) upgrades to failed honestly', async () => {
+    const now = Date.now();
+    const ruleId = 'rule-stale-1';
+    const plannedAt = 1_700_000_000_002;
+    testState.db!.insert(automationRules)
+      .values({
+        id: ruleId,
+        name: 'Stale Rule',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 60,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'auto {{ruleName}}',
+        bodyTemplate: '',
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    // 超龄占位：70s 前（> DISPATCH_STALE_MS 60s）
+    testState.db!.insert(automationRuns)
+      .values({
+        id: 'auto-stale',
+        ruleId,
+        plannedAt,
+        source: 'schedule',
+        status: 'dispatching',
+        issueId: null,
+        linkedRunId: null,
+        error: null,
+        createdAt: now - 70_000,
+        updatedAt: now - 70_000,
+      })
+      .run();
+
+    const res = await dispatchAutomationRule(ruleId, plannedAt, 'manual');
+    expect(res.id).toBe('auto-stale');
+    expect(res.status).toBe('failed');
+    expect(res.error).toMatch(/派发中断/);
+    // 同 plannedAt 不重发（failed 行已占用键）
+    const cards = testState.db!
+      .select()
+      .from(issues)
+      .where(eq(issues.originRuleId, ruleId))
+      .all();
+    expect(cards).toHaveLength(0);
+  });
+
   it('orphan recover: running without live abort → failed once', () => {
     const now = Date.now();
     const id = 'run-orphan-1';

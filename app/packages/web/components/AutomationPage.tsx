@@ -66,6 +66,8 @@ function formatPlanned(iso: string | null | undefined): string {
 }
 
 const AUTOMATION_RUN_STATUS_LABEL: Record<string, string> = {
+  // G6-2：两阶段派发占位态（副作用执行中，瞬态）
+  dispatching: '派发中',
   // create_issue 与 run_only 共用 open 状态桶（run_only 无 Issue）
   issue_created: '已触发',
   pending_dispatch: '待派发',

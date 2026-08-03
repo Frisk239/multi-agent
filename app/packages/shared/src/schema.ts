@@ -2401,6 +2401,9 @@ export const AutomationRunSource = z.enum(['schedule', 'manual']);
 export type AutomationRunSource = z.infer<typeof AutomationRunSource>;
 
 export const AutomationRunStatus = z.enum([
+  // G6-2：两阶段派发占位态 —— 副作用（建卡/enqueue）之前先落行，
+  // UNIQUE(rule_id, planned_at) 判定赢家；赢家完成后再写终态
+  'dispatching',
   'issue_created',
   'pending_dispatch',
   'running',

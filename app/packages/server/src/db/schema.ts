@@ -579,7 +579,17 @@ export const automationRuns = sqliteTable(
     plannedAt: integer('planned_at').notNull(),
     source: text('source', { enum: ['schedule', 'manual'] }).notNull(),
     status: text('status', {
-      enum: ['issue_created', 'pending_dispatch', 'running', 'retrying', 'success', 'failed', 'skipped'],
+      enum: [
+        // G6-2：两阶段派发占位态（副作用前先落行；UNIQUE 判定赢家）
+        'dispatching',
+        'issue_created',
+        'pending_dispatch',
+        'running',
+        'retrying',
+        'success',
+        'failed',
+        'skipped',
+      ],
     }).notNull(),
     issueId: text('issue_id'),
     linkedRunId: text('linked_run_id'),
