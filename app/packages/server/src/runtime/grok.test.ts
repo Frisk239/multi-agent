@@ -279,6 +279,20 @@ describe('GrokBackend execute：失败诚实', () => {
     void server;
   });
 
+  it('通用失败（initialize 异常）→ stderr 嗅探线索并入错误文案（可诊断）', async () => {
+    const { server, fake } = setup({
+      errorResponses: { initialize: { code: -32603, message: 'internal error' } },
+    });
+    const events: AgentEvent[] = [];
+    const p = backend.execute(baseInput(), (e) => events.push(e), new AbortController().signal);
+    await server.waitForRequest('initialize');
+    fake.stderr.emit('data', 'ERROR Settings fetch failed max_attempts=3\n');
+    const result = await p;
+    expect(result.exitReason).toBe('failed');
+    expect(result.error).toMatch(/Settings fetch failed/);
+    void server;
+  });
+
   it('stderr 终端 429 → completed 提升 failed（不误判瞬时警告）', async () => {
     const { server, fake } = setup();
     const events: AgentEvent[] = [];

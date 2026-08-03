@@ -384,7 +384,9 @@ export class GrokBackend implements RuntimeBackend {
       } else if (err instanceof AcpRpcError && err.method === 'session/prompt') {
         fail(`grok session/prompt 失败：${errText(err)}`);
       } else {
-        fail(`grok ACP 失败：${errText(err)}`);
+        // 通用失败：stderr 嗅探到的线索（如上游 Settings fetch failed）并入文案，可诊断
+        const hint = sniffer.message();
+        fail(`grok ACP 失败：${errText(err)}${hint ? `（stderr：${hint}）` : ''}`);
       }
     } finally {
       streaming = false;

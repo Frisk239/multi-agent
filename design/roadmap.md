@@ -41,12 +41,12 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 **目标陈述：** 每个 runtime backend 的「能力声明」与「真实行为」一致；失败可分类、可解释、可行动。
 
-**现状基线：** Pi 已是真 backend（`pi --mode rpc` JSONL 三通道）但无真机验收；Grok 声明 `supportsSessionResume=true` 但 ACP 半成品（print 模式降级）；CLI 探测无失败宽限窗，瞬态失败会误报 runtime 缺失。
+**现状基线：** Pi 已是真 backend（`pi --mode rpc` JSONL 三通道）但无真机验收；Grok 已是完整 ACP stdio 客户端（2026-08-03 收官：会话续跑 + usage 落库 + 失败诚实分类，[closeout](app/.progress/grok-acp-closeout-2026-08-03.md)）；CLI 探测无失败宽限窗，瞬态失败会误报 runtime 缺失。
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
 | G1-1 | **Pi runtime 真机验收 + RPC 命令面扩展**（`steer`/`compact`/`set_model` 等，上游 rpc-types.ts:20-72 有蓝图，mock 已全绿） | 高 | 中 | — | ✅ |
-| G1-2 | **Grok ACP/fail-closed**（补 ACP stdio 客户端，或摘除 `supportsSessionResume` 声明 + UI 标注降级） | 高 | 中 | — | ✅ |
+| G1-2 | **Grok ACP stdio 客户端**（完整 ACP：initialize→authenticate→session/new\|load→prompt→drain；usage 落库 + `supportsSessionResume=true` 恢复；2026-08-03 [closeout](app/.progress/grok-acp-closeout-2026-08-03.md)，真机 2 回合：fresh 产出 + resumed 上下文延续「42」） | 高 | 中 | — | ✅ |
 | G1-3 | **CLI 探测失败宽限窗**（学 hermes `_check_fn_cached`：最近一次成功后 60s 内失败继续 serve 上次结果，防 flaky） | 中 | 小 | — | ✅ |
 | G1-4 | **失败分类精度**（provider_network vs auth/quota 边界，驱动更准的自动改派与文案） | 中 | 中 | — | ✅ |
 | G1-5 | **Memory/Wiki 降级可观测**（pgvector 软回退、无 LLM key 时 Wiki ingest 不反复重试 15min，给出诚实提示） | 中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g1-5-pgvector-fallback-closeout-2026-08-03.md)：pgvector 启动软回退状态标记 + Settings 降级徽标；运行时切换刻意不做——两套物理存储会分叉数据） |
@@ -132,6 +132,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 12 | **G3-4b 执行层注入（envVars/customArgs spawn 生效）** | G3 | ✅ 已关（2026-08-02 第四波 M1，[closeout](app/.progress/g34b-env-inject-closeout-2026-08-02.md)；printenv 实证 grok run completed 报告值一致；claude 无额度故 grok 实证） |
 | 13 | **第四波（运营闭环+最终打磨）：G5-5 · G5-6 · G4-5b · G5-7 · G3-7×2** | G3/G4/G5 | ✅ 已关（2026-08-02/03，[closeout](app/.progress/goal4-wave-closeout-2026-08-02.md)：系统通知 · 运营统计 · wiki backlink · JSON 导入导出 · CmdK 高亮+失败卡重试；Playwright 7/7 PASS；**G1–G5 池仅剩 G1-2 ACP 大工程**） |
 | 14 | **第五波（剩余小刀收尾）：G2-5 · G1-5** | G2/G1 | ✅ 已关（2026-08-03，[G2-5](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md) 全局并发配额 · [G1-5](app/.progress/g1-5-pgvector-fallback-closeout-2026-08-03.md) pgvector 软回退可观测；全量 1401 用例绿；**G1–G5 池仅剩 G1-2 ACP 大工程（唯一剩余）**） |
+| 15 | **第六波（G1-2 ACP 大工程收官）：Grok ACP stdio 客户端** | G1 | ✅ 已关（2026-08-03，[closeout](app/.progress/grok-acp-closeout-2026-08-03.md)：ACP 传输层 + mock 测试网（51 契约用例）+ 真机 2 回合验收（fresh「记住了42」/ resumed「42」上下文延续 + usage 落库）+ Playwright 7/7 PASS；**G1–G5 池全部收官**） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
