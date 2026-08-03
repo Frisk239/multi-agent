@@ -38,6 +38,7 @@ import {
   getWaitingLocalMaxMs,
 } from '../orchestration/stale-runs.js';
 import { allBackends } from '../runtime/registry.js';
+import type { RuntimeBackend, DetectResult } from '../runtime/types.js';
 import { memoryManager } from '../memory/manager.js';
 import {
   readDbRootPath,
@@ -269,6 +270,21 @@ export function buildMemoryHealth(): SettingsMemoryHealth {
   };
 }
 
+
+// M3：runtime detect 结果短 TTL 缓存。/api/settings/status 被每页布局层调用，
+// 而 5 个 CLI 顺序 spawn 探测在 Windows 实测 3s+——TTL 30s 内复用，页面切换不再卡顿。
+// 失败结果同样缓存（CLI 安装态 30s 内不突变；runtimes 诊断页走实时探测）。
+const RUNTIME_DETECT_TTL_MS = 30_000;
+const runtimeDetectCache = new Map<string, { at: number; d: DetectResult }>();
+
+async function detectRuntimeCached(b: RuntimeBackend): Promise<DetectResult> {
+  const hit = runtimeDetectCache.get(b.id);
+  if (hit && Date.now() - hit.at < RUNTIME_DETECT_TTL_MS) return hit.d;
+  const d = await b.detect();
+  runtimeDetectCache.set(b.id, { at: Date.now(), d });
+  return d;
+}
+
 export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
   const checks: SettingsCheck[] = [];
 
@@ -320,9 +336,11 @@ export async function buildSettingsStatus(): Promise<SettingsStatusResponse> {
     });
   }
 
-  // --- runtimes ---
-  for (const b of allBackends()) {
-    const d = await b.detect();
+  // --- runtimes（M3：并发探测 + TTL 缓存；顺序 spawn 曾让每页布局卡 3s+）---
+  const runtimeDets = await Promise.all(
+    allBackends().map(async (b) => ({ b, d: await detectRuntimeCached(b) })),
+  );
+  for (const { b, d } of runtimeDets) {
     if (!d.installed) {
       checks.push({
         id: `runtime:${b.id}`,
