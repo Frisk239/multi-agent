@@ -54,7 +54,7 @@ export function runtimeCaptureCapabilityMatrix(): RuntimeCaptureRow[] {
       usage: true,
       tool: true,
       providerSessionId: true,
-      gapNote: '非完整 ACP：流不稳定时可全空 → no_tokens；resume unsupported',
+      gapNote: 'ACP 完整客户端：prompt 响应 _meta.usage 落库；resume 走 session/load（supportsSessionResume=true）',
     },
     {
       runtime: 'pi',

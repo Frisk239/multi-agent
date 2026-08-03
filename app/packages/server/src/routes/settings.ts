@@ -571,8 +571,9 @@ export async function buildSettingsDiagnostics(): Promise<SettingsDiagnosticsRes
     },
     grok: {
       name: 'Grok Build',
-      // G1-2 fail-closed：ACP 客户端未实现，不声明；如实标注单轮打印模式
-      capabilities: ['Print Mode (-p)', 'Effort Level Control'],
+      // G1-2 收官（2026-08-03）：ACP stdio 客户端已实现（session/new|load + prompt +
+      // usage 落库）；Session Resume 能力由下方 supportsSessionResume 动态追加
+      capabilities: ['ACP Stdio (JSON-RPC)', 'Streaming Events', 'Token Usage Tracking'],
       recommendation:
         'xAI Grok CLI 适配器，适合跨领域多模态与快速模式匹配分析。',
     },

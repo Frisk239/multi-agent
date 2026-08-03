@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseOpencodeLine } from './opencode';
 import { parseCursorLine, parseCursorToolCallEnvelope } from './cursor';
-import { parseGrokLine } from './grok';
+import { parseAcpTokenUsage, extractAcpSessionId } from './acp-transport.js';
 import {
   extractOpencodeStepTokens,
   extractTokenUsage,
@@ -36,12 +36,12 @@ describe('Slice 60 runtime capture matrix', () => {
       providerSessionId: true,
     });
 
-    // G1-2 2026-08-02: grok fail-closed（ACP 未实现，false）；pi true（真 RPC backend）
+    // G1-2 2026-08-03: grok 已实现 ACP stdio 客户端（session/load 续跑）→ true；
+    // 其余 backend 矩阵对齐（pi true = 真 RPC backend）
     const resume = sessionResumeCapabilityMatrix();
-    for (const id of ['claude-code', 'opencode', 'cursor', 'pi'] as const) {
+    for (const id of ['claude-code', 'opencode', 'cursor', 'pi', 'grok'] as const) {
       expect(resume.find((r) => r.runtime === id)?.supportsSessionResume).toBe(true);
     }
-    expect(resume.find((r) => r.runtime === 'grok')?.supportsSessionResume).toBe(false);
   });
 });
 
@@ -268,23 +268,19 @@ describe('Slice 60 usage-parse extensions', () => {
   });
 });
 
-describe('Slice 60 grok light capture', () => {
-  it('captures session + usage from JSON when present', () => {
-    const events: AgentEvent[] = [];
-    const ctx = emptyCtx();
-    parseGrokLine(
-      JSON.stringify({
-        session_id: 'grok-sess-001',
-        usage: { input_tokens: 11, output_tokens: 3 },
-        method: 'session/update',
-        params: { text: 'hi grok' },
-      }),
-      (e) => events.push(e),
-      ctx,
-    );
-    expect(ctx.providerSessionId).toBe('grok-sess-001');
-    expect(ctx.usage?.input).toBe(11);
-    expect(ctx.usage?.output).toBe(3);
-    expect(events.some((e) => e.type === 'message')).toBe(true);
+describe('Slice 60 grok ACP capture（G1-2 收官，2026-08-03）', () => {
+  it('prompt 响应 _meta.usage → TokenUsage（含 cached 剥离），session/load _meta.sessionId 兜底', () => {
+    // 实测 grok 0.2.118 形态（research.md §3）
+    const u = parseAcpTokenUsage({
+      inputTokens: 19018,
+      outputTokens: 256,
+      totalTokens: 19274,
+      cachedReadTokens: 8192,
+      cacheCreationTokens: 0,
+      costUsdTicks: 256456000,
+      modelUsage: {},
+    });
+    expect(u).toEqual({ input: 10826, output: 256, cacheRead: 8192, cacheWrite: 0 });
+    expect(extractAcpSessionId({ _meta: { sessionId: 'grok-sess-001' } })).toBe('grok-sess-001');
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { parseOpencodeLine, buildOpencodeArgs } from './opencode';
 import { parseCursorLine, buildCursorArgs } from './cursor';
-import { parseGrokLine, buildGrokAgentArgs } from './grok';
+import { buildGrokAgentArgs } from './grok';
 import type { LineContext } from './spawn-line';
 import type { AgentEvent } from './types';
 
@@ -162,49 +162,43 @@ describe('Slice 19 (S5): CLI Equalization Adapters', () => {
     });
   });
 
-  describe('Grok Line Parsing & Args', () => {
-    it('buildsGrokAgentArgs 顶层形态（G1-2 fail-closed：-p/model/effort 顶层，不注入 --resume）', () => {
-      const args = buildGrokAgentArgs(
-        {
-          prompt: 'do work',
-          model: 'grok-3',
-          thinkingLevel: 'high',
-          resumeSessionId: 'grok-sess-456',
-        },
-        { print: true }
-      );
+  describe('Grok ACP Args（G1-2 收官，2026-08-03）', () => {
+    it('buildsGrokAgentArgs ACP 形态：--no-auto-update agent --always-approve [--effort] stdio；model 不走 argv', () => {
+      const args = buildGrokAgentArgs({ thinkingLevel: 'high', customArgs: null });
 
-      expect(args[0]).toBe('--no-auto-update');
-      // `-p` 是 `--single <PROMPT>` 别名：prompt 紧跟 -p 作为其值（实测 0.2.118）
-      expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('do work');
-      expect(args).toContain('--model');
-      expect(args).toContain('grok-3');
-      expect(args).toContain('--effort');
-      expect(args).toContain('high');
-      // 诚实性：resumeSessionId 存在也不注入 --resume（ACP 未实现）
-      expect(args).not.toContain('--resume');
-      expect(args).not.toContain('grok-sess-456');
-      // 不再使用 agent 子命令（0.2.118 不接受子命令后位置 prompt）
-      expect(args).not.toContain('agent');
+      expect(args).toEqual([
+        '--no-auto-update',
+        'agent',
+        '--always-approve',
+        '--effort',
+        'high',
+        'stdio',
+      ]);
+      // 对齐 multica grok.go：model 经 session/set_model，argv 不含 --model
+      expect(args).not.toContain('--model');
     });
 
-    // G3-4b：custom_args 追加 argv 尾（grok 顶层 flag 形态）
-    it('buildGrokAgentArgs 注入 customArgs 追加尾部', () => {
-      const args = buildGrokAgentArgs(
-        { prompt: 'work', model: null, thinkingLevel: null, resumeSessionId: null, customArgs: ['--verbose'] },
-        { print: true }
-      );
-      expect(args.slice(-1)).toEqual(['--verbose']);
-      // -p 值位置不受影响
-      expect(args[1]).toBe('-p');
-      expect(args[2]).toBe('work');
+    it('customArgs 注入 stdio 之前；被锁 flag（--model/--resume/-p）过滤不破坏 ACP 契约', () => {
+      const args = buildGrokAgentArgs({
+        thinkingLevel: null,
+        customArgs: ['--verbose', '--model', 'grok-3', '--resume', 'sess-x', '-p', 'print-it', '--yolo'],
+      });
+      // `-p`/`--yolo` 是 standalone 屏蔽（值透传，对齐 multica grokBlockedArgs）；
+      // `--model <v>`/`--resume <v>` 带值屏蔽（连值一起吞）
+      expect(args).toEqual([
+        '--no-auto-update',
+        'agent',
+        '--always-approve',
+        '--verbose',
+        'print-it',
+        'stdio',
+      ]);
     });
 
-    it('parseGrokLine 纯文本行 → assistant message（G1-2：产出可观测，不丢在 log）', () => {
-      const events: unknown[] = [];
-      parseGrokLine('跑通了', (e) => events.push(e));
-      expect(events).toEqual([{ type: 'message', role: 'assistant', text: '跑通了' }]);
+    it('--effort 空则不注入；stdio 恒为最后一项', () => {
+      const args = buildGrokAgentArgs({ thinkingLevel: null, customArgs: [] });
+      expect(args).toEqual(['--no-auto-update', 'agent', '--always-approve', 'stdio']);
+      expect(args[args.length - 1]).toBe('stdio');
     });
   });
 });
