@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { deriveIssueCardLive } from '@/lib/issue-card-live';
+import { useRerunIssue } from '@/lib/api';
 import { IssueCardMenu } from './IssueCardMenu';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -126,6 +127,9 @@ export const IssueCard = React.memo(function IssueCard({
     id: issue.id,
     data: { type: 'Issue', issue },
   });
+
+  // G3-7：失败恢复 CTA 一键重试（看板卡片直达，不再进详情三步）
+  const rerunIssue = useRerunIssue(issue.id);
 
   const tone = readinessTone(readiness);
   const showReadyDot = Boolean(
@@ -258,6 +262,22 @@ export const IssueCard = React.memo(function IssueCard({
               >
                 失败
               </Link>
+            ) : null}
+            {showFail ? (
+              <button
+                type="button"
+                className="issue-card-retry"
+                data-testid="issue-card-retry"
+                title="一键按当前指派/历史 agent 重新执行"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  rerunIssue.mutate({});
+                }}
+                disabled={rerunIssue.isPending}
+                draggable={false}
+              >
+                {rerunIssue.isPending ? '排队中…' : '重试'}
+              </button>
             ) : null}
             {issue.originType === 'automation' ||
             issue.originType === 'quick_create' ? (

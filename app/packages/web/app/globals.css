@@ -13615,3 +13615,29 @@ a.issue-card-run-fail--link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* G3-7：看板卡片失败一键重试 CTA */
+.issue-card-retry {
+  font-size: 10px;
+  color: var(--color-red);
+  border: 1px solid color-mix(in srgb, var(--color-red) 40%, transparent);
+  border-radius: 4px;
+  padding: 0 6px;
+  line-height: 1.4;
+  background: transparent;
+  cursor: pointer;
+}
+.issue-card-retry:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-red) 12%, transparent);
+}
+.issue-card-retry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* G3-7：CmdK 匹配高亮 */
+.cmdk-item .cmdk-highlight {
+  background: color-mix(in srgb, var(--color-amber, #f59e0b) 30%, transparent);
+  border-radius: 2px;
+  padding: 0 1px;
+}

@@ -30,8 +30,31 @@ type Command = {
   label: string;
   hint?: string;
   group?: string;
+  /** G3-7：匹配字符索引（command-scorer 打分产出），渲染高亮用 */
+  highlight?: number[];
   run: () => void;
 };
+
+/** G3-7：按索引数组把匹配字符包 <mark> 高亮（导出供测试） */
+export function Highlighted({ text, indices }: { text: string; indices: number[] }) {
+  if (!indices?.length) return <>{text}</>;
+  const set = new Set(indices);
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (set.has(i)) {
+      if (i > last) parts.push(text.slice(last, i));
+      parts.push(
+        <mark key={i} className="cmdk-highlight">
+          {text[i]}
+        </mark>,
+      );
+      last = i + 1;
+    }
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
 
 // S12：Ctrl+K；issue-find + wiki/memory/squad + 诊断入口
 export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
@@ -256,7 +279,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
       ? rankCandidates(
           nav.map((c) => ({ id: c.id, label: c.label, identifier: c.hint ?? null, cmd: c })),
           debouncedQ,
-        ).map((x) => x.cmd)
+        ).map((x) => ({ ...x.cmd, highlight: x.score.highlight }))
       : nav;
 
     // S6：无查询时列**真实**最近访问；有查询时用服务端搜索（含评论正文）
@@ -1004,7 +1027,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
                         {cmd.group ? (
                           <span className="cmdk-group-tag">{cmd.group}</span>
                         ) : null}
-                        <span>{cmd.label}</span>
+                        <span>{<Highlighted text={cmd.label} indices={cmd.highlight ?? []} />}</span>
                       </span>
                       {cmd.hint ? <span className="cmdk-hint">{cmd.hint}</span> : null}
                     </button>
