@@ -1931,6 +1931,8 @@ export const SettingsRunHealth = z.object({
     queuedNearStale: z.number().int().nonnegative(),
     waitingLocalNearStale: z.number().int().nonnegative(),
   }),
+  /** G2-5：workspace 全局在途并发上限（null=不限；只拦 claim，不拦 enqueue） */
+  maxConcurrentRuns: z.number().int().positive().nullable().optional(),
 });
 export type SettingsRunHealth = z.infer<typeof SettingsRunHealth>;
 
@@ -1985,6 +1987,8 @@ export type SettingsCwdInfo = z.infer<typeof SettingsCwdInfo>;
 
 export const SetWorkspaceCwdInput = z.object({
   path: z.string().min(1).max(1024),
+  /** G2-5：workspace 全局在途并发上限；null/缺省=不限（只拦 claim，不拦 enqueue） */
+  maxConcurrentRuns: z.number().int().positive().nullable().optional(),
 });
 export type SetWorkspaceCwdInput = z.infer<typeof SetWorkspaceCwdInput>;
 

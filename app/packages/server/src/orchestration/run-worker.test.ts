@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, runMessages } from '../db/schema.js';
+import { agentRuns, runMessages, workspaces } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { cancelRunById } from './run-service.js';
 import { failStalePrepareLeaseRuns } from './stale-runs.js';
@@ -266,5 +266,83 @@ describe('W5 run-worker fault injection', () => {
     const msgs = state.db!.select().from(runMessages).where(eq(runMessages.runId, 'run-ok')).all();
     // 至少含 fake 发的 assistant 消息；完成路径还会追加 system 消息（如自动沉淀记忆），条数不锁死
     expect(msgs.some((m) => m.kind === 'assistant' && m.body.includes('hello from fake'))).toBe(true);
+  });
+
+  // —— G2-5：workspace 全局在途并发配额（只拦 claim，不拦 enqueue）——
+  function setGlobalQuota(n: number | null): void {
+    state.db!
+      .update(workspaces)
+      .set({ maxConcurrentRuns: n })
+      .where(eq(workspaces.id, 'ws-local'))
+      .run();
+  }
+
+  function insertRunningRun(id: string, agentId = 'agt-test-1'): void {
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id,
+        issueId: 'iss-test-1',
+        agentId,
+        runtime: 'opencode',
+        status: 'running',
+        kind: 'issue',
+        startedAt: now,
+        lastHeartbeatAt: now,
+        createdAt: now,
+      })
+      .run();
+  }
+
+  it('G2-5 global quota: running 已达上限时 queued 不 claim（保持排队）', async () => {
+    setGlobalQuota(1);
+    insertRunningRun('run-global-holder'); // 全局 running=1 = 配额
+    insertQueuedRun('run-global-blocked');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+    await tick();
+    await flush();
+    expect(executeCalls).toBe(0);
+    expect(runRow('run-global-blocked').status).toBe('queued');
+  });
+
+  it('G2-5 global quota: 同一 tick 内不超发（配额 1 + 两条 queued → 仅 claim 1 条）', async () => {
+    setGlobalQuota(1);
+    insertQueuedRun('run-gq-a');
+    insertQueuedRun('run-gq-b');
+    let executeCalls = 0;
+    let release: (r: ExecutionResult) => void = () => {};
+    state.executeImpl = () => {
+      executeCalls += 1;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    };
+    await tick();
+    await flush();
+    expect(executeCalls).toBe(1); // 本 tick 只 claim 1 条
+    expect(runRow('run-gq-a').status).toBe('running');
+    expect(runRow('run-gq-b').status).toBe('queued'); // 未超发，余量留给下一 tick
+    release({ finalText: 'ok', exitReason: 'completed' });
+    await new Promise((r) => setTimeout(r, 100));
+  });
+
+  it('G2-5 global quota: 配额 null = 不限（两条 queued 均 claim）', async () => {
+    setGlobalQuota(null);
+    insertQueuedRun('run-gq-null-a');
+    insertQueuedRun('run-gq-null-b');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+    await tick();
+    await flush();
+    expect(executeCalls).toBe(2);
+    expect(runRow('run-gq-null-a').status).toBe('completed');
+    expect(runRow('run-gq-null-b').status).toBe('completed');
   });
 });

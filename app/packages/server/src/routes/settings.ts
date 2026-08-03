@@ -27,6 +27,7 @@ import {
   automationRuns,
   memoryItems,
   wikiIngestJobs,
+  workspaces,
 } from '../db/schema.js';
 import {
   STALE_QUEUED_MS,
@@ -101,6 +102,8 @@ export function calculateRunHealth(
     issueWallTimeoutMs: getIssueWallTimeoutMs(),
     waitingLocalMaxMs: getWaitingLocalMaxMs(),
   },
+  /** G2-5：workspace 全局在途并发上限（null=不限） */
+  maxConcurrentRuns: number | null = null,
 ): SettingsRunHealth {
   let queued = 0;
   let waitingLocalDirectory = 0;
@@ -175,6 +178,7 @@ export function calculateRunHealth(
       sweepIntervalMs: STALE_SWEEP_INTERVAL_MS,
     },
     atRisk: { runningNearStale, queuedNearStale, waitingLocalNearStale },
+    maxConcurrentRuns,
   };
 }
 
@@ -190,7 +194,9 @@ function buildRunHealth(now = Date.now()): SettingsRunHealth {
       ]),
     )
     .all();
-  return calculateRunHealth(rows, now);
+  // G2-5：workspace 单行（id='ws-local'）全局并发配额透出
+  const wsRow = db.select().from(workspaces).where(eq(workspaces.id, 'ws-local')).get();
+  return calculateRunHealth(rows, now, undefined, wsRow?.maxConcurrentRuns ?? null);
 }
 
 function buildWikiHealth(llmConfigured: boolean): SettingsWikiHealth {
@@ -655,6 +661,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/settings/health', async () => buildSettingsDiagnostics());
 
   // POST /api/settings/workspace-cwd —— 持久化本机路径（非密钥）并立即生效
+  // G2-5：body 可选 maxConcurrentRuns（正整数或 null）→ 同步更新 workspace 全局并发配额
   app.post('/api/settings/workspace-cwd', async (req, reply) => {
     const parsed = SetWorkspaceCwdInput.safeParse(req.body);
     if (!parsed.success) {
@@ -662,6 +669,18 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     }
     const res = setWorkspaceRootPath(parsed.data.path);
     if (!res.ok) return reply.status(400).send({ success: false, error: res.error  });
+    let maxConcurrentRuns: number | null = null;
+    if (parsed.data.maxConcurrentRuns !== undefined) {
+      maxConcurrentRuns = parsed.data.maxConcurrentRuns;
+      db.update(workspaces)
+        .set({ maxConcurrentRuns })
+        .where(eq(workspaces.id, 'ws-local'))
+        .run();
+    } else {
+      maxConcurrentRuns =
+        db.select().from(workspaces).where(eq(workspaces.id, 'ws-local')).get()
+          ?.maxConcurrentRuns ?? null;
+    }
     return {
       ok: true as const,
       cwd: {
@@ -671,6 +690,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         configured: res.resolved.configured,
         persistedPath: readDbRootPath(),
       },
+      maxConcurrentRuns,
     };
   });
 

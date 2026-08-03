@@ -2732,17 +2732,17 @@ export function useCleanupIsolatedWorkspaces() {
   });
 }
 
-/** POST /api/settings/workspace-cwd —— 持久化本机工作区路径 */
+/** POST /api/settings/workspace-cwd —— 持久化本机工作区路径（G2-5：可选 maxConcurrentRuns 全局配额） */
 export function useSetWorkspaceCwd() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (path: string) => {
+    mutationFn: async (input: { path: string; maxConcurrentRuns?: number | null }) => {
       const res = await apiFetch(`${API}/settings/workspace-cwd`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
+        body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error(await apiError(res, '保存工作区路径失败'));
+      if (!res.ok) throw new Error(await apiError(res, '保存工作区设置失败'));
       return res.json() as Promise<{
         ok: true;
         cwd: {
@@ -2752,6 +2752,7 @@ export function useSetWorkspaceCwd() {
           configured: boolean;
           persistedPath: string | null;
         };
+        maxConcurrentRuns?: number | null;
       }>;
     },
     onSuccess: (r) => {

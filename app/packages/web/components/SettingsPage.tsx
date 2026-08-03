@@ -140,6 +140,9 @@ export function SettingsPage() {
   const [wikiCopyState, setWikiCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
   const [cwdDraft, setCwdDraft] = useState('');
   const [cwdDraftReady, setCwdDraftReady] = useState(false);
+  // G2-5：全局在途并发上限草稿（空 = 不限）
+  const [maxRunsDraft, setMaxRunsDraft] = useState('');
+  const [maxRunsDraftReady, setMaxRunsDraftReady] = useState(false);
   /** Multica 式左栏：账号 / 工作区 / 环境诊断；?tab= 可深链 */
   const tabParam = searchParams.get('tab');
   const initialTab =
@@ -208,6 +211,16 @@ export function SettingsPage() {
     );
     setCwdDraftReady(true);
   }, [data, cwdDraftReady]);
+
+  useEffect(() => {
+    if (maxRunsDraftReady || !data) return;
+    setMaxRunsDraft(
+      data.runHealth?.maxConcurrentRuns != null
+        ? String(data.runHealth.maxConcurrentRuns)
+        : '',
+    );
+    setMaxRunsDraftReady(true);
+  }, [data, maxRunsDraftReady]);
 
   useEffect(() => {
     if (!profile || profileReady) return;
@@ -537,7 +550,13 @@ export function SettingsPage() {
             className="btn-primary btn-sm"
             data-testid="settings-cwd-save"
             disabled={setCwd.isPending || !cwdDraft.trim()}
-            onClick={() => setCwd.mutate(cwdDraft.trim())}
+            onClick={() => {
+              const trimmed = maxRunsDraft.trim();
+              setCwd.mutate({
+                path: cwdDraft.trim(),
+                maxConcurrentRuns: trimmed === '' ? null : Number(trimmed),
+              });
+            }}
           >
             {setCwd.isPending ? '保存中…' : '保存路径'}
           </button>
@@ -554,12 +573,38 @@ export function SettingsPage() {
                 });
                 if (!ok) return;
                 setCwdDraft('');
-                setCwd.mutate('');
+                setCwd.mutate({ path: '' });
               })();
             }}
           >
             重置工作区 Path
           </button>
+        </div>
+        {/* G2-5：workspace 全局在途并发上限（空=不限；只拦 claim，排队不算在途） */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <label htmlFor="max-concurrent-runs" className="text-sm" style={{ fontWeight: 500 }}>
+              全局在途上限
+            </label>
+            <input
+              id="max-concurrent-runs"
+              type="number"
+              min={1}
+              step={1}
+              className="input"
+              style={{ width: 180 }}
+              value={maxRunsDraft}
+              onChange={(e) => setMaxRunsDraft(e.target.value)}
+              placeholder="空 = 不限"
+              data-testid="max-concurrent-runs"
+              aria-label="全局在途并发上限（空=不限）"
+            />
+            <span className="text-dim text-sm">空 = 不限</span>
+          </div>
+          <p className="text-dim text-sm" style={{ marginTop: 6 }}>
+            所有 Agent 同时 running 的总数上限；排队（queued）不算在途，达到上限后新任务保持排队等待，
+            不拦入队。与上方「保存路径」一起保存。
+          </p>
         </div>
       </section>
 

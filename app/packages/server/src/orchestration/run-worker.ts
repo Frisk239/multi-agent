@@ -9,6 +9,7 @@ import {
   projects,
   chatMessages,
   chatThreads,
+  workspaces,
 } from '../db/schema.js';
 // chatThreads used for B1 chat project cwd
 import { toAgentRun, toObservedAgentRun, toRunMessage, toComment, toIssue } from '../db/reshape.js';
@@ -118,6 +119,19 @@ export async function tick(): Promise<void> {
   /** 本 tick 已 claim 的 project_local path key，防同批双开 */
   const claimedPathKeys = new Set<string>();
 
+  // G2-5：全局在途并发配额（workspace.max_concurrent_runs；null=不限）。
+  // 每 tick 循环外一次查询作基数；本 tick 内成功 claim 用本地计数累加，
+  // 不在循环里重复查 DB（better-sqlite3 同步写，claim 后计数即真实）。
+  const DEFAULT_WS_ID = 'ws-local';
+  const wsRow = db.select().from(workspaces).where(eq(workspaces.id, DEFAULT_WS_ID)).get();
+  const globalMax = wsRow?.maxConcurrentRuns ?? null;
+  const globalActive = db
+    .select({ cnt: sql<number>`COUNT(*)` })
+    .from(agentRuns)
+    .where(eq(agentRuns.status, 'running'))
+    .get();
+  let claimedThisTick = 0;
+
   for (const queued of queuedRows) {
     // per-agent 槽位检查
     const agent = db.select().from(agents).where(eq(agents.id, queued.agentId)).get();
@@ -169,6 +183,12 @@ export async function tick(): Promise<void> {
       stampProjectLocalCwdPreview(queued.id, pathGate.path);
     }
 
+    // G2-5：全局配额闸 —— 拦 claim（queued 保持排队），不拦 enqueue。
+    // 基数=本 tick 开始时全局 running 数 + 本 tick 已 claim 数。
+    if (globalMax !== null && (globalActive?.cnt ?? 0) + claimedThisTick >= globalMax) {
+      continue;
+    }
+
     // claim（条件 UPDATE queued/waiting_local_directory→running）；Slice 39：changes 判定
     // Slice 68：claim 时写 prepareLeaseExpiresAt；半 claim = running 且 lease 未清。
     // Multica 精神：dispatched+prepare_lease；本仓无 dispatched，用 lease 列标 prepare 窗。
@@ -193,6 +213,7 @@ export async function tick(): Promise<void> {
       continue; // 没抢到（被别的 tick 抢）
     }
     const runRow = claimTr.row;
+    claimedThisTick += 1; // G2-5：本 tick 内 claim 计数（配额闸本地累加，不重复查 DB）
 
     if (pathGate.path) {
       claimedPathKeys.add(normalizePathLockKey(pathGate.path));
