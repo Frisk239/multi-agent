@@ -18,13 +18,13 @@ function mkIssue(id: string, status: Issue['status'], position = 0, createdAt = 
     status,
     priority: 'medium',
     assignee: null,
-    creatorType: 'user',
-    creatorId: 'u-1',
+    creatorType: 'agent',
+    creatorId: 'ag-1',
     position,
     labels: [],
     createdAt,
     updatedAt: createdAt,
-  } as Issue;
+  } as unknown as Issue;
 }
 
 const issues = [
