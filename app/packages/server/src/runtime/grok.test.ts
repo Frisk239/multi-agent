@@ -205,6 +205,103 @@ describe('GrokBackend execute：happy path（ACP 全状态机）', () => {
     expect(result.finalText).toBe('');
     expect(result.exitReason).toBe('completed');
   });
+
+  it('agent.mcpServers → session/new 携带 ACP array shape（stdio + 远程按能力过滤）', async () => {
+    const { server, fake } = setup();
+    const { events } = await runHappyTurn(
+      server,
+      fake,
+      baseInput({
+        mcpServers: JSON.stringify({
+          mcpServers: {
+            fs: {
+              command: 'npx',
+              args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+            },
+            web: {
+              type: 'http',
+              url: 'https://mcp.example.com',
+              headers: { Authorization: 'Bearer x' },
+            },
+          },
+        }),
+      }),
+    );
+
+    const sessionNew = server.requestsOf('session/new')[0]!.params as {
+      mcpServers?: unknown;
+    };
+    expect(sessionNew.mcpServers).toEqual([
+      {
+        name: 'fs',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+        env: [],
+      },
+      {
+        name: 'web',
+        url: 'https://mcp.example.com',
+        headers: [{ name: 'Authorization', value: 'Bearer x' }],
+      },
+    ]);
+    expect(events).toContainEqual({
+      type: 'log',
+      text: '[grok] 注入 2 个 MCP server（ACP session/new）',
+    });
+  });
+
+  it('malformed mcpServers → 诚实 fail（fail closed，不静默丢 MCP）', async () => {
+    const { server, fake } = setup();
+    const events: AgentEvent[] = [];
+    const p = backend.execute(
+      baseInput({ mcpServers: '{bad json' }),
+      (e) => events.push(e),
+      new AbortController().signal,
+    );
+    await server.waitForRequest('initialize');
+    const result = await p;
+    expect(result.exitReason).toBe('failed');
+    expect(result.error).toContain('MCP 配置解析失败');
+  });
+
+  it('initialize 未声明远程 transport → 远程条目过滤（stdio 保留），warn 日志', async () => {
+    const { server, fake } = setup({
+      onInitialize: () => ({
+        protocolVersion: 1,
+        agentCapabilities: {
+          loadSession: true,
+          mcpCapabilities: { http: false, sse: false },
+        },
+        authMethods: [{ id: 'cached_token', name: 'cached_token' }],
+        _meta: { modelState: { currentModelId: 'grok-4.5' } },
+      }),
+    });
+    const { events } = await runHappyTurn(
+      server,
+      fake,
+      baseInput({
+        mcpServers: JSON.stringify({
+          mcpServers: {
+            fs: { command: 'npx', args: ['-y', 'some-mcp'] },
+            web: { type: 'http', url: 'https://mcp.example.com' },
+          },
+        }),
+      }),
+    );
+
+    const sessionNew = server.requestsOf('session/new')[0]!.params as {
+      mcpServers?: unknown;
+    };
+    expect(sessionNew.mcpServers).toEqual([
+      { name: 'fs', command: 'npx', args: ['-y', 'some-mcp'], env: [] },
+    ]);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'log', text: expect.stringContaining('已跳过') }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'log', text: expect.stringContaining('注入 1 个') }),
+    );
+  });
 });
 
 describe('GrokBackend execute：resume 续跑（M3）', () => {

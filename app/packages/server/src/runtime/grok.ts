@@ -9,6 +9,12 @@ import type {
 import type { RunCommandInput, RunCommandResult } from '@ma/shared';
 import { resolveCmd, versionOf } from './detect-path.js';
 import {
+  buildAcpMcpServers,
+  extractAcpMcpCapabilities,
+  filterAcpMcpServersByCapability,
+  type AcpMcpServer,
+} from './acp-mcp.js';
+import {
   AcpTransport,
   AcpRpcError,
   isAcpSessionNotFound,
@@ -289,6 +295,30 @@ export class GrokBackend implements RuntimeBackend {
       );
       onEvent({ type: 'log', text: `[grok] ACP authenticated (${authMethod})` });
 
+      // 2.5) MCP 注入（Q2：agent.mcpServers → ACP array shape，按 initialize
+      // 声明的 mcpCapabilities 过滤远程 transport；stdio 总通过。学 multica
+      // hermes.go:1986 buildACPMcpServers + grok.go:317）
+      let mcpServers: AcpMcpServer[] = [];
+      if (input.mcpServers?.trim()) {
+        try {
+          mcpServers = filterAcpMcpServersByCapability(
+            buildAcpMcpServers(input.mcpServers),
+            extractAcpMcpCapabilities(initResult),
+            'grok',
+            (msg) => onEvent({ type: 'log', text: `[grok] ${msg}` }),
+          );
+          if (mcpServers.length) {
+            onEvent({
+              type: 'log',
+              text: `[grok] 注入 ${mcpServers.length} 个 MCP server（ACP session/new）`,
+            });
+          }
+        } catch (err) {
+          fail(`grok MCP 配置解析失败：${errText(err)}（agent.mcpServers 需为 {"mcpServers": {...}} JSON）`);
+          return this.finish(onEvent, transport, { streaming, timedOut, timeoutTimer, finalStatus, finalError, deliverable, usage, sessionId, resumeRejected, sniffer, signal });
+        }
+      }
+
       // 3) session/new | session/load（resume）
       const cwd = input.cwd || '.';
       const resumeId = input.resumeSessionId?.trim() || '';
@@ -296,7 +326,7 @@ export class GrokBackend implements RuntimeBackend {
       if (resumeId) {
         sessionResp = (await transport.request(
           'session/load',
-          { cwd, sessionId: resumeId, mcpServers: [] },
+          { cwd, sessionId: resumeId, mcpServers },
           { timeoutMs: HANDSHAKE_TIMEOUT_MS },
         )) as Record<string, unknown>;
         sessionId = resolveResumedSessionId(resumeId, sessionResp);
@@ -310,7 +340,7 @@ export class GrokBackend implements RuntimeBackend {
       } else {
         sessionResp = (await transport.request(
           'session/new',
-          { cwd, mcpServers: [] },
+          { cwd, mcpServers },
           { timeoutMs: HANDSHAKE_TIMEOUT_MS },
         )) as Record<string, unknown>;
         sessionId = extractAcpSessionId(sessionResp);
