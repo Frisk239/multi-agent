@@ -17,6 +17,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { PageSkeleton, Skeleton } from './Skeleton';
+import { usePageTitle } from '@/lib/use-page-title';
 import { Select } from './Select';
 
 // S06 Wiki 浏览器 + S07 + wiki-memory-ops + DS3 per-project；?slug= / ?q= / ?projectId= 可分享
@@ -45,6 +46,10 @@ function WikiPageInner() {
     refetch: refetchPage,
   } = useWikiPage(selectedSlug, projectIdFromUrl || null);
   const { data: wikiMeta } = useWikiMeta(projectIdFromUrl || null);
+  // G7-9：标签页标题 = 当前页 title（多标签可辨）
+  usePageTitle(
+    currentPage?.title ?? (selectedSlug ? `Wiki · ${selectedSlug}` : 'Wiki'),
+  );
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -130,6 +135,19 @@ function WikiPageInner() {
     const qs = sp.toString();
     return qs ? `/wiki?${qs}` : '/wiki';
   }, [selectedSlug, projectIdFromUrl]);
+
+  // G7-10：分享链改复制按钮（原 Link 点击无操作）；与 Memory 页 copyText 模式一致
+  const [shareCopied, setShareCopied] = useState(false);
+  async function copyShareLink() {
+    try {
+      const url = new URL(shareSlugHref, window.location.origin).toString();
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <div className="page-container" data-testid="wiki-page">
@@ -410,14 +428,15 @@ function WikiPageInner() {
             <div data-testid="wiki-page-body" data-slug={currentPage.slug ?? selectedSlug}>
               <div className="wiki-page-meta" data-testid="wiki-page-meta">
                 <code className="text-dim text-sm">{currentPage.slug ?? selectedSlug}</code>
-                <Link
-                  href={shareSlugHref}
+                <button
+                  type="button"
                   className="btn-ghost btn-sm"
                   data-testid="wiki-copy-slug-link"
-                  title="可分享链接（当前页 + 当前根）"
+                  title="复制可分享链接（当前页 + 当前根）"
+                  onClick={() => void copyShareLink()}
                 >
-                  分享链
-                </Link>
+                  {shareCopied ? '已复制' : '分享链'}
+                </button>
                 <Link href="/memory" className="btn-ghost btn-sm" data-testid="wiki-meta-to-memory">
                   记忆
                 </Link>

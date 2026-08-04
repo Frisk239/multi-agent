@@ -69,6 +69,7 @@ import {
 } from './KanbanBoard.shared';
 import { computeDragReorder } from './KanbanBoard.dnd';
 import { KanbanToolbar } from './KanbanBoard.toolbar';
+import { usePageTitle } from '@/lib/use-page-title';
 
 
 function KanbanBoardInner({
@@ -301,6 +302,11 @@ function KanbanBoardInner({
     [pathname, router, searchParams],
   );
 
+  // G7-1：打开 Sheet 用 push —— 浏览器 Back 一次即关（学 Linear/Notion 侧滑面板）。
+  // 关闭/换卡是 URL 驱动：`issue` 参数消失（popstate → useSearchParams 更新）
+  // 时 Sheet 自动卸载，无需额外 popstate handler。
+  // 防污染筛选历史：已开面板时换卡用 replace（原地替换，不叠历史）；关闭用
+  // closeIssueSheet 的 replace 移除参数，Back 不会回到「已关又开」的旧状态。
   const openIssueSheet = useCallback(
     (issueId: string, hash?: string) => {
       const href = buildIssueSheetHref(
@@ -309,9 +315,10 @@ function KanbanBoardInner({
         issueId,
         hash,
       );
-      router.replace(href, { scroll: false });
+      if (issueFromUrl) router.replace(href, { scroll: false });
+      else router.push(href, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams, issueFromUrl],
   );
 
   const closeIssueSheet = useCallback(() => {
@@ -681,6 +688,8 @@ function KanbanBoardInner({
     labelFilter,
   ].filter(Boolean).length;
   const showMore = moreFiltersOpen || moreFilterCount > 0;
+  // G7-9：标签页标题（多标签可辨）
+  usePageTitle('看板');
 
   if (isLoading) return <PageSkeleton />;
   if (isError) {

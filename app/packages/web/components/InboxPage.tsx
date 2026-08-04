@@ -23,6 +23,7 @@ import {
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { PageSkeleton } from './Skeleton';
+import { usePageTitle } from '@/lib/use-page-title';
 import { Icon } from './Icon';
 import { IssueDetail } from './IssueDetail';
 import { MarkdownBody } from './MarkdownBody';
@@ -485,6 +486,25 @@ function InboxPageInner() {
             selectItem(items[idx - 1]);
           }
         }
+      } else if (e.key === 'Enter') {
+        // G7-7：Enter 打开选中项完整目标（面板是预览，全页是落点）。
+        // 焦点在按钮/链接上时交还原生 Enter 激活（行内按钮已有默认行为）。
+        if (tag === 'BUTTON' || tag === 'A') return;
+        e.preventDefault();
+        if (!selected) {
+          if (items.length > 0) selectItem(items[0]);
+          return;
+        }
+        if (selected.issueId) {
+          router.push(`/issues/${encodeURIComponent(selected.issueId)}`);
+        } else if (selected.runId) {
+          router.push(`/runs?run=${encodeURIComponent(selected.runId)}&status=all`);
+        } else {
+          const primaryAction = document.querySelector<HTMLElement>(
+            '[data-testid="inbox-primary-cta"], [data-testid="inbox-retry-run"], [data-testid="inbox-open-run"], [data-testid="inbox-open-chat"], [data-testid="inbox-open-issue"]',
+          );
+          primaryAction?.click();
+        }
       } else if (e.key === 'e' || e.key === 'E') {
         e.preventDefault();
         if (selected && !selected.archived) {
@@ -514,7 +534,10 @@ function InboxPageInner() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [items, selected, selectItem, handleArchiveSelected]);
+  }, [items, selected, selectItem, handleArchiveSelected, router]);
+
+  // G7-9：标签页标题（多标签可辨）
+  usePageTitle('收件箱');
 
   if (isLoading) return <PageSkeleton />;
   if (isError) {

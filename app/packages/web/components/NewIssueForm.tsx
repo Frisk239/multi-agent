@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { CreateIssueInput, type IssueLabel, type IssueStatus, type Priority } from '@ma/shared';
+import { useQueries } from '@tanstack/react-query';
+import { CreateIssueInput, type IssueLabel, type IssueStatus, type Priority, type SquadDetail } from '@ma/shared';
 import {
+  API,
+  apiFetch,
   useAgents,
   useAgentsReadinessMap,
   useCreateIssue,
@@ -26,6 +29,7 @@ import { useFocusTrap } from '@/lib/use-focus-trap';
 import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { Select } from './Select';
+import { AssigneeCombobox } from './AssigneeSelect';
 
 type ExecPreview =
   | { kind: 'isolated'; reason: 'no_project' | 'no_path'; projectTitle?: string; projectId?: string }
@@ -88,6 +92,33 @@ export function NewIssueForm({
   const pathname = usePathname();
   const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
+
+  // G7-6：可搜指派与详情页同源——轻量预取小队成员，供 option 成员摘要提示
+  const agentNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of agents) m.set(a.id, a.name);
+    return m;
+  }, [agents]);
+  const squadDetailQueries = useQueries({
+    queries: squads.map((s) => ({
+      queryKey: ['squad', s.id],
+      queryFn: async (): Promise<SquadDetail> => {
+        const res = await apiFetch(`${API}/squads/${encodeURIComponent(s.id)}`);
+        if (!res.ok) throw new Error('squad 不存在');
+        return res.json();
+      },
+      enabled: !!s.id,
+      staleTime: 30_000,
+    })),
+  });
+  const squadDetailById = useMemo(() => {
+    const m = new Map<string, SquadDetail>();
+    squads.forEach((s, i) => {
+      const d = squadDetailQueries[i]?.data;
+      if (d) m.set(s.id, d);
+    });
+    return m;
+  }, [squads, squadDetailQueries]);
 
   // 策略 A：open 时对 form 轻量 trap（非 modal，仍限制 Tab 循环 + Esc 关闭）
   useFocusTrap(open, formRef, {
@@ -537,40 +568,19 @@ export function NewIssueForm({
           );
         })}
       </Select>
-      <Select
-        className="new-issue-select new-issue-assignee"
+      <AssigneeCombobox
         value={assigneeValue}
-        onChange={(e) => setAssigneeValue(e.target.value)}
-        aria-label="指派 agent 或小队"
-        data-testid="new-issue-assignee"
-      >
-        <option value="">未指派</option>
-        <optgroup label="智能体">
-          {agents.map((a) => {
-            const st = readinessMap[a.id]?.status;
-            const hint = st && st !== 'ready' && st !== 'busy' ? ` · ${st}` : '';
-            return (
-              <option key={a.id} value={`agent:${a.id}`}>
-                {a.name} · {a.runtime}
-                {hint}
-              </option>
-            );
-          })}
-        </optgroup>
-        <optgroup label="小队">
-          {squads.map((s) => {
-            const st = s.leaderId ? readinessMap[s.leaderId]?.status : undefined;
-            const hint =
-              st && st !== 'ready' && st !== 'busy' ? ` · 队长 ${st}` : '';
-            return (
-              <option key={s.id} value={`squad:${s.id}`}>
-                {s.name}
-                {hint}
-              </option>
-            );
-          })}
-        </optgroup>
-      </Select>
+        onChange={setAssigneeValue}
+        agents={agents}
+        squads={squads}
+        readinessMap={readinessMap}
+        squadDetailById={squadDetailById}
+        agentNameById={agentNameById}
+        listboxId="new-issue-assignee-listbox"
+        selectTestId="new-issue-assignee"
+        searchTestId="new-issue-assignee-search"
+        searchAriaLabel="搜索指派对象"
+      />
       <div className="new-issue-custom-fields mb-2" data-testid="new-issue-custom-fields">
         {customFields.length > 0 && (
           <div className="text-xs font-medium text-slate-600 mb-1">自定义字段</div>

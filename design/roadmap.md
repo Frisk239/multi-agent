@@ -140,18 +140,18 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
-| G7-1 | **看板 Sheet 后退键关闭**（openIssueSheet 改 `router.push` + popstate/useSearchParams 变化时关面板，Back 一次即关；学 Linear/Notion 侧滑面板心智；需防污染筛选历史） | 高 | 小 | — | ⬜ |
-| G7-2 | **useIssues staleTime 30s**（看板返回不整板重拉白闪；invalidateQueries 仍强制 refetch，WS 实时性不受影响） | 中 | 小 | — | ⬜ |
-| G7-3 | **Memory 页实时更新**（WS memory topic 订阅或 `useMemoryList` refetchInterval 15s，完成 issue 的 ambient 记忆即时可见） | 中 | 极小 | — | ⬜ |
-| G7-4 | **Run transcript 虚拟化**（复用 `@tanstack/react-virtual` 窗口化事件列表，长 run 首屏/展开/筛选不卡；行高可估，展开态从 `Record<string, boolean>` 改为窗口感知） | 中 | 中 | — | ⬜ |
-| G7-5 | **Sheet 属性补强**（优先级 Select 入 SheetMeta + 标签行内编辑复用 `IssueLabelsEditor`；「扫板-处理」不跳出看板） | 中 | 小·中 | — | ⬜ |
-| G7-6 | **新建 Issue 表单可搜指派**（复用 `AssigneeSelect` combobox + readiness 显示，与详情页一致） | 低 | 小 | — | ⬜ |
-| G7-7 | **Inbox j/k 键盘导航**（上下行移动选中 + Enter 打开，与现有 Enter handler 合并；看板键盘已开先例） | 低 | 小 | — | ⬜ |
-| G7-8 | **Toast 堆叠上限 + hover 暂停**（上限 3-4 条挤掉最旧；hover 暂停计时；带 action 消息体与关闭钮分离） | 低 | 小 | — | ⬜ |
-| G7-9 | **各页 document.title 区分**（`usePageTitle` hook：issue 标题/run 短 id 拼接，多标签可辨） | 低 | 极小 | — | ⬜ |
-| G7-10 | **Wiki 分享链改复制按钮**（复制到剪贴板 + 「已复制」toast，与 Memory 页 copyText 模式一致；现渲染为 Link 点后无操作） | 低 | 极小 | — | ⬜ |
-| G7-11 | **Memory 空/错/loading 行 colSpan 修复**（8 列对齐或从 thead 派生列数常量） | 低 | 极小 | — | ⬜ |
-| G7-12 | **看板工具栏收纳导入/导出**（低频运维按钮收进「筛选」展开区或菜单，不稀释高频操作权重；功能本身 G5-7 已关不动） | 低 | 极小 | — | ⬜ |
+| G7-1 | **看板 Sheet 后退键关闭**（openIssueSheet 改 `router.push` + URL 驱动关闭，Back 一次即关；学 Linear/Notion 侧滑面板心智；已开面板换卡用 replace 防污染筛选历史） | 高 | 小 | — | ✅（2026-08-04，[closeout](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)） |
+| G7-2 | **useIssues staleTime 30s**（看板返回不整板重拉白闪；invalidateQueries 仍强制 refetch，WS 实时性不受影响） | 中 | 小 | — | ✅（同上） |
+| G7-3 | **Memory 页实时更新**（useMemoryList refetchInterval 15s；服务端无 memory WS 广播，轮询为最小诚实路径，完成 issue 的 ambient 记忆 15s 内可见） | 中 | 极小 | — | ✅（同上） |
+| G7-4 | **Run transcript 虚拟化**（复用 `@tanstack/react-virtual`：≥100 条事件切窗口化，绝对定位 + measureElement 动态测量 + gap；展开态窗口感知——expanded 只保留窗口内 key） | 中 | 中 | — | ✅（同上；e2e 注入 120 条消息 run 实测 rendered 22/120） |
+| G7-5 | **Sheet 属性补强**（优先级 Select 入 SheetMeta + 标签行内编辑复用 `IssueLabelsEditor`；「扫板-处理」不跳出看板） | 中 | 小·中 | — | ✅（同上） |
+| G7-6 | **新建 Issue 表单可搜指派**（抽出受控 `AssigneeCombobox` 与详情页同源：搜索 + readiness 提示/禁用；onChange 业务副作用留在调用方） | 低 | 小 | — | ✅（同上） |
+| G7-7 | **Inbox Enter 打开**（j/k 移动选中此前已存在；本刀补 Enter = 打开选中项完整目标：issue 全页 / run 深链 / 兜底主 CTA；聚焦交互元素时交还原生行为） | 低 | 小 | — | ✅（同上） |
+| G7-8 | **Toast 堆叠上限 + hover 暂停**（上限 4 条挤掉最旧；hover 完全冻结倒计时（存剩余毫秒），移出续倒；带 action 消息体与独立 × 关闭钮分离；+5 用例） | 低 | 小 | — | ✅（同上） |
+| G7-9 | **各页 document.title 区分**（新 `usePageTitle` hook：issue 标题/run 短 id 拼接；接线 7 页：看板/运行列表/运行详情/记忆/收件箱/Wiki/Issue 详情；卸载还原基础标题） | 低 | 极小 | — | ✅（同上） |
+| G7-10 | **Wiki 分享链改复制按钮**（复制完整 URL + 「已复制」1.5s 反馈，与 Memory 页 copyText 模式一致；原 Link 点击无操作已修） | 低 | 极小 | — | ✅（同上） |
+| G7-11 | **Memory 空/错/loading 行 colSpan 修复**（thead 实为 8 列，3 处 7→8） | 低 | 极小 | — | ✅（同上） |
+| G7-12 | **看板工具栏收纳导入/导出**（低频运维按钮收进「筛选」展开区 + 分隔线；功能本身 G5-7 已关不动，只动摆放） | 低 | 极小 | — | ✅（同上） |
 
 ## §4 切片队列总表（建议迭代顺序）
 
@@ -176,7 +176,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 15 | **第六波（G1-2 ACP 大工程收官）：Grok ACP stdio 客户端** | G1 | ✅ 已关（2026-08-03，[closeout](app/.progress/grok-acp-closeout-2026-08-03.md)：ACP 传输层 + mock 测试网（51 契约用例）+ 真机 2 回合验收（fresh「记住了42」/ resumed「42」上下文延续 + usage 落库）+ Playwright 7/7 PASS；**G1–G5 池全部收官**） |
 | 16 | **第七波（品质波）：M1 ACP 边界 · M2 技术债 · M3 性能 · M4 摩擦清扫**（Q1–Q7，Goal 自编号） | — | ✅ 已关（2026-08-03：Q1 [set_model UI](app/.progress/q1-set-model-ui-closeout-2026-08-03.md) 真机 pi 200/grok-4.5 绑定回读 · Q2 [MCP 经 ACP 注入](app/.progress/q2-mcp-inject-closeout-2026-08-03.md) 真机 fs__read_text_file 读到文件 · Q3 api.ts 拆分 10 领域模块 barrel 兼容 · Q4 KanbanBoard 拆分 3 模块 + dnd 纯函数 · M2c Settings「在途 x/上限 y」· M4a 流式分块合并 35 chunk→1 段落 · Q6 [settings/status 3s→0.21s](app/.progress/q6-perf-settings-status-closeout-2026-08-03.md) · Q7 [全链路走查摩擦清扫](app/.progress/q7-walkthrough-closeout-2026-08-03.md)（WS URL 推导 / grok 模型列表可用项 / onboarding-status 缓存）；全量 1488 用例绿（shared 121 + server 902 + web 465）） |
 | 17 | **第八波（后端精细度）：G6-1 → G6-2 → G6-3** | G6 | G6-1 ✅（[closeout](app/.progress/g6-1-priority-scheduling-closeout-2026-08-03.md)）· G6-2 ✅（[closeout](app/.progress/g6-2-automation-placeholder-closeout-2026-08-03.md)）· G6-3 ✅（[closeout](app/.progress/g6-3-test-net-closeout-2026-08-03.md)）· **G6-6 ✅（[closeout](app/.progress/g6-6-pi-ui-honest-closeout-2026-08-03.md)）** · **G6-8 ✅（[closeout](app/.progress/g6-8-slow-log-closeout-2026-08-03.md)）** · **G6-4 ✅（[closeout](app/.progress/g6-4-sweeper-atomic-closeout-2026-08-03.md)）** · **G6-10 ✅（[closeout](app/.progress/g6-10-inbox-observability-closeout-2026-08-03.md)）** · **G6-9 ✅（2026-08-03，[closeout](app/.progress/g6-9-embedder-test-closeout-2026-08-03.md)，全量 1540 用例绿）** → 池内剩余按 §3 价值取用（G6-5 分页 / G6-7 skipped 警示） |
-| 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | 新（2026-08-03 注册，来源：前端差距子代理分析；高频往返三刀优先，G7-4 起按 §3 价值取用） |
+| 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | ✅ 已关（2026-08-04，[closeout](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)：**G7-1…G7-12 全部 12 刀收官**——Sheet 后退关闭/返回不闪屏/Memory 15s 实时/transcript 虚拟化（120 条消息 run 实测 rendered 22/120）/Sheet 优先级+标签/新建表单可搜指派/Inbox Enter/Toast 上限+hover 暂停/页标题/分享链复制/colSpan/工具栏收纳；Playwright 17/17 PASS + 回归 6/6；全量 1546 用例绿（shared 121 + server 954 + web 471）） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 

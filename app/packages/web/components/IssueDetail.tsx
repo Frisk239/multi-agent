@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { localStorageOrNull, recordVisit } from '@/lib/recent-visits';
-import type { Issue, IssueStatus } from '@ma/shared';
-import { IssueStatus as IssueStatusEnum } from '@ma/shared';
+import type { Issue, IssueStatus, Priority } from '@ma/shared';
+import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
   API,
   apiFetch,
@@ -25,6 +25,7 @@ import {
 } from '@/lib/attachment-upload';
 import { confirmDialog } from '@/lib/confirm-store';
 import { IssueHeader } from './IssueHeader';
+import { IssueLabelsEditor } from './IssueLabelsEditor';
 import { Timeline } from './Timeline';
 import { CommentComposer } from './CommentComposer';
 import { RunStatusBar } from './RunStatusBar';
@@ -45,6 +46,7 @@ import { AssigneeSelect } from './AssigneeSelect';
 import Link from 'next/link';
 import { toastSuccess, toastError } from '../lib/toast';
 import { Select } from './Select';
+import { usePageTitle } from '@/lib/use-page-title';
 import {
   buildSheetFailCta,
   buildSheetStorylineSummary,
@@ -63,6 +65,16 @@ const STATUS_ZH: Record<IssueStatus, string> = {
 };
 
 const ALL_STATUS = IssueStatusEnum.options;
+
+const ALL_PRIORITY = PriorityEnum.options;
+
+const PRIORITY_ZH: Record<Priority, string> = {
+  urgent: '紧急',
+  high: '高',
+  medium: '中',
+  low: '低',
+  none: '无',
+};
 
 export type IssueDetailVariant = 'sheet' | 'page';
 
@@ -131,7 +143,7 @@ function SheetWorkStrip({
   );
 }
 
-/** Sheet 轻量：状态 + 指派（全量属性进全页 / details） */
+/** Sheet 轻量：状态 + 优先级 + 指派 + 标签（G7-5：扫板-处理不跳出看板） */
 function IssueSheetMeta({ issue }: { issue: Issue }) {
   const update = useUpdateIssue();
   return (
@@ -157,9 +169,33 @@ function IssueSheetMeta({ issue }: { issue: Issue }) {
           ))}
         </Select>
       </label>
+      <label className="issue-priority-field">
+        <span className="issue-meta-k">优先级</span>
+        <Select
+          className="priority-select"
+          value={issue.priority}
+          onChange={(e) =>
+            update.mutate({
+              id: issue.id,
+              input: { priority: e.target.value as Priority },
+            })
+          }
+          aria-label="优先级"
+          data-testid="issue-sheet-priority"
+        >
+          {ALL_PRIORITY.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_ZH[p]}
+            </option>
+          ))}
+        </Select>
+      </label>
       <div className="issue-meta-assignee" data-testid="issue-sheet-assignee">
         <span className="issue-meta-k">负责人</span>
         <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
+      </div>
+      <div className="issue-sheet-labels" data-testid="issue-sheet-labels">
+        <IssueLabelsEditor issue={issue} />
       </div>
     </div>
   );
@@ -192,6 +228,14 @@ export function IssueDetail({
     error: ie,
     refetch: refetchIssue,
   } = useIssue(id);
+  // G7-9：标签页标题 = identifier + 标题（多标签可辨）
+  usePageTitle(
+    issue?.title
+      ? issue.identifier
+        ? `${issue.identifier} · ${issue.title}`
+        : issue.title
+      : null,
+  );
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: activities = [] } = useActivities(id);
   const { data: runs = [] } = useRuns(id, { refetchActive: true });

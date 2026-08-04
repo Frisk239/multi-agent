@@ -13,6 +13,7 @@ import {
   useWorkspaceRuns,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import { usePageTitle } from '@/lib/use-page-title';
 import {
   resolveFailureActionUi,
   shouldShowFailureActionChip,
@@ -184,6 +185,8 @@ function RunsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // G7-9：标签页标题（多标签可辨；详情页 RunDetailPage 另行拼接 run 短 id）
+  usePageTitle('运行');
 
   const status = parseStatus(searchParams.get('status'));
   const agentId = searchParams.get('agent') ?? '';

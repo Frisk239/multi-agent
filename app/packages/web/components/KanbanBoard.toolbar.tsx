@@ -225,40 +225,6 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
           >
             筛选{moreFilterCount > 0 ? ` · ${moreFilterCount}` : ''}
           </button>
-          {/* G5-7：看板快照 JSON 导出/导入 */}
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            data-testid="kanban-export-json"
-            onClick={() => void handleExportJson()}
-          >
-            导出 JSON
-          </button>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            data-testid="kanban-import-json"
-            onClick={() => importFileRef.current?.click()}
-          >
-            导入 JSON
-          </button>
-          <input
-            ref={importFileRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            data-testid="kanban-import-file"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleImportFile(f);
-              e.target.value = '';
-            }}
-          />
-          {jsonNotice ? (
-            <span className="text-dim text-sm" data-testid="kanban-json-notice">
-              {jsonNotice}
-            </span>
-          ) : null}
         </div>
 
         {showMore ? (
@@ -432,6 +398,44 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
                   {l.name}
                 </button>
               ))}
+            </div>
+            {/* G7-12：低频运维按钮（导入/导出）收进筛选区，不稀释高频操作权重；
+                功能本身是 G5-7 已关的 JSON 快照，只动摆放 */}
+            <div className="kanban-toolbar-io" data-testid="kanban-toolbar-io">
+              <span className="kanban-toolbar-io-sep" aria-hidden="true" />
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                data-testid="kanban-export-json"
+                onClick={() => void handleExportJson()}
+              >
+                导出 JSON
+              </button>
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                data-testid="kanban-import-json"
+                onClick={() => importFileRef.current?.click()}
+              >
+                导入 JSON
+              </button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                data-testid="kanban-import-file"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleImportFile(f);
+                  e.target.value = '';
+                }}
+              />
+              {jsonNotice ? (
+                <span className="text-dim text-sm" data-testid="kanban-json-notice">
+                  {jsonNotice}
+                </span>
+              ) : null}
             </div>
           </div>
         ) : null}

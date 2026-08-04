@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { classifyRunFailure, isAutoRetryableFailureReason, type RunMessage } from '@ma/shared';
 import {
   useAgent,
@@ -32,6 +32,7 @@ import {
 } from '@/lib/run-recovery';
 import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { confirmDialog } from '@/lib/confirm-store';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { FailureActionChip } from './FailureActionChip';
 import { SubagentTreeViewer } from './SubagentTreeViewer';
 import { RunModelSwitcher } from './RunModelSwitcher';
@@ -39,6 +40,7 @@ import { RunModelSwitcher } from './RunModelSwitcher';
 
 
 import { useRunProgressStore } from '@/lib/ws';
+import { usePageTitle } from '@/lib/use-page-title';
 import { EmptyState } from './EmptyState';
 import { PageBreadcrumb } from './PageBreadcrumb';
 import { PageHeaderMore } from './PageHeaderMore';
@@ -208,6 +210,8 @@ function filterViewItems(
 
 export function RunDetailPage({ runId }: { runId: string }) {
   const { data: run, isLoading, isError, error, refetch, isFetching } = useRun(runId);
+  // G7-9：标签页标题 = 运行短 id（多标签可辨）
+  usePageTitle(run?.id ? `运行 ${shortId(run.id)}` : null);
   const { data: messages = [], isFetching: msgFetching } = useRunMessages(runId);
   const { data: childRuns = [] } = useChildRuns(runId, {
     refetchIntervalMs: run?.status === 'running' || run?.status === 'queued' ? 3000 : false,
@@ -275,6 +279,47 @@ export function RunDetailPage({ runId }: { runId: string }) {
     [viewItems, kindFilter],
   );
 
+  // G7-4：transcript 虚拟化（复用 @tanstack/react-virtual，学 KanbanColumn Slice 37 模式）。
+  // 阈值 ≥100 条才切窗口化——短 run 保持朴素全量渲染；长 run 首屏/展开/筛选不卡。
+  // 行高可估（折叠行 ~40px），展开态行高经 measureElement 动态校准。
+  const TRANSCRIPT_VIRTUALIZE_THRESHOLD = 100;
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const virtualizeTranscript = filtered.length >= TRANSCRIPT_VIRTUALIZE_THRESHOLD;
+  const transcriptVirtualizer = useVirtualizer({
+    count: virtualizeTranscript ? filtered.length : 0,
+    getScrollElement: () => transcriptRef.current,
+    estimateSize: () => 44,
+    overscan: 12,
+    gap: 4,
+    getItemKey: (index) => viewItemKey(filtered[index]),
+    enabled: virtualizeTranscript,
+  });
+  const transcriptVirtualItems = virtualizeTranscript
+    ? transcriptVirtualizer.getVirtualItems()
+    : [];
+
+  // G7-4：展开态窗口感知——只保留当前窗口（含 overscan）内的 key，
+  // 防止长 run 无限滚动时 expanded 记录无限膨胀（窗口外的行收起可接受）
+  const visibleExpandedKeys = useMemo(
+    () =>
+      new Set(
+        virtualizeTranscript
+          ? transcriptVirtualItems.map((v) => viewItemKey(filtered[v.index]))
+          : filtered.map(viewItemKey),
+      ),
+    [virtualizeTranscript, transcriptVirtualItems, filtered],
+  );
+  useEffect(() => {
+    if (!virtualizeTranscript) return;
+    setExpanded((prev) => {
+      const stale = Object.keys(prev).filter((k) => !visibleExpandedKeys.has(k));
+      if (stale.length === 0) return prev;
+      const next = { ...prev };
+      for (const k of stale) delete next[k];
+      return next;
+    });
+  }, [virtualizeTranscript, visibleExpandedKeys]);
+
   const toolCount = useMemo(
     () => messages.filter((m) => m.kind === 'tool_start').length,
     [messages],
@@ -300,6 +345,169 @@ export function RunDetailPage({ runId }: { runId: string }) {
               : run?.status === 'cancelled'
                 ? '已取消'
                 : run?.status;
+
+  // G7-4：transcript 行渲染（虚拟/朴素两路径共用）。
+  // 虚拟路径：li 绝对定位 + measureElement 动态测量（展开行高度变化自动校准）
+  function renderTranscriptRow(
+    item: RunEventViewItem,
+    index: number,
+    virtualRow?: { start: number },
+  ) {
+    const virtualStyle = virtualRow
+      ? {
+          position: 'absolute' as const,
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${virtualRow.start}px)`,
+        }
+      : undefined;
+    if (item.type === 'pair') {
+      const key = viewItemKey(item);
+      const name =
+        item.toolName ??
+        parseToolName(item.start.body) ??
+        parseToolName(item.end.body) ??
+        'tool';
+      const open = expanded[key] ?? false;
+      const collapsedText = pairCollapsedPreview(
+        item.start,
+        item.end,
+        160,
+      );
+      return (
+        <li
+          key={key}
+          className={`run-transcript-row run-transcript-row--tool-pair${virtualRow ? ' run-transcript-row--virtual' : ''}`}
+          data-kind="tool_pair"
+          data-tool-name={name}
+          data-testid="run-detail-tool-pair"
+          data-index={virtualRow ? index : undefined}
+          ref={virtualRow ? transcriptVirtualizer.measureElement : undefined}
+          style={virtualStyle}
+        >
+          <button
+            type="button"
+            className="run-transcript-chip run-event-chip--tool"
+            data-testid="run-detail-tool-pair-toggle"
+            onClick={() =>
+              setExpanded((s) => ({ ...s, [key]: !(s[key] ?? false) }))
+            }
+            title="展开/折叠工具调用"
+          >
+            工具 · {name}
+          </button>
+          <div className="run-transcript-body-wrap">
+            <button
+              type="button"
+              className="run-transcript-toggle"
+              onClick={() =>
+                setExpanded((s) => ({
+                  ...s,
+                  [key]: !(s[key] ?? false),
+                }))
+              }
+            >
+              {open ? '▾' : '▸'}
+            </button>
+            <div
+              className="run-transcript-text"
+              data-testid="run-detail-event-preview"
+            >
+              {open ? (
+                <div className="run-event-pair-body">
+                  <div className="run-event-pair-part">
+                    <span className="run-event-pair-label">
+                      调用 · #{item.start.seq}
+                    </span>
+                    <pre className="run-event-body">{item.start.body}</pre>
+                  </div>
+                  <div className="run-event-pair-part">
+                    <span className="run-event-pair-label">
+                      结果 · #{item.end.seq}
+                    </span>
+                    <pre className="run-event-body">{item.end.body}</pre>
+                  </div>
+                </div>
+              ) : (
+                collapsedText
+              )}
+            </div>
+          </div>
+          <div className="run-transcript-meta text-dim">
+            <span>
+              #{item.start.seq}–{item.end.seq}
+            </span>
+            <span>
+              {clockTime(item.end.createdAt) ||
+                relativeTime(item.end.createdAt)}
+            </span>
+          </div>
+        </li>
+      );
+    }
+
+    const m = item.message;
+    const tool = parseToolName(m.body);
+    const isTool = m.kind === 'tool_start' || m.kind === 'tool_end';
+    const isLong = (m.body?.length ?? 0) > 280;
+    const open = expanded[m.id] ?? !isLong;
+    const label = isTool ? tool || kindLabel(m.kind) : kindLabel(m.kind);
+    const collapsedText = isTool
+      ? toolSummaryLine(m.kind, m.body || '', 160)
+      : previewBody(m.body || '—');
+    return (
+      <li
+        key={m.id}
+        className={`run-transcript-row run-transcript-row--${kindTone(m.kind)}${virtualRow ? ' run-transcript-row--virtual' : ''}`}
+        data-kind={m.kind}
+        data-tool-name={tool ?? undefined}
+        data-testid="run-detail-event"
+        data-index={virtualRow ? index : undefined}
+        ref={virtualRow ? transcriptVirtualizer.measureElement : undefined}
+        style={virtualStyle}
+      >
+        <button
+          type="button"
+          className={`run-transcript-chip run-event-chip--${kindTone(m.kind)}`}
+          onClick={() =>
+            setExpanded((s) => ({ ...s, [m.id]: !(s[m.id] ?? !isLong) }))
+          }
+          title="展开/折叠"
+        >
+          {label}
+        </button>
+        <div className="run-transcript-body-wrap">
+          {isLong ? (
+            <button
+              type="button"
+              className="run-transcript-toggle"
+              onClick={() =>
+                setExpanded((s) => ({
+                  ...s,
+                  [m.id]: !(s[m.id] ?? false),
+                }))
+              }
+            >
+              {open ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span className="run-transcript-toggle-spacer" />
+          )}
+          <div
+            className="run-transcript-text"
+            data-testid="run-detail-event-preview"
+          >
+            {open ? m.body || '—' : collapsedText}
+          </div>
+        </div>
+        <div className="run-transcript-meta text-dim">
+          <span>#{m.seq}</span>
+          <span>{clockTime(m.createdAt) || relativeTime(m.createdAt)}</span>
+        </div>
+      </li>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -888,149 +1096,40 @@ export function RunDetailPage({ runId }: { runId: string }) {
                   ? '当前筛选无事件'
                   : '无事件消息'}
           </div>
+        ) : virtualizeTranscript ? (
+          <div
+            ref={transcriptRef}
+            className="run-transcript-viewport"
+            data-testid="run-transcript-viewport"
+            style={{ maxHeight: 'min(70vh, 720px)', overflow: 'auto' }}
+          >
+            <ol
+              className="run-transcript-list"
+              data-testid="run-detail-events"
+              data-virtualized="1"
+              data-virtual-count={filtered.length}
+              data-virtual-rendered={transcriptVirtualItems.length}
+              style={{
+                height: `${transcriptVirtualizer.getTotalSize()}px`,
+                position: 'relative',
+              }}
+            >
+              {transcriptVirtualItems.map((virtualRow) =>
+                renderTranscriptRow(
+                  filtered[virtualRow.index],
+                  virtualRow.index,
+                  virtualRow,
+                ),
+              )}
+            </ol>
+          </div>
         ) : (
-          <ol className="run-transcript-list" data-testid="run-detail-events">
-            {filtered.map((item) => {
-              if (item.type === 'pair') {
-                const key = viewItemKey(item);
-                const name =
-                  item.toolName ??
-                  parseToolName(item.start.body) ??
-                  parseToolName(item.end.body) ??
-                  'tool';
-                const open = expanded[key] ?? false;
-                const collapsedText = pairCollapsedPreview(
-                  item.start,
-                  item.end,
-                  160,
-                );
-                return (
-                  <li
-                    key={key}
-                    className="run-transcript-row run-transcript-row--tool-pair"
-                    data-kind="tool_pair"
-                    data-tool-name={name}
-                    data-testid="run-detail-tool-pair"
-                  >
-                    <button
-                      type="button"
-                      className="run-transcript-chip run-event-chip--tool"
-                      data-testid="run-detail-tool-pair-toggle"
-                      onClick={() =>
-                        setExpanded((s) => ({ ...s, [key]: !(s[key] ?? false) }))
-                      }
-                      title="展开/折叠工具调用"
-                    >
-                      工具 · {name}
-                    </button>
-                    <div className="run-transcript-body-wrap">
-                      <button
-                        type="button"
-                        className="run-transcript-toggle"
-                        onClick={() =>
-                          setExpanded((s) => ({
-                            ...s,
-                            [key]: !(s[key] ?? false),
-                          }))
-                        }
-                      >
-                        {open ? '▾' : '▸'}
-                      </button>
-                      <div
-                        className="run-transcript-text"
-                        data-testid="run-detail-event-preview"
-                      >
-                        {open ? (
-                          <div className="run-event-pair-body">
-                            <div className="run-event-pair-part">
-                              <span className="run-event-pair-label">
-                                调用 · #{item.start.seq}
-                              </span>
-                              <pre className="run-event-body">{item.start.body}</pre>
-                            </div>
-                            <div className="run-event-pair-part">
-                              <span className="run-event-pair-label">
-                                结果 · #{item.end.seq}
-                              </span>
-                              <pre className="run-event-body">{item.end.body}</pre>
-                            </div>
-                          </div>
-                        ) : (
-                          collapsedText
-                        )}
-                      </div>
-                    </div>
-                    <div className="run-transcript-meta text-dim">
-                      <span>
-                        #{item.start.seq}–{item.end.seq}
-                      </span>
-                      <span>
-                        {clockTime(item.end.createdAt) ||
-                          relativeTime(item.end.createdAt)}
-                      </span>
-                    </div>
-                  </li>
-                );
-              }
-
-              const m = item.message;
-              const tool = parseToolName(m.body);
-              const isTool = m.kind === 'tool_start' || m.kind === 'tool_end';
-              const isLong = (m.body?.length ?? 0) > 280;
-              const open = expanded[m.id] ?? !isLong;
-              const label = isTool ? tool || kindLabel(m.kind) : kindLabel(m.kind);
-              const collapsedText = isTool
-                ? toolSummaryLine(m.kind, m.body || '', 160)
-                : previewBody(m.body || '—');
-              return (
-                <li
-                  key={m.id}
-                  className={`run-transcript-row run-transcript-row--${kindTone(m.kind)}`}
-                  data-kind={m.kind}
-                  data-tool-name={tool ?? undefined}
-                  data-testid="run-detail-event"
-                >
-                  <button
-                    type="button"
-                    className={`run-transcript-chip run-event-chip--${kindTone(m.kind)}`}
-                    onClick={() =>
-                      setExpanded((s) => ({ ...s, [m.id]: !(s[m.id] ?? !isLong) }))
-                    }
-                    title="展开/折叠"
-                  >
-                    {label}
-                  </button>
-                  <div className="run-transcript-body-wrap">
-                    {isLong ? (
-                      <button
-                        type="button"
-                        className="run-transcript-toggle"
-                        onClick={() =>
-                          setExpanded((s) => ({
-                            ...s,
-                            [m.id]: !(s[m.id] ?? false),
-                          }))
-                        }
-                      >
-                        {open ? '▾' : '▸'}
-                      </button>
-                    ) : (
-                      <span className="run-transcript-toggle-spacer" />
-                    )}
-                    <div
-                      className="run-transcript-text"
-                      data-testid="run-detail-event-preview"
-                    >
-                      {open ? m.body || '—' : collapsedText}
-                    </div>
-                  </div>
-                  <div className="run-transcript-meta text-dim">
-                    <span>#{m.seq}</span>
-                    <span>{clockTime(m.createdAt) || relativeTime(m.createdAt)}</span>
-                  </div>
-                </li>
-              );
-            })}
+          <ol
+            className="run-transcript-list"
+            data-testid="run-detail-events"
+            data-virtualized="0"
+          >
+            {filtered.map((item, index) => renderTranscriptRow(item, index))}
           </ol>
         )}
       </section>

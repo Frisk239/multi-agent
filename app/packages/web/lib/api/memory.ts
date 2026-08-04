@@ -417,6 +417,10 @@ export function useMemoryList(q: string, scope?: string) {
       const json = await res.json() as PaginatedResponse<any>;
       return json.data;
     },
+    // G7-3：Memory 页活性诚实——15s 轮询，完成 issue 的 ambient 记忆 15s 内可见。
+    // 服务端无 memory WS 广播（lib/ws.ts 无 memory topic），轮询为最小诚实路径；
+    // 有查询词时仍保持轮询（FTS 结果也随库增长更新）。
+    refetchInterval: 15_000,
   });
 }
 

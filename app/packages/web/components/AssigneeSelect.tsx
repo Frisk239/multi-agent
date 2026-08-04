@@ -11,7 +11,13 @@ import {
   useSquads,
   useUpdateIssue,
 } from '@/lib/api';
-import type { AgentReadiness, Assignee, SquadDetail } from '@ma/shared';
+import type {
+  AgentReadiness,
+  AgentSummary,
+  Assignee,
+  SquadDetail,
+  SquadSummary,
+} from '@ma/shared';
 import { isRuntimeAssignableForDispatch } from '@ma/shared';
 import { confirmDialog } from '@/lib/confirm-store';
 import { filterAssigneeOptions } from '@/lib/assignee-filter';
@@ -90,6 +96,128 @@ function squadBlockedSummary(
   return { blocked, total: ids.length, labels };
 }
 
+/**
+ * G7-6：可搜指派 combobox（受控，无业务副作用）。
+ * 搜索只收窄候选（filterAssigneeOptions 强制保留当前已选项）；
+ * readiness 提示与禁用（pi 未实现执行 / 硬闸）与详情页 AssigneeSelect 一致。
+ * onChange 只回传 '' | `agent:<id>` | `squad:<id>`，确认/硬闸逻辑留在调用方
+ * （详情页 AssigneeSelect 或新建表单 submit gate）。
+ */
+export function AssigneeCombobox({
+  value,
+  onChange,
+  agents,
+  squads,
+  readinessMap,
+  squadDetailById,
+  agentNameById,
+  listboxId = 'assignee-select-listbox',
+  selectTestId = 'assignee-select',
+  searchTestId = 'assignee-search',
+  searchAriaLabel = '搜索指派对象',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  agents: AgentSummary[];
+  squads: SquadSummary[];
+  readinessMap: Record<string, AgentReadiness | null | undefined>;
+  squadDetailById?: Map<string, SquadDetail>;
+  agentNameById: Map<string, string>;
+  listboxId?: string;
+  selectTestId?: string;
+  searchTestId?: string;
+  searchAriaLabel?: string;
+}) {
+  // S1：搜索只收窄下拉里的候选，当前已选项由 filterAssigneeOptions 强制保留
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(
+    () => filterAssigneeOptions({ agents, squads, query: search, currentValue: value }),
+    [agents, squads, search, value],
+  );
+  const visibleAgents = filtered.agents;
+  const visibleSquads = filtered.squads;
+
+  return (
+    <div className="assignee-combobox">
+      <input
+        type="search"
+        className="assignee-search"
+        data-testid={searchTestId}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="搜索智能体 / 小队（名称或 ID）"
+        aria-label={searchAriaLabel}
+        aria-controls={listboxId}
+      />
+      {filtered.isEmpty && filtered.isFiltering ? (
+        <div
+          className="assignee-search-empty text-dim text-sm"
+          data-testid="assignee-search-empty"
+          role="status"
+        >
+          无匹配的智能体或小队
+        </div>
+      ) : null}
+      <Select
+        id={listboxId}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="指派 agent 或小队"
+        className="assignee-select"
+        data-testid={selectTestId}
+      >
+        <option value="">未指派</option>
+        <optgroup label="智能体">
+          {visibleAgents.map((a) => {
+            const hint = readinessHint(readinessMap[a.id]);
+            // A6: Pi (executionImplemented=false) surfaces as blocked via readiness error;
+            // also label options with unassignable runtime explicitly.
+            const unassignableRuntime = a.runtime === 'pi';
+            return (
+              <option
+                key={a.id}
+                value={`agent:${a.id}`}
+                disabled={unassignableRuntime || isHardBlocked(readinessMap[a.id])}
+              >
+                {a.name} · {a.runtime}
+                {unassignableRuntime ? ' · 未实现执行' : ''}
+                {hint ? ` · ${hint}` : ''}
+              </option>
+            );
+          })}
+        </optgroup>
+        <optgroup label="小队">
+          {visibleSquads.map((s) => {
+            const detail = squadDetailById?.get(s.id);
+            const summary = squadBlockedSummary(
+              detail,
+              s.leaderId,
+              readinessMap,
+              agentNameById,
+            );
+            const leaderHint = s.leaderId
+              ? readinessHint(readinessMap[s.leaderId])
+              : '';
+            const memberHint =
+              summary.total > 0
+                ? summary.blocked > 0
+                  ? ` · 阻塞 ${summary.blocked}/${summary.total}`
+                  : ` · 成员 ok ${summary.total}`
+                : '';
+            return (
+              <option key={s.id} value={`squad:${s.id}`}>
+                {s.name}
+                {leaderHint ? ` · 队长 ${leaderHint}` : ''}
+                {memberHint}
+              </option>
+            );
+          })}
+        </optgroup>
+      </Select>
+    </div>
+  );
+}
+
 // S04 + readiness：指派前展示/确认阻塞项；小队含成员摘要（不硬拦截）
 export function AssigneeSelect({
   issueId,
@@ -140,15 +268,6 @@ export function AssigneeSelect({
       : currentAssignee?.type === 'squad'
         ? `squad:${currentAssignee.id}`
         : '';
-
-  // S1：搜索只收窄下拉里的候选，当前已选项由 filterAssigneeOptions 强制保留
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(
-    () => filterAssigneeOptions({ agents, squads, query: search, currentValue }),
-    [agents, squads, search, currentValue],
-  );
-  const visibleAgents = filtered.agents;
-  const visibleSquads = filtered.squads;
 
   const currentSquad =
     currentAssignee?.type === 'squad'
@@ -294,86 +413,19 @@ export function AssigneeSelect({
     ((currentRd && currentRd.status !== 'ready') ||
       (currentSquadSummary != null && currentSquadSummary.blocked > 0));
 
+  // G7-6：搜索 + 过滤下拉由受控 AssigneeCombobox 承担（与新建表单同源）；
+  // 本组件保留业务副作用：确认/硬闸/清除指派 + 当前指派 readiness 提示
   return (
     <div className="assignee-select-wrap" data-testid="assignee-select-wrap">
-      {/* S1：名单一长就只能滚 → 补搜索。只过滤选项，不动 readiness 判定。 */}
-      <input
-        type="search"
-        className="assignee-search"
-        data-testid="assignee-search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="搜索智能体 / 小队（名称或 ID）"
-        aria-label="搜索指派对象"
-        aria-controls="assignee-select-listbox"
-      />
-      {filtered.isEmpty && filtered.isFiltering ? (
-        <div
-          className="assignee-search-empty text-dim text-sm"
-          data-testid="assignee-search-empty"
-          role="status"
-        >
-          无匹配的智能体或小队
-        </div>
-      ) : null}
-      <Select
-        id="assignee-select-listbox"
+      <AssigneeCombobox
         value={currentValue}
-        onChange={(e) => {
-          void onChange(e.target.value);
-        }}
-        aria-label="指派 agent 或小队"
-        className="assignee-select"
-        data-testid="assignee-select"
-      >
-        <option value="">未指派</option>
-        <optgroup label="智能体">
-          {visibleAgents.map((a) => {
-            const hint = readinessHint(readinessMap[a.id]);
-            // A6: Pi (executionImplemented=false) surfaces as blocked via readiness error;
-            // also label options with unassignable runtime explicitly.
-            const unassignableRuntime = a.runtime === 'pi';
-            return (
-              <option
-                key={a.id}
-                value={`agent:${a.id}`}
-                disabled={unassignableRuntime || isHardBlocked(readinessMap[a.id])}
-              >
-                {a.name} · {a.runtime}
-                {unassignableRuntime ? ' · 未实现执行' : ''}
-                {hint ? ` · ${hint}` : ''}
-              </option>
-            );
-          })}
-        </optgroup>
-        <optgroup label="小队">
-          {visibleSquads.map((s) => {
-            const detail = squadDetailById.get(s.id);
-            const summary = squadBlockedSummary(
-              detail,
-              s.leaderId,
-              readinessMap,
-              agentNameById,
-            );
-            const leaderHint = s.leaderId
-              ? readinessHint(readinessMap[s.leaderId])
-              : '';
-            const memberHint =
-              summary.total > 0
-                ? summary.blocked > 0
-                  ? ` · 阻塞 ${summary.blocked}/${summary.total}`
-                  : ` · 成员 ok ${summary.total}`
-                : '';
-            return (
-              <option key={s.id} value={`squad:${s.id}`}>
-                {s.name}
-                {leaderHint ? ` · 队长 ${leaderHint}` : ''}
-                {memberHint}
-              </option>
-            );
-          })}
-        </optgroup>
-      </Select>
+        onChange={(v) => void onChange(v)}
+        agents={agents}
+        squads={squads}
+        readinessMap={readinessMap}
+        squadDetailById={squadDetailById}
+        agentNameById={agentNameById}
+      />
       {showAgentHint ? (
         <div className="assignee-readiness-hint" data-testid="assignee-readiness-hint">
           <span>

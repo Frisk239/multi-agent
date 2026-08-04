@@ -184,6 +184,11 @@ vi.mock('./AssigneeSelect', () => ({
   AssigneeSelect: () => <div data-testid="assignee-select">assignee</div>,
 }));
 
+// G7-5：Sheet 也渲染标签编辑器；测试 mock 掉（useLabels 等 hook 不在 api mock 内）
+vi.mock('./IssueLabelsEditor', () => ({
+  IssueLabelsEditor: () => <div data-testid="issue-labels-editor">labels</div>,
+}));
+
 vi.mock('next/link', () => ({
   default: ({
     href,

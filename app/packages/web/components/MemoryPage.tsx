@@ -20,6 +20,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
 import { PageSkeleton, TableSkeleton, Skeleton } from './Skeleton';
+import { usePageTitle } from '@/lib/use-page-title';
 
 function inferKind(text: string): 'curated' | 'ambient' | 'other' {
   const t = text.trim();
@@ -71,6 +72,9 @@ function MemoryPageInner() {
   useEffect(() => {
     setClientNow(Date.now());
   }, []);
+
+  // G7-9：标签页标题（多标签可辨）
+  usePageTitle('记忆');
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -584,7 +588,7 @@ function MemoryPageInner() {
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center' }}>
+                <td colSpan={8} style={{ textAlign: 'center' }}>
                   <ErrorState
                     title="加载记忆失败"
                     description={error instanceof Error ? error.message : '未知错误'}
@@ -716,7 +720,7 @@ function MemoryPageInner() {
               })}
             {!isError && visibleMemories.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ padding: '2rem 0' }}>
+                <td colSpan={8} style={{ padding: '2rem 0' }}>
                   {isFetching ? (
                     <TableSkeleton rows={3} />
                   ) : showUnavailable ? (
@@ -795,7 +799,7 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={7} style={{ padding: '1rem' }}>
+                <td colSpan={8} style={{ padding: '1rem' }}>
                   <TableSkeleton rows={5} />
                 </td>
               </tr>

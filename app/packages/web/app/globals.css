@@ -2473,6 +2473,14 @@ html.dark .btn-ghost:hover {
   min-width: 12rem;
 }
 
+/* G7-6：可搜指派 combobox（详情页与新表单纯净共用，无业务副作用） */
+.assignee-combobox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 12rem;
+}
+
 .assignee-select {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -4750,7 +4758,22 @@ button.memory-kind-chip.is-active {
   color: inherit;
   font: inherit;
   text-align: left;
+}
+
+/* G7-8：关闭钮与消息体/action 分离（消息体不再点击关闭） */
+.toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
   cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 0 2px 6px;
+}
+
+.toast-close:hover {
+  color: var(--text-primary);
 }
 
 .toast-action {
@@ -9246,6 +9269,21 @@ a.issue-card-run-fail--link:hover {
   background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
 }
 
+/* G7-12：导入/导出收进筛选区，分隔线区分运维向 */
+.kanban-toolbar-io {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.kanban-toolbar-io-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border-subtle);
+  margin: 0 2px;
+}
+
 .kanban-scope-tabs {
   display: inline-flex;
   align-items: center;
@@ -9867,6 +9905,12 @@ a.issue-card-run-fail--link:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* G7-4：虚拟化路径——行间距由 virtualizer `gap: 4` 计入偏移，
+   slot 用 padding-bottom 补足视觉间隙（绝对定位不参与 flex gap） */
+.run-transcript-row--virtual {
+  padding-bottom: 10px;
 }
 
 .run-transcript-row {
@@ -13411,6 +13455,13 @@ a.issue-card-run-fail--link:hover {
   flex-direction: column;
   gap: 4px;
   min-width: 140px;
+}
+
+/* G7-5：标签编辑器独占一行（flex wrap 换行） */
+.issue-sheet-meta .issue-sheet-labels {
+  flex-basis: 100%;
+  min-width: 100%;
+  margin-top: 2px;
 }
 
 .issue-sheet-more {

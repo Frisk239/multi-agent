@@ -43,6 +43,9 @@ export function useIssues(params?: IssuesQuery) {
       if (!res.ok) throw new Error('加载失败');
       return res.json();
     },
+    // G7-2：看板-详情往返不闪屏——30s 内复用缓存，返回时不再整板 refetch +
+    // skeleton 闪烁。invalidateQueries 仍强制 refetch（乐观更新/WS 回灌不受影响）。
+    staleTime: 30_000,
   });
 }
 
