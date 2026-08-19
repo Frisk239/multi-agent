@@ -22,11 +22,12 @@ vi.mock('next/navigation', () => ({
 
 const createMutate = vi.fn();
 let mockAgents: any[] = [];
+let mockAgentsLoading = false;
 let mockReadiness: Record<string, any> = {};
 
 vi.mock('@/lib/api', () => ({
   useCreateIssue: () => ({ mutate: createMutate, isPending: false }),
-  useAgents: () => ({ data: mockAgents }),
+  useAgents: () => ({ data: mockAgents, isLoading: mockAgentsLoading }),
   useSquads: () => ({ data: [] }),
   useProjects: () => ({ data: [] }),
   useLabels: () => ({ data: mockLabels }),
@@ -37,16 +38,18 @@ vi.mock('@/lib/api', () => ({
 let mockLabels: Array<{ id: string; name: string; color: string }> = [];
 
 import { NewIssueForm } from './NewIssueForm';
+import { draftKey } from '@/lib/draft-storage';
 
 function renderForm() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <NewIssueForm />
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 function openForm() {
@@ -59,6 +62,7 @@ describe('NewIssueForm', () => {
     mockSearchParams = new URLSearchParams();
     mockLabels = [];
     mockAgents = [];
+    mockAgentsLoading = false;
     mockReadiness = {};
     window.localStorage.clear();
   });
@@ -71,6 +75,112 @@ describe('NewIssueForm', () => {
     renderForm();
     openForm();
     expect(screen.getByTestId('new-issue-form')).toBeTruthy();
+  });
+
+  it('保留既有 ?new=1 打开行为，并只清理创建 intent 参数', async () => {
+    mockSearchParams = new URLSearchParams(
+      'new=1&project=project-1&assignee=agent:board-filter&keep=compact',
+    );
+
+    renderForm();
+
+    expect(await screen.findByTestId('new-issue-form')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        '/?project=project-1&assignee=agent%3Aboard-filter&keep=compact',
+        { scroll: false },
+      );
+    });
+  });
+
+  it('等待 Agent 查询结算后预选 URL Agent，且覆盖恢复草稿的旧指派', async () => {
+    mockSearchParams = new URLSearchParams(
+      'new=1&createAssignee=agent:agent-ready&project=project-1&assignee=agent:board-filter&keep=compact',
+    );
+    mockAgentsLoading = true;
+    window.localStorage.setItem(
+      draftKey.newIssue,
+      JSON.stringify({
+        title: '恢复中的草稿',
+        priority: 'none',
+        assigneeValue: 'agent:draft-agent',
+        projectId: '',
+        customFields: [],
+      }),
+    );
+
+    const { queryClient, rerender } = renderForm();
+    expect(await screen.findByTestId('new-issue-form')).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+
+    mockAgents = [
+      { id: 'agent-ready', name: '可派发 Agent', runtime: 'opencode', archivedAt: null },
+    ];
+    mockAgentsLoading = false;
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <NewIssueForm />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('new-issue-assignee')).toHaveValue('agent:agent-ready');
+      expect(replace).toHaveBeenCalledWith(
+        '/?project=project-1&assignee=agent%3Aboard-filter&keep=compact',
+        { scroll: false },
+      );
+    });
+  });
+
+  it('无效 createAssignee 仍打开表单，但不伪造选择项', async () => {
+    mockSearchParams = new URLSearchParams(
+      'new=1&createAssignee=squad:not-an-agent&project=project-1&keep=compact',
+    );
+    mockAgents = [
+      { id: 'agent-real', name: '真实 Agent', runtime: 'opencode', archivedAt: null },
+    ];
+    window.localStorage.setItem(
+      draftKey.newIssue,
+      JSON.stringify({
+        title: '',
+        priority: 'none',
+        assigneeValue: 'agent:draft-agent',
+        projectId: '',
+        customFields: [],
+      }),
+    );
+
+    renderForm();
+
+    expect(await screen.findByTestId('new-issue-form')).toBeInTheDocument();
+    const select = screen.getByTestId('new-issue-assignee') as HTMLSelectElement;
+    expect(select).toHaveValue('');
+    expect(select.querySelector('option[value="agent:not-an-agent"]')).toBeNull();
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith('/?project=project-1&keep=compact', {
+        scroll: false,
+      });
+    });
+  });
+
+  it('已归档 Agent intent 不预填，且仍消费 URL 打开表单', async () => {
+    mockSearchParams = new URLSearchParams('new=1&createAssignee=agent:agent-archived');
+    mockAgents = [
+      {
+        id: 'agent-archived',
+        name: '已归档 Agent',
+        runtime: 'opencode',
+        archivedAt: Date.now(),
+      },
+    ];
+
+    renderForm();
+
+    expect(await screen.findByTestId('new-issue-form')).toBeInTheDocument();
+    expect(screen.getByTestId('new-issue-assignee')).toHaveValue('');
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith('/', { scroll: false });
+    });
   });
 
   it('空标题提交：出现 FieldError（role=alert）+ aria-invalid + aria-describedby，不调用 mutate', () => {
@@ -236,7 +346,7 @@ describe('NewIssueForm', () => {
     );
   });
 
-  it('明确 preflight failed 维持既有 error 硬闸，不误称为尚未安全预检', () => {
+  it('URL 预填的 preflight failed Agent 维持既有 error 硬闸，不误称为尚未安全预检', async () => {
     mockAgents = [
       { id: 'agent-preflight-failed', name: '预检失败执行者', runtime: 'opencode' },
     ];
@@ -257,16 +367,18 @@ describe('NewIssueForm', () => {
         detail: '运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。',
       },
     };
+    mockSearchParams = new URLSearchParams(
+      'new=1&createAssignee=agent:agent-preflight-failed',
+    );
     renderForm();
-    openForm();
 
-    const select = screen.getByTestId('new-issue-assignee') as HTMLSelectElement;
+    const select = await screen.findByTestId('new-issue-assignee') as HTMLSelectElement;
     const failedOption = select.querySelector('option[value="agent:agent-preflight-failed"]');
     expect(failedOption).toBeDisabled();
     expect(failedOption?.textContent).not.toContain('未安全预检');
-    // Native UI prevents selecting a disabled option; force the controlled path
-    // here to verify a stale/draft selection still renders the real failure.
-    fireEvent.change(select, { target: { value: 'agent:agent-preflight-failed' } });
+    await waitFor(() => {
+      expect(select).toHaveValue('agent:agent-preflight-failed');
+    });
 
     const banner = screen.getByTestId('new-issue-assignee-banner');
     expect(banner).not.toHaveClass('is-unverified');

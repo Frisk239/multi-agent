@@ -507,12 +507,20 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               {createChat.isPending ? '创建会话…' : '私信'}
             </button>
             <Link
+              href={`/?new=1&createAssignee=agent:${encodeURIComponent(agentId)}`}
+              className="btn btn-primary btn-sm"
+              data-testid="agent-direct-issue-create"
+              title="新建 Issue 并预选本智能体"
+            >
+              分配工作
+            </Link>
+            <Link
               href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
               className="btn btn-secondary btn-sm"
               data-testid="agent-to-board-assignee"
               title="看板筛选指派给本智能体的 Issue"
             >
-              分配工作
+              查看已指派 Issue
             </Link>
             <Link
               href={`/runs?agent=${encodeURIComponent(agentId)}&status=active`}

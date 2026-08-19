@@ -62,6 +62,14 @@ function isPriority(v: string): v is Priority {
   );
 }
 
+/** `createAssignee` 仅是新建 Issue 的一次性 URL intent，不与看板 assignee 混用。 */
+function agentIdFromCreateAssigneeIntent(value: string | null): string | null {
+  if (!value?.startsWith('agent:')) return null;
+  const rawAgentId = value.slice('agent:'.length);
+  const agentId = rawAgentId.trim();
+  return agentId && agentId === rawAgentId ? agentId : null;
+}
+
 // F2：看板列头「+」→ 打开表单并预填该列状态（nonce 保证重复点击可再次触发）
 export type NewIssueQuickCreate = { status: IssueStatus; nonce: number };
 
@@ -81,8 +89,9 @@ export function NewIssueForm({
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftReadyRef = useRef(false);
   const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consumedCreateIntentRef = useRef<string | null>(null);
   const create = useCreateIssue();
-  const { data: agents = [] } = useAgents();
+  const { data: agents = [], isLoading: agentsLoading } = useAgents();
   const { data: squads = [] } = useSquads();
   const { data: projects = [] } = useProjects();
   const { data: labelCatalog = [] } = useLabels();
@@ -277,14 +286,39 @@ export function NewIssueForm({
     selectedAssignee.preflightStatus !== 'failed';
 
   useEffect(() => {
-    if (searchParams.get('new') === '1') {
-      setOpen(true);
-      const next = new URLSearchParams(searchParams.toString());
-      next.delete('new');
-      const qs = next.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    if (searchParams.get('new') !== '1') {
+      // 同一组件内再次通过 URL 打开时允许重新消费 intent。
+      consumedCreateIntentRef.current = null;
+      return;
     }
-  }, [searchParams, router, pathname]);
+
+    const intentKey = searchParams.toString();
+    if (consumedCreateIntentRef.current === intentKey) return;
+
+    setOpen(true);
+    const createAssignee = searchParams.get('createAssignee');
+
+    // `useAgents()` 默认只取活跃 agent；查询未结算时不能提前清 URL，
+    // 否则异步返回后会错过预选，并让恢复草稿的旧指派胜出。
+    if (createAssignee != null && agentsLoading) return;
+
+    if (createAssignee != null) {
+      const agentId = agentIdFromCreateAssigneeIntent(createAssignee);
+      const agent = agentId
+        ? agents.find((candidate) => candidate.id === agentId && candidate.archivedAt == null)
+        : undefined;
+      // 有 intent 时总是覆盖恢复草稿：无效/归档/不存在则明确不预填，
+      // 也不会为 URL 中的 id 虚构一个 select option。
+      setAssigneeValue(agent ? `agent:${agent.id}` : '');
+    }
+
+    const next = new URLSearchParams(intentKey);
+    next.delete('new');
+    next.delete('createAssignee');
+    const qs = next.toString();
+    consumedCreateIntentRef.current = intentKey;
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [agents, agentsLoading, pathname, router, searchParams]);
 
   // F2：看板列头「+」→ 打开表单并预填该列 status（每次 quickCreate 变化都生效）
   useEffect(() => {

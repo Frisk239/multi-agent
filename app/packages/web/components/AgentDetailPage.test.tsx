@@ -124,6 +124,18 @@ describe('AgentDetailPage · fallback agent（后备 agent）', () => {
     cleanup();
   });
 
+  it('将分配工作直达带预选 Agent 的新建表单，并保留独立的已指派筛选入口', async () => {
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    expect(await screen.findByTestId('agent-direct-issue-create')).toHaveAttribute(
+      'href',
+      '/?new=1&createAssignee=agent:agent-primary',
+    );
+    const assignedIssues = screen.getByTestId('agent-to-board-assignee');
+    expect(assignedIssues).toHaveAttribute('href', '/?assignee=agent:agent-primary');
+    expect(assignedIssues).toHaveTextContent('查看已指派 Issue');
+  });
+
   it('渲染后备 agent 下拉：默认「无」，列出其他未归档 agents，排除自己', async () => {
     render(<AgentDetailPage agentId="agent-primary" />);
 
