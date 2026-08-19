@@ -209,7 +209,9 @@ async function routeSquadAssignedLeaderWake(
   // W7：mention-only 的 leader 不参与 agent 评论的隐式唤醒（worker 得显式 @ 它）
   if (!isAutoInvokable(leaderId)) return [];
   const enq = await enqueueLeaderRun(issueId, leaderId, issue.assigneeId);
-  if (!enq.run) return []; // already_active / 熔断等：leader 已在跑或 issue 已满，无需再唤醒
+  // already_active（queued/waiting 去重）/ 熔断：不唤醒。
+  // leader 正在 running 时 enqueue 会排出 1 条 follow-up，enq.run 有值，不可在此吞掉。
+  if (!enq.run) return [];
   return [
     {
       kind: 'squad',

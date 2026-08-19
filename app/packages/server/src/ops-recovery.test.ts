@@ -29,7 +29,7 @@ describe('snapshot v1 disaster recovery', () => {
     const r = root(); const dbPath = join(r, 'live.db'); const backupDir = join(r, 'backups'); const wikiDir = join(r, 'wiki');
     mkdirSync(wikiDir); writeFileSync(join(wikiDir, 'index.md'), '# Index\n'); writeFileSync(join(wikiDir, 'page.md'), '# Page\n');
     writeFileSync(join(wikiDir, '.env'), 'secret');
-    const db = new Database(dbPath); dbs.push(db); db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO t(value) VALUES (\'ok\')');
+    const db = new Database(dbPath); dbs.push(db); db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO t(value) VALUES (\'ok\'); CREATE TABLE agent (id TEXT PRIMARY KEY, env_vars TEXT, mcp_servers TEXT);');
     const opts = { database: db, liveDbPath: dbPath, backupDir, wikiDir, now: new Date('2026-07-30T00:00:00.000Z'), workspace: { path: r, source: 'db' as const, configured: true, exists: true } };
     const a = await createSnapshot(opts); const b = await createSnapshot(opts);
     expect(a.success && b.success).toBe(true); if (!a.success || !b.success) return;
@@ -37,6 +37,7 @@ describe('snapshot v1 disaster recovery', () => {
     expect(a.manifest.archiveVersion).toBe(1); expect(a.manifest.files.map((f) => f.path)).toContain('db/backup.sqlite');
     expect(a.manifest.files.map((f) => f.path)).toContain('wiki/page.md');
     expect(a.manifest.files.map((f) => f.path)).not.toContain('wiki/.env');
+    expect(a.manifest.secretSafety?.status).toBe('no_known_legacy_literals');
     const listed = listSnapshots({ backupDir }); expect(listed.success).toBe(true); if (listed.success) expect(listed.snapshots[0]?.valid).toBe(true);
   });
 
@@ -49,6 +50,19 @@ describe('snapshot v1 disaster recovery', () => {
     expect(validateSnapshot(made.path).valid).toBe(false);
     writeFileSync(made.path, Buffer.from('not a zip')); expect(validateSnapshot(made.path).errors.join(' ')).toMatch(/ZIP|malformed/i);
     expect(validateSnapshotByName('../outside.ma-backup.zip', { backupDir }).errors.join(' ')).toMatch(/traversal/i);
+  });
+
+  it('snapshot manifest carries legacy-secret advisory without embedding the literal', async () => {
+    const r = root(); const dbPath = join(r, 'live.db'); const backupDir = join(r, 'backups'); const wikiDir = join(r, 'wiki'); mkdirSync(wikiDir); writeFileSync(join(wikiDir, 'page.md'), 'page');
+    const db = new Database(dbPath); dbs.push(db);
+    db.exec("CREATE TABLE agent (id TEXT PRIMARY KEY, env_vars TEXT, mcp_servers TEXT); INSERT INTO agent VALUES ('agent-1', '[{\"key\":\"API_TOKEN\",\"value\":\"snapshot-secret-never-return\"}]', NULL);");
+    const made = await createSnapshot({ database: db, liveDbPath: dbPath, backupDir, wikiDir, now: new Date('2026-07-30T00:00:00Z') });
+    expect(made.success).toBe(true); if (!made.success) return;
+    expect(made.manifest.secretSafety?.status).toBe('known_legacy_literals_detected');
+    expect(JSON.stringify(made.manifest.secretSafety)).not.toContain('snapshot-secret-never-return');
+    const listed = listSnapshots({ backupDir });
+    expect(listed.success).toBe(true); if (!listed.success) return;
+    expect(listed.snapshots[0]?.secretSafety.status).toBe('known_legacy_literals_detected');
   });
 
   it('dry-run returns a report and does not mutate live files', async () => {

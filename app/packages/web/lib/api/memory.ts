@@ -29,7 +29,7 @@ export type MemoryStatus = {
   provider: string | null;
   available: boolean;
   backend?: string;
-  perProject?: false;
+  perProject?: boolean;
   note?: string;
 };
 
@@ -37,6 +37,7 @@ export type MemoryItem = {
   id: string;
   text: string;
   issueId?: string | null;
+  projectId?: string | null;
   createdAt?: string;
   validAt?: string | null;
   invalidAt?: string | null;
@@ -192,6 +193,75 @@ export function useConfirmSnapshotRestore() {
       else toastError(data.error ?? '恢复未应用');
     },
     onError: (err) => toastError(errMessage(err, '确认恢复失败')),
+  });
+}
+
+/**
+ * G8-3：旧 Agent 配置中的敏感字面量扫描。
+ *
+ * 服务端的 finding 只会返回定位元数据、长度与短指纹，永不包含原始值；
+ * 前端也不尝试从该响应推断或保存密钥。
+ */
+export type SecretSafetyStatus =
+  | 'known_legacy_literals_detected'
+  | 'no_known_legacy_literals'
+  | 'scan_inconclusive';
+
+export type SecretSafetyFinding = {
+  agentId: string;
+  field: 'envVars' | 'mcpServers';
+  path: string;
+  key: string;
+  length: number;
+  fingerprint: string;
+};
+
+export type SecretSafetySummary = {
+  status: SecretSafetyStatus;
+  remediation: string;
+  findings: SecretSafetyFinding[];
+};
+
+export type SecretSafetyScanResponse = {
+  success: true;
+  summary: SecretSafetySummary;
+  applied?: boolean;
+  updatedAgents?: number;
+  after?: Omit<SecretSafetySummary, 'findings'>;
+};
+
+export function useSecretSafetyScan() {
+  return useMutation<SecretSafetyScanResponse, Error, void>({
+    mutationFn: async () => {
+      const res = await apiFetch(`${API}/ops/secret-safety/scan`, { method: 'POST' });
+      if (!res.ok) throw new Error(await apiError(res, '扫描历史密钥配置失败'));
+      return res.json();
+    },
+    onError: (err) => toastError(errMessage(err, '扫描历史密钥配置失败')),
+  });
+}
+
+export function useApplySecretSafety() {
+  const qc = useQueryClient();
+  return useMutation<
+    SecretSafetyScanResponse,
+    Error,
+    { confirmation: 'CLEAN_LEGACY_SECRET_LITERALS' }
+  >({
+    mutationFn: async (body) => {
+      const res = await apiFetch(`${API}/ops/secret-safety/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '清理历史密钥配置失败'));
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops-snapshots'] });
+      toastSuccess('历史敏感字面量已清理；请为需要的配置补填 envRef');
+    },
+    onError: (err) => toastError(errMessage(err, '清理历史密钥配置失败')),
   });
 }
 
@@ -404,13 +474,14 @@ export function useSetWorkspaceCwd() {
 }
 
 // GET /api/memory?q=&scope= — 空 q 为最近 N 条；G4-4：可选 scope 过滤
-export function useMemoryList(q: string, scope?: string) {
+export function useMemoryList(q: string, scope?: string, projectId?: string | null) {
   return useQuery({
-    queryKey: ['memory', q, scope ?? ''],
+    queryKey: ['memory', q, scope ?? '', projectId ?? ''],
     queryFn: async () => {
       const params = new URLSearchParams({ includeInvalid: '1' });
       if (q.trim()) params.set('q', q.trim());
       if (scope) params.set('scope', scope);
+      if (projectId !== undefined) params.set('projectId', projectId ?? '');
       const res = await apiFetch(`${API}/memory?${params.toString()}`);
       if (!res.ok) throw new Error('加载记忆失败');
       type MemoryItem = any; // fallback if MemoryItem is not cleanly importable, though it should be already imported if used
@@ -441,7 +512,12 @@ export function useMemoryItem(id: string | undefined) {
 export function useCreateMemory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { text: string; issueId?: string; scope?: string }) => {
+    mutationFn: async (input: {
+      text: string;
+      issueId?: string;
+      projectId?: string | null;
+      scope?: string;
+    }) => {
       const res = await apiFetch(`${API}/memory`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

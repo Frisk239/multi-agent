@@ -14,6 +14,7 @@ type ProviderWithAddRaw = MemoryProvider & {
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      projectId?: string | null;
       scope?: MemoryPrefetchScope;
     },
   ) => MemoryItemView | Promise<MemoryItemView>;
@@ -49,8 +50,8 @@ export type MemoryManagerStatus = {
   provider: string | null;
   available: boolean;
   backend: 'sqlite' | 'pgvector' | 'none';
-  /** E3：与 Wiki 一样非 per-project；sqlite 用主库，pgvector 为连接串后端 */
-  perProject: false;
+  /** project-scoped rows are isolated; null rows remain explicit global memory. */
+  perProject: true;
   note: string;
   /** Slice 24：断路器是否处于打开（冷却中） */
   breakerOpen: boolean;
@@ -172,6 +173,7 @@ export class MemoryManager {
     id: string;
     title: string;
     description: string | null;
+    projectId?: string | null;
   }): Promise<string | null> {
     try {
       if (
@@ -189,10 +191,14 @@ export class MemoryManager {
       const result = await this.external.prefetch(q, {
         sessionId: issue.id,
         limit: 5,
+        projectId: issue.projectId ?? null,
       });
       if (!result.items || result.items.length === 0) {
         // 托底：分词未直接匹配时，自动提取最近 3 条系统/运行记忆 (Hermes prefetch fallback)
-        const fallback = this.external.prefetchSync?.('', { limit: 3 });
+        const fallback = this.external.prefetchSync?.('', {
+          limit: 3,
+          projectId: issue.projectId ?? null,
+        });
         if (fallback && fallback.items.length > 0) {
           return formatMemoryContextBlock(fallback.items);
         }
@@ -213,6 +219,7 @@ export class MemoryManager {
     id: string;
     title: string;
     description: string | null;
+    projectId?: string | null;
   }): string | null {
     try {
       if (this.isBreakerOpen()) {
@@ -222,7 +229,11 @@ export class MemoryManager {
       if (!this.external?.isAvailable()) return null;
       const q = truncate(`${issue.title} ${issue.description ?? ''}`.trim(), 500);
       const result =
-        this.external.prefetchSync?.(q, { sessionId: issue.id, limit: 5 }) ?? null;
+        this.external.prefetchSync?.(q, {
+          sessionId: issue.id,
+          limit: 5,
+          projectId: issue.projectId ?? null,
+        }) ?? null;
       if (!result || result.items.length === 0) return null;
       return formatMemoryContextBlock(result.items);
     } catch (e) {
@@ -245,11 +256,11 @@ export class MemoryManager {
       provider: name,
       available,
       backend,
-      perProject: false,
+      perProject: true,
       note:
         backend === 'pgvector'
-          ? 'Memory 使用 pgvector 连接，不按 project.localPath 分库'
-          : 'Memory 落在编排主库（sqlite-text 默认），不按 project.localPath 分库',
+          ? 'Memory 按 projectId 隔离；projectId=null 的显式全局记忆可共享'
+          : 'Memory 按 projectId 隔离；旧数据与显式 workspace 记忆为全局共享',
       breakerOpen: open,
       breakerFailures: this.consecutiveFailures,
       breakerOpenUntil: until,
@@ -265,6 +276,7 @@ export class MemoryManager {
   ambientCapture(input: {
     kind: 'comment' | 'issue_done';
     issueId: string;
+    projectId?: string | null;
     text: string;
   }): void {
     try {
@@ -284,6 +296,7 @@ export class MemoryManager {
         await Promise.resolve(
           provider.addRaw(text, {
             issueId: input.issueId,
+            projectId: input.projectId ?? null,
             agentId: null,
             runId: null,
             // G4-4：comment / issue_done 都是 issue 维度记忆
@@ -303,6 +316,7 @@ export class MemoryManager {
       identifier: string;
       title: string;
       description: string | null;
+      projectId?: string | null;
     };
     run: { id: string; agentId: string; status: string };
     assistantText: string;
@@ -323,6 +337,7 @@ export class MemoryManager {
       await provider.syncTurn({
         sessionId: input.issue.id,
         issueId: input.issue.id,
+        projectId: input.issue.projectId ?? null,
         runId: input.run.id,
         agentId: input.run.agentId,
         userText,
@@ -339,9 +354,15 @@ export class MemoryManager {
     limit = 1000,
     includeInvalid = false,
     scope?: MemoryPrefetchScope,
+    projectId?: string | null,
   ): Promise<MemoryItemView[]> {
     if (!this.external?.isAvailable()) return [];
-    const r = await this.external.prefetch(query, { limit, includeInvalid, scope });
+    const r = await this.external.prefetch(query, {
+      limit,
+      includeInvalid,
+      scope,
+      ...(projectId !== undefined ? { projectId } : {}),
+    });
     return r.items;
   }
 
@@ -349,6 +370,7 @@ export class MemoryManager {
     text: string,
     issueId?: string,
     scope?: MemoryScope,
+    projectId?: string | null,
   ): Promise<MemoryItemView | void> {
     if (this.isBreakerOpen()) {
       throw new Error('memory circuit breaker open');
@@ -363,6 +385,7 @@ export class MemoryManager {
         const created = await Promise.resolve(
           provider.addRaw(text, {
             issueId: issueId ?? null,
+            projectId: projectId ?? null,
             agentId: null,
             runId: null,
             scope: effectiveScope,
@@ -375,6 +398,7 @@ export class MemoryManager {
         issueId: issueId ?? 'manual',
         runId: 'manual',
         agentId: null,
+        projectId: projectId ?? null,
         userText: 'curated',
         assistantText: text,
         scope: effectiveScope,

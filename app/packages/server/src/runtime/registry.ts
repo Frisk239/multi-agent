@@ -6,6 +6,9 @@ import { CursorBackend } from './cursor.js';
 import { GrokBackend } from './grok.js';
 import { PiBackend } from './pi.js';
 
+// G8-4a: production adapters intentionally expose no `preflight` yet. Their
+// detect()/--version paths, Grok ACP initialization/authentication, and Pi RPC
+// startup are not documented-safe readiness checks and must remain unverified.
 const list: RuntimeBackend[] = [
   new ClaudeCodeBackend(),
   new OpencodeBackend(),

@@ -27,17 +27,21 @@ export function buildSheetStorylineSummary(input: {
   return { commentCount, activityCount, runCount, label };
 }
 
+export type SheetFailAction = 'rerun' | 'open-run';
+
 export type SheetFailCta = {
   show: boolean;
-  /** Primary action label */
   label: string;
-  /** Deep link within the product (relative). */
+  action: SheetFailAction | null;
+  issueId: string;
+  runId: string | null;
+  /** Deep link only for cancelled / open-run. Fail path stays on the board. */
   href: string;
   reason: string | null;
 };
 
 /**
- * Primary fail CTA for sheet: retry issue run or open runs failed filter.
+ * Primary fail CTA for sheet: in-place rerun, or deep-link cancelled runs.
  */
 export function buildSheetFailCta(input: {
   issueId: string;
@@ -45,20 +49,41 @@ export function buildSheetFailCta(input: {
   failureReason?: string | null;
   latestRunId?: string | null;
 }): SheetFailCta {
-  const failed =
-    input.latestRunStatus === 'failed' ||
-    input.latestRunStatus === 'timed_out' ||
-    input.latestRunStatus === 'cancelled';
-  if (!failed) {
-    return { show: false, label: '', href: '', reason: null };
+  const hidden: SheetFailCta = {
+    show: false,
+    label: '',
+    action: null,
+    issueId: input.issueId,
+    runId: input.latestRunId ?? null,
+    href: '',
+    reason: null,
+  };
+  if (input.latestRunStatus === 'cancelled') {
+    return {
+      show: true,
+      label: '查看已取消运行',
+      action: 'open-run',
+      issueId: input.issueId,
+      runId: input.latestRunId ?? null,
+      href: input.latestRunId
+        ? `/runs/${input.latestRunId}`
+        : `/issues/${input.issueId}`,
+      reason: input.failureReason ?? input.latestRunStatus,
+    };
   }
-  const runHref = input.latestRunId
-    ? `/runs/${input.latestRunId}`
-    : `/issues/${input.issueId}`;
+  if (
+    input.latestRunStatus !== 'failed' &&
+    input.latestRunStatus !== 'timed_out'
+  ) {
+    return hidden;
+  }
   return {
     show: true,
-    label: input.latestRunStatus === 'cancelled' ? '查看已取消运行' : '查看失败并重试',
-    href: runHref,
+    label: '再执行',
+    action: 'rerun',
+    issueId: input.issueId,
+    runId: input.latestRunId ?? null,
+    href: '',
     reason: input.failureReason ?? input.latestRunStatus ?? null,
   };
 }

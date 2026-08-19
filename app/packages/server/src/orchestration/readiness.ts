@@ -7,8 +7,12 @@ import {
 import { db } from '../db/client.js';
 import { agents, agentRuns } from '../db/schema.js';
 import { getBackend } from '../runtime/registry.js';
+import {
+  evaluateRuntimePreflight,
+  getCachedRuntimePreflightOutcome,
+} from '../runtime/preflight.js';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
-import type { DetectResult } from '../runtime/types.js';
+import type { DetectResult, RuntimeBackend } from '../runtime/types.js';
 
 const probeSuccessTTL = new Map<string, { det: DetectResult; ts: number }>();
 const GRACE_PERIOD_MS = 60_000;
@@ -28,12 +32,15 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
 
   let det = { installed: false, path: null as string | null, version: null as string | null };
   let detectError: Error | null = null;
+  let backend: RuntimeBackend | null = null;
+  let detectedInstalledThisCycle = false;
   /** undefined until backend resolved; missing flag means implemented */
   let backendExecImplemented = true;
   try {
-    const backend = getBackend(row.runtime as RuntimeId);
+    backend = getBackend(row.runtime as RuntimeId);
     backendExecImplemented = backend.executionImplemented !== false;
     det = await backend.detect();
+    detectedInstalledThisCycle = det.installed;
     if (det.installed) {
       probeSuccessTTL.set(agentId, { det, ts: Date.now() });
     } else {
@@ -63,6 +70,8 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
       slotsAvailable: row.concurrency,
       // 与下方语义一致：未强制 workspace 时不算「缺 cwd」
       cwdConfigured: forceWorkspace ? workspaceOk : true,
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
       status: 'error',
       detail: detectError.message,
     };
@@ -77,6 +86,14 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
 
   const cwdConfigured = forceWorkspace ? workspaceOk : true;
   const slotsAvailable = Math.max(0, row.concurrency - runningCount);
+  // Only a fresh successful discovery may invoke a future adapter's safe probe.
+  // When detect is served from its grace cache, live state remains cached/read-only.
+  const preflight =
+    det.installed && backendExecImplemented && backend
+      ? detectedInstalledThisCycle
+        ? await evaluateRuntimePreflight(backend)
+        : getCachedRuntimePreflightOutcome(backend)
+      : { preflightStatus: 'not_available' as const, runtimeVerification: 'unverified' as const, detail: null };
 
   let status: AgentReadiness['status'] = 'ready';
   let detail: string | null = null;
@@ -101,6 +118,11 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
       runtime: row.runtime,
       executionImplemented: backendExecImplemented,
     });
+  } else if (preflight.preflightStatus === 'failed') {
+    // An explicit safe preflight failure is a hard dispatch gate; it is never
+    // downgraded to "busy" or silently treated as an installed runtime.
+    status = 'error';
+    detail = preflight.detail;
   } else if (runningCount >= row.concurrency) {
     status = 'busy';
     detail = `运行中 ${runningCount}/${row.concurrency}`;
@@ -120,6 +142,9 @@ export async function computeAgentReadiness(agentId: string): Promise<AgentReadi
     runningCount,
     slotsAvailable,
     cwdConfigured,
+    preflightStatus: preflight.preflightStatus,
+    // detect() 只证明 CLI 存在；只有显式安全预检通过才可标为 verified。
+    runtimeVerification: preflight.runtimeVerification,
     status,
     detail,
   };

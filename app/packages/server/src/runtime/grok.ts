@@ -126,6 +126,8 @@ export class GrokBackend implements RuntimeBackend {
    * （此前 fail-closed 的 false 声明基于 print 降级形态，见 research.md §4）。
    */
   readonly supportsSessionResume = true;
+  readonly supportsMcpConfig = true;
+  readonly supportsCustomArgs = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('GROK_PATH', ['grok']);
@@ -170,6 +172,7 @@ export class GrokBackend implements RuntimeBackend {
       // G3-4b：agent.env_vars 显式覆盖子进程 env
       env: input.envVars ?? undefined,
       signal,
+      onProcessStarted: input.onProcessStarted,
       callbacks: {
         onUpdate: (u: AcpSessionUpdate) => {
           if (!streaming) return;
@@ -314,7 +317,7 @@ export class GrokBackend implements RuntimeBackend {
             });
           }
         } catch (err) {
-          fail(`grok MCP 配置解析失败：${errText(err)}（agent.mcpServers 需为 {"mcpServers": {...}} JSON）`);
+          fail(`grok MCP 配置解析失败：${errText(err)}（agent.mcpServers 需为 {"<name>": {...}} JSON）`);
           return this.finish(onEvent, transport, { streaming, timedOut, timeoutTimer, finalStatus, finalError, deliverable, usage, sessionId, resumeRejected, sniffer, signal });
         }
       }

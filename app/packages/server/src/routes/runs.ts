@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { eq, desc, asc, and, inArray, type SQL, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, gt, lt, inArray, type SQL, sql } from 'drizzle-orm';
 import {
   CancelRunsManyInput,
+  ListRunMessagesQuery,
   ListRunsQuery,
   RetryRunInput,
   RunCommandInput,
@@ -15,6 +16,11 @@ import { recoverStuckRuns } from '../orchestration/stale-runs.js';
 import { enrichRunRowWithPathLock } from '../orchestration/path-lock.js';
 import { getRunTree, getDirectChildren } from '../orchestration/subagent-tree.js';
 import { getBackend } from '../runtime/registry.js';
+import {
+  messageWindowLimit,
+  messageWindowNewestFirst,
+  resolveRunMessagesWindow,
+} from './run-messages-window.js';
 
 const ACTIVE_STATUSES = [
   'queued',
@@ -146,14 +152,35 @@ export async function runRoutes(app: FastifyInstance) {
   // GET /api/runs/:runId/messages —— seq ASC 轨迹回放
   app.get('/api/runs/:runId/messages', async (req, reply) => {
     const { runId } = req.params as { runId: string };
+    const parsed = ListRunMessagesQuery.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      });
+    }
     const run = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
     if (!run) return reply.status(404).send({ success: false, error: 'run 不存在'  });
-    const rows = db
+    const win = resolveRunMessagesWindow(parsed.data);
+    const cond =
+      win.mode === 'after'
+        ? and(eq(runMessages.runId, runId), gt(runMessages.seq, win.afterSeq))
+        : win.mode === 'before'
+          ? and(eq(runMessages.runId, runId), lt(runMessages.seq, win.beforeSeq))
+          : eq(runMessages.runId, runId);
+    const newestFirst = messageWindowNewestFirst(win);
+    let query = db
       .select()
       .from(runMessages)
-      .where(eq(runMessages.runId, runId))
-      .orderBy(asc(runMessages.seq))
-      .all();
+      .where(cond)
+      .orderBy(newestFirst ? desc(runMessages.seq) : asc(runMessages.seq))
+      .$dynamic();
+    const limit = messageWindowLimit(win);
+    if (limit !== undefined) query = query.limit(limit);
+    const rows = query.all();
+    if (newestFirst) rows.reverse();
     return rows.map(toRunMessage);
   });
 

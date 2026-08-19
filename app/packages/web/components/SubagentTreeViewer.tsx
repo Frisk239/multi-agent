@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { RunTreeNode } from '@ma/shared';
 import { useRunTree } from '@/lib/api';
+import { ErrorState } from './ErrorState';
 
 function shortId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -121,7 +122,7 @@ export function SubagentTreeViewer({
   runId: string;
   onSelectRun?: (selectedRunId: string) => void;
 }) {
-  const { data: tree, isLoading, isError } = useRunTree(runId, {
+  const { data: tree, isLoading, isError, refetch } = useRunTree(runId, {
     refetchIntervalMs: 3000,
   });
 
@@ -147,8 +148,22 @@ export function SubagentTreeViewer({
     );
   }
 
-  if (isError || !tree) {
-    return null; // Return null if no tree or error
+  if (isError) {
+    return (
+      <ErrorState
+        title="子代理树加载失败"
+        description="请求失败，请重试。"
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
+  if (!tree) {
+    return (
+      <div className="subagent-tree-empty text-dim text-sm" data-testid="subagent-tree-empty">
+        暂无子代理
+      </div>
+    );
   }
 
   const subagents = tree.children;

@@ -21,15 +21,17 @@ vi.mock('next/navigation', () => ({
 }));
 
 const createMutate = vi.fn();
+let mockAgents: any[] = [];
+let mockReadiness: Record<string, any> = {};
 
 vi.mock('@/lib/api', () => ({
   useCreateIssue: () => ({ mutate: createMutate, isPending: false }),
-  useAgents: () => ({ data: [] }),
+  useAgents: () => ({ data: mockAgents }),
   useSquads: () => ({ data: [] }),
   useProjects: () => ({ data: [] }),
   useLabels: () => ({ data: mockLabels }),
   useSettingsStatus: () => ({ data: undefined }),
-  useAgentsReadinessMap: () => ({ data: {} }),
+  useAgentsReadinessMap: () => ({ data: mockReadiness }),
 }));
 
 let mockLabels: Array<{ id: string; name: string; color: string }> = [];
@@ -56,6 +58,8 @@ describe('NewIssueForm', () => {
     vi.clearAllMocks();
     mockSearchParams = new URLSearchParams();
     mockLabels = [];
+    mockAgents = [];
+    mockReadiness = {};
     window.localStorage.clear();
   });
 
@@ -179,6 +183,103 @@ describe('NewIssueForm', () => {
     expect(form).toBeTruthy();
     expect((screen.getByTestId('new-issue-status') as HTMLSelectElement).value).toBe(
       'done',
+    );
+  });
+
+  it('已安装但尚未安全预检的 agent 显示黄色警示，仍可提交派活', () => {
+    mockAgents = [
+      { id: 'agent-unverified', name: '待预检执行者', runtime: 'opencode' },
+    ];
+    mockReadiness = {
+      'agent-unverified': {
+        agentId: 'agent-unverified',
+        runtime: 'opencode',
+        runtimeInstalled: true,
+        runtimePath: '/usr/local/bin/opencode',
+        runtimeVersion: '1.2.3',
+        concurrency: 1,
+        runningCount: 0,
+        slotsAvailable: 1,
+        cwdConfigured: true,
+        runtimeVerification: 'unverified',
+        status: 'ready',
+        detail: null,
+      },
+    };
+    renderForm();
+    openForm();
+
+    const select = screen.getByTestId('new-issue-assignee') as HTMLSelectElement;
+    expect(select.querySelector('option[value="agent:agent-unverified"]')?.textContent).toContain(
+      '未安全预检',
+    );
+    fireEvent.change(select, { target: { value: 'agent:agent-unverified' } });
+
+    const banner = screen.getByTestId('new-issue-assignee-banner');
+    expect(banner).toHaveClass('is-unverified');
+    expect(banner).toHaveTextContent('CLI 已安装，尚无安全预检');
+    expect(banner).toHaveTextContent('首次运行仍可能失败');
+    const submit = screen.getByTestId('new-issue-submit');
+    expect(submit).toHaveAttribute('data-assignee-unverified', '1');
+    expect(submit).not.toBeDisabled();
+
+    fireEvent.change(screen.getByTestId('new-issue-title'), {
+      target: { value: '允许未预检 agent 首次运行' },
+    });
+    fireEvent.submit(screen.getByTestId('new-issue-title').closest('form')!);
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '允许未预检 agent 首次运行',
+        assignee: { type: 'agent', id: 'agent-unverified' },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('明确 preflight failed 维持既有 error 硬闸，不误称为尚未安全预检', () => {
+    mockAgents = [
+      { id: 'agent-preflight-failed', name: '预检失败执行者', runtime: 'opencode' },
+    ];
+    mockReadiness = {
+      'agent-preflight-failed': {
+        agentId: 'agent-preflight-failed',
+        runtime: 'opencode',
+        runtimeInstalled: true,
+        runtimePath: '/usr/local/bin/opencode',
+        runtimeVersion: '1.2.3',
+        concurrency: 1,
+        runningCount: 0,
+        slotsAvailable: 1,
+        cwdConfigured: true,
+        preflightStatus: 'failed',
+        runtimeVerification: 'unverified',
+        status: 'error',
+        detail: '运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。',
+      },
+    };
+    renderForm();
+    openForm();
+
+    const select = screen.getByTestId('new-issue-assignee') as HTMLSelectElement;
+    const failedOption = select.querySelector('option[value="agent:agent-preflight-failed"]');
+    expect(failedOption).toBeDisabled();
+    expect(failedOption?.textContent).not.toContain('未安全预检');
+    // Native UI prevents selecting a disabled option; force the controlled path
+    // here to verify a stale/draft selection still renders the real failure.
+    fireEvent.change(select, { target: { value: 'agent:agent-preflight-failed' } });
+
+    const banner = screen.getByTestId('new-issue-assignee-banner');
+    expect(banner).not.toHaveClass('is-unverified');
+    expect(banner).toHaveTextContent('指派方可能无法执行');
+    expect(banner).toHaveTextContent('运行时安全预检未通过');
+    expect(banner).not.toHaveTextContent('尚无安全预检');
+    expect(screen.getByTestId('new-issue-submit')).toHaveAttribute(
+      'data-assignee-blocked',
+      '1',
+    );
+    expect(screen.getByTestId('new-issue-submit')).toHaveAttribute(
+      'data-assignee-unverified',
+      '0',
     );
   });
 });

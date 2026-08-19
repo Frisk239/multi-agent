@@ -10,7 +10,7 @@ import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
 import { agentRuns, issues, comments } from '../db/schema.js';
 import { enqueueAgentRun } from './run-service.js';
 
-/** 与 run-service.ts:19 保持一致（非 export const，测试用字面量钉边界） */
+/** 与 run-service.ts MAX_RUNS_PER_ISSUE 保持一致（非 export const，测试用字面量钉边界） */
 const MAX_RUNS_PER_ISSUE = 15;
 
 const mocks = vi.hoisted(() => ({
@@ -69,18 +69,30 @@ function readyMock(): void {
   });
 }
 
-function insertIssueRun(id: string, status: 'completed' | 'running' = 'completed'): void {
+function insertIssueRun(
+  id: string,
+  status: 'completed' | 'running' | 'queued' | 'waiting_local_directory' = 'completed',
+  agentId = 'agt-test-1',
+): void {
   testState.db!.insert(agentRuns)
     .values({
       id,
       issueId: 'iss-test-1',
-      agentId: 'agt-test-1',
+      agentId,
       runtime: 'opencode',
       status,
       kind: 'issue',
       createdAt: Date.now(),
     })
     .run();
+}
+
+function issueRunsOf(status: string, agentId = 'agt-test-1') {
+  return testState
+    .db!.select()
+    .from(agentRuns)
+    .all()
+    .filter((r) => r.issueId === 'iss-test-1' && r.agentId === agentId && r.kind === 'issue' && r.status === status);
 }
 
 describe('G6-3 run-service enqueue 熔断边界', () => {
@@ -161,14 +173,95 @@ describe('G6-3 run-service enqueue 熔断边界', () => {
     expect(res.skipped).toBe(false);
   });
 
-  it('per-(issue,agent) 去重：已有 active issue run → skipped(already_active)', async () => {
-    insertIssueRun('run-active-1', 'running');
+  it('per-(issue,agent) 去重：已有 queued issue run → skipped(already_active)，不插第二条', async () => {
+    insertIssueRun('run-queued-1', 'queued');
     const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
     expect(res.skipped).toBe(true);
     expect(res.reason).toBe('already_active');
     expect(res.detail).toContain('已有进行中的 run');
+    expect(issueRunsOf('queued')).toHaveLength(1);
     // 不同 agent 不受影响（multica 不误杀其他 agent）
     const res2 = await enqueueAgentRun('iss-test-1', 'agt-test-2');
     expect(res2.skipped).toBe(false);
+  });
+
+  it('waiting_local_directory 仍 already_active（不插 follow-up）', async () => {
+    insertIssueRun('run-wait-1', 'waiting_local_directory');
+    const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(res.skipped).toBe(true);
+    expect(res.reason).toBe('already_active');
+    expect(issueRunsOf('queued')).toHaveLength(0);
+  });
+
+  it('running + enqueue → 1 queued follow-up', async () => {
+    insertIssueRun('run-running-1', 'running');
+    const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(res.skipped).toBe(false);
+    expect(res.run?.status).toBe('queued');
+    expect(res.run?.kind).toBe('issue');
+    expect(issueRunsOf('queued')).toHaveLength(1);
+    expect(issueRunsOf('running')).toHaveLength(1);
+    expect(mocks.wakeRunWorker).toHaveBeenCalled();
+  });
+
+  it('running 后再 enqueue → 仍 1 queued + 时间线 merge note', async () => {
+    insertIssueRun('run-running-1', 'running');
+    const first = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(first.skipped).toBe(false);
+    mocks.wakeRunWorker.mockClear();
+    const second = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(second.skipped).toBe(true);
+    expect(second.reason).toBe('already_active');
+    expect(second.detail).toContain('已并入排队中的跟进');
+    expect(issueRunsOf('queued')).toHaveLength(1);
+    expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
+    const notes = testState
+      .db!.select()
+      .from(comments)
+      .where(eq(comments.issueId, 'iss-test-1'))
+      .all()
+      .filter((c) => c.body.includes('已并入排队中的跟进'));
+    expect(notes).toHaveLength(1);
+  });
+
+  it('当前 running 结束后 follow-up 仍保持 queued（可被 claim）', async () => {
+    insertIssueRun('run-running-1', 'running');
+    const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(res.run?.status).toBe('queued');
+    testState
+      .db!.update(agentRuns)
+      .set({ status: 'completed', finishedAt: Date.now() })
+      .where(eq(agentRuns.id, 'run-running-1'))
+      .run();
+    expect(issueRunsOf('queued')).toHaveLength(1);
+    expect(issueRunsOf('queued')[0]!.id).toBe(res.run!.id);
+    expect(issueRunsOf('running')).toHaveLength(0);
+  });
+
+  it('明确安全预检失败的 readiness=status:error 会拒绝 issue 入队', async () => {
+    mocks.computeAgentReadiness.mockResolvedValue({
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/bin/opencode',
+      runtimeVersion: '1.0',
+      concurrency: 2,
+      runningCount: 0,
+      slotsAvailable: 2,
+      cwdConfigured: true,
+      preflightStatus: 'failed',
+      runtimeVerification: 'unverified',
+      status: 'error',
+      detail: '运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。',
+    });
+
+    const res = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+    expect(res).toMatchObject({
+      run: null,
+      skipped: true,
+      reason: 'readiness_error',
+    });
+    expect(res.detail).toContain('安全预检未通过');
+    expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
   });
 });

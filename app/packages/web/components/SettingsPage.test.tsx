@@ -15,6 +15,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const openHelp = vi.fn();
+let liveProbesData: any = undefined;
 
 vi.mock('@/lib/use-shortcuts', () => ({
   useShortcuts: () => ({ isHelpOpen: false, openHelp, closeHelp: vi.fn() }),
@@ -75,8 +76,10 @@ vi.mock('@/lib/api', () => ({
   useDeleteSnapshotStage: () => ({ mutate: vi.fn(), isPending: false }),
   usePreviewSnapshotRestore: () => ({ mutate: vi.fn(), isPending: false, data: undefined }),
   useConfirmSnapshotRestore: () => ({ mutate: vi.fn(), isPending: false, data: undefined }),
+  useSecretSafetyScan: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, data: undefined }),
+  useApplySecretSafety: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, data: undefined }),
   useSettingsLiveProbes: () => ({
-    data: undefined,
+    data: liveProbesData,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -107,6 +110,7 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams = new URLSearchParams();
+    liveProbesData = undefined;
   });
 
   afterEach(() => {
@@ -198,5 +202,97 @@ describe('SettingsPage', () => {
     const inflight = screen.getByTestId('settings-run-health-inflight');
     expect(inflight.textContent).toContain('在途 2');
     expect(inflight.textContent).not.toContain(' / ');
+  });
+
+  it('密钥安全检查默认不扫描、不回显密钥，并提供显式扫描入口', () => {
+    renderPage();
+    fireEvent.click(screen.getByTestId('settings-nav-health'));
+
+    expect(screen.getByTestId('settings-secret-safety')).toHaveTextContent('密钥安全检查');
+    expect(screen.getByTestId('settings-secret-safety-status')).toHaveTextContent('尚未扫描');
+    expect(screen.getByTestId('settings-secret-safety-remediation')).toHaveTextContent('扫描不会修改数据库');
+    expect(screen.getByTestId('settings-secret-safety-scan')).toHaveTextContent('扫描历史配置');
+    expect(screen.queryByTestId('settings-secret-safety-apply')).toBeNull();
+  });
+
+  it('Live Probes 将 CLI 发现与安全预检分开呈现，并兼容 future passed/failed 状态', () => {
+    liveProbesData = {
+      ts: Date.now(),
+      pid: 42,
+      activeCount: 0,
+      activeRuns: 0,
+      inProcessCount: 0,
+      probes: [],
+      runtimes: [
+        {
+          id: 'opencode',
+          label: 'OpenCode',
+          installed: true,
+          version: '1.2.3',
+          path: '/usr/local/bin/opencode',
+          ready: true,
+          runtimeVerification: 'unverified',
+          executionImplemented: true,
+          supportsSessionResume: false,
+        },
+        {
+          id: 'claude-code',
+          label: 'Claude Code',
+          installed: true,
+          version: '2.0.0',
+          path: '/usr/local/bin/claude',
+          ready: true,
+          runtimeVerification: 'verified',
+          preflightStatus: 'passed',
+          executionImplemented: true,
+          supportsSessionResume: false,
+        },
+        {
+          id: 'grok',
+          label: 'Grok',
+          installed: true,
+          version: '0.1.0',
+          path: '/usr/local/bin/grok',
+          ready: false,
+          runtimeVerification: 'unverified',
+          preflightStatus: 'failed',
+          executionImplemented: true,
+          supportsSessionResume: false,
+        },
+        {
+          id: 'pi',
+          label: 'Pi',
+          installed: true,
+          version: '0.43.0',
+          path: '/usr/local/bin/pi',
+          ready: true,
+          runtimeVerification: 'unverified',
+          preflightStatus: 'not_available',
+          executionImplemented: true,
+          supportsSessionResume: false,
+        },
+      ],
+    };
+    renderPage();
+    fireEvent.click(screen.getByTestId('settings-nav-health'));
+
+    expect(screen.getByTestId('settings-live-probes-summary')).toHaveTextContent(
+      'runtime 已安装 4/4',
+    );
+    expect(screen.getByTestId('settings-live-runtime-opencode')).toHaveTextContent(
+      '已安装 · 尚未安全预检',
+    );
+    expect(screen.getByTestId('settings-live-runtime-claude-code')).toHaveTextContent(
+      '已安装 · 安全预检通过',
+    );
+    expect(screen.getByTestId('settings-live-runtime-grok')).toHaveTextContent(
+      '已安装 · 安全预检失败',
+    );
+    expect(screen.getByTestId('settings-live-runtime-pi')).toHaveTextContent(
+      '已安装 · 未提供安全预检',
+    );
+    expect(screen.getByTestId('settings-live-probes')).toHaveTextContent(
+      'detect 只确认命令可发现，不验证认证、模型或 MCP',
+    );
   });
 });

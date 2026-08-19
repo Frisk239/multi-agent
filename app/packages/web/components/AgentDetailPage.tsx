@@ -20,6 +20,7 @@ import {
   useUpdateAgentMcp,
   useRetryRun,
   useRuntimeModels,
+  useRuntimes,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 import { Icon } from './Icon';
@@ -33,6 +34,7 @@ import { Select } from './Select';
 
 // bu02 + G12 + G13：对齐 Multica 概览/工作/能力/设置
 type TabId = 'overview' | 'work' | 'capabilities' | 'settings';
+type RuntimeCapabilityState = 'supported' | 'unsupported' | 'unknown';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: '概览' },
@@ -43,10 +45,45 @@ const TABS: { id: TabId; label: string }[] = [
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
+/**
+ * Runtime catalog is discovery data, not a promise that an adapter consumes a
+ * particular configuration. Missing rows and optional capability fields must
+ * therefore fail closed instead of briefly exposing a no-op editor.
+ */
+function runtimeCapabilityState(
+  catalog:
+    | {
+        runtimes: Array<{
+          id: string;
+          supportsMcpConfig?: boolean;
+          supportsCustomArgs?: boolean;
+        }>;
+      }
+    | undefined,
+  runtimeId: RuntimeId,
+  capability: 'supportsMcpConfig' | 'supportsCustomArgs',
+): RuntimeCapabilityState {
+  const runtime = catalog?.runtimes.find((item) => item.id === runtimeId);
+  if (!runtime) return 'unknown';
+  if (runtime[capability] === true) return 'supported';
+  if (runtime[capability] === false) return 'unsupported';
+  return 'unknown';
+}
+
 function readinessClass(status: AgentReadiness['status']): string {
   if (status === 'ready') return 'readiness-chip readiness-ready';
   if (status === 'busy') return 'readiness-chip readiness-busy';
   return 'readiness-chip readiness-missing';
+}
+
+function isRuntimeUnverifiedWithoutFailure(
+  readiness: AgentReadiness | null | undefined,
+): boolean {
+  return (
+    readiness?.runtimeInstalled === true &&
+    readiness.runtimeVerification === 'unverified' &&
+    readiness.preflightStatus !== 'failed'
+  );
 }
 
 export function AgentDetailPage({ agentId }: { agentId: string }) {
@@ -70,7 +107,14 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const [invocationPermission, setInvocationPermission] = useState<'auto' | 'mention-only'>('auto');
   const [profileReady, setProfileReady] = useState(false);
   const { data: modelCatalog, isFetching: modelsLoading } = useRuntimeModels(runtime);
+  const { data: runtimeCatalog } = useRuntimes();
   const { data: agentsList } = useAgents();
+  const mcpCapability = agent
+    ? runtimeCapabilityState(runtimeCatalog, agent.runtime, 'supportsMcpConfig')
+    : 'unknown';
+  const customArgsCapability = agent
+    ? runtimeCapabilityState(runtimeCatalog, agent.runtime, 'supportsCustomArgs')
+    : 'unknown';
 
   useEffect(() => {
     if (!agent) return;
@@ -164,6 +208,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               {readiness.detail ? ` · ${readiness.detail}` : ''}
             </div>
           )}
+          {isRuntimeUnverifiedWithoutFailure(readiness) ? (
+            <div className="text-dim text-sm" data-testid="agent-readiness-unverified">
+              CLI 已安装；认证、模型和扩展配置尚未做无副作用预检，首次运行仍可能失败。
+            </div>
+          ) : null}
 
           {readiness && readiness.status !== 'ready' && readiness.status !== 'busy' ? (
             <div
@@ -459,7 +508,12 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               <OverviewTab agentId={agentId} onOpenRuns={() => setTab('work')} />
             )}
             {tab === 'work' && <RunsTab agentId={agentId} />}
-            {tab === 'capabilities' && <CapabilitiesTab agentId={agentId} />}
+            {tab === 'capabilities' && (
+              <CapabilitiesTab
+                agentId={agentId}
+                mcpCapability={mcpCapability}
+              />
+            )}
             {tab === 'settings' && (
               <InstructionsTab
                 agentId={agentId}
@@ -467,6 +521,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 allowedPathsInitial={agent.allowedPaths ?? ''}
                 envVarsInitial={agent.envVars ?? []}
                 customArgsInitial={agent.customArgs ?? []}
+                customArgsCapability={customArgsCapability}
               />
             )}
           </div>
@@ -903,13 +958,19 @@ function RunsTab({ agentId }: { agentId: string }) {
 function EnvVarsEditor({
   envVars,
   customArgs,
+  customArgsCapability,
   onChangeEnvVars,
   onChangeCustomArgs,
+  onClearUnsupportedCustomArgs,
+  isClearingCustomArgs,
 }: {
   envVars: AgentEnvVar[];
   customArgs: string[];
+  customArgsCapability: RuntimeCapabilityState;
   onChangeEnvVars: (v: AgentEnvVar[]) => void;
   onChangeCustomArgs: (v: string[]) => void;
+  onClearUnsupportedCustomArgs: () => void;
+  isClearingCustomArgs: boolean;
 }) {
   function setRow(index: number, patch: Partial<AgentEnvVar>) {
     onChangeEnvVars(envVars.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -920,8 +981,8 @@ function EnvVarsEditor({
   return (
     <div className="mcp-editor" data-testid="agent-envvars-editor">
       <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
-        环境变量：随该 Agent 的 CLI 执行注入（<code>KEY=VALUE</code>；executor 注入点见运行文档）。
-        仅填 key 的行会被忽略。
+        环境变量：随该 Agent 的 CLI 执行注入。普通配置可填 value；密钥请填 envRef（例如{' '}
+        <code>ANTHROPIC_API_KEY</code>），真实值只从服务端进程环境读取，不会写入数据库。
       </div>
       {envVars.length === 0 ? (
         <p className="text-dim text-sm" data-testid="agent-envvars-empty">
@@ -943,9 +1004,20 @@ function EnvVarsEditor({
             className="envvar-value"
             value={row.value}
             onChange={(e) => setRow(i, { value: e.target.value })}
-            placeholder="value"
+            disabled={Boolean(row.envRef)}
+            placeholder={row.envRef ? '由进程环境注入' : 'value'}
             spellCheck={false}
             data-testid="agent-envvar-value"
+          />
+          <input
+            className="envvar-ref"
+            value={row.envRef ?? ''}
+            onChange={(e) =>
+              setRow(i, { envRef: e.target.value.trim() || undefined, value: '' })
+            }
+            placeholder="envRef（密钥）"
+            spellCheck={false}
+            data-testid="agent-envvar-ref"
           />
           <button
             type="button"
@@ -967,24 +1039,66 @@ function EnvVarsEditor({
         + 添加环境变量
       </button>
 
-      <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
-        自定义参数：追加到 CLI 启动参数（每行一个；executor 注入点见运行文档）。
-      </div>
-      <textarea
-        value={customArgs.join('\n')}
-        onChange={(e) =>
-          onChangeCustomArgs(
-            e.target.value
-              .split('\n')
-              .map((s) => s.trim())
-              .filter(Boolean),
-          )
-        }
-        placeholder={"例如：--permission-mode acceptEdits\n--max-turns 40"}
-        spellCheck={false}
-        rows={3}
-        data-testid="agent-customargs-input"
-      />
+      {customArgsCapability === 'supported' ? (
+        <>
+          <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
+            自定义参数：追加到 CLI 启动参数（每行一个；executor 注入点见运行文档）。
+          </div>
+          <textarea
+            value={customArgs.join('\n')}
+            onChange={(e) =>
+              onChangeCustomArgs(
+                e.target.value
+                  .split('\n')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              )
+            }
+            placeholder={"例如：--permission-mode acceptEdits\n--max-turns 40"}
+            spellCheck={false}
+            rows={3}
+            data-testid="agent-customargs-input"
+          />
+        </>
+      ) : (
+        <section
+          className="mcp-editor-warning"
+          style={{ marginTop: '24px' }}
+          data-testid="agent-customargs-unavailable"
+          role="status"
+        >
+          <strong>
+            {customArgsCapability === 'unknown'
+              ? '自定义参数能力尚未确认'
+              : '当前 adapter 不消费自定义参数'}
+          </strong>
+          <p>
+            {customArgsCapability === 'unknown'
+              ? '运行时能力目录尚未加载、未收录该 runtime，或未声明此能力。为避免保存后静默无效，暂不提供可编辑入口。'
+              : '该 runtime adapter 不会把 Agent 级自定义参数传给 CLI。为避免保存后静默无效，已禁用编辑入口。'}
+          </p>
+          {customArgs.length > 0 ? (
+            <>
+              <textarea
+                value={customArgs.join('\n')}
+                readOnly
+                aria-label="未消费的历史自定义参数"
+                rows={Math.min(Math.max(customArgs.length, 2), 6)}
+                data-testid="agent-customargs-readonly"
+              />
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={isClearingCustomArgs}
+                onClick={onClearUnsupportedCustomArgs}
+                data-testid="agent-customargs-clear"
+              >
+                {isClearingCustomArgs ? '清除中…' : '清除未消费的自定义参数'}
+              </button>
+            </>
+          ) : null}
+        </section>
+      )}
     </div>
   );
 }
@@ -995,12 +1109,14 @@ function InstructionsTab({
   allowedPathsInitial,
   envVarsInitial,
   customArgsInitial,
+  customArgsCapability,
 }: {
   agentId: string;
   initial: string;
   allowedPathsInitial: string;
   envVarsInitial: AgentEnvVar[];
   customArgsInitial: string[];
+  customArgsCapability: RuntimeCapabilityState;
 }) {
   const update = useUpdateAgent(agentId);
   const [draft, setDraft] = useState(initial);
@@ -1031,7 +1147,11 @@ function InstructionsTab({
       .filter(Boolean)
       .join('\n');
     const cleanedEnvVars = envVars
-      .map((row) => ({ key: row.key.trim(), value: row.value }))
+      .map((row) => ({
+        key: row.key.trim(),
+        value: row.envRef ? '' : row.value,
+        ...(row.envRef ? { envRef: row.envRef.trim() } : {}),
+      }))
       .filter((row) => row.key.length > 0);
     setDraftPaths(cleanedPaths);
     setEnvVars(cleanedEnvVars);
@@ -1039,8 +1159,27 @@ function InstructionsTab({
       instructions: draft,
       allowedPaths: cleanedPaths,
       envVars: cleanedEnvVars,
-      customArgs,
+      ...(customArgsCapability === 'supported' ? { customArgs } : {}),
     });
+  }
+
+  function clearUnsupportedCustomArgs() {
+    void (async () => {
+      const confirmed = await confirmDialog({
+        title: '清除未消费的自定义参数？',
+        description:
+          '当前 runtime 不会消费这些参数，或能力尚未确认。清除后不可恢复；其他尚未保存的设置草稿不会被提交。',
+        confirmLabel: '清除参数',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+      update.mutate(
+        { customArgs: [] },
+        {
+          onSuccess: () => setCustomArgs([]),
+        },
+      );
+    })();
   }
 
   return (
@@ -1058,8 +1197,8 @@ function InstructionsTab({
       />
       
       <div className="mcp-editor-hint" style={{ marginTop: '24px' }}>
-        修改边界与路径围栏 (Allowed Paths)。限制 Agent 只能修改这些文件。
-        非空时注入 <code>&lt;boundary-fence&gt;</code> 白名单。支持逗号或换行分隔 Glob。
+        修改边界与路径围栏 (Allowed Paths)。这是注入 prompt 的提示性约束，不是文件系统沙箱；
+        runtime 仍可能访问白名单之外的路径。非空时注入 <code>&lt;boundary-fence&gt;</code>，支持逗号或换行分隔 Glob。
       </div>
       <textarea
         value={draftPaths}
@@ -1072,8 +1211,11 @@ function InstructionsTab({
       <EnvVarsEditor
         envVars={envVars}
         customArgs={customArgs}
+        customArgsCapability={customArgsCapability}
         onChangeEnvVars={setEnvVars}
         onChangeCustomArgs={setCustomArgs}
+        onClearUnsupportedCustomArgs={clearUnsupportedCustomArgs}
+        isClearingCustomArgs={update.isPending}
       />
 
       <div className="mcp-editor-actions">
@@ -1091,7 +1233,13 @@ function InstructionsTab({
 }
 
 // —— 能力 Tab：Skills + MCP 同屏（G13 / Multica 能力）——
-function CapabilitiesTab({ agentId }: { agentId: string }) {
+function CapabilitiesTab({
+  agentId,
+  mcpCapability,
+}: {
+  agentId: string;
+  mcpCapability: RuntimeCapabilityState;
+}) {
   return (
     <div className="agent-capabilities" data-testid="agent-capabilities">
       <section className="agent-cap-section" data-testid="agent-cap-skills">
@@ -1106,15 +1254,35 @@ function CapabilitiesTab({ agentId }: { agentId: string }) {
         </p>
         <SkillsTab agentId={agentId} />
       </section>
-      <section className="agent-cap-section" data-testid="agent-cap-mcp">
-        <div className="agent-cap-head">
-          <h3 className="agent-cap-title">MCP</h3>
-        </div>
-        <p className="agent-cap-hint text-dim text-sm">
-          本机 MCP server 配置（stdio object）。密钥仍只走 env，勿写入 JSON。
-        </p>
-        <McpTab agentId={agentId} />
-      </section>
+      {mcpCapability === 'supported' ? (
+        <section className="agent-cap-section" data-testid="agent-cap-mcp">
+          <div className="agent-cap-head">
+            <h3 className="agent-cap-title">MCP</h3>
+          </div>
+          <p className="agent-cap-hint text-dim text-sm">
+            本机 MCP server 配置（stdio object）。敏感值请使用 {'${env:NAME}'} 引用，勿写入 JSON。
+          </p>
+          <McpTab agentId={agentId} />
+        </section>
+      ) : mcpCapability === 'unsupported' ? (
+        <section className="agent-cap-section" data-testid="agent-cap-mcp-unsupported">
+          <div className="agent-cap-head">
+            <h3 className="agent-cap-title">MCP</h3>
+          </div>
+          <p className="agent-cap-hint text-dim text-sm">
+            当前 runtime adapter 不消费 Agent 级 MCP 配置，已禁用此编辑入口；避免保存后静默无效。
+          </p>
+        </section>
+      ) : (
+        <section className="agent-cap-section" data-testid="agent-cap-mcp-unknown">
+          <div className="agent-cap-head">
+            <h3 className="agent-cap-title">MCP</h3>
+          </div>
+          <p className="agent-cap-hint text-dim text-sm">
+            运行时能力目录尚未加载、未收录该 runtime，或未声明 MCP 能力。为避免保存后静默无效，编辑入口暂不可用；这不表示 adapter 已支持或已验证 MCP。
+          </p>
+        </section>
+      )}
     </div>
   );
 }
@@ -1222,6 +1390,12 @@ function McpTab({ agentId }: { agentId: string }) {
         placeholder={`{\n  "oracle": {\n    "type": "stdio",\n    "command": "npx",\n    "args": ["mcp-oracle-db"],\n    "env": { "ORACLE_USER": "..." }\n  }\n}`}
         spellCheck={false}
       />
+      {draft.includes('[redacted]') ? (
+        <div className="mcp-editor-warning" data-testid="agent-mcp-redacted-warning">
+          历史配置中的敏感值已脱敏，不能原样保存；请改成{' '}
+          <code>{'${env:NAME}'}</code> 引用，或先清空后重新配置。
+        </div>
+      ) : null}
       {error && <div className="mcp-editor-error">{error}</div>}
       <div className="mcp-editor-actions">
         <button

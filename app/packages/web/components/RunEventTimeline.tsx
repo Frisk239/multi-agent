@@ -431,7 +431,7 @@ export function RunEventTimelineDrawer({
 
   const failure =
     run && (run.status === 'failed' || run.status === 'timed_out' || run.error)
-      ? classifyRunFailure(run.error)
+      ? classifyRunFailure(run.error, run.failureReason)
       : null;
   const autoRetrying =
     run?.autoRetryStatus === 'scheduled' ||

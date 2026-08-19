@@ -15,7 +15,14 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/memory/status', async () => memoryManager.getStatus());
 
   app.get('/api/memory', async (req) => {
-    const { q, limit, offset, includeInvalid, scope } = req.query as { q?: string; limit?: string; offset?: string; includeInvalid?: string; scope?: string };
+    const { q, limit, offset, includeInvalid, scope, projectId } = req.query as {
+      q?: string;
+      limit?: string;
+      offset?: string;
+      includeInvalid?: string;
+      scope?: string;
+      projectId?: string;
+    };
     const lim = Math.min(Number(limit) || 20, 100);
     const off = Number(offset) || 0;
     const includeInv = String(includeInvalid) === '1' || String(includeInvalid) === 'true';
@@ -23,8 +30,15 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     const scopeFilter = ['workspace', 'agent', 'issue', 'run'].includes(scope ?? '')
       ? (scope as 'workspace' | 'agent' | 'issue' | 'run')
       : undefined;
+    const projectFilter = projectId === undefined ? undefined : projectId.trim() || null;
     // S10 R8：禁止直读 memoryItems；空 q 也走 Manager（sqlite/pg 各自「最近 N」）
-    const all = await memoryManager.search(q?.trim() ?? '', 1000, includeInv, scopeFilter);
+    const all = await memoryManager.search(
+      q?.trim() ?? '',
+      1000,
+      includeInv,
+      scopeFilter,
+      projectFilter,
+    );
     const data = all.slice(off, off + lim);
     return { data, total: all.length, limit: lim, offset: off };
   });
@@ -36,21 +50,27 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     }
     try {
       let text = parsed.data.text;
-      if (!text && parsed.data.issueId) {
-        const issue = db.select().from(issues).where(eq(issues.id, parsed.data.issueId)).get();
-        if (issue) {
-          text = `${issue.title}\n${issue.description || ''}`.trim();
-        }
+      const issue = parsed.data.issueId
+        ? db.select().from(issues).where(eq(issues.id, parsed.data.issueId)).get()
+        : undefined;
+      if (!text && issue) {
+        text = `${issue.title}\n${issue.description || ''}`.trim();
       }
+      const projectId =
+        parsed.data.projectId !== undefined
+          ? parsed.data.projectId
+          : issue?.projectId ?? null;
       const created = await memoryManager.addCurated(
         text,
         parsed.data.issueId,
         parsed.data.scope,
+        projectId,
       );
       if (created) {
         return reply.status(201).send({
           id: created.id,
           scope: created.scope ?? 'workspace',
+          projectId: created.projectId ?? null,
           issueId: created.issueId ?? null,
           agentId: null,
           runId: created.runId ?? null,
@@ -84,6 +104,7 @@ export async function memoryRoutes(app: FastifyInstance): Promise<void> {
     return {
       id: item.id,
       scope: item.scope ?? 'workspace',
+      projectId: item.projectId ?? null,
       issueId: item.issueId ?? null,
       agentId: null,
       runId: item.runId ?? null,

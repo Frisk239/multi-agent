@@ -2,9 +2,10 @@
 // 每个 run 的 AbortController 存内存 Map：cancel 时 abort → spawn-line 收到信号
 // → kill 子进程树。run 终态后清理。
 //
-// G5-4 崩溃语义（钉死）：注册表纯内存，进程崩溃后全部条目丢失。重启处置：
-//   - DB running + 无 abort 条目 → recoverOrphanedRunningRuns 收尸 failed
-//     （error 'orphan: no live executor after restart'，failureReason=stale_heartbeat）
+// G5-4 + G8-2 崩溃语义（钉死）：注册表纯内存，进程崩溃后全部条目丢失。重启处置：
+//   - DB running + 无 abort 条目 → recoverOrphanedRunningRuns 读取持久 owner。
+//     只有 PID + OS 启动指纹 + 安全进程组都复核一致时才请求 kill tree；否则
+//     failed/unknown_external_execution 且绝不按 PID 盲杀。
 //   - DB 已终态（cancelRunById 的 UPDATE 先于 abortRun 提交）→ 终态保持不动；
 //     未杀掉的孤儿 CLI 子进程由 OS 接管，重启不会重新执行该 run
 //   - graceful-shutdown 中断（abort 已发、DB 未终态化）→ 同上跑重启 orphan

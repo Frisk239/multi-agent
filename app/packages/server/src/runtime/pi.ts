@@ -12,7 +12,7 @@ import type { RunCommandInput, RunCommandResult } from '@ma/shared';
 import { resolveCmd, versionOf } from './detect-path.js';
 import { killProcessTree, trackChildPid, untrackChildPid } from './process-tree.js';
 import { extractTokenUsage, mergeUsage } from './usage-parse.js';
-import { safeFormatToolError } from './event-normalizer.js';
+import { scrubAndTruncateToolResult } from './secret-scrubber.js';
 
 export const PI_NOT_INSTALLED_ERROR =
   'Pi SDK / CLI 未安装。请在系统 PATH 中安装 `pi` 命令，或设置 PI_PATH 环境变量。';
@@ -33,6 +33,11 @@ interface PiCommand {
   provider?: string;
   modelId?: string;
 }
+
+type PiExtensionUiResponse =
+  | { type: 'extension_ui_response'; id: string; value: string }
+  | { type: 'extension_ui_response'; id: string; confirmed: boolean }
+  | { type: 'extension_ui_response'; id: string; cancelled: true };
 
 interface PiContentBlock {
   type: string;
@@ -72,12 +77,7 @@ interface PiEvent {
 
 /** 字符串化工具结果（对齐 claude-code.ts safeStringifyResult 模式） */
 function safeStringifyResult(content: unknown): string {
-  if (typeof content === 'string') return content;
-  try {
-    return JSON.stringify(content ?? '').slice(0, 4000);
-  } catch (err) {
-    return safeFormatToolError(err);
-  }
+  return scrubAndTruncateToolResult(content);
 }
 
 /** 消息文本：string 原样；块数组取 type==="text" 块拼接（thinking/toolCall 块不计） */
@@ -106,6 +106,8 @@ export class PiBackend implements RuntimeBackend {
   readonly executionImplemented = true;
   /** Slice 50：spawn 带 --session-id 真 resume */
   readonly supportsSessionResume = true;
+  readonly supportsMcpConfig = false;
+  readonly supportsCustomArgs = true;
 
   /**
    * G1-1：活动 run 的 RPC 发送槽。execute 的 spawnRpc 注册、finish 注销；
@@ -193,12 +195,21 @@ export class PiBackend implements RuntimeBackend {
           windowsHide: true,
           // G3-4b：agent.env_vars 显式覆盖 process.env
           env: { ...process.env, ...(input.envVars ?? {}) },
+          // G8-2：POSIX 独立进程组，reconcile 会复核 pgrp 才能安全杀树。
+          detached: process.platform !== 'win32',
         });
       } catch (err) {
         resolve({ finalText: '', exitReason: 'failed', error: `pi spawn 失败: ${String(err)}` });
         return;
       }
-      if (child.pid) trackChildPid(child.pid);
+      if (child.pid) {
+        trackChildPid(child.pid);
+        try {
+          input.onProcessStarted?.(child.pid);
+        } catch {
+          /* ownership observer must not break the executor */
+        }
+      }
 
       let settled = false;
       let closeSeen = false;
@@ -315,7 +326,7 @@ export class PiBackend implements RuntimeBackend {
       }
 
       // ---- 命令收发 ----
-      const sendRaw = (cmd: PiCommand) => {
+      const sendRaw = (cmd: PiCommand | PiExtensionUiResponse) => {
         try {
           child.stdin?.write(`${JSON.stringify(cmd)}\n`);
         } catch {
@@ -380,14 +391,19 @@ export class PiBackend implements RuntimeBackend {
           return;
         }
         if (rec.type === 'extension_ui_request') {
-          // G6-6：CLI 在等宿主应答（confirm/select/input…）——不再静默无文案；
-          // 告知将按 idle 超时收尸（CLI 等待期间无心跳即 idle）；同 run 只提示一次
+          // G6-6：当前控制台是无人值守执行器，没有可安全承接的交互面。
+          // 对会阻塞 Pi 的 dialog 方法立即回 cancelled，避免 CLI 卡到 idle
+          // timeout；通知类方法本来就是 fire-and-forget，不发送响应。
+          const method = typeof rec.method === 'string' ? rec.method : 'unknown';
+          const id = typeof rec.id === 'string' ? rec.id : null;
+          if (id && ['select', 'confirm', 'input', 'editor'].includes(method)) {
+            sendRaw({ type: 'extension_ui_response', id, cancelled: true });
+          }
           if (!uiRequestNotified) {
             uiRequestNotified = true;
-            const method = typeof rec.method === 'string' ? rec.method : 'unknown';
             onEvent({
               type: 'log',
-              text: `[pi] CLI 正在等待确认（${method}）：无人应答时按 idle 超时收尸，不会无限挂起`,
+              text: `[pi] CLI 请求交互（${method}）：当前为无人值守模式，已自动取消，避免等待 idle 超时`,
             });
           }
           return;

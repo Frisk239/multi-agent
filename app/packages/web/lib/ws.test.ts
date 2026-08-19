@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
+import type { AgentRun, DomainEvent } from '@ma/shared';
 
 vi.mock('./toast', () => ({
   toastError: vi.fn(),
@@ -16,6 +18,8 @@ import {
   topicsForPath,
   invalidateForPath,
   deriveWsBase,
+  isRunLifecycleEvent,
+  projectRunLifecycleCache,
 } from './ws';
 
 describe('ws Zustand stores', () => {
@@ -178,6 +182,62 @@ describe('invalidateForPath (Slice 26)', () => {
     const keys = invalidateForPath('/chat');
     expect(hasKey(keys, ['chat-threads'])).toBe(true);
     expect(hasKey(keys, ['chat-messages'])).toBe(true);
+  });
+});
+
+describe('run lifecycle query projection', () => {
+  const baseRun = {
+    id: 'run-state',
+    issueId: 'iss-state',
+    agentId: 'agt-state',
+    runtime: 'opencode',
+    status: 'queued',
+    kind: 'issue',
+    priority: 'none',
+    quickPrompt: null,
+    chatThreadId: null,
+    isLeader: false,
+    squadId: null,
+    error: null,
+    failureReason: null,
+    startedAt: null,
+    finishedAt: null,
+    lastHeartbeatAt: null,
+    createdAt: new Date(0).toISOString(),
+  } as AgentRun;
+
+  it('recognizes waiting_local_directory and deferred as lifecycle events', () => {
+    const waiting = {
+      type: 'run:waiting_local_directory',
+      run: { ...baseRun, status: 'waiting_local_directory' },
+    } as DomainEvent;
+    const deferred = {
+      type: 'run:deferred',
+      run: { ...baseRun, status: 'deferred' },
+    } as DomainEvent;
+    expect(isRunLifecycleEvent(waiting)).toBe(true);
+    expect(isRunLifecycleEvent(deferred)).toBe(true);
+  });
+
+  it('projects waiting/deferred states into issue cache and invalidates detail/list caches', () => {
+    const qc = new QueryClient();
+    qc.setQueryData<AgentRun[]>(['runs', 'iss-state'], [baseRun]);
+    qc.setQueryData(['run', 'run-state'], baseRun);
+    qc.setQueryData(['runs', 'workspace'], [baseRun]);
+    qc.setQueryData(['runs-active-count'], { count: 1 });
+
+    projectRunLifecycleCache(qc, {
+      ...baseRun,
+      status: 'waiting_local_directory',
+    });
+    expect(qc.getQueryData<AgentRun[]>(['runs', 'iss-state'])?.[0]?.status)
+      .toBe('waiting_local_directory');
+
+    projectRunLifecycleCache(qc, { ...baseRun, status: 'deferred' });
+    expect(qc.getQueryData<AgentRun[]>(['runs', 'iss-state'])?.[0]?.status).toBe('deferred');
+    expect(qc.getQueryState(['run', 'run-state'])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(['runs', 'workspace'])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(['runs-active-count'])?.isInvalidated).toBe(true);
   });
 });
 

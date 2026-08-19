@@ -16,6 +16,7 @@ import {
 import { isAbsolute, resolve } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getSqliteHardeningInfo, sqlite } from './db/client.js';
+import { scanSecretSafety, type SecretSafetyAdvisory } from './secret-safety.js';
 
 export const DEFAULT_BACKUP_DIRNAME = '.ma-backups';
 
@@ -34,6 +35,8 @@ export type OpsBackupCreateResult =
       sizeBytes: number;
       createdAt: string;
       dir: string;
+      /** Best-effort status of the live DB at the moment this backup was requested. */
+      secretSafety: SecretSafetyAdvisory;
     }
   | {
       success: false;
@@ -163,6 +166,11 @@ export async function createDbBackup(
   const now = opts.now ?? new Date();
   const name = buildBackupFileName(now);
   const targetPath = resolve(dir, name);
+  const secretSafetyScan = scanSecretSafety(database);
+  const secretSafety: SecretSafetyAdvisory = {
+    status: secretSafetyScan.status,
+    remediation: secretSafetyScan.remediation,
+  };
 
   if (isForbiddenBackupTarget(targetPath, liveDbPath)) {
     return {
@@ -214,6 +222,7 @@ export async function createDbBackup(
       sizeBytes: st.size,
       createdAt: now.toISOString(),
       dir,
+      secretSafety,
     };
   } catch (e) {
     return {

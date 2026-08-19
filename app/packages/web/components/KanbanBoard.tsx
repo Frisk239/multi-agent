@@ -55,6 +55,7 @@ import {
 } from '@/lib/issue-list-scroll-restore';
 import {
   collectActiveIssueIds,
+  collectWaitingOnlyIssueIds,
   issueIdsFromRuns,
 } from '@/lib/issue-card-live';
 import { confirmDialog } from '@/lib/confirm-store';
@@ -170,9 +171,13 @@ function KanbanBoardInner({
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   // 轻量：最近失败 run，用于卡片「失败」标记与「仅失败」筛选（limit 内即可）
   const { data: failedRuns = [] } = useWorkspaceRuns({ status: 'failed', limit: 80 });
-  // 轻量：活跃 run → 卡片「运行中」脉冲
+  // 轻量：活跃 run → 卡片「运行中 / 等目录」脉冲（含 path-lock waiting）
   const { data: runningRuns = [] } = useWorkspaceRuns({ status: 'running', limit: 40 });
   const { data: queuedRuns = [] } = useWorkspaceRuns({ status: 'queued', limit: 40 });
+  const { data: waitingRuns = [] } = useWorkspaceRuns({
+    status: 'waiting_local_directory',
+    limit: 40,
+  });
 
   useEffect(() => {
     setQDraft(qFromUrl);
@@ -526,8 +531,14 @@ function KanbanBoardInner({
   );
 
   const activeIssueIds = useMemo(
-    () => collectActiveIssueIds(runningRuns, queuedRuns),
-    [runningRuns, queuedRuns],
+    () => collectActiveIssueIds(runningRuns, queuedRuns, waitingRuns),
+    [runningRuns, queuedRuns, waitingRuns],
+  );
+
+  /** 纯 waiting（无 running/queued）→ 卡面「等目录」chip */
+  const waitingIssueIds = useMemo(
+    () => collectWaitingOnlyIssueIds(waitingRuns, runningRuns, queuedRuns),
+    [waitingRuns, runningRuns, queuedRuns],
   );
 
   const getIssueSheetHref = useCallback(
@@ -855,6 +866,7 @@ function KanbanBoardInner({
               readinessByAgentId={readinessMap}
               failedIssueIds={failedIssueIds}
               activeIssueIds={activeIssueIds}
+              waitingIssueIds={waitingIssueIds}
               assigneeAgentByIssueId={assigneeAgentByIssueId}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
@@ -872,6 +884,7 @@ function KanbanBoardInner({
                 readiness={assigneeAgentByIssueId[dragId] ? readinessMap[assigneeAgentByIssueId[dragId]!] : null}
                 lastRunFailed={failedIssueIds.has(dragId)}
                 runActive={activeIssueIds.has(dragId)}
+                runWaiting={waitingIssueIds.has(dragId)}
               />
             </div>
           ) : null}

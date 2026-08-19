@@ -4,6 +4,7 @@ import { inArray } from 'drizzle-orm';
 import { db } from './db/client.js';
 import { agentRuns } from './db/schema.js';
 import { allBackends } from './runtime/registry.js';
+import { getCachedRuntimePreflightOutcome } from './runtime/preflight.js';
 import { listActiveRunIds } from './orchestration/run-control.js';
 
 export type LiveProbeRuntime = {
@@ -14,6 +15,10 @@ export type LiveProbeRuntime = {
   path: string | null;
   /** executionImplemented !== false 且 detect.installed */
   ready: boolean;
+  /** `not_available` means no cached documented-safe preflight result. */
+  preflightStatus: 'not_available' | 'passed' | 'failed';
+  /** 当前只做无副作用 detect，认证/模型/扩展仍未预检。 */
+  runtimeVerification: 'unverified' | 'verified';
   executionImplemented: boolean;
   supportsSessionResume: boolean;
 };
@@ -88,7 +93,13 @@ export async function buildLiveProbes(now = Date.now()): Promise<LiveProbesRespo
   for (const b of allBackends()) {
     const d = await b.detect();
     const executionImplemented = b.executionImplemented !== false;
-    const ready = executionImplemented && d.installed;
+    // Deliberately cache-only: Settings polls this endpoint every few seconds and
+    // must not start a new preflight child process or provider session.
+    const preflight = getCachedRuntimePreflightOutcome(b, now);
+    const ready =
+      executionImplemented &&
+      d.installed &&
+      preflight.preflightStatus !== 'failed';
     runtimes.push({
       id: b.id,
       label: b.label,
@@ -96,6 +107,8 @@ export async function buildLiveProbes(now = Date.now()): Promise<LiveProbesRespo
       version: d.version,
       path: d.path,
       ready,
+      preflightStatus: preflight.preflightStatus,
+      runtimeVerification: preflight.runtimeVerification,
       executionImplemented,
       supportsSessionResume: b.supportsSessionResume === true,
     });

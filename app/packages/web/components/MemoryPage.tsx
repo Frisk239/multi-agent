@@ -265,8 +265,8 @@ function MemoryPageInner() {
               data-testid="memory-root-banner"
               title={status.note}
             >
-              <strong>非按项目分库</strong>
-              {status.note ? ` · ${status.note}` : ' · 编排主库 / 全局 provider'}
+              <strong>按项目隔离</strong>
+              {status.note ? ` · ${status.note}` : ' · project 记忆隔离，null 为全局共享'}
               {status.backend ? ` · backend ${status.backend}` : null}
             </p>
           ) : null}
@@ -579,6 +579,7 @@ function MemoryPageInner() {
               <th>类型</th>
               <th>内容</th>
               <th>Issue</th>
+              <th>项目边界</th>
               <th>状态</th>
               <th>时间</th>
               <th>id</th>
@@ -588,7 +589,7 @@ function MemoryPageInner() {
           <tbody>
             {isError && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center' }}>
+                <td colSpan={9} style={{ textAlign: 'center' }}>
                   <ErrorState
                     title="加载记忆失败"
                     description={error instanceof Error ? error.message : '未知错误'}
@@ -658,6 +659,9 @@ function MemoryPageInner() {
                         '—'
                       )}
                     </td>
+                    <td className="text-dim text-sm">
+                      {m.projectId ? <code title={m.projectId}>{m.projectId.slice(0, 8)}…</code> : '全局'}
+                    </td>
                     <td>
                       {m.invalidAt && clientNow !== null && new Date(m.invalidAt).getTime() <= clientNow ? (
                         <span className="badge" style={{ color: 'var(--color-red)', padding: '2px 6px', border: '1px solid currentColor', borderRadius: '4px', fontSize: '12px' }}>Expired</span>
@@ -720,7 +724,7 @@ function MemoryPageInner() {
               })}
             {!isError && visibleMemories.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ padding: '2rem 0' }}>
+                <td colSpan={9} style={{ padding: '2rem 0' }}>
                   {isFetching ? (
                     <TableSkeleton rows={3} />
                   ) : showUnavailable ? (
@@ -799,7 +803,7 @@ function MemoryPageInner() {
             )}
             {!isError && !data && (
               <tr>
-                <td colSpan={8} style={{ padding: '1rem' }}>
+                <td colSpan={9} style={{ padding: '1rem' }}>
                   <TableSkeleton rows={5} />
                 </td>
               </tr>
@@ -885,6 +889,12 @@ function MemoryPageInner() {
                       </dd>
                     </div>
                   ) : null}
+                  <div>
+                    <dt>项目边界</dt>
+                    <dd>
+                      {detail.projectId ? <code>{detail.projectId}</code> : '全局'}
+                    </dd>
+                  </div>
                   <div>
                     <dt>状态</dt>
                     <dd>

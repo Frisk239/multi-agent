@@ -23,6 +23,9 @@ export async function runtimeRoutes(app: FastifyInstance) {
         version: d.version,
         path: d.path,
         agentIds,
+        supportsMcpConfig: b.supportsMcpConfig === true,
+        supportsCustomArgs: b.supportsCustomArgs === true,
+        supportsSessionResume: b.supportsSessionResume === true,
       });
     }
     return {

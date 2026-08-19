@@ -12,12 +12,22 @@ import { agents, agentRuns, issues, squadMembers, squads } from '../db/schema.js
 import { toAgentDetail, toObservedAgentRun, toAgentSummary } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
+import { normalizeAgentEnvVars } from '../runtime/agent-config.js';
+import { validateMcpConfig } from '../runtime/mcp-config.js';
 
 const CLIENT_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
 
 function resolveNewId(optional?: string): string {
   if (optional && CLIENT_ID_RE.test(optional)) return optional;
   return crypto.randomUUID();
+}
+
+function normalizeMcpServersInput(raw: string | null | undefined):
+  | { ok: true; value: string | null }
+  | { ok: false; error: string } {
+  if (raw == null || !raw.trim()) return { ok: true, value: null };
+  const result = validateMcpConfig(raw);
+  return result.ok ? { ok: true, value: result.canonical } : result;
 }
 
 function assertAgentExists(id: string): boolean {
@@ -89,6 +99,14 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const input = parsed.data;
+    const envResult = normalizeAgentEnvVars(input.envVars);
+    if (!envResult.ok) {
+      return reply.status(400).send({ success: false, error: envResult.error, code: 'INVALID_ENV_VARS' });
+    }
+    const mcpResult = normalizeMcpServersInput(input.mcpServers);
+    if (!mcpResult.ok) {
+      return reply.status(400).send({ success: false, error: mcpResult.error, code: 'INVALID_MCP_CONFIG' });
+    }
     const id = resolveNewId(input.id);
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
     if (existing) {
@@ -118,11 +136,11 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         concurrency: input.concurrency ?? 1,
         instructions: input.instructions ?? '',
         allowedPaths,
-        mcpServers: input.mcpServers ?? null,
+        mcpServers: mcpResult.value,
         fallbackAgentId: input.fallbackAgentId ?? null,
         invocationPermission: input.invocationPermission ?? 'auto',
         // G3-4：envVars/customArgs（JSON 序列化落库）
-        envVars: input.envVars != null ? JSON.stringify(input.envVars) : null,
+        envVars: input.envVars != null ? JSON.stringify(envResult.rows) : null,
         customArgs: input.customArgs != null ? JSON.stringify(input.customArgs) : null,
         createdAt: now,
       })
@@ -143,6 +161,20 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
 
     const patch = parsed.data;
     const updates: Partial<typeof agents.$inferInsert> = {};
+    if (patch.envVars !== undefined) {
+      const envResult = normalizeAgentEnvVars(patch.envVars);
+      if (!envResult.ok) {
+        return reply.status(400).send({ success: false, error: envResult.error, code: 'INVALID_ENV_VARS' });
+      }
+      updates.envVars = patch.envVars == null ? null : JSON.stringify(envResult.rows);
+    }
+    if (patch.mcpServers !== undefined) {
+      const mcpResult = normalizeMcpServersInput(patch.mcpServers);
+      if (!mcpResult.ok) {
+        return reply.status(400).send({ success: false, error: mcpResult.error, code: 'INVALID_MCP_CONFIG' });
+      }
+      updates.mcpServers = mcpResult.value;
+    }
     if (patch.name !== undefined) updates.name = patch.name;
     if (patch.runtime !== undefined) updates.runtime = patch.runtime;
     if (patch.model !== undefined) {
@@ -166,7 +198,6 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
           ? null
           : String(patch.allowedPaths).trim();
     }
-    if (patch.mcpServers !== undefined) updates.mcpServers = patch.mcpServers;
     // P2-4：显式后备 agent；null=清除（不启用自动改派）
     if (patch.fallbackAgentId !== undefined) {
       updates.fallbackAgentId = patch.fallbackAgentId ?? null;
@@ -176,9 +207,6 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       updates.invocationPermission = patch.invocationPermission ?? 'auto';
     }
     // G3-4：环境变量 / 自定义参数；null=清除
-    if (patch.envVars !== undefined) {
-      updates.envVars = patch.envVars == null ? null : JSON.stringify(patch.envVars);
-    }
     if (patch.customArgs !== undefined) {
       updates.customArgs = patch.customArgs == null ? null : JSON.stringify(patch.customArgs);
     }

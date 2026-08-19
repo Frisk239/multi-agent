@@ -101,7 +101,7 @@ export function RunTranscriptPreview({
     );
   }
 
-  const visible = items.slice(0, maxItems);
+  const visible = items.slice(-maxItems);
   const hiddenCount = items.length - visible.length;
   const toolCount = items.filter((i) => i.type === 'pair').length;
   const hasToolPayload = visible.some(
@@ -121,7 +121,7 @@ export function RunTranscriptPreview({
           {items.length} 条事件 · {toolCount} 个工具
         </span>
         {hiddenCount > 0 ? (
-          <span> · 收起 {hiddenCount} 条</span>
+          <span> · 更早 {hiddenCount} 条未展开</span>
         ) : null}
         {hasToolPayload ? (
           <Link

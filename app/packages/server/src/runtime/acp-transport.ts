@@ -45,6 +45,8 @@ export interface AcpTransportOptions {
   spawnFn?: typeof spawn;
   /** abort → 拒绝所有 pending + kill 进程树（worker 取消/超时路径） */
   signal?: AbortSignal;
+  /** G8-2：spawn 后将真实 PID 交给 orchestration 持久化身份。 */
+  onProcessStarted?: (pid: number) => void;
 }
 
 /** JSON-RPC error 帧（结构化 code/message/data，可分类而非解析文本） */
@@ -505,8 +507,16 @@ export class AcpTransport {
       shell: isCmdShim,
       windowsHide: true,
       env: { ...process.env, ...(opts.env ?? {}) },
+      detached: process.platform !== 'win32',
     });
-    if (this.child.pid) trackChildPid(this.child.pid);
+    if (this.child.pid) {
+      trackChildPid(this.child.pid);
+      try {
+        opts.onProcessStarted?.(this.child.pid);
+      } catch {
+        /* ownership observer must not break ACP startup */
+      }
+    }
 
     // abort → 拒绝所有 pending + kill 进程树（worker 取消/超时兜底）
     if (opts.signal) {

@@ -13,6 +13,7 @@ describe('SqliteTextProvider - Temporal Validity', () => {
     sqlite.exec(`CREATE TABLE memory_item (
       id TEXT PRIMARY KEY,
       scope TEXT NOT NULL DEFAULT 'workspace',
+      project_id TEXT,
       issue_id TEXT,
       agent_id TEXT,
       run_id TEXT,
@@ -74,6 +75,7 @@ describe('G4-1 FTS5 retrieval (SqliteTextProvider)', () => {
     sqlite.exec(`CREATE TABLE memory_item (
       id TEXT PRIMARY KEY,
       scope TEXT NOT NULL DEFAULT 'workspace',
+      project_id TEXT,
       issue_id TEXT,
       agent_id TEXT,
       run_id TEXT,
@@ -114,6 +116,21 @@ describe('G4-1 FTS5 retrieval (SqliteTextProvider)', () => {
     const res = await provider.prefetch('问题');
     expect(res.items).toHaveLength(1);
     expect(res.items[0].text).toContain('问题已解决');
+  });
+
+  it('project-scoped recall includes same-project + global, never another project', async () => {
+    const global = provider.addRaw('共享边界 token-global');
+    const projectA = provider.addRaw('项目 A token-project', { projectId: 'project-a' });
+    provider.addRaw('项目 B token-project', { projectId: 'project-b' });
+
+    const result = await provider.prefetch('token-project', { projectId: 'project-a' });
+    expect(result.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([projectA.id]),
+    );
+    expect(result.items.some((item) => item.text.includes('项目 B'))).toBe(false);
+
+    const globalResult = await provider.prefetch('token-global', { projectId: 'project-a' });
+    expect(globalResult.items.some((item) => item.id === global.id)).toBe(true);
   });
 
   it('多 token 全 AND：缺任一词不命中', async () => {

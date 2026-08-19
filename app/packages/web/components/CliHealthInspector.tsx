@@ -10,7 +10,7 @@ const STATUS_CONFIG: Record<
   { label: string; bg: string; text: string; dot: string }
 > = {
   ready: {
-    label: 'Ready / 就绪',
+    label: 'Installed · Unverified / 已安装 · 未验证',
     bg: 'rgba(16, 185, 129, 0.12)',
     text: '#10b981',
     dot: '#10b981',
@@ -76,7 +76,8 @@ export function CliHealthInspector() {
             style={{ margin: 0, maxWidth: '680px' }}
           >
             实时检测本机 Multi-Backend (Claude Code / Opencode / Cursor / Pi SDK)
-            的 CLI 进程路径、版本号、运行支持 (Capabilities) 及工作区 CWD 可读写校验。
+            的 CLI 路径、版本号、运行能力 (Capabilities) 及工作区 CWD 可读写校验。
+            “已安装”只表示 CLI 可被探测，不等于认证、模型或扩展配置已通过。
           </p>
         </div>
 
@@ -144,7 +145,7 @@ export function CliHealthInspector() {
               <strong>{data.summary.totalDetected} / {data.cliBackends.length}</strong>
             </div>
             <div style={{ color: '#10b981' }}>
-              <span>Ready: </span>
+              <span>Installed: </span>
               <strong>{data.summary.readyCount}</strong>
             </div>
             <div style={{ color: '#f59e0b' }}>

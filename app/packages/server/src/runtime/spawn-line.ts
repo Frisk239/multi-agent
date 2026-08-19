@@ -36,7 +36,11 @@ export function spawnLineProcess(
   onEvent: (e: AgentEvent) => void,
   onLine: LineHandler | null,
   stdinInput?: string, // S05：stdin pipe 传 prompt（claude stdin 修复，spec §8 R2 结构扩展）
-  opts?: { timeoutMs?: number; env?: NodeJS.ProcessEnv },
+  opts?: {
+    timeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
+    onProcessStarted?: (pid: number) => void;
+  },
 ): Promise<ExecutionResult> {
   return new Promise((resolve) => {
     const timeoutMs = opts?.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : 0;
@@ -51,8 +55,19 @@ export function spawnLineProcess(
       shell: isCmdShim,
       windowsHide: true,
       env: { ...process.env, ...(opts?.env ?? {}) },
+      // G8-2：POSIX child 作为独立 PG leader，重启后只有重新验证 pgrp===pid
+      // 才允许 killProcessTree 的 kill(-pid) 分支；Windows 不存在此语义。
+      detached: process.platform !== 'win32',
     });
-    if (child.pid) trackChildPid(child.pid);
+    if (child.pid) {
+      trackChildPid(child.pid);
+      try {
+        opts?.onProcessStarted?.(child.pid);
+      } catch {
+        // Ownership persistence is an observer. A transient DB failure must
+        // never turn into an unreported partially-started CLI process.
+      }
+    }
     // S05：stdin pipe 传 prompt。claude-code 的 -p 无 prompt 参数时从 stdin 读
     // （spike 钉死：echo "..." | claude -p --output-format stream-json --verbose）。
     // opencode/cursor 不传 stdinInput，保持 argv prompt 模式。

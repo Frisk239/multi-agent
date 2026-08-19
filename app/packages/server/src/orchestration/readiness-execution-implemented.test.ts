@@ -62,6 +62,7 @@ import { computeAgentReadiness } from './readiness.js';
 function makeBackend(opts: {
   installed: boolean;
   executionImplemented?: boolean;
+  preflight?: RuntimeBackend['preflight'];
 }): RuntimeBackend {
   const det: DetectResult = {
     installed: opts.installed,
@@ -73,6 +74,7 @@ function makeBackend(opts: {
     label: 'Pi SDK',
     executionImplemented: opts.executionImplemented,
     detect: async () => det,
+    preflight: opts.preflight,
     execute: async () => ({ finalText: '', exitReason: 'failed' as const }),
   };
 }
@@ -142,6 +144,65 @@ describe('readiness executionImplemented (Slice 44)', () => {
     const rd = await computeAgentReadiness('agt-real-backend');
     expect(rd!.status).toBe('ready');
     expect(rd!.runtimeInstalled).toBe(true);
+  });
+
+  it('没有 explicit preflight 时保持可派活，但明确标为 not_available / unverified', async () => {
+    mocks.agentRow = {
+      id: 'agt-preflight-absent',
+      runtime: 'pi',
+      concurrency: 1,
+    };
+    mocks.getBackend.mockReturnValue(makeBackend({ installed: true }));
+
+    const rd = await computeAgentReadiness('agt-preflight-absent');
+    expect(rd).toMatchObject({
+      status: 'ready',
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
+    });
+  });
+
+  it('explicit safe preflight passed 才标为 verified', async () => {
+    mocks.agentRow = {
+      id: 'agt-preflight-passed',
+      runtime: 'pi',
+      concurrency: 1,
+    };
+    mocks.getBackend.mockReturnValue(
+      makeBackend({
+        installed: true,
+        preflight: async () => ({ status: 'passed' }),
+      }),
+    );
+
+    const rd = await computeAgentReadiness('agt-preflight-passed');
+    expect(rd).toMatchObject({
+      status: 'ready',
+      preflightStatus: 'passed',
+      runtimeVerification: 'verified',
+    });
+  });
+
+  it('explicit safe preflight failed → status=error，不能绕过派活硬闸', async () => {
+    mocks.agentRow = {
+      id: 'agt-preflight-failed',
+      runtime: 'pi',
+      concurrency: 1,
+    };
+    mocks.getBackend.mockReturnValue(
+      makeBackend({
+        installed: true,
+        preflight: async () => ({ status: 'failed', reason: 'auth_required' }),
+      }),
+    );
+
+    const rd = await computeAgentReadiness('agt-preflight-failed');
+    expect(rd).toMatchObject({
+      status: 'error',
+      preflightStatus: 'failed',
+      runtimeVerification: 'unverified',
+    });
+    expect(rd!.detail).toBe('运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。');
   });
 
   it('returns null when agent missing', async () => {

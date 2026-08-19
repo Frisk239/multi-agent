@@ -94,6 +94,7 @@ export async function buildApp() {
       e.type === 'run:queued' ||
       e.type === 'run:waiting_local_directory' ||
       e.type === 'run:running' ||
+      e.type === 'run:deferred' ||
       e.type === 'run:completed' ||
       e.type === 'run:failed' ||
       e.type === 'run:cancelled'

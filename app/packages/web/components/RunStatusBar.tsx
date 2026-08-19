@@ -67,7 +67,7 @@ export function RunStatusBar({
     active.status === 'running' ? progressByRun[active.id]?.trim() : undefined;
   const failure =
     active.status === 'failed' || active.error
-      ? classifyRunFailure(active.error)
+      ? classifyRunFailure(active.error, active.failureReason)
       : null;
   const isLive =
     active.status === 'queued' ||

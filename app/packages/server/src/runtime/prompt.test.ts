@@ -15,7 +15,7 @@ describe('Slice 43 · Prompt static/dynamic boundary', () => {
     aboutBlock: '# About the Human Operator\nName: 林远\nPrefers short answers.',
     instructionsBlock: '# Agent Instructions\nBe concise.',
     boundaryBlock:
-      '<boundary-fence>\n限制修改路径白名单: D:/code/multi-agent\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>',
+      '<boundary-fence>\n提示性修改路径白名单: D:/code/multi-agent\n注意: 这是 prompt 约束，不是文件系统沙箱；请勿修改、删除或新建白名单路径之外的文件。\n</boundary-fence>',
     squadProtocolBlock:
       '# Squad Operating Protocol\nLead then hand off.\n\n# Squad Roster\n- helper — [@helper](mention://agent/a-helper)',
   };

@@ -358,6 +358,19 @@ describe('provider error sniffer（stderr 终端失败分类）', () => {
 });
 
 describe('spawn 参数', () => {
+  it('reports the spawned PID to G8 ownership persistence', () => {
+    const fake = createFakeAcpChild(4242);
+    const onProcessStarted = vi.fn();
+    void new AcpTransport({
+      bin: 'grok',
+      args: ['agent', 'stdio'],
+      cwd: 'D:\\x',
+      spawnFn: (() => fake.child) as never,
+      onProcessStarted,
+    });
+    expect(onProcessStarted).toHaveBeenCalledWith(4242);
+  });
+
   it('spawn 带 cwd/windowsHide/env 合并', () => {
     const fake = createFakeAcpChild();
     const spy = vi.fn(() => fake.child);

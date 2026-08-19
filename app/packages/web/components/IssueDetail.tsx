@@ -14,6 +14,7 @@ import {
   useIssue,
   useIssueAttachments,
   useIssueRunUsage,
+  useRetryRun,
   useRuns,
   useUpdateIssue,
   useUploadAttachment,
@@ -37,6 +38,7 @@ import {
 } from './RunEventTimeline';
 import { ActivityTimeline } from './ActivityTimeline';
 import { IssueStoryline } from './IssueStoryline';
+import { RunTranscriptPreview } from './RunTranscriptPreview';
 import { EmptyState } from './EmptyState';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ErrorState } from './ErrorState';
@@ -78,12 +80,16 @@ const PRIORITY_ZH: Record<Priority, string> = {
 
 export type IssueDetailVariant = 'sheet' | 'page';
 
-function pickDefaultRunId(
+export function pickDefaultRunId(
   runs: { id: string; status: string }[],
 ): string | undefined {
   return (
-    runs.find((r) => r.status === 'queued' || r.status === 'running')?.id ??
-    runs[0]?.id
+    runs.find(
+      (r) =>
+        r.status === 'queued' ||
+        r.status === 'running' ||
+        r.status === 'waiting_local_directory',
+    )?.id ?? runs[0]?.id
   );
 }
 
@@ -124,12 +130,26 @@ function SheetWorkStrip({
     failureReason: latestRun?.failureReason ?? null,
     latestRunId: latestRun?.id ?? null,
   });
+  const retry = useRetryRun();
   return (
     <div className="issue-sheet-work-strip" data-testid="issue-sheet-work-strip">
       <div className="text-dim text-sm" data-testid="issue-sheet-storyline-summary">
         {summary.label}
       </div>
-      {failCta.show ? (
+      {failCta.show && failCta.action === 'rerun' ? (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid="issue-sheet-fail-cta"
+          title={failCta.reason ?? undefined}
+          disabled={retry.isPending || !failCta.runId}
+          onClick={() => {
+            if (failCta.runId) retry.mutate(failCta.runId);
+          }}
+        >
+          {retry.isPending ? '再执行中…' : failCta.label}
+        </button>
+      ) : failCta.show ? (
         <Link
           href={failCta.href}
           className="btn btn-secondary btn-sm"
@@ -831,6 +851,9 @@ export function IssueDetail({
                           }
                     }
                   />
+                  {isSheet && defaultRunId ? (
+                    <RunTranscriptPreview runId={defaultRunId} />
+                  ) : null}
                   {!isSheet && (historyCount > 1 || usage) ? (
                     <IssueRunHistory
                       runs={runs}

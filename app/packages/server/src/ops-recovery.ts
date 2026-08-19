@@ -26,6 +26,7 @@ import { resolveWorkspaceCwd, type ResolvedWorkspaceCwd } from './workspace-cwd.
 import { getWikiDirSource } from './wiki/store.js';
 import { listProjectWikiRoots } from './wiki/project-wiki-roots.js';
 import { buildBackupFileName, ensureBackupDirWritable, resolveBackupDir } from './ops-backup.js';
+import { scanSecretSafety, type SecretSafetyAdvisory } from './secret-safety.js';
 
 export const SNAPSHOT_ARCHIVE_VERSION = 1 as const;
 export const SNAPSHOT_EXTENSION = '.ma-backup.zip';
@@ -57,6 +58,8 @@ export type SnapshotManifest = {
     }>;
     exclusions: string[];
   };
+  /** Present in G8-3+ archives. Older archives omit it and are treated as inconclusive. */
+  secretSafety?: SecretSafetyAdvisory;
   files: SnapshotManifestFile[];
 };
 
@@ -67,6 +70,7 @@ export type SnapshotEntry = {
   createdAt: string;
   sha256: string;
   valid: boolean;
+  secretSafety: SecretSafetyAdvisory;
   validationError?: string;
 };
 
@@ -308,6 +312,14 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
   const tempDb = join(dir, `.${name}.${process.pid}.sqlite`);
   const tempZip = join(dir, `.${name}.${process.pid}.tmp`);
   try {
+    // The archive contains a byte-for-byte SQLite copy. Surface the scan
+    // advisory alongside it instead of implying that Wiki-path exclusions also
+    // scrub historical Agent configuration inside the database.
+    const secretSafetyScan = scanSecretSafety(database);
+    const secretSafety: SecretSafetyAdvisory = {
+      status: secretSafetyScan.status,
+      remediation: secretSafetyScan.remediation,
+    };
     const backupFn = opts.backupFn ?? ((filename: string) => database.backup(filename));
     await backupFn(tempDb);
     const dbData = readFileSync(tempDb);
@@ -383,6 +395,7 @@ export async function createSnapshot(opts: CreateSnapshotOpts = {}) {
         includedProjectWikiRoots,
         exclusions: [...EXCLUDED_NAMES, 'secret*/credential*', '*.pem/*.key'],
       },
+      secretSafety,
       files,
     };
     const manifestData = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -444,7 +457,17 @@ function isSnapshotManifest(value: unknown): value is SnapshotManifest {
     && Array.isArray(wiki.exclusions)
     && wiki.exclusions.every((item) => typeof item === 'string')
   );
-  return workspaceValid && wikiValid && value.files.every(isManifestFile);
+  const secretSafety = value.secretSafety;
+  const secretSafetyValid =
+    secretSafety === undefined
+    || (
+      isRecord(secretSafety)
+      && (secretSafety.status === 'known_legacy_literals_detected'
+        || secretSafety.status === 'no_known_legacy_literals'
+        || secretSafety.status === 'scan_inconclusive')
+      && typeof secretSafety.remediation === 'string'
+    );
+  return workspaceValid && wikiValid && secretSafetyValid && value.files.every(isManifestFile);
 }
 
 export function validateSnapshot(path: string): SnapshotValidation {
@@ -523,7 +546,11 @@ export function listSnapshots(opts: { backupDir?: string } = {}) {
   try {
     const snapshots = readdirSync(dir).filter((n) => n.endsWith(SNAPSHOT_EXTENSION)).map((name) => {
       const path = resolve(dir, name); const st = statSync(path); const valid = validateSnapshot(path);
-      return { name, path, sizeBytes: st.size, createdAt: st.mtime.toISOString(), sha256: valid.sha256 ?? sha256(readFileSync(path)), valid: valid.valid, ...(valid.valid ? {} : { validationError: valid.errors.join('; ') }) } satisfies SnapshotEntry;
+      const secretSafety: SecretSafetyAdvisory = valid.manifest?.secretSafety ?? {
+        status: 'scan_inconclusive',
+        remediation: '该旧快照没有密钥安全扫描元数据。请将其视为可能含历史明文，并在清理后创建新快照。',
+      };
+      return { name, path, sizeBytes: st.size, createdAt: st.mtime.toISOString(), sha256: valid.sha256 ?? sha256(readFileSync(path)), valid: valid.valid, secretSafety, ...(valid.valid ? {} : { validationError: valid.errors.join('; ') }) } satisfies SnapshotEntry;
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return { success: true as const, dir, snapshots };
   } catch (e) { return { success: false as const, code: 'SNAPSHOT_LIST_FAILED', error: e instanceof Error ? e.message : String(e), status: 500 as const }; }

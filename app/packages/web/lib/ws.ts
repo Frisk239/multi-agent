@@ -1,8 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
-import type { Issue, Comment, ActivityLog, AgentRun, RunMessage, DomainEvent } from '@ma/shared';
+import type {
+  Issue,
+  Comment,
+  ActivityLog,
+  AgentRun,
+  RunMessage,
+  DomainEvent,
+  RunLifecycleEvent,
+} from '@ma/shared';
 import { classifyRunFailure } from '@ma/shared';
 import { toastError, toastSuccess } from './toast';
 import { withLocalTokenWsUrl } from './local-token';
@@ -237,6 +245,43 @@ function applyInvalidateKeys(qc: QueryClient, keys: string[][]): void {
   }
 }
 
+const RUN_LIFECYCLE_EVENT_TYPES = new Set<DomainEvent['type']>([
+  'run:queued',
+  'run:waiting_local_directory',
+  'run:running',
+  'run:deferred',
+  'run:completed',
+  'run:failed',
+  'run:cancelled',
+]);
+
+/** Keep the lifecycle gate in one tested place so newly added run states reach RQ caches. */
+export function isRunLifecycleEvent(event: DomainEvent): event is RunLifecycleEvent {
+  return RUN_LIFECYCLE_EVENT_TYPES.has(event.type);
+}
+
+/** Project one durable run state into every run-related React Query cache. */
+export function projectRunLifecycleCache(qc: QueryClient, run: AgentRun): void {
+  if (run.issueId) {
+    qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
+      if (!old) return [run];
+      const i = old.findIndex((r) => r.id === run.id);
+      if (i < 0) return [run, ...old];
+      const next = old.slice();
+      next[i] = run;
+      return next;
+    });
+  }
+  void qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
+  void qc.invalidateQueries({ queryKey: ['runs-active-count'] });
+  void qc.invalidateQueries({ queryKey: ['runs', 'workspace'] });
+  void qc.invalidateQueries({ queryKey: ['run', run.id] });
+  if (run.kind === 'chat' && run.chatThreadId) {
+    void qc.invalidateQueries({ queryKey: ['chat-messages', run.chatThreadId] });
+    void qc.invalidateQueries({ queryKey: ['chat-threads'] });
+  }
+}
+
 // S02：issue 列表 + 单条 issue + comments 幂等更新
 export function useWsEvents() {
   const qc = useQueryClient();
@@ -355,38 +400,9 @@ export function useWsEvents() {
       }
 
       // S03 run 生命周期：更新 ['runs', issueId] cache
-      if (
-        event.type === 'run:queued' ||
-        event.type === 'run:running' ||
-        event.type === 'run:completed' ||
-        event.type === 'run:failed' ||
-        event.type === 'run:cancelled'
-      ) {
+      if (isRunLifecycleEvent(event)) {
         const run: AgentRun = event.run;
-        // bu03：quick_create 可无 issueId，跳过 issue-scoped runs cache
-        if (run.issueId) {
-          qc.setQueryData<AgentRun[]>(['runs', run.issueId], (old) => {
-            if (!old) return [run];
-            const i = old.findIndex((r) => r.id === run.id);
-            if (i >= 0) {
-              const next = old.slice();
-              next[i] = run;
-              return next;
-            }
-            return [run, ...old];
-          });
-        }
-        // agent Runs Tab（补2）
-        qc.invalidateQueries({ queryKey: ['agent-runs', run.agentId] });
-        // runs-active-nav：生命周期变化刷新在途角标 + 工作区 runs 列表
-        qc.invalidateQueries({ queryKey: ['runs-active-count'] });
-        qc.invalidateQueries({ queryKey: ['runs', 'workspace'] });
-        qc.invalidateQueries({ queryKey: ['run', run.id] });
-        // agent-chat：chat run 终态要刷会话消息（assistant 回写 / 失败态）
-        if (run.kind === 'chat' && run.chatThreadId) {
-          qc.invalidateQueries({ queryKey: ['chat-messages', run.chatThreadId] });
-          qc.invalidateQueries({ queryKey: ['chat-threads'] });
-        }
+        projectRunLifecycleCache(qc, run);
         if (
           event.type === 'run:completed' ||
           event.type === 'run:failed' ||
@@ -416,7 +432,7 @@ export function useWsEvents() {
             );
             return;
           }
-          const cls = classifyRunFailure(run.error);
+          const cls = classifyRunFailure(run.error, run.failureReason);
           toastError(
             cls.title + (run.error ? ` · ${run.error.slice(0, 80)}` : ''),
             {
@@ -457,11 +473,19 @@ export function useWsEvents() {
       // D1：tool_start → 最近工具名；assistant → partial 气泡
       if (event.type === 'run:message') {
         const { message }: { message: RunMessage } = event;
-        qc.setQueryData<RunMessage[]>(['run-messages', message.runId], (old) => {
-          if (!old) return [message];
-          if (old.some((m) => m.id === message.id)) return old;
-          return [...old, message].sort((a, b) => a.seq - b.seq);
-        });
+        qc.setQueryData<InfiniteData<RunMessage[], number | undefined>>(
+          ['run-messages', message.runId],
+          (old) => {
+            if (!old) {
+              return { pages: [[message]], pageParams: [undefined] };
+            }
+            if (old.pages.some((page) => page.some((m) => m.id === message.id))) return old;
+            const pages = old.pages.slice();
+            const last = pages.length - 1;
+            pages[last] = [...(pages[last] ?? []), message].sort((a, b) => a.seq - b.seq);
+            return { ...old, pages };
+          },
+        );
         if (message.kind === 'tool_start') {
           // handled by runtime:event
         } else if (message.kind === 'tool_end') {

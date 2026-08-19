@@ -38,6 +38,18 @@ export type CommentType = z.infer<typeof CommentType>;
 export const RuntimeId = z.enum(['claude-code', 'opencode', 'cursor', 'grok', 'pi']);
 export type RuntimeId = z.infer<typeof RuntimeId>;
 
+/**
+ * Runtime preflight is deliberately narrower than binary discovery. `not_available`
+ * means this runtime has no cached result from a documented-safe preflight; it must
+ * never be presented as an execution verification.
+ */
+export const RuntimePreflightStatus = z.enum(['not_available', 'passed', 'failed']);
+export type RuntimePreflightStatus = z.infer<typeof RuntimePreflightStatus>;
+
+/** `verified` is reserved for an explicit, documented-safe preflight pass. */
+export const RuntimeVerification = z.enum(['unverified', 'verified']);
+export type RuntimeVerification = z.infer<typeof RuntimeVerification>;
+
 export const AgentRunStatus = z.enum([
   'queued',
   'waiting_local_directory',
@@ -71,6 +83,11 @@ export const AgentRunFailureReason = z.enum([
   'user_aborted',
   // G2-1：queued 超龄无人认领 → deferred 宽限后自动升级（fireDeferredRuns）
   'deferred_escalated',
+  // G8-2：重启时只在 PID + 启动指纹匹配后请求终止；否则明确不盲杀。
+  'orphan_termination_attempted',
+  'unknown_external_execution',
+  // G8-3：敏感 envRef 在宿主环境中缺失/为空，CLI 未启动（不可自动重试）。
+  'missing_required_env_ref',
 ]);
 export type AgentRunFailureReason = z.infer<typeof AgentRunFailureReason>;
 
@@ -360,6 +377,31 @@ export const ListRunsQuery = z.object({
 });
 export type ListRunsQuery = z.infer<typeof ListRunsQuery>;
 
+/**
+ * GET /api/runs/:runId/messages incremental replay cursor.
+ * No query = full transcript ASC (legacy).
+ * afterSeq (+ optional limit) = next N after cursor ASC.
+ * limit only = last N ASC (tail window).
+ * beforeSeq (+ optional limit) = last N before cursor ASC.
+ * afterSeq and beforeSeq together are rejected.
+ */
+export const ListRunMessagesQuery = z
+  .object({
+    afterSeq: z.coerce.number().int().min(0).optional(),
+    beforeSeq: z.coerce.number().int().min(0).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional(),
+  })
+  .superRefine((q, ctx) => {
+    if (q.afterSeq !== undefined && q.beforeSeq !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'afterSeq and beforeSeq cannot be used together',
+        path: ['beforeSeq'],
+      });
+    }
+  });
+export type ListRunMessagesQuery = z.infer<typeof ListRunMessagesQuery>;
+
 // GET /api/runs/active-count —— 侧栏「运行」角标 + agents-working-banner
 export const RunsActiveCount = z.object({
   count: z.number().int(),
@@ -438,10 +480,41 @@ export const RunFailureClassification = z.object({
 });
 export type RunFailureClassification = z.infer<typeof RunFailureClassification>;
 
-/** 轻量失败分类（S4）：只看 error 文本，无 DB */
-export function classifyRunFailure(error: string | null | undefined): RunFailureClassification {
+/**
+ * 轻量失败分类（S4）：优先使用服务端已落库的 failureReason；旧数据再回退
+ * 到 error 文本。这样 UI 不会把安全恢复的「不自动杀」误写成普通心跳超时。
+ */
+export function classifyRunFailure(
+  error: string | null | undefined,
+  failureReason?: string | null,
+): RunFailureClassification {
   const e = (error ?? '').trim();
   const lower = e.toLowerCase();
+  const explicit = failureReason?.trim();
+  if (explicit === 'unknown_external_execution') {
+    return {
+      code: 'stale_or_orphan',
+      title: '外部执行状态待确认',
+      hint: '服务重启后无法确认原 CLI 是否仍在运行。为避免误杀，它没有被自动终止；请先检查本机 CLI 与工作目录确认已停止，再执行。',
+      settingsHref: '/settings',
+    };
+  }
+  if (explicit === 'orphan_termination_attempted') {
+    return {
+      code: 'stale_or_orphan',
+      title: '已请求清理残留执行',
+      hint: '服务重启后已核验该 CLI 是本产品启动，并已请求终止其进程树。请确认工作目录不再变动后，再执行。',
+      settingsHref: '/settings',
+    };
+  }
+  if (explicit === 'missing_required_env_ref') {
+    return {
+      code: 'generic',
+      title: '缺少运行所需的宿主环境变量',
+      hint: '为避免 CLI 在缺少凭据时静默失败，本次运行没有启动。请在 Settings 配置对应宿主环境变量后再执行。',
+      settingsHref: '/settings',
+    };
+  }
   if (/ma_workspace_cwd|未配置\s*ma_workspace_cwd|workspace_cwd/i.test(e)) {
     return {
       code: 'cwd_missing',
@@ -590,6 +663,12 @@ export const RuntimeInfo = z.object({
   version: z.string().nullable(),
   path: z.string().nullable(),
   agentIds: z.array(BusinessId),
+  /** adapter 实际会消费 Agent 级 MCP 配置 */
+  supportsMcpConfig: z.boolean().optional(),
+  /** adapter 实际会消费 Agent 自定义 CLI 参数 */
+  supportsCustomArgs: z.boolean().optional(),
+  /** true 表示 runtime 声明支持 session resume */
+  supportsSessionResume: z.boolean().optional(),
 });
 export type RuntimeInfo = z.infer<typeof RuntimeInfo>;
 
@@ -1052,6 +1131,8 @@ export type AgentSummary = z.infer<typeof AgentSummary>;
 export const AgentEnvVar = z.object({
   key: z.string().min(1).max(200),
   value: z.string().max(4000),
+  /** 敏感值只保存引用名，例如 ANTHROPIC_API_KEY；真实值来自进程环境。 */
+  envRef: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).optional(),
 });
 export type AgentEnvVar = z.infer<typeof AgentEnvVar>;
 
@@ -1134,6 +1215,13 @@ export const AgentReadiness = z.object({
   runningCount: z.number().int(),
   slotsAvailable: z.number().int(),
   cwdConfigured: z.boolean(),
+  /**
+   * Optional for older servers. `not_available` includes runtimes that only have
+   * binary discovery; it is not a negative installation result.
+   */
+  preflightStatus: RuntimePreflightStatus.optional(),
+  /** detect 只证明 CLI 在 PATH；只有显式安全预检通过才是 verified。 */
+  runtimeVerification: RuntimeVerification.optional(),
   status: z.enum(['ready', 'busy', 'runtime_missing', 'cwd_missing', 'error']),
   detail: z.string().nullable(),
 });
@@ -1684,6 +1772,8 @@ export type MemoryScope = z.infer<typeof MemoryScope>;
 export const MemoryItem = z.object({
   id: BusinessId,
   scope: z.string(),
+  /** null = 全局记忆；非 null 只属于该 project。 */
+  projectId: BusinessId.nullable().optional(),
   issueId: BusinessId.nullable(),
   agentId: BusinessId.nullable(),
   runId: BusinessId.nullable(),
@@ -1697,6 +1787,8 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const CreateMemoryInput = z.object({
   text: z.string().min(1),
   issueId: BusinessId.optional(),
+  /** 显式归属项目；缺省时服务端从 issueId 推导，否则为全局。 */
+  projectId: BusinessId.nullable().optional(),
   /** G4-4：四级 scope；缺省 = workspace（有 issueId 时落 issue） */
   scope: MemoryScope.optional(),
 });
@@ -1810,6 +1902,7 @@ export const RunLifecycleEvent = z.object({
     'run:queued',
     'run:waiting_local_directory',
     'run:running',
+    'run:deferred',
     'run:completed',
     'run:failed',
     'run:cancelled',
@@ -2156,6 +2249,20 @@ export const SnapshotManifestFile = z.object({
 });
 export type SnapshotManifestFile = z.infer<typeof SnapshotManifestFile>;
 
+/** G8-3: advisory only; never carries findings or credential-shaped values. */
+export const SecretSafetyStatus = z.enum([
+  'known_legacy_literals_detected',
+  'no_known_legacy_literals',
+  'scan_inconclusive',
+]);
+export type SecretSafetyStatus = z.infer<typeof SecretSafetyStatus>;
+
+export const SecretSafetyAdvisory = z.object({
+  status: SecretSafetyStatus,
+  remediation: z.string().min(1),
+});
+export type SecretSafetyAdvisory = z.infer<typeof SecretSafetyAdvisory>;
+
 export const SnapshotManifest = z.object({
   archiveVersion: z.literal(1),
   createdAt: z.string().datetime(),
@@ -2173,6 +2280,8 @@ export const SnapshotManifest = z.object({
     excludedProjectWikiRoots: z.array(z.string()),
     exclusions: z.array(z.string()),
   }),
+  // Older valid archives predate G8-3 and have no scan metadata.
+  secretSafety: SecretSafetyAdvisory.optional(),
   files: z.array(SnapshotManifestFile),
 });
 export type SnapshotManifest = z.infer<typeof SnapshotManifest>;
@@ -2184,6 +2293,8 @@ export const SnapshotEntry = z.object({
   createdAt: z.string().datetime(),
   sha256: z.string().nullable(),
   valid: z.boolean(),
+  // The server assigns scan_inconclusive to legacy archives without metadata.
+  secretSafety: SecretSafetyAdvisory,
   validationError: z.string().optional(),
 });
 export type SnapshotEntry = z.infer<typeof SnapshotEntry>;
@@ -2319,6 +2430,10 @@ export const SettingsLiveProbesResponse = z.object({
       version: z.string().nullable(),
       path: z.string().nullable(),
       ready: z.boolean(),
+      /** Optional for older servers; live polling never starts a new preflight. */
+      preflightStatus: RuntimePreflightStatus.optional(),
+      /** 当前 live probe 只做无副作用 detect，未验证登录/模型/扩展。 */
+      runtimeVerification: RuntimeVerification.optional(),
       executionImplemented: z.boolean(),
       supportsSessionResume: z.boolean(),
     }),
@@ -2436,6 +2551,8 @@ export const AutomationRule = z.object({
   nextPlannedAt: z.string().datetime().nullable(),
   // automation-fail-counts：执行记录聚合（list/get 附带；无记录为 0/null）
   failCount: z.number().int().nonnegative().default(0),
+  // automation-ops：最近一次触发起连续 skipped 的次数，用于发现规则长期没有实际产出
+  skippedStreak: z.number().int().nonnegative().default(0),
   lastRunStatus: AutomationRunStatus.nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

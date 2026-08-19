@@ -317,7 +317,7 @@ describe('triggerFromComment mention activity', () => {
     expect(mocks.insertedComment).toBeNull();
   });
 
-  it('agent comment on squad-assigned issue but leader already active → silent, no dispatch', async () => {
+  it('agent comment on squad-assigned issue but leader has pending queued → silent, no dispatch', async () => {
     mocks.issueRow = { id: 'issue-42', assigneeType: 'squad', assigneeId: 'squad-7' };
     mocks.getSquadLeaderId.mockReturnValue('agent-leader');
     mocks.enqueueLeaderRun.mockResolvedValue({
@@ -332,6 +332,25 @@ describe('triggerFromComment mention activity', () => {
     expect(mocks.enqueueLeaderRun).toHaveBeenCalled();
     expect(res).toEqual([]);
     expect(mocks.insertedComment).toBeNull();
+  });
+
+  it('agent comment while leader running → follow-up run is announced (not swallowed as already_active)', async () => {
+    mocks.issueRow = { id: 'issue-42', assigneeType: 'squad', assigneeId: 'squad-7' };
+    mocks.getSquadLeaderId.mockReturnValue('agent-leader');
+    mocks.enqueueLeaderRun.mockResolvedValue({ run: { id: 'run-followup' } });
+
+    const res = await triggerFromComment(
+      plainComment({ authorType: 'agent', authorId: 'agent-worker' }),
+    );
+
+    expect(mocks.enqueueLeaderRun).toHaveBeenCalledWith('issue-42', 'agent-leader', 'squad-7');
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({
+      kind: 'squad',
+      runId: 'run-followup',
+      source: 'assignee',
+    });
+    expect(mocks.insertedComment?.body).toContain('📣 **评论路由：将任务派给指派人**');
   });
 
   // —— B2：thread_parent ——

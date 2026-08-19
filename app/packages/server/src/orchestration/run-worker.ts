@@ -21,7 +21,13 @@ import {
 } from './stale-runs.js';
 import { notifyCommentCreated, notifyRunTerminal } from './inbox-writer.js';
 import { getBackend } from '../runtime/registry.js';
-import { parseAgentEnvVars, parseAgentCustomArgs } from '../runtime/agent-inject.js';
+import { parseAgentCustomArgs, resolveAgentEnvVarsForExecution } from '../runtime/agent-inject.js';
+import {
+  inspectMcpEnvReferences,
+  parseMcpServers,
+  validateMcpConfig,
+} from '../runtime/mcp-config.js';
+import { scrubSecretValue, scrubSecrets, StreamSecretScrubber } from '../runtime/secret-scrubber.js';
 import { StreamScrubber, scrubFences } from '../runtime/stream-scrubber.js';
 import { resolveRunPrompt } from '../runtime/prompt.js';
 import {
@@ -54,6 +60,7 @@ import {
   transitionRun,
 } from './run-transitions.js';
 import { hasActiveAutoRetryChild, transitionAndScheduleAutoRetry } from './auto-retry.js';
+import { clearExecutionOwnership, recordExecutionOwnership } from './execution-ownership.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -371,12 +378,67 @@ export async function tick(): Promise<void> {
   // G3-4b：agent.env_vars / custom_args → ExecutionInput（spawn env 合并 + CLI argv 注入）
   const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
   const mcpServers = agentRow?.mcpServers ?? null;
+  const mcpValidation = validateMcpConfig(mcpServers);
+  if (!mcpValidation.ok) {
+    await failRun(runRow.id, `MCP 配置无效：${mcpValidation.error}`);
+    return;
+  }
+  const canonicalMcpServers = mcpServers?.trim() ? mcpValidation.canonical : null;
+  // G8-3：在任何 backend / 临时 MCP 文件启动前，先确认敏感引用都能从
+  // 宿主环境解析。安全凭据不能用空串或静默缺失去碰运气认证。
+  const envResolution = resolveAgentEnvVarsForExecution(agentRow?.envVars ?? null);
+  if (!envResolution.ok) {
+    await failRun(runRow.id, envResolution.error, 'missing_required_env_ref');
+    return;
+  }
+  if (envResolution.missingOptionalRefs.length > 0) {
+    logger.warn(
+      {
+        runId: runRow.id,
+        refs: envResolution.missingOptionalRefs,
+      },
+      'optional agent env references are missing; omitted from CLI launch',
+    );
+  }
+  if (canonicalMcpServers) {
+    const mcpRefs = inspectMcpEnvReferences(parseMcpServers(canonicalMcpServers));
+    if (mcpRefs.missingRequiredRefs.length > 0) {
+      const first = mcpRefs.missingRequiredRefs[0]!;
+      await failRun(
+        runRow.id,
+        `宿主环境缺少 ${first.envRef}（供 MCP ${first.path} 使用），未启动 CLI`,
+        'missing_required_env_ref',
+      );
+      return;
+    }
+    if (mcpRefs.missingOptionalRefs.length > 0) {
+      logger.warn(
+        { runId: runRow.id, refs: mcpRefs.missingOptionalRefs },
+        'optional MCP env references are missing; backend will use its legacy best-effort behavior',
+      );
+    }
+  }
   const model = agentRow?.model?.trim() ? agentRow.model.trim() : null;
   const thinkingLevel = agentRow?.thinkingLevel?.trim()
     ? agentRow.thinkingLevel.trim()
     : null;
-  const envVars = parseAgentEnvVars(agentRow?.envVars ?? null);
+  const envVars = envResolution.envVars;
   const customArgs = parseAgentCustomArgs(agentRow?.customArgs ?? null);
+  const backend = getBackend(runRow.runtime);
+  if (canonicalMcpServers && backend.supportsMcpConfig !== true) {
+    await failRun(
+      runRow.id,
+      `runtime ${backend.label} 不支持 Agent 级 MCP 配置；请清空 MCP 或切换到支持 MCP 的 runtime`,
+    );
+    return;
+  }
+  if (customArgs?.length && backend.supportsCustomArgs !== true) {
+    await failRun(
+      runRow.id,
+      `runtime ${backend.label} 不支持 Agent 自定义 CLI 参数；请清空 customArgs 或切换 runtime`,
+    );
+    return;
+  }
   try {
     db.update(agentRuns)
       .set({ model, thinkingLevel })
@@ -439,6 +501,25 @@ export async function tick(): Promise<void> {
   // G4-2：流式围栏 scrubber（per-run；CLI 回显 user prompt 时剥系统注入的
   // <retrieved-context>/<context-fence>/<think> 围栏，防漏进 UI 与回放）
   const scrubber = new StreamScrubber();
+  // G8-5：密钥流状态与 memory/think 围栏独立。message delta 与 log 可能交错，
+  // 所以各有自己的 pending tail，避免把两个来源拼成错误的 token。
+  const messageSecretScrubber = new StreamSecretScrubber();
+  const logSecretScrubber = new StreamSecretScrubber();
+  const publishStreamText = (kind: 'text' | 'thinking', text: string): void => {
+    if (!text) return;
+    eventBus.publish({
+      type: 'run:progress',
+      runId: runRow.id,
+      issueId: runRow.issueId ?? null,
+      text,
+    });
+    eventBus.publish({
+      type: 'run:stream_chunk',
+      runId: runRow.id,
+      kind,
+      content: text,
+    });
+  };
 
   // onEvent —— Backend 事件分流（spec §6.2 + §3.4 comment 分工）：
   //   progress/log/delta → run:progress only（不进 DB）
@@ -450,32 +531,34 @@ export async function tick(): Promise<void> {
     if (e.type === 'tool_start') {
       noteToolStart(runRow.id, e.name);
       toolStartTime.set(e.name, Date.now());
-      const rEvent = normalizeRuntimeEvent({ runId: runRow.id, type: 'tool_start', toolName: e.name, input: e.args });
+      const rEvent = normalizeRuntimeEvent({
+        runId: runRow.id,
+        type: 'tool_start',
+        toolName: e.name,
+        input: scrubSecretValue(e.args),
+      });
       eventBus.publish({ type: 'runtime:event', event: rEvent });
     } else if (e.type === 'tool_end') {
       noteToolEnd(runRow.id, e.name);
       const start = toolStartTime.get(e.name);
       const duration = start ? Date.now() - start : undefined;
       toolStartTime.delete(e.name);
-      const rEvent = normalizeRuntimeEvent({ runId: runRow.id, type: 'tool_end', toolName: e.name, output: e.result, duration });
+      const rEvent = normalizeRuntimeEvent({
+        runId: runRow.id,
+        type: 'tool_end',
+        toolName: e.name,
+        output: scrubSecretValue(e.result),
+        duration,
+      });
       eventBus.publish({ type: 'runtime:event', event: rEvent });
     }
     if (e.type === 'message_delta' || e.type === 'log') {
       // G4-2：流式 delta 过 scrubber（有状态跨 chunk；被剥内容不发布）
       const visible = e.type === 'message_delta' ? scrubber.feed(e.text) : e.text;
-      if (!visible) return;
-      eventBus.publish({
-        type: 'run:progress',
-        runId: runRow.id,
-        issueId: runRow.issueId ?? null,
-        text: visible,
-      });
-      eventBus.publish({
-        type: 'run:stream_chunk',
-        runId: runRow.id,
-        kind: e.type === 'log' ? 'thinking' : 'text',
-        content: visible,
-      });
+      const safeVisible = e.type === 'message_delta'
+        ? messageSecretScrubber.feed(visible)
+        : logSecretScrubber.feed(visible);
+      publishStreamText(e.type === 'log' ? 'thinking' : 'text', safeVisible);
       return;
     }
     let kind: 'assistant' | 'user' | 'tool_start' | 'tool_end' | 'system' = 'system';
@@ -483,13 +566,15 @@ export async function tick(): Promise<void> {
     if (e.type === 'message') {
       kind = e.role === 'user' ? 'user' : 'assistant';
       // G4-2：整条消息一次性剥围栏（user 回显含完整 prompt 围栏）
-      body = scrubFences(e.text);
+      body = scrubSecrets(scrubFences(e.text));
     } else if (e.type === 'tool_start') {
       kind = 'tool_start';
-      body = JSON.stringify({ name: e.name, args: e.args ?? null });
+      body = scrubSecrets(JSON.stringify({ name: e.name, args: scrubSecretValue(e.args ?? null) }));
     } else if (e.type === 'tool_end') {
       kind = 'tool_end';
-      body = JSON.stringify({ name: e.name, result: e.result ?? '' });
+      // Defensive second pass keeps the DB transcript safe even if a backend
+      // already converted a structured result to a string before this boundary.
+      body = scrubSecrets(JSON.stringify({ name: e.name, result: scrubSecretValue(e.result ?? '') }));
     }
     const id = crypto.randomUUID();
     const createdAt = Date.now();
@@ -510,6 +595,25 @@ export async function tick(): Promise<void> {
       message,
       issueId: runRow.issueId ?? null,
     });
+  };
+
+  // G8-2：每个 backend 在真正拿到 child PID 时调用。采样/写库失败不阻止
+  // 现有执行，但会使未来重启严格降级为「不自动杀」而不是按 PID 猜测。
+  const onProcessStarted = (pid: number) => {
+    try {
+      const owner = recordExecutionOwnership(runRow.id, pid, cwd);
+      if (!owner.recorded) {
+        logger.warn(
+          { runId: runRow.id, pid, reason: owner.reason },
+          'run execution ownership was not persisted; crash recovery will fail closed',
+        );
+      }
+    } catch (err) {
+      logger.warn(
+        { runId: runRow.id, pid, err: err instanceof Error ? err.message : String(err) },
+        'run execution ownership write failed; crash recovery will fail closed',
+      );
+    }
   };
 
   // 超时：chat 默认 15min wall；issue 默认无 wall（MA_ISSUE_TIMEOUT_MS），idle 见 stale sweeper
@@ -580,11 +684,10 @@ export async function tick(): Promise<void> {
     if (customArgs?.length) {
       onEvent({
         type: 'log',
-        text: `[args] 注入自定义 CLI 参数: ${customArgs.join(' ')}\n`,
+        text: `[args] 注入 ${customArgs.length} 个自定义 CLI 参数\n`,
       });
     }
 
-    const backend = getBackend(runRow.runtime);
     const result = await backend.execute(
       {
         prompt,
@@ -592,34 +695,25 @@ export async function tick(): Promise<void> {
         issueId: runRow.issueId ?? null,
         agentId: runRow.agentId,
         runId: runRow.id,
-        mcpServers, // S05：MCP 配置 JSON 字符串（null 则 backend 忽略）
+        mcpServers: canonicalMcpServers, // S05：规范化 MCP 配置（null 则 backend 忽略）
         model, // G22：空则 CLI 默认
         thinkingLevel, // DS4：空则 CLI 默认
         timeoutMs: wallTimeoutMs,
         resumeSessionId: priorSession.resumeSessionId, // DS1
         envVars, // G3-4b：子进程 env 显式覆盖
         customArgs, // G3-4b：CLI argv 注入
+        onProcessStarted,
       },
       onEvent,
       signal,
     );
     clearRunAbort(runRow.id);
-    // G4-2：流结束 flush（未闭合 span 丢弃；部分标签尾部原样放出）
-    const scrubTail = scrubber.flush();
-    if (scrubTail) {
-      eventBus.publish({
-        type: 'run:progress',
-        runId: runRow.id,
-        issueId: runRow.issueId ?? null,
-        text: scrubTail,
-      });
-      eventBus.publish({
-        type: 'run:stream_chunk',
-        runId: runRow.id,
-        kind: 'text',
-        content: scrubTail,
-      });
-    }
+    // G4-2：先 flush memory/think 围栏；再让独立密钥状态机决定能否放出尾部。
+    // 未结束的高置信 credential 会在它的 flush 中整体替换，而不是泄露 held prefix。
+    const fenceTail = scrubber.flush();
+    publishStreamText('text', messageSecretScrubber.feed(fenceTail));
+    publishStreamText('text', messageSecretScrubber.flush());
+    publishStreamText('thinking', logSecretScrubber.flush());
     const finishedAt = Date.now();
     // DS4：有 usage 则落库（终态任意；失败/取消也尽量保留）
     const tokenPatch = {
@@ -634,6 +728,9 @@ export async function tick(): Promise<void> {
       tokenPatch.tokensCacheRead != null ||
       tokenPatch.tokensCacheWrite != null;
 
+    // G8-5：ExecutionResult.error 可能来自 CLI stderr / child result。必须在
+    // sessionPatch、activity、agent_runs、chat 和 run:failed fan-out 前统一安全化。
+    const safeResultError = result.error == null ? null : scrubSecrets(result.error);
     // DS1：session 终态字段
     const sessionPatch = finalizeSessionFields({
       planned: priorSession,
@@ -642,7 +739,7 @@ export async function tick(): Promise<void> {
         result.exitReason === 'cancelled' || signal.aborted
           ? 'cancelled'
           : result.exitReason,
-      errorText: result.error ?? null,
+      errorText: safeResultError,
     });
 
     if (result.exitReason === 'cancelled' || signal.aborted) {
@@ -653,7 +750,7 @@ export async function tick(): Promise<void> {
         patch: {
           status: 'cancelled',
           finishedAt,
-          error: result.error ?? null,
+          error: safeResultError,
           waitingLocalEnteredAt: null,
           prepareLeaseExpiresAt: null,
           ...(hasTokens ? tokenPatch : {}),
@@ -674,7 +771,7 @@ export async function tick(): Promise<void> {
           actorId: runRow.agentId,
           actorName: agentRow?.name ?? 'Agent',
           eventType: 'run_failed',
-          payload: { runId: runRow.id, error: result.error },
+          payload: { runId: runRow.id, error: safeResultError },
         });
       }
       db.update(agentRuns)
@@ -684,7 +781,7 @@ export async function tick(): Promise<void> {
         })
         .where(eq(agentRuns.id, runRow.id))
         .run();
-      await failRun(runRow.id, result.error ?? '执行失败');
+      await failRun(runRow.id, safeResultError ?? '执行失败');
       return;
     }
 
@@ -717,7 +814,9 @@ export async function tick(): Promise<void> {
       return; // 已被 cancel/fail 抢先，禁止伪成功副作用
     }
 
-    const finalText = result.finalText || '(无输出)';
+    // finalText is a transcript side path (comment/chat/memory/subagent parsing),
+    // not necessarily represented by a message event. Never fan it out raw.
+    const finalText = scrubSecrets(result.finalText || '(无输出)');
 
     // S12: 解析并委派子代理
     if (finalText && finalText !== '(无输出)') {
@@ -819,6 +918,7 @@ export async function tick(): Promise<void> {
               identifier: issueRow.identifier,
               title: issueRow.title,
               description: issueRow.description,
+              projectId: issueRow.projectId ?? null,
             },
             run: {
               id: runRow.id,
@@ -846,9 +946,19 @@ export async function tick(): Promise<void> {
     }
   } catch (err) {
     clearRunAbort(runRow.id);
-    await failRun(runRow.id, String(err));
+    await failRun(runRow.id, scrubSecrets(String(err)));
   } finally {
     if (hb) clearInterval(hb);
+    try {
+      // 正常 executor settle（含 cancel / failed）后释放活动 ownership。若
+      // Node 直接崩溃则 finally 不会运行，侧表会留给启动 reconcile。
+      clearExecutionOwnership(runRow.id);
+    } catch (err) {
+      logger.warn(
+        { runId: runRow.id, err: err instanceof Error ? err.message : String(err) },
+        'run execution ownership cleanup failed',
+      );
+    }
     clearToolInflight(runRow.id);
     wakeRunWorker();
   }
@@ -864,12 +974,16 @@ export async function failRun(
   error: string,
   failureReason?: AgentRun['failureReason'],
 ): Promise<void> {
+  // This is the terminal error choke point for worker throws, child run results
+  // and provider stderr-derived failures. Keep run rows/chat/WS/inbox on one
+  // safe value even when a caller missed an earlier boundary.
+  const safeError = scrubSecrets(error);
   const finishedAt = Date.now();
   const prev = db.select().from(agentRuns).where(eq(agentRuns.id, runId)).get();
   if (!prev) return;
 
   // 显式 failureReason 优先；否则走 Classify 规则表
-  const reason = failureReason ?? inferFailureReason(error);
+  const reason = failureReason ?? inferFailureReason(safeError);
   // Slice 39：0-change 不发 run:failed / inbox
   const tr = transitionAndScheduleAutoRetry({
     id: runId,
@@ -877,7 +991,7 @@ export async function failRun(
     patch: {
       status: 'failed',
       finishedAt,
-      error,
+      error: safeError,
       failureReason: reason,
       waitingLocalEnteredAt: null,
       prepareLeaseExpiresAt: null,
@@ -907,7 +1021,7 @@ export async function failRun(
   const kind = (prev.kind as string) ?? 'issue';
   if (kind === 'chat' && prev.chatThreadId) {
     const mid = crypto.randomUUID();
-    const body = `【运行失败】${error || '未知错误'}\n\n可在运行详情查看完整信息，或重新发送消息。`;
+    const body = `【运行失败】${safeError || '未知错误'}\n\n可在运行详情查看完整信息，或重新发送消息。`;
     db.insert(chatMessages)
       .values({
         id: mid,

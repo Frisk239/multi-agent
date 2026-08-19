@@ -18,6 +18,7 @@ const RUN_LIFECYCLE_TYPES = new Set<DomainEvent['type']>([
   'run:queued',
   'run:waiting_local_directory',
   'run:running',
+  'run:deferred',
   'run:completed',
   'run:failed',
   'run:cancelled',
@@ -48,6 +49,7 @@ function runIdFromEvent(e: DomainEvent): string | null {
     case 'run:queued':
     case 'run:waiting_local_directory':
     case 'run:running':
+    case 'run:deferred':
     case 'run:completed':
     case 'run:failed':
     case 'run:cancelled':

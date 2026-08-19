@@ -113,6 +113,20 @@ describe('PiBackend (real pi RPC backend)', () => {
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
+  it('reports the spawned PID to G8 ownership persistence', async () => {
+    const f = setupInstalled();
+    const onProcessStarted = vi.fn();
+    const promise = new PiBackend().execute(
+      { ...baseInput, onProcessStarted },
+      () => {},
+      new AbortController().signal,
+    );
+    await tick();
+    expect(onProcessStarted).toHaveBeenCalledWith(4242);
+    f.close(1);
+    await promise;
+  });
+
   // ---- 场景 1：happy path ----
   it('scenario 1: happy path — prompt preflight → agent events → agent_end completes', async () => {
     const f = setupInstalled();
@@ -301,13 +315,13 @@ describe('PiBackend (real pi RPC backend)', () => {
     expect(f.child.stdin.end).toHaveBeenCalledTimes(1);
   });
 
-  it('G6-6 extension_ui_request → run 提示「CLI 在等确认，按 idle 收尸」，不静默；同 run 只提示一次', async () => {
+  it('G6-6 extension_ui_request → 无人值守时立即 cancelled，避免 CLI 卡到 idle 超时', async () => {
     const f = setupInstalled();
     const events: AgentEvent[] = [];
     const promise = new PiBackend().execute(baseInput, (e) => events.push(e), new AbortController().signal);
     await tick();
 
-    // CLI 中途请求宿主确认（confirm ×2：第二次不应重复提示）
+    // CLI 中途请求宿主确认（confirm + select：均应收到取消响应）
     f.feedJson([
       { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
       { type: 'extension_ui_request', id: 'u1', method: 'confirm', title: 'run command?', message: 'bash pwd?' },
@@ -324,8 +338,11 @@ describe('PiBackend (real pi RPC backend)', () => {
     );
     expect(uiLogs).toHaveLength(1); // 只提示一次（防刷屏）
     expect(uiLogs[0]!.text).toContain('confirm'); // 首个请求的 method
-    expect(uiLogs[0]!.text).toContain('idle 超时收尸');
-    expect(uiLogs[0]!.text).toContain('不会无限挂起');
+    expect(uiLogs[0]!.text).toContain('无人值守');
+    expect(uiLogs[0]!.text).toContain('自动取消');
+    const writes = f.child.stdin.write.mock.calls.map((c: unknown[]) => JSON.parse(c[0] as string));
+    expect(writes).toContainEqual({ type: 'extension_ui_response', id: 'u1', cancelled: true });
+    expect(writes).toContainEqual({ type: 'extension_ui_response', id: 'u2', cancelled: true });
   });
 
   // ---- 补充：prompt success response 不是完成信号；退出码不可当完成信号 ----

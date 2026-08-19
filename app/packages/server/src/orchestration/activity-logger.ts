@@ -2,6 +2,16 @@ import { db } from '../db/client.js';
 import { activityLogs } from '../db/schema.js';
 import type { ActivityEventType, ActivityLog } from '@ma/shared';
 import { eventBus } from './event-bus.js';
+import { scrubSecretValue } from '../runtime/secret-scrubber.js';
+
+/** Broadcast an activity row that was persisted by a specialized path. */
+export function publishActivityCreated(activity: ActivityLog): void {
+  eventBus.publish({
+    type: 'activity:created',
+    issueId: activity.issueId,
+    activity,
+  });
+}
 
 export function recordActivityLog(params: {
   issueId: string;
@@ -17,7 +27,9 @@ export function recordActivityLog(params: {
     const actorType = params.actorType ?? 'system';
     const actorId = params.actorId ?? null;
     const actorName = params.actorName ?? '系统';
-    const payload = params.payload ?? null;
+    // Activity is persisted and broadcast, so it is a transcript fan-out rather
+    // than a logger sink. Clone/scrub values before both boundaries.
+    const payload = params.payload == null ? null : scrubSecretValue(params.payload);
 
     db.insert(activityLogs)
       .values({
@@ -44,11 +56,7 @@ export function recordActivityLog(params: {
     };
 
     // Slice 71：写入后广播，前端 RQ 可 invalidate / setQueryData
-    eventBus.publish({
-      type: 'activity:created',
-      issueId: params.issueId,
-      activity,
-    });
+    publishActivityCreated(activity);
   } catch (err) {
     console.error(`[ActivityLogger] Failed to insert activity for issue ${params.issueId}:`, err);
   }

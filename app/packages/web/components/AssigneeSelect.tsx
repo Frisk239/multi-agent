@@ -24,10 +24,19 @@ import { filterAssigneeOptions } from '@/lib/assignee-filter';
 import { toastSuccess } from '@/lib/toast';
 import { Select } from './Select';
 
+function isRuntimeUnverified(rd: AgentReadiness | null | undefined): boolean {
+  return (
+    rd?.runtimeInstalled === true &&
+    rd.runtimeVerification === 'unverified' &&
+    rd.preflightStatus !== 'failed'
+  );
+}
+
 function readinessHint(rd: AgentReadiness | null | undefined): string {
   if (!rd) return '';
-  if (rd.status === 'ready') return 'ready';
-  if (rd.status === 'busy') return 'busy';
+  const preflightHint = isRuntimeUnverified(rd) ? ' · 未安全预检' : '';
+  if (rd.status === 'ready') return `ready${preflightHint}`;
+  if (rd.status === 'busy') return `busy${preflightHint}`;
   if (rd.status === 'cwd_missing') return 'cwd 未配置';
   if (rd.status === 'runtime_missing') return 'runtime 缺失';
   return rd.status;
@@ -407,10 +416,13 @@ export function AssigneeSelect({
   }
 
   const showAgentHint =
-    currentAssignee?.type === 'agent' && currentRd && currentRd.status !== 'ready';
+    currentAssignee?.type === 'agent' &&
+    currentRd &&
+    (currentRd.status !== 'ready' || isRuntimeUnverified(currentRd));
   const showSquadHint =
     currentAssignee?.type === 'squad' &&
     ((currentRd && currentRd.status !== 'ready') ||
+      isRuntimeUnverified(currentRd) ||
       (currentSquadSummary != null && currentSquadSummary.blocked > 0));
 
   // G7-6：搜索 + 过滤下拉由受控 AssigneeCombobox 承担（与新建表单同源）；
@@ -431,6 +443,9 @@ export function AssigneeSelect({
           <span>
             当前指派就绪：<strong>{readinessHint(currentRd)}</strong>
             {currentRd?.detail ? ` · ${currentRd.detail}` : ''}
+            {isRuntimeUnverified(currentRd)
+              ? ' · CLI 已安装，尚无安全预检；首次运行仍可能失败。'
+              : ''}
           </span>
           <span className="assignee-readiness-links" data-testid="assignee-recovery-links">
             {currentRd?.status === 'runtime_missing' ? (
@@ -476,6 +491,9 @@ export function AssigneeSelect({
               : ''}
             {currentSquadSummary?.labels?.length
               ? `（${currentSquadSummary.labels.slice(0, 3).join('、')}）`
+              : ''}
+            {isRuntimeUnverified(currentRd)
+              ? ' · 队长 CLI 已安装，尚无安全预检；首次运行仍可能失败。'
               : ''}
           </span>
           <span className="assignee-readiness-links" data-testid="assignee-squad-recovery-links">

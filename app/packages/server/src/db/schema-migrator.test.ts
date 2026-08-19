@@ -71,6 +71,13 @@ describe('schema migrator drift gate (Slice 41)', () => {
     const memoryItem = colNames(sqlite, 'memory_item');
     expect(memoryItem.has('valid_at')).toBe(true);
     expect(memoryItem.has('invalid_at')).toBe(true);
+    expect(memoryItem.has('project_id')).toBe(true);
+
+    // G8-2：活动子进程归属与业务 run 终态分表，防止 PID 裸杀。
+    const executionOwner = colNames(sqlite, 'run_execution_owner');
+    expect(executionOwner).toEqual(
+      new Set(['run_id', 'pid', 'fingerprint', 'cwd_path', 'recorded_at']),
+    );
 
     // 0035 已在 journal
     const wikiJob = colNames(sqlite, 'wiki_ingest_job');

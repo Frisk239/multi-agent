@@ -18,6 +18,7 @@ import {
   userSkillsDir,
 } from '../skill/scanner.js';
 import { importSkillFromUrl } from '../skill/import-url.js';
+import { validateMcpConfig, redactMcpConfig } from '../runtime/mcp-config.js';
 
 // skillRoutes —— skill 目录索引 + agent 分配 + MCP 配置（spec §4）。
 // GET  /api/skills              内存索引列表（含 usedBy 反查 agent_skill）
@@ -211,14 +212,28 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/agents/:id/mcp', async (req) => {
     const { id } = req.params as { id: string };
     const agent = db.select().from(agents).where(eq(agents.id, id)).get();
-    return { mcpServers: agent?.mcpServers ?? null };
+    return { mcpServers: redactMcpConfig(agent?.mcpServers ?? null) };
   });
 
   // PUT /api/agents/:id/mcp —— 更新 MCP 配置（body: { mcpServers: string | null }）
-  app.put('/api/agents/:id/mcp', async (req) => {
+  app.put('/api/agents/:id/mcp', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const { mcpServers } = req.body as { mcpServers: string | null };
-    db.update(agents).set({ mcpServers }).where(eq(agents.id, id)).run();
+    const agent = db.select().from(agents).where(eq(agents.id, id)).get();
+    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在' });
+    const body = (req.body ?? {}) as { mcpServers?: unknown };
+    if (body.mcpServers !== null && typeof body.mcpServers !== 'string' && body.mcpServers !== undefined) {
+      return reply.status(400).send({ success: false, error: 'mcpServers 必须是 JSON 字符串或 null' });
+    }
+    const raw = body.mcpServers as string | null | undefined;
+    if (raw == null || !raw.trim()) {
+      db.update(agents).set({ mcpServers: null }).where(eq(agents.id, id)).run();
+      return { ok: true };
+    }
+    const validated = validateMcpConfig(raw);
+    if (!validated.ok) {
+      return reply.status(400).send({ success: false, error: validated.error, code: 'INVALID_MCP_CONFIG' });
+    }
+    db.update(agents).set({ mcpServers: validated.canonical }).where(eq(agents.id, id)).run();
     return { ok: true };
   });
 }

@@ -49,22 +49,32 @@ function normalizeScheduleFields(input: {
 }
 
 
-function loadRuleStats(ruleId: string): { failCount: number; lastRunStatus: AutomationRun['status'] | null } {
+function loadRuleStats(ruleId: string): {
+  failCount: number;
+  skippedStreak: number;
+  lastRunStatus: AutomationRun['status'] | null;
+} {
   const fails = db
     .select()
     .from(automationRuns)
     .where(and(eq(automationRuns.ruleId, ruleId), eq(automationRuns.status, 'failed')))
     .all();
-  const last = db
+  const recent = db
     .select()
     .from(automationRuns)
     .where(eq(automationRuns.ruleId, ruleId))
     .orderBy(desc(automationRuns.createdAt))
-    .limit(1)
-    .all()[0];
+    .limit(20)
+    .all();
+  let skippedStreak = 0;
+  for (const run of recent) {
+    if (run.status !== 'skipped') break;
+    skippedStreak += 1;
+  }
   return {
     failCount: fails.length,
-    lastRunStatus: last ? (last.status as AutomationRun['status']) : null,
+    skippedStreak,
+    lastRunStatus: recent[0] ? (recent[0].status as AutomationRun['status']) : null,
   };
 }
 

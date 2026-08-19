@@ -17,7 +17,9 @@ import {
   useDeleteSnapshotStage,
   usePreviewSnapshotRestore,
   useConfirmSnapshotRestore,
+  useApplySecretSafety,
   useRecoverStuckRuns,
+  useSecretSafetyScan,
   useSetInboxPrefs,
   useRetryAllDeadWikiJobs,
   useSetWorkspaceCwd,
@@ -918,6 +920,7 @@ export function SettingsPage() {
       <CliHealthInspector />
       <LiveProbesSection />
       <SnapshotRecoverySection />
+      <SecretSafetySection />
       {wikiLlmBlocked || runtimeBlocked.length > 0 ? (
         <section className="settings-section" data-testid="settings-guides-section">
           <div className="settings-section-head">
@@ -1728,6 +1731,18 @@ function SnapshotRecoverySection() {
                 <code>{entry.name}</code>{' '}
                 <span className={entry.valid ? 'text-dim' : 'settings-check-detail'}>{entry.valid ? '✓ hash valid' : `✕ ${entry.validationError ?? 'invalid'}`}</span>
                 <span className="text-dim text-sm"> · {(entry.sizeBytes / 1024).toFixed(1)} KiB · {new Date(entry.createdAt).toLocaleString()}</span>
+                <span
+                  className={
+                    entry.secretSafety.status === 'no_known_legacy_literals'
+                      ? 'text-dim text-sm'
+                      : 'settings-check-detail'
+                  }
+                  data-testid={`settings-snapshot-secret-safety-${entry.name}`}
+                  title={entry.secretSafety.remediation}
+                >
+                  {' · '}
+                  {snapshotSecretSafetyLabel(entry.secretSafety.status)}
+                </span>
               </span>
               <span className="settings-cwd-recovery-links">
                 <button type="button" className="btn-ghost btn-sm" data-testid={`settings-snapshot-validate-${entry.name}`} disabled={validate.isPending} onClick={() => validate.mutate({ name: entry.name })}>校验</button>
@@ -1831,13 +1846,161 @@ function SnapshotRecoverySection() {
   );
 }
 
+function snapshotSecretSafetyLabel(
+  status:
+    | 'known_legacy_literals_detected'
+    | 'no_known_legacy_literals'
+    | 'scan_inconclusive',
+): string {
+  if (status === 'known_legacy_literals_detected') return '历史敏感字面量风险';
+  if (status === 'no_known_legacy_literals') return '未发现已知历史明文';
+  return '历史密钥风险待确认';
+}
+
+function SecretSafetySection() {
+  const scan = useSecretSafetyScan();
+  const apply = useApplySecretSafety();
+  const summary = scan.data?.summary;
+  // scan_inconclusive 也可能带有畸形旧 JSON 的安全 finding；这种情况同样
+  // 允许用户在明确确认后清空该字段，不能把它变成没有出路的红色状态。
+  const canClean = (summary?.findings.length ?? 0) > 0;
+
+  const statusLabel =
+    summary?.status === 'known_legacy_literals_detected'
+      ? `发现 ${summary.findings.length} 处历史敏感字面量`
+      : summary?.status === 'no_known_legacy_literals'
+        ? '未发现已知历史敏感字面量'
+        : summary?.status === 'scan_inconclusive'
+          ? '扫描无法完整确认'
+          : '尚未扫描';
+
+  return (
+    <section id="settings-secret-safety" className="settings-section" data-testid="settings-secret-safety">
+      <div className="settings-section-head">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div>
+            <h2 className="settings-section-title">密钥安全检查</h2>
+            <p className="settings-section-desc">
+              检查旧 Agent 环境变量和 MCP 配置中的敏感字面量；扫描结果绝不回显密钥。
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            data-testid="settings-secret-safety-scan"
+            disabled={scan.isPending || apply.isPending}
+            onClick={() => {
+              // A fresh scan supersedes any earlier cleanup response. Never
+              // leave the pre-cleanup finding list rendered as if it were live.
+              apply.reset();
+              scan.mutate();
+            }}
+          >
+            {scan.isPending ? '扫描中…' : '扫描历史配置'}
+          </button>
+        </div>
+      </div>
+
+      <section className="settings-card settings-ops-recovery" aria-live="polite">
+        <div className="settings-cwd-guide-title">
+          <strong data-testid="settings-secret-safety-status">{statusLabel}</strong>
+          {summary?.status === 'known_legacy_literals_detected' ? (
+            <span className="settings-runtime-guide-badge">需处理</span>
+          ) : summary?.status === 'scan_inconclusive' ? (
+            <span className="settings-cwd-guide-badge">需人工检查</span>
+          ) : null}
+        </div>
+        <p className="text-dim text-sm" data-testid="settings-secret-safety-remediation">
+          {summary?.remediation ?? '扫描不会修改数据库；发现历史值后，需明确确认才会清理。'}
+        </p>
+
+        {summary && canClean ? (
+          <>
+            <ul className="settings-cwd-steps" data-testid="settings-secret-safety-findings" style={{ listStyle: 'none', padding: 0 }}>
+              {summary.findings.map((finding) => (
+                <li key={`${finding.agentId}:${finding.field}:${finding.path}`}>
+                  <code>{finding.agentId}</code>
+                  {' · '}
+                  {finding.field === 'envVars' ? '环境变量' : 'MCP'} <strong>{finding.key}</strong>
+                  {' · '}
+                  <span className="text-dim">{finding.path} · {finding.length} 字符 · 指纹 {finding.fingerprint}</span>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className="btn-danger btn-sm"
+              data-testid="settings-secret-safety-apply"
+              disabled={apply.isPending}
+              onClick={() => {
+                void (async () => {
+                  const confirmed = await confirmDialog({
+                    title: '清理历史敏感字面量？',
+                    description:
+                      '这会从旧 Agent 环境变量/MCP 配置中移除已发现的敏感字面量，且不可恢复。不会猜测或写入 envRef；后续请在宿主环境设置变量并补填引用。',
+                    confirmLabel: '清理历史字面量',
+                    variant: 'danger',
+                  });
+                  if (!confirmed) return;
+                  apply.mutate(
+                    { confirmation: 'CLEAN_LEGACY_SECRET_LITERALS' },
+                    {
+                      onSuccess: () => {
+                        // `summary` in the apply response deliberately
+                        // describes the pre-cleanup findings. Reset it and
+                        // re-scan so the screen only renders current state.
+                        apply.reset();
+                        scan.reset();
+                        scan.mutate();
+                      },
+                    },
+                  );
+                })();
+              }}
+            >
+              {apply.isPending ? '清理中…' : '清理已发现的历史字面量'}
+            </button>
+          </>
+        ) : null}
+      </section>
+    </section>
+  );
+}
+
+/**
+ * `detect()` only establishes that a local CLI can be found. Keep this
+ * presentation deliberately conservative while backend adapters gradually add
+ * an explicit, side-effect-free preflight contract.
+ */
+function liveRuntimeReadinessLabel(runtime: {
+  installed: boolean;
+  ready: boolean;
+  runtimeVerification?: string;
+  preflightStatus?: unknown;
+}): string {
+  if (!runtime.installed) return '缺失';
+
+  if (runtime.preflightStatus === 'failed') return '已安装 · 安全预检失败';
+  if (runtime.preflightStatus === 'passed') {
+    return runtime.ready ? '已安装 · 安全预检通过' : '已安装 · 安全预检通过，但当前不可执行';
+  }
+  if (runtime.preflightStatus === 'not_available') {
+    return runtime.ready ? '已安装 · 未提供安全预检' : '已安装 · 当前不可执行（未提供安全预检）';
+  }
+  if (runtime.preflightStatus !== undefined) return '已安装 · 安全预检状态未知';
+  if (runtime.runtimeVerification === 'verified') {
+    return runtime.ready ? '已安装 · 安全预检通过' : '已安装 · 安全预检通过，但当前不可执行';
+  }
+  return runtime.ready ? '已安装 · 尚未安全预检' : '已安装 · 当前不可执行（尚未安全预检）';
+}
+
 function LiveProbesSection() {
   const { data, isLoading, isError, refetch, isFetching } = useSettingsLiveProbes({
     refetchInterval: 5_000,
   });
   const probes = data?.probes ?? [];
   const runtimes = data?.runtimes ?? [];
-  const readyCount = runtimes.filter((r) => r.ready).length;
+  const installedCount = runtimes.filter((r) => r.installed).length;
 
   return (
     <section className="settings-section" data-testid="settings-live-probes">
@@ -1849,7 +2012,7 @@ function LiveProbesSection() {
               Live Runtime Probes（进程活体探针）
             </h2>
             <p className="settings-section-desc">
-              真实 runtime detect/readiness + 在途 run 心跳
+              CLI 发现与在途 run 心跳；detect 只确认命令可发现，不验证认证、模型或 MCP
               {data ? ` · pid ${data.pid}` : ''}
             </p>
           </div>
@@ -1879,7 +2042,7 @@ function LiveProbesSection() {
                 ? ` · 本进程 ${data.inProcessCount}`
                 : ''}
               {' · '}
-              runtime ready {readyCount}/{runtimes.length}
+              runtime 已安装 {installedCount}/{runtimes.length}
             </p>
             {runtimes.length > 0 ? (
               <ul
@@ -1896,6 +2059,7 @@ function LiveProbesSection() {
                 {runtimes.map((r) => (
                   <li
                     key={r.id}
+                    data-testid={`settings-live-runtime-${r.id}`}
                     style={{
                       padding: '4px 8px',
                       borderRadius: 4,
@@ -1904,7 +2068,7 @@ function LiveProbesSection() {
                     }}
                   >
                     <code>{r.id}</code>{' '}
-                    {r.ready ? 'ready' : r.installed ? 'not-ready' : 'missing'}
+                    {liveRuntimeReadinessLabel(r)}
                     {r.version ? ` · ${r.version}` : ''}
                   </li>
                 ))}

@@ -1077,7 +1077,16 @@ function AutomationPageInner() {
                       )}
                     </td>
                     <td className="text-sm" data-testid="automation-run-stats">
-                      {(rule.failCount ?? 0) > 0 ? (
+                      {(rule.skippedStreak ?? 0) >= 3 ? (
+                        <span
+                          className="automation-skip-warning"
+                          data-testid="automation-skipped-streak"
+                          data-count={String(rule.skippedStreak)}
+                          title="连续跳过通常表示没有匹配到可执行目标，或规则配置已失效"
+                        >
+                          ⚠ 连续跳过 {rule.skippedStreak} 次
+                        </span>
+                      ) : (rule.failCount ?? 0) > 0 ? (
                         <Link
                           href="/automation?failed=1"
                           className="automation-fail-count automation-fail-count--link"

@@ -44,9 +44,20 @@ const backupMocks = vi.hoisted(() => ({
   listDbBackups: vi.fn(),
 }));
 
+const secretSafetyMocks = vi.hoisted(() => ({
+  scanSecretSafety: vi.fn(),
+  cleanLegacySecretLiterals: vi.fn(),
+}));
+
 vi.mock('../ops-backup.js', () => ({
   createDbBackup: backupMocks.createDbBackup,
   listDbBackups: backupMocks.listDbBackups,
+}));
+
+vi.mock('../secret-safety.js', () => ({
+  scanSecretSafety: secretSafetyMocks.scanSecretSafety,
+  cleanLegacySecretLiterals: secretSafetyMocks.cleanLegacySecretLiterals,
+  SECRET_SAFETY_CONFIRMATION: 'CLEAN_LEGACY_SECRET_LITERALS',
 }));
 
 import { opsRoutes } from './ops.js';
@@ -99,6 +110,8 @@ describe('GET /api/ops/snapshot', () => {
     __resetProcessHealthForTests();
     backupMocks.createDbBackup.mockReset();
     backupMocks.listDbBackups.mockReset();
+    secretSafetyMocks.scanSecretSafety.mockReset();
+    secretSafetyMocks.cleanLegacySecretLiterals.mockReset();
   });
 
   it('returns ops snapshot JSON with required fields', async () => {
@@ -157,6 +170,10 @@ describe('POST /api/ops/backup & GET /api/ops/backups', () => {
       sizeBytes: 4096,
       createdAt: '2026-07-27T00:00:00.000Z',
       dir: 'D:/tmp',
+      secretSafety: {
+        status: 'no_known_legacy_literals',
+        remediation: 'test advisory',
+      },
     });
 
     const { app, routes } = makeApp();
@@ -170,6 +187,7 @@ describe('POST /api/ops/backup & GET /api/ops/backups', () => {
       path: 'D:/tmp/ma-backup-x.db',
       sizeBytes: 4096,
       createdAt: '2026-07-27T00:00:00.000Z',
+      secretSafety: { status: 'no_known_legacy_literals' },
     });
   });
 
@@ -218,5 +236,86 @@ describe('POST /api/ops/backup & GET /api/ops/backups', () => {
     expect(body.success).toBe(true);
     expect(body.backups).toHaveLength(1);
     expect(body.backups[0].name).toBe('ma-backup-a.db');
+  });
+});
+
+describe('G8-3 secret safety ops routes', () => {
+  beforeEach(() => {
+    secretSafetyMocks.scanSecretSafety.mockReset();
+    secretSafetyMocks.cleanLegacySecretLiterals.mockReset();
+  });
+
+  it('scan returns only the service-safe summary envelope', async () => {
+    secretSafetyMocks.scanSecretSafety.mockReturnValue({
+      status: 'known_legacy_literals_detected',
+      remediation: 'clean first',
+      findings: [
+        {
+          agentId: 'agent-1',
+          field: 'envVars',
+          path: 'envVars[0].value',
+          key: 'API_TOKEN',
+          length: 24,
+          fingerprint: '0123456789ab',
+        },
+      ],
+    });
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const body = await routes['POST /api/ops/secret-safety/scan']!({});
+    expect(body).toEqual({
+      success: true,
+      summary: expect.objectContaining({
+        status: 'known_legacy_literals_detected',
+        findings: [expect.objectContaining({ fingerprint: '0123456789ab' })],
+      }),
+    });
+  });
+
+  it('apply requires an explicit confirmation phrase', async () => {
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const { reply, state } = makeReply();
+    const body = await routes['POST /api/ops/secret-safety/apply']!({ body: {} }, reply);
+    expect(state.statusCode).toBe(400);
+    expect(body ?? state.body).toMatchObject({
+      success: false,
+      code: 'SECRET_SAFETY_CONFIRMATION_REQUIRED',
+    });
+    expect(secretSafetyMocks.cleanLegacySecretLiterals).not.toHaveBeenCalled();
+  });
+
+  it('apply permits an inconclusive malformed scan and returns pre/post advisories', async () => {
+    secretSafetyMocks.cleanLegacySecretLiterals.mockReturnValue({
+      summary: {
+        status: 'scan_inconclusive',
+        remediation: 'malformed config cleared',
+        findings: [
+          {
+            agentId: 'agent-1',
+            field: 'mcpServers',
+            path: '$',
+            key: '<malformed-json>',
+            length: 7,
+            fingerprint: 'abcdef012345',
+          },
+        ],
+      },
+      updatedAgents: 1,
+      after: { status: 'no_known_legacy_literals', remediation: 'post-clean' },
+    });
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const body = await routes['POST /api/ops/secret-safety/apply']!(
+      { body: { confirmation: 'CLEAN_LEGACY_SECRET_LITERALS' } },
+      makeReply().reply,
+    );
+    expect(body).toMatchObject({
+      success: true,
+      applied: true,
+      updatedAgents: 1,
+      summary: { status: 'scan_inconclusive' },
+      after: { status: 'no_known_legacy_literals' },
+    });
   });
 });

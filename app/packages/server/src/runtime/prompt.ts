@@ -296,7 +296,7 @@ export async function resolveRunPrompt(
     
     const allowedPaths = agent?.allowedPaths?.trim();
     const boundaryFence = allowedPaths
-      ? `<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`
+      ? `<boundary-fence>\n提示性修改路径白名单: ${allowedPaths}\n注意: 这是 prompt 约束，不是文件系统沙箱；请勿修改、删除或新建白名单路径之外的文件。\n</boundary-fence>`
       : null;
 
     // 多轮：默认注入同 thread 历史（假 resume）。
@@ -461,7 +461,7 @@ export async function buildPromptParts(
     }
     const allowedPaths = agent?.allowedPaths?.trim();
     if (allowedPaths) {
-      boundaryBlock = `<boundary-fence>\n限制修改路径白名单: ${allowedPaths}\n警告: 禁止修改、删除或新建白名单路径之外的任何文件。\n</boundary-fence>`;
+      boundaryBlock = `<boundary-fence>\n提示性修改路径白名单: ${allowedPaths}\n注意: 这是 prompt 约束，不是文件系统沙箱；请勿修改、删除或新建白名单路径之外的文件。\n</boundary-fence>`;
     }
   }
 
@@ -523,6 +523,7 @@ export async function buildPromptParts(
       id: issue.id,
       title: issue.title,
       description: issue.description,
+      projectId: issue.projectId ?? null,
     });
   }
 

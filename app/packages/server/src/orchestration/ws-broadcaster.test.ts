@@ -56,6 +56,11 @@ const runQueued: DomainEvent = {
   run: baseRun({ id: 'run-q', issueId: 'iss-1', agentId: 'agent-a' }),
 } as DomainEvent;
 
+const runDeferred: DomainEvent = {
+  type: 'run:deferred',
+  run: { ...baseRun({ id: 'run-d', issueId: 'iss-1', agentId: 'agent-a' }), status: 'deferred' },
+} as DomainEvent;
+
 const runProgress: DomainEvent = {
   type: 'run:progress',
   runId: 'run-s1',
@@ -132,6 +137,8 @@ describe('eventMatchesTopics', () => {
     expect(eventMatchesTopics(runQueued, ['agent:agent-a'])).toBe(true);
     expect(eventMatchesTopics(runQueued, ['agent:'])).toBe(true);
     expect(eventMatchesTopics(runQueued, ['inbox:', 'wiki:'])).toBe(false);
+    expect(eventMatchesTopics(runDeferred, ['run:'])).toBe(true);
+    expect(eventMatchesTopics(runDeferred, ['issue:iss-1'])).toBe(true);
   });
 
   it('issue events match issue: / issue:{id}', () => {

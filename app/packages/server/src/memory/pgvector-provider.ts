@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
   issue_id TEXT,
   agent_id TEXT,
   run_id TEXT,
+  project_id TEXT,
   scope TEXT NOT NULL DEFAULT 'workspace',
   source TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS memory_vectors (
   invalid_at TIMESTAMPTZ
 )`);
     // Fallback if table already existed without these columns
+    await memoryPgQuery(`ALTER TABLE memory_vectors ADD COLUMN IF NOT EXISTS project_id TEXT;`);
     await memoryPgQuery(`ALTER TABLE memory_vectors ADD COLUMN IF NOT EXISTS valid_at TIMESTAMPTZ;`);
     await memoryPgQuery(`ALTER TABLE memory_vectors ADD COLUMN IF NOT EXISTS invalid_at TIMESTAMPTZ;`);
 
@@ -86,17 +88,30 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
 
   async prefetch(
     query: string,
-    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+    opts?: {
+      sessionId?: string;
+      limit?: number;
+      includeInvalid?: boolean;
+      scope?: MemoryPrefetchScope;
+      projectId?: string | null;
+    },
   ): Promise<MemoryPrefetchResult> {
     if (!this.isAvailable()) return { items: [] };
     const limit = opts?.limit ?? 5;
     const includeInvalid = opts?.includeInvalid ?? false;
     const scope = opts?.scope ?? null;
+    const projectFilter = opts?.projectId !== undefined;
+    const projectId = opts?.projectId ?? null;
     const q = query.trim();
 
     const condition = includeInvalid ? '1 = 1' : '(invalid_at IS NULL OR invalid_at > now())';
     // G4-4：scope 过滤
     const scopeClause = scope ? ` AND scope = '${scope.replace(/'/g, "''")}'` : '';
+    const projectClause = projectFilter
+      ? projectId
+        ? ' AND (project_id = $2 OR project_id IS NULL)'
+        : ' AND project_id IS NULL'
+      : '';
 
     if (!q) {
       const r = await memoryPgQuery<{
@@ -104,13 +119,14 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         text: string;
         issue_id: string | null;
         run_id: string | null;
+        project_id: string | null;
         created_at: Date;
         valid_at: Date | null;
         invalid_at: Date | null;
       }>(
-        `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at
-         FROM memory_vectors WHERE ${condition}${scopeClause} ORDER BY created_at DESC LIMIT $1`,
-        [limit],
+        `SELECT id, text, issue_id, run_id, project_id, created_at, valid_at, invalid_at
+         FROM memory_vectors WHERE ${condition}${scopeClause}${projectClause} ORDER BY created_at DESC LIMIT $${projectFilter && projectId ? 2 : 1}`,
+        projectFilter && projectId ? [projectId, limit] : [limit],
       );
       return {
         items: r.rows.map((row) => ({
@@ -118,6 +134,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
           text: row.text,
           source: 'pgvector',
           issueId: row.issue_id,
+          projectId: row.project_id,
           runId: row.run_id,
           createdAt: new Date(row.created_at).toISOString(),
           validAt: row.valid_at ? new Date(row.valid_at).toISOString() : null,
@@ -132,18 +149,19 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       text: string;
       issue_id: string | null;
       run_id: string | null;
+      project_id: string | null;
       created_at: Date;
       valid_at: Date | null;
       invalid_at: Date | null;
       score: number;
     }>(
-      `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at,
+      `SELECT id, text, issue_id, run_id, project_id, created_at, valid_at, invalid_at,
               GREATEST(0, 1 - (embedding <=> $1::vector))::float8 AS score
        FROM memory_vectors
-       WHERE ${condition}${scopeClause}
+       WHERE ${condition}${scopeClause}${projectClause}
        ORDER BY embedding <=> $1::vector
-       LIMIT $2`,
-      [lit, limit],
+       LIMIT $${projectFilter && projectId ? 3 : 2}`,
+      projectFilter && projectId ? [lit, projectId, limit] : [lit, limit],
     );
     return {
       items: r.rows.map((row) => ({
@@ -152,6 +170,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
         score: Number(row.score),
         source: 'pgvector',
         issueId: row.issue_id,
+        projectId: row.project_id,
         runId: row.run_id,
         createdAt: new Date(row.created_at).toISOString(),
         validAt: row.valid_at ? new Date(row.valid_at).toISOString() : null,
@@ -167,6 +186,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
     );
     await this.insert(text, {
       issueId: input.issueId,
+      projectId: input.projectId ?? null,
       agentId: input.agentId ?? null,
       runId: input.runId,
       source: 'run-sync',
@@ -180,11 +200,13 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      projectId?: string | null;
       scope?: MemoryPrefetchScope;
     },
   ): Promise<MemoryItemView> {
     return this.insert(text, {
       issueId: meta?.issueId ?? null,
+      projectId: meta?.projectId ?? null,
       agentId: meta?.agentId ?? null,
       runId: meta?.runId ?? null,
       source: 'curated',
@@ -198,6 +220,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       issueId: string | null;
       agentId: string | null;
       runId: string | null;
+      projectId: string | null;
       source: string;
       scope: string;
     },
@@ -208,9 +231,9 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
     const lit = vectorLiteral(embedding);
     await memoryPgQuery(
       `INSERT INTO memory_vectors
-        (id, text, embedding, metadata, issue_id, agent_id, run_id, scope, source)
-       VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6, $7, $8)`,
-      [id, text, lit, meta.issueId, meta.agentId, meta.runId, meta.scope, meta.source],
+        (id, text, embedding, metadata, issue_id, agent_id, run_id, project_id, scope, source)
+       VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, $6, $7, $8, $9)`,
+      [id, text, lit, meta.issueId, meta.agentId, meta.runId, meta.projectId, meta.scope, meta.source],
     );
     return {
       id,
@@ -218,6 +241,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       source: 'pgvector',
       scope: meta.scope,
       issueId: meta.issueId,
+      projectId: meta.projectId,
       runId: meta.runId,
       createdAt: new Date().toISOString(),
     };
@@ -238,11 +262,12 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       text: string;
       issue_id: string | null;
       run_id: string | null;
+      project_id: string | null;
       created_at: Date;
       valid_at: Date | null;
       invalid_at: Date | null;
     }>(
-      `SELECT id, text, issue_id, run_id, created_at, valid_at, invalid_at FROM memory_vectors WHERE id = $1`,
+      `SELECT id, text, issue_id, run_id, project_id, created_at, valid_at, invalid_at FROM memory_vectors WHERE id = $1`,
       [id],
     );
     const row = r.rows[0];
@@ -252,6 +277,7 @@ CREATE INDEX IF NOT EXISTS memory_vectors_hnsw
       text: row.text,
       source: 'pgvector',
       issueId: row.issue_id,
+      projectId: row.project_id,
       runId: row.run_id,
       createdAt:
         row.created_at instanceof Date

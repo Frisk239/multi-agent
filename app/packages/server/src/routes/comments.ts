@@ -103,6 +103,7 @@ export async function commentRoutes(app: FastifyInstance): Promise<void> {
       memoryManager.ambientCapture({
         kind: 'comment',
         issueId: id,
+        projectId: issueRow?.projectId ?? null,
         text: `[ambient:comment] Issue ${ident}: ${title}\n${body}`,
       });
     }

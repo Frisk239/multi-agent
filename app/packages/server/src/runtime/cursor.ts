@@ -8,15 +8,10 @@ import type {
 import { resolveCmd, versionOf } from './detect-path.js';
 import { spawnLineProcess, type LineContext } from './spawn-line.js';
 import { parseUsageFromResultLine } from './usage-parse.js';
-import { safeFormatToolError } from './event-normalizer.js';
+import { scrubAndTruncateToolResult } from './secret-scrubber.js';
 
 function safeStringifyResult(content: unknown): string {
-  if (typeof content === 'string') return content;
-  try {
-    return JSON.stringify(content ?? '').slice(0, 4000);
-  } catch (err) {
-    return safeFormatToolError(err);
-  }
+  return scrubAndTruncateToolResult(content);
 }
 
 /** Cursor call_id 偶发 "call-…\nfc_…" 双行；取第一行（Multica cursorCallID） */
@@ -220,6 +215,8 @@ export class CursorBackend implements RuntimeBackend {
    * Phase 2026-07-30：对齐 Multica cursor `--resume` + session 捕获/poison/force_fresh 闭环。
    */
   readonly supportsSessionResume = true;
+  readonly supportsMcpConfig = false;
+  readonly supportsCustomArgs = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CURSOR_PATH', ['cursor-agent', 'cursor']);
@@ -236,10 +233,15 @@ export class CursorBackend implements RuntimeBackend {
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'cursor CLI 未安装' };
 
     const args = buildCursorArgs(input);
-    const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+    const opts: {
+      timeoutMs?: number;
+      env?: NodeJS.ProcessEnv;
+      onProcessStarted?: (pid: number) => void;
+    } = {};
     if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
     // G3-4b：agent.env_vars 显式覆盖子进程 env
     if (input.envVars) opts.env = input.envVars;
+    if (input.onProcessStarted) opts.onProcessStarted = input.onProcessStarted;
     return spawnLineProcess(
       det.path,
       args,

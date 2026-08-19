@@ -65,8 +65,7 @@ export function RuntimesPage() {
           <span className="runtime-detail-status">本机可用</span>
         </div>
         <p className="runtime-product-note text-dim text-sm" data-testid="runtimes-product-note">
-          本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor /{' '}
-          <strong>Grok Build</strong>），不是 Multica daemon「电脑」。智能体绑定后在工作区目录执行。
+          本页探测的是<strong>本机编码 CLI</strong>（Claude Code / opencode / Cursor / Grok Build / Pi），不是 Multica daemon「电脑」。智能体绑定后在工作区目录执行。
         </p>
         <div className="runtime-meta">
           {runtimes.length} 个 CLI · {installed} 个已安装 · cwd=
@@ -164,6 +163,7 @@ export function RuntimesPage() {
               <tr>
                 <th>本机 CLI</th>
                 <th>探测</th>
+                <th>能力</th>
                 <th>智能体</th>
                 <th>费用 - 7天</th>
                 <th>版本 / 路径</th>
@@ -191,6 +191,11 @@ export function RuntimesPage() {
                     ) : (
                       <span className="status-offline">未检测到</span>
                     )}
+                  </td>
+                  <td className="text-dim text-sm">
+                    <span data-testid="runtime-cap-mcp">{rt.supportsMcpConfig ? 'MCP' : '无 MCP'}</span>
+                    {' · '}
+                    <span>{rt.supportsSessionResume ? 'resume' : 'no resume'}</span>
                   </td>
                   <td>
                     {rt.agentIds.length ? (

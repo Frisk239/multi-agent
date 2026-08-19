@@ -106,6 +106,19 @@ describe('G2-1 deferred-escalation', () => {
       const row = await getRun('run-def-1');
       expect(row?.status).toBe('deferred');
       expect(row?.fireAt).toBe(NOW + 5 * 60_000);
+      expect(mocks.publish).toHaveBeenCalledWith({
+        type: 'run:deferred',
+        run: expect.objectContaining({ id: 'run-def-1', status: 'deferred' }),
+      });
+      expect(mocks.publish).toHaveBeenCalledWith({
+        type: 'activity:created',
+        issueId: 'iss-test-1',
+        activity: expect.objectContaining({
+          issueId: 'iss-test-1',
+          eventType: 'run_deferred',
+          payload: expect.objectContaining({ runId: 'run-def-1', deferred: true }),
+        }),
+      });
 
       const acts = testState.db!
         .select()
@@ -130,6 +143,7 @@ describe('G2-1 deferred-escalation', () => {
       await insertQueuedRun('run-def-2');
       escalateDeferredUnclaimedRuns(NOW);
       await setFallback('agt-test-1', 'agt-test-2');
+      mocks.publish.mockClear();
 
       const n = fireDeferredRuns(NOW); // fire_at = NOW + 5min > NOW
       expect(n).toBe(0);

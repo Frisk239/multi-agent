@@ -44,10 +44,12 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-08-04）
+## 当前方位（2026-08-17）
 
-- **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（G1–G7 Goal 体系 + 切片队列）——迭代走 goal 模式（`/goal` 定义目标，引用 G1–G7）+ Slice Owner。
-- **▶ 下一刀默认（roadmap §4）：** **G1–G5 池 + 第七波品质波 + G6（G6-1/2/3/4/6/8/9/10 已关）+ G7 前端体验第二波（G7-1…G7-12 全部 12 刀已关，[g7-frontend-wave-closeout-2026-08-04.md](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)：Sheet 后退关闭 · 返回不闪屏 · Memory 15s 实时 · transcript 虚拟化 · Sheet 优先级/标签 · 新建表单可搜指派 · Inbox Enter · Toast 上限+hover 暂停 · 页标题 · 分享链复制 · colSpan · 工具栏收纳；Playwright 17/17 + 回归 6/6，全量 1546 用例绿）** → 剩余 G6-5 分页 / G6-7 skipped 警示。G7 池已全关。
+- **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（G1–G5 Goal 体系 + 切片队列）——迭代走 goal 模式（`/goal` 定义目标）+ Slice Owner。
+- **▶ 当前切片：** G8-6 加厚已落地（未提交）——看板 Sheet 尾窗最新产出 + 就地再执行 + messages `beforeSeq`/limit-only 尾窗，见 [g8-6-board-live-transcript-impl-1.md](app/.progress/g8-6-board-live-transcript-impl-1.md)。G8-1…5a 仍仅工作区，未进 `e6ab04f`。
+- **▶ 刚关（未提交）：** G8-6 加厚 + **comment-followup-queue**（running 再评排队 1 条）。见 [comment-followup-queue-impl-1.md](app/.progress/comment-followup-queue-impl-1.md)。
+- **▶ 下一刀候选：** ① 把 08-08/G8-2…6/follow-up **按刀拆开提交**（禁止一锅端）；② 小诚实：Pi 不消费 thinking 却打 `[thinking]` 日志。G8-4b 仍禁开。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 

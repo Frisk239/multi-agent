@@ -11,6 +11,7 @@ import { db } from '../db/client.js';
 import { agents } from '../db/schema.js';
 import { toAgentDetail } from '../db/reshape.js';
 import { eq } from 'drizzle-orm';
+import { validateMcpConfig } from '../runtime/mcp-config.js';
 
 const CLIENT_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
 
@@ -112,6 +113,14 @@ export async function agentTemplateRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const input = parsed.data;
+    let mcpServers: string | null = null;
+    if (input.mcpServers?.trim()) {
+      const mcpResult = validateMcpConfig(input.mcpServers);
+      if (!mcpResult.ok) {
+        return reply.status(400).send({ success: false, error: mcpResult.error, code: 'INVALID_MCP_CONFIG' });
+      }
+      mcpServers = mcpResult.canonical;
+    }
     const id = resolveNewId(input.id);
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
     if (existing) {
@@ -143,7 +152,7 @@ export async function agentTemplateRoutes(app: FastifyInstance): Promise<void> {
         concurrency: input.concurrency ?? 1,
         instructions: input.instructions ?? '',
         allowedPaths,
-        mcpServers: input.mcpServers ?? null,
+        mcpServers,
         createdAt: now,
       })
       .run();

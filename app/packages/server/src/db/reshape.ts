@@ -30,6 +30,8 @@ import {
 } from './schema.js';
 import { resolveAssigneeLabel, resolveAuthorLabel } from './client.js';
 import { estimateCost } from '../runtime/model-rates.js';
+import { isSensitiveEnvKey } from '../runtime/agent-config.js';
+import { redactMcpConfig } from '../runtime/mcp-config.js';
 
 type IssueRow = typeof issues.$inferSelect;
 type LabelRow = typeof issueLabels.$inferSelect;
@@ -399,20 +401,34 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
 }
 
 /** G3-4：JSON 文本列安全解析（脏数据回退空） */
-function parseAgentEnvVars(raw: string | null | undefined): { key: string; value: string }[] {
+function parseAgentEnvVars(
+  raw: string | null | undefined,
+): { key: string; value: string; envRef?: string }[] {
   if (!raw?.trim()) return [];
   try {
     const j = JSON.parse(raw) as unknown;
     if (!Array.isArray(j)) return [];
-    return j
-      .filter(
-        (x): x is { key: string; value: string } =>
-          typeof x === 'object' &&
-          x != null &&
-          typeof (x as { key?: unknown }).key === 'string' &&
-          typeof (x as { value?: unknown }).value === 'string',
-      )
-      .map((x) => ({ key: x.key, value: x.value }));
+    const envRefRe = /^[A-Za-z_][A-Za-z0-9_]*$/;
+    const rows: { key: string; value: string; envRef?: string }[] = [];
+    for (const item of j) {
+      if (!item || typeof item !== 'object') continue;
+      const candidate = item as { key?: unknown; value?: unknown; envRef?: unknown };
+      if (typeof candidate.key !== 'string' || !candidate.key.trim()) continue;
+      const key = candidate.key.trim();
+      const envRef =
+        typeof candidate.envRef === 'string' && envRefRe.test(candidate.envRef.trim())
+          ? candidate.envRef.trim()
+          : undefined;
+      const value = typeof candidate.value === 'string' ? candidate.value : '';
+      // Legacy rows may contain a literal credential. Never echo it to the UI;
+      // only an explicit process-env reference is safe to expose.
+      rows.push({
+        key,
+        value: isSensitiveEnvKey(key) ? '' : value,
+        ...(envRef ? { envRef } : {}),
+      });
+    }
+    return rows;
   } catch {
     return [];
   }
@@ -438,7 +454,7 @@ export function toAgentDetail(row: AgentRow): AgentDetail {
     model: row.model?.trim() ? row.model.trim() : null,
     thinkingLevel: row.thinkingLevel?.trim() ? row.thinkingLevel.trim() : null,
     concurrency: row.concurrency,
-    mcpServers: row.mcpServers ?? null,
+    mcpServers: redactMcpConfig(row.mcpServers),
     instructions: row.instructions ?? '',
     allowedPaths: row.allowedPaths ?? null,
     fallbackAgentId: row.fallbackAgentId ?? null,
@@ -489,7 +505,11 @@ function nextPlannedAtMs(row: AutomationRuleRow, now: number): number | null {
 // automation-next-run：附带 nextPlannedAt；automation-fail-counts 由路由层填 fail 聚合
 export function toAutomationRule(
   row: AutomationRuleRow,
-  stats?: { failCount?: number; lastRunStatus?: AutomationRule['lastRunStatus'] },
+  stats?: {
+    failCount?: number;
+    skippedStreak?: number;
+    lastRunStatus?: AutomationRule['lastRunStatus'];
+  },
 ): AutomationRule {
   const nextMs = nextPlannedAtMs(row, Date.now());
   return {
@@ -511,6 +531,7 @@ export function toAutomationRule(
     lastPlannedAt: row.lastPlannedAt == null ? null : new Date(row.lastPlannedAt).toISOString(),
     nextPlannedAt: nextMs == null ? null : new Date(nextMs).toISOString(),
     failCount: stats?.failCount ?? 0,
+    skippedStreak: stats?.skippedStreak ?? 0,
     lastRunStatus: stats?.lastRunStatus ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),

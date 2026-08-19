@@ -1,4 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { RuntimeBackend } from './runtime/types.js';
+
+const runtimeMocks = vi.hoisted(() => {
+  const claude: RuntimeBackend = {
+    id: 'claude-code',
+    label: 'Claude Code',
+    executionImplemented: true,
+    supportsSessionResume: true,
+    detect: async () => ({
+      installed: true,
+      version: '1.0.0',
+      path: '/bin/claude',
+    }),
+    execute: async () => ({ finalText: '', exitReason: 'failed' }),
+  };
+  const pi: RuntimeBackend = {
+    id: 'pi',
+    label: 'Pi',
+    executionImplemented: false,
+    supportsSessionResume: false,
+    detect: async () => ({
+      installed: false,
+      version: null,
+      path: null,
+    }),
+    execute: async () => ({ finalText: '', exitReason: 'failed' }),
+  };
+  return { claude, pi, backends: [claude, pi] };
+});
 
 vi.mock('./db/client.js', () => {
   const chain = {
@@ -15,30 +44,7 @@ vi.mock('./db/client.js', () => {
 });
 
 vi.mock('./runtime/registry.js', () => ({
-  allBackends: () => [
-    {
-      id: 'claude-code',
-      label: 'Claude Code',
-      executionImplemented: true,
-      supportsSessionResume: true,
-      detect: async () => ({
-        installed: true,
-        version: '1.0.0',
-        path: '/bin/claude',
-      }),
-    },
-    {
-      id: 'pi',
-      label: 'Pi',
-      executionImplemented: false,
-      supportsSessionResume: false,
-      detect: async () => ({
-        installed: false,
-        version: null,
-        path: null,
-      }),
-    },
-  ],
+  allBackends: () => runtimeMocks.backends,
 }));
 
 vi.mock('./orchestration/run-control.js', () => ({
@@ -46,10 +52,12 @@ vi.mock('./orchestration/run-control.js', () => ({
 }));
 
 import { buildLiveProbes, projectLiveProbeRun } from './settings-live-probes.js';
+import { evaluateRuntimePreflight } from './runtime/preflight.js';
 
 describe('buildLiveProbes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    runtimeMocks.claude.preflight = undefined;
   });
 
   it('returns real runtime detect/readiness without _stub', async () => {
@@ -70,6 +78,8 @@ describe('buildLiveProbes', () => {
       executionImplemented: true,
       supportsSessionResume: true,
       version: '1.0.0',
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
     });
 
     const pi = body.runtimes.find((r) => r.id === 'pi');
@@ -77,7 +87,29 @@ describe('buildLiveProbes', () => {
       installed: false,
       ready: false,
       executionImplemented: false,
+      preflightStatus: 'not_available',
     });
+  });
+
+  it('只读取已缓存的 explicit failed；轮询不会再次调用 preflight', async () => {
+    const preflight = vi.fn(async () => ({
+      status: 'failed' as const,
+      reason: 'auth_required' as const,
+    }));
+    runtimeMocks.claude.preflight = preflight;
+
+    const evaluated = await evaluateRuntimePreflight(runtimeMocks.claude);
+    expect(evaluated.preflightStatus).toBe('failed');
+    expect(preflight).toHaveBeenCalledTimes(1);
+
+    const body = await buildLiveProbes();
+    const claude = body.runtimes.find((r) => r.id === 'claude-code');
+    expect(claude).toMatchObject({
+      ready: false,
+      preflightStatus: 'failed',
+      runtimeVerification: 'unverified',
+    });
+    expect(preflight).toHaveBeenCalledTimes(1);
   });
 
   it('labels waiting age as queue age and keeps heartbeat age for running only', () => {

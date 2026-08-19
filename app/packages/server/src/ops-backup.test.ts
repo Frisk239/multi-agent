@@ -108,6 +108,9 @@ describe('ops backup (Slice 58)', () => {
     expect(created.name).toBe('ma-backup-20260727T120000Z.db');
     expect(created.createdAt).toBe('2026-07-27T12:00:00.000Z');
     expect(statSync(created.path).size).toBe(created.sizeBytes);
+    // This deliberately minimal foreign DB has no agent table, so a backup
+    // must be honest that it could not perform the historical-secret scan.
+    expect(created.secretSafety.status).toBe('scan_inconclusive');
 
     // open backup and verify data
     const bdb = new Database(created.path, { readonly: true });
@@ -217,6 +220,27 @@ describe('ops backup (Slice 58)', () => {
     if (res.success) return;
     expect(res.code).toBe('BACKUP_FAILED');
     expect(res.error).toMatch(/disk full/);
+  });
+
+  it('backup returns an honest legacy-secret advisory without copying a literal into the response', async () => {
+    const root = mkTmp('secret-advisory');
+    const dbPath = join(root, 'src.db');
+    const database = openDb(dbPath);
+    database.exec('CREATE TABLE agent (id TEXT PRIMARY KEY, env_vars TEXT, mcp_servers TEXT);');
+    database
+      .prepare('INSERT INTO agent (id, env_vars, mcp_servers) VALUES (?, ?, ?)')
+      .run('agent-1', JSON.stringify([{ key: 'API_TOKEN', value: 'backup-secret-never-return' }]), null);
+
+    const result = await createDbBackup({
+      database,
+      liveDbPath: dbPath,
+      backupDir: join(root, 'b'),
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.secretSafety.status).toBe('known_legacy_literals_detected');
+    expect(result.secretSafety.remediation).toMatch(/历史备份/);
+    expect(JSON.stringify(result.secretSafety)).not.toContain('backup-secret-never-return');
   });
 
   it('ensureBackupDirWritable creates nested dir', () => {

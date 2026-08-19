@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentDetail, AgentSummary } from '@ma/shared';
+import type { AgentDetail, AgentReadiness, AgentSummary } from '@ma/shared';
 import { AgentDetailPage } from './AgentDetailPage';
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,16 @@ const mocks = vi.hoisted(() => ({
   // AgentDetailPage 的 useEffect([agent]) 反复重置本地 state
   agent: null as AgentDetail | null,
   agentsList: [] as AgentSummary[],
+  readiness: null as AgentReadiness | null,
+  runtimeCatalog: undefined as
+    | {
+        runtimes: Array<{
+          id: string;
+          supportsMcpConfig?: boolean;
+          supportsCustomArgs?: boolean;
+        }>;
+      }
+    | undefined,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -62,7 +72,7 @@ vi.mock('@/lib/api', () => ({
     isLoading: false,
     isError: false,
   }),
-  useAgentReadiness: () => ({ data: null }),
+  useAgentReadiness: () => ({ data: mocks.readiness }),
   useAgentRuns: () => ({ data: [], isLoading: false, isError: false, error: null }),
   useAgentWorkStats: () => ({
     data: {
@@ -91,6 +101,7 @@ vi.mock('@/lib/api', () => ({
   useUpdateAgentMcp: () => ({ mutate: vi.fn(), isPending: false }),
   useRetryRun: () => ({ mutate: vi.fn(), isPending: false }),
   useRuntimeModels: () => ({ data: { models: [] }, isFetching: false }),
+  useRuntimes: () => ({ data: mocks.runtimeCatalog }),
 }));
 
 describe('AgentDetailPage · fallback agent（后备 agent）', () => {
@@ -99,6 +110,8 @@ describe('AgentDetailPage · fallback agent（后备 agent）', () => {
     mocks.updateMutate.mockReset();
     mocks.confirmDialog.mockReset();
     mocks.agent = makeAgent({});
+    mocks.readiness = null;
+    mocks.runtimeCatalog = undefined;
     mocks.agentsList = [
       makeAgent({ id: 'agent-primary', name: '主岗' }),
       makeAgent({ id: 'agent-backup', name: '后备乙' }),
@@ -160,10 +173,16 @@ describe('AgentDetailPage · fallback agent（后备 agent）', () => {
 describe('G3-4 agent envVars / customArgs settings', () => {
   beforeEach(() => {
     mocks.updateMutate.mockReset();
+    mocks.runtimeCatalog = {
+      runtimes: [
+        { id: 'opencode', supportsMcpConfig: false, supportsCustomArgs: true },
+      ],
+    };
     mocks.agent = makeAgent({
       envVars: [{ key: 'LANG', value: 'zh-CN' }],
       customArgs: ['--max-turns 40'],
     });
+    mocks.readiness = null;
   });
 
   afterEach(() => {
@@ -223,5 +242,139 @@ describe('G3-4 agent envVars / customArgs settings', () => {
     render(<AgentDetailPage agentId="agent-primary" />);
     fireEvent.click(await screen.findByTestId('agent-tab-settings'));
     expect(await screen.findByTestId('agent-envvars-empty')).toHaveTextContent('尚未配置环境变量');
+  });
+});
+
+describe('G8-4a runtime capability honesty', () => {
+  beforeEach(() => {
+    mocks.updateMutate.mockReset();
+    mocks.confirmDialog.mockReset();
+    mocks.agent = makeAgent({ customArgs: ['--legacy-noop'] });
+    mocks.runtimeCatalog = undefined;
+    mocks.readiness = null;
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('catalog 未到位时 MCP 和 customArgs 均 fail-closed，并说明未知而非不支持', async () => {
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-capabilities'));
+
+    expect(screen.queryByTestId('agent-cap-mcp')).toBeNull();
+    expect(screen.getByTestId('agent-cap-mcp-unknown')).toHaveTextContent('尚未加载');
+    expect(screen.getByTestId('agent-cap-mcp-unknown')).toHaveTextContent('不表示 adapter 已支持');
+
+    fireEvent.click(screen.getByTestId('agent-tab-settings'));
+    expect(screen.queryByTestId('agent-customargs-input')).toBeNull();
+    expect(screen.getByTestId('agent-customargs-unavailable')).toHaveTextContent('能力尚未确认');
+    expect(screen.getByTestId('agent-customargs-readonly')).toHaveValue('--legacy-noop');
+  });
+
+  it('明确 preflight failed 时保留 error/recovery，不显示“尚未安全预检”', async () => {
+    mocks.readiness = {
+      agentId: 'agent-primary',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/usr/local/bin/opencode',
+      runtimeVersion: '1.2.3',
+      concurrency: 1,
+      runningCount: 0,
+      slotsAvailable: 1,
+      cwdConfigured: true,
+      preflightStatus: 'failed',
+      runtimeVerification: 'unverified',
+      status: 'error',
+      detail: '运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。',
+    };
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    expect(await screen.findByTestId('agent-readiness-recovery')).toHaveAttribute(
+      'data-status',
+      'error',
+    );
+    expect(screen.queryByTestId('agent-readiness-unverified')).toBeNull();
+    expect(
+      screen.getByTitle('运行时安全预检未通过：请先在本机 CLI 完成登录，然后重试。'),
+    ).toBeInTheDocument();
+  });
+
+  it('没有失败证据的 unverified runtime 仍显示首次运行风险', async () => {
+    mocks.readiness = {
+      agentId: 'agent-primary',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/usr/local/bin/opencode',
+      runtimeVersion: '1.2.3',
+      concurrency: 1,
+      runningCount: 0,
+      slotsAvailable: 1,
+      cwdConfigured: true,
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
+      status: 'ready',
+      detail: null,
+    };
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    expect(await screen.findByTestId('agent-readiness-unverified')).toHaveTextContent(
+      '首次运行仍可能失败',
+    );
+  });
+
+  it('明确声明不支持时，说明 adapter 不消费而不把它误称为目录未知', async () => {
+    mocks.runtimeCatalog = {
+      runtimes: [
+        { id: 'opencode', supportsMcpConfig: false, supportsCustomArgs: false },
+      ],
+    };
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-capabilities'));
+
+    expect(screen.queryByTestId('agent-cap-mcp')).toBeNull();
+    expect(screen.getByTestId('agent-cap-mcp-unsupported')).toHaveTextContent('不消费');
+    expect(screen.queryByTestId('agent-cap-mcp-unknown')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('agent-tab-settings'));
+    expect(screen.queryByTestId('agent-customargs-input')).toBeNull();
+    expect(screen.getByTestId('agent-customargs-unavailable')).toHaveTextContent('不消费');
+  });
+
+  it('catalog 有 runtime 但没有声明可选能力字段时，仍按未知 fail-closed', async () => {
+    mocks.runtimeCatalog = { runtimes: [{ id: 'opencode' }] };
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-capabilities'));
+
+    expect(screen.queryByTestId('agent-cap-mcp')).toBeNull();
+    expect(screen.getByTestId('agent-cap-mcp-unknown')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('agent-tab-settings'));
+    expect(screen.queryByTestId('agent-customargs-input')).toBeNull();
+    expect(screen.getByTestId('agent-customargs-unavailable')).toHaveTextContent('能力尚未确认');
+  });
+
+  it('历史 customArgs 仅可在确认后单独清除，不会随其它设置静默保存', async () => {
+    mocks.runtimeCatalog = {
+      runtimes: [
+        { id: 'opencode', supportsMcpConfig: false, supportsCustomArgs: false },
+      ],
+    };
+    mocks.confirmDialog.mockResolvedValue(true);
+    render(<AgentDetailPage agentId="agent-primary" />);
+    fireEvent.click(await screen.findByTestId('agent-tab-settings'));
+    fireEvent.click(screen.getByTestId('agent-customargs-clear'));
+
+    await waitFor(() => {
+      expect(mocks.confirmDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '清除未消费的自定义参数？',
+          variant: 'danger',
+        }),
+      );
+      expect(mocks.updateMutate).toHaveBeenCalledWith(
+        { customArgs: [] },
+        expect.any(Object),
+      );
+    });
   });
 });

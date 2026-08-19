@@ -444,6 +444,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           memoryManager.ambientCapture({
             kind: 'issue_done',
             issueId: sc.issueId,
+            projectId: iss.projectId ?? null,
             text: `[ambient:issue_done] Issue ${iss.identifier}: ${iss.title}\nStatus → done${desc}`,
           });
         }
@@ -871,6 +872,7 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       memoryManager.ambientCapture({
         kind: 'issue_done',
         issueId: id,
+        projectId: issue.projectId ?? null,
         text: `[ambient:issue_done] Issue ${issue.identifier}: ${issue.title}\nStatus → done${desc}`,
       });
     }

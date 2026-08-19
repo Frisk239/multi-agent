@@ -88,8 +88,10 @@ interface Props {
   readiness?: AgentReadiness | null;
   /** 最近一条 run 是否失败 */
   lastRunFailed?: boolean;
-  /** 是否有 queued/running run */
+  /** 是否有 queued/running/waiting run */
   runActive?: boolean;
+  /** 是否为 waiting_local_directory（卡面「等目录」；running 优先时由上游去掉） */
+  runWaiting?: boolean;
   /** 是否被选中 */
   selected?: boolean;
   /** 选中状态改变 */
@@ -118,6 +120,7 @@ export const IssueCard = React.memo(function IssueCard({
   readiness,
   lastRunFailed,
   runActive,
+  runWaiting,
   selected,
   onToggleSelect,
   detailHref: detailHrefProp,
@@ -137,10 +140,17 @@ export const IssueCard = React.memo(function IssueCard({
   );
   const liveState = deriveIssueCardLive({
     activeRuns: runActive,
+    waitingRuns: runWaiting,
     recentFailed: lastRunFailed,
   });
   const showLive = liveState.live;
+  const showWaiting = liveState.waiting;
   const showFail = liveState.showFailed;
+  const liveLabel = liveState.liveKind === 'waiting' ? '等目录' : '运行中';
+  const liveTitle =
+    liveState.liveKind === 'waiting'
+      ? '等待本机目录锁（同项目其它 run 占用中）'
+      : '运行中 / 排队中';
   const desc = descriptionPreview(issue.description);
   const updated = updatedAgo(issue.updatedAt);
   const fullPageHref = showLive
@@ -167,7 +177,8 @@ export const IssueCard = React.memo(function IssueCard({
         className={[
           'issue-card',
           showFail ? 'issue-card--run-failed' : '',
-          showLive ? 'issue-card--run-active' : '',
+          showLive && !showWaiting ? 'issue-card--run-active' : '',
+          showWaiting ? 'issue-card--run-waiting' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -176,7 +187,9 @@ export const IssueCard = React.memo(function IssueCard({
         data-readiness={showReadyDot ? tone : 'none'}
         data-run-failed={showFail ? '1' : '0'}
         data-run-active={showLive ? '1' : '0'}
+        data-run-waiting={showWaiting ? '1' : '0'}
         data-live={showLive ? '1' : '0'}
+        data-live-kind={liveState.liveKind ?? ''}
         data-origin={issue.originType ?? ''}
       >
         <div className="issue-card-top" style={{ display: 'flex', alignItems: 'center' }}>
@@ -234,12 +247,17 @@ export const IssueCard = React.memo(function IssueCard({
             ) : null}
             {showLive ? (
               <span
-                className="issue-card-run-active"
-                title="运行中 / 排队中"
+                className={
+                  showWaiting
+                    ? 'issue-card-run-active issue-card-run-waiting'
+                    : 'issue-card-run-active'
+                }
+                title={liveTitle}
                 data-testid="issue-card-live"
                 data-live="1"
+                data-live-kind={liveState.liveKind ?? 'running'}
               >
-                运行中
+                {liveLabel}
               </span>
             ) : null}
             {showFail ? (
@@ -456,6 +474,7 @@ export const IssueCard = React.memo(function IssueCard({
          prev.issue.updatedAt === next.issue.updatedAt &&
          prev.selected === next.selected &&
          prev.runActive === next.runActive &&
+         prev.runWaiting === next.runWaiting &&
          prev.lastRunFailed === next.lastRunFailed &&
          prev.detailHref === next.detailHref &&
          prev.onOpenDetail === next.onOpenDetail;

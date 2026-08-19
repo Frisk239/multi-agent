@@ -14,7 +14,13 @@ import type {
   RuntimeModelsResponse,
   PaginatedResponse,
 } from '@ma/shared';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { apiFetch, API, errMessage, apiError } from './http';
 import { toastError, toastSuccess } from '../toast';
 
@@ -312,16 +318,43 @@ export function useRerunIssue(issueId: string) {
   });
 }
 
+const RUN_MESSAGES_PAGE_SIZE = 500;
+
+type RunMessagesCursor = { afterSeq: number } | { beforeSeq: number };
+
 export function useRunMessages(
   runId: string | undefined,
   opts?: { refetchIntervalMs?: number | false },
 ) {
-  return useQuery<RunMessage[]>({
-    queryKey: ['run-messages', runId],
-    queryFn: async () => {
-      const res = await apiFetch(`${API}/runs/${runId}/messages`);
+  const query = useInfiniteQuery<
+    RunMessage[],
+    Error,
+    InfiniteData<RunMessage[]>,
+    readonly ['run-messages', string | undefined],
+    RunMessagesCursor | undefined
+  >({
+    queryKey: ['run-messages', runId] as const,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: String(RUN_MESSAGES_PAGE_SIZE) });
+      if (pageParam && 'afterSeq' in pageParam) {
+        params.set('afterSeq', String(pageParam.afterSeq));
+      } else if (pageParam && 'beforeSeq' in pageParam) {
+        params.set('beforeSeq', String(pageParam.beforeSeq));
+      }
+      const res = await apiFetch(`${API}/runs/${runId}/messages?${params.toString()}`);
       if (!res.ok) throw new Error('加载轨迹失败');
       return res.json();
+    },
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.length < RUN_MESSAGES_PAGE_SIZE) return undefined;
+      const seq = lastPage[lastPage.length - 1]?.seq;
+      return seq === undefined ? undefined : { afterSeq: seq };
+    },
+    getPreviousPageParam: (firstPage) => {
+      if (firstPage.length < RUN_MESSAGES_PAGE_SIZE) return undefined;
+      const seq = firstPage[0]?.seq;
+      return seq === undefined ? undefined : { beforeSeq: seq };
     },
     enabled: !!runId,
     refetchInterval:
@@ -329,6 +362,13 @@ export function useRunMessages(
         ? false
         : opts?.refetchIntervalMs ?? false,
   });
+  return {
+    ...query,
+    data: query.data?.pages.flat() ?? [],
+    hasPreviousPage: query.hasPreviousPage,
+    fetchPreviousPage: query.fetchPreviousPage,
+    isFetchingPreviousPage: query.isFetchingPreviousPage,
+  };
 }
 
 export function useCancelRun() {

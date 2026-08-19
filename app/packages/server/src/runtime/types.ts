@@ -45,6 +45,12 @@ export interface ExecutionInput {
    * args 构建处追加/插入；null/undefined 不注入）。
    */
   customArgs?: string[] | null;
+  /**
+   * G8-2: server-only spawn observer. Backends call it once a real child PID
+   * exists so orchestration can persist a restart-safe ownership fingerprint.
+   * It must never be sent over REST/WS or interpreted by a provider CLI.
+   */
+  onProcessStarted?: (pid: number) => void;
 }
 
 export interface ExecutionResult {
@@ -62,6 +68,37 @@ export interface DetectResult {
   path: string | null;
 }
 
+/**
+ * A runtime preflight is an opt-in, adapter-specific check, not a synonym for
+ * `detect()`/`--version`. It receives no prompt, agent config, custom args, MCP
+ * configuration, or credential values so adapters cannot accidentally turn a
+ * readiness check into an execution attempt.
+ *
+ * An implementation must be short-lived, honour `signal`, avoid project writes,
+ * interactive login, session creation, and MCP startup. Production adapters stay
+ * without a preflight until those safety properties are evidenced for that adapter.
+ */
+export interface RuntimePreflightContext {
+  readonly signal: AbortSignal;
+  readonly timeoutMs: number;
+}
+
+/**
+ * Preflight failures use a closed set of safe classifications rather than a free
+ * text error, preventing credentials, paths, or provider payloads from reaching
+ * readiness APIs and UI surfaces.
+ */
+export type PreflightFailureReason =
+  | 'auth_required'
+  | 'configuration_invalid'
+  | 'runtime_unavailable'
+  | 'service_unavailable'
+  | 'unknown';
+
+export type PreflightResult =
+  | { status: 'passed' }
+  | { status: 'failed'; reason: PreflightFailureReason };
+
 export interface RuntimeBackend {
   readonly id: RuntimeId;
   readonly label: string;
@@ -77,7 +114,17 @@ export interface RuntimeBackend {
    * Missing / undefined / false → unsupported（不走假 --resume 路径）。
    */
   readonly supportsSessionResume?: boolean;
+  /** Agent.mcpServers 只有显式 true 才会进入该 adapter。 */
+  readonly supportsMcpConfig?: boolean;
+  /** Agent.customArgs 只有显式 true 才会进入该 adapter。 */
+  readonly supportsCustomArgs?: boolean;
   detect(): Promise<DetectResult>;
+  /**
+   * Optional documented-safe readiness check. See RuntimePreflightContext: do not
+   * implement this with a general CLI launch, provider authentication, or session
+   * handshake merely to make a runtime look verified.
+   */
+  preflight?(context: RuntimePreflightContext): Promise<PreflightResult>;
   execute(
     input: ExecutionInput,
     onEvent: (e: AgentEvent) => void,

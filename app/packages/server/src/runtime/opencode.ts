@@ -12,15 +12,10 @@ import {
   extractTokenUsage,
   mergeUsage,
 } from './usage-parse.js';
-import { safeFormatToolError } from './event-normalizer.js';
+import { scrubAndTruncateToolResult } from './secret-scrubber.js';
 
 function safeStringifyResult(content: unknown): string {
-  if (typeof content === 'string') return content;
-  try {
-    return JSON.stringify(content ?? '').slice(0, 4000);
-  } catch (err) {
-    return safeFormatToolError(err);
-  }
+  return scrubAndTruncateToolResult(content);
 }
 
 function pickOpencodeSessionId(j: Record<string, unknown>): string | null {
@@ -237,6 +232,8 @@ export class OpencodeBackend implements RuntimeBackend {
    * 策略层 resolvePriorSession 仅在 supportsSessionResume=true 时注入 resumeSessionId。
    */
   readonly supportsSessionResume = true;
+  readonly supportsMcpConfig = false;
+  readonly supportsCustomArgs = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('OPENCODE_PATH', ['opencode']);
@@ -253,10 +250,15 @@ export class OpencodeBackend implements RuntimeBackend {
     if (!det.path) return { finalText: '', exitReason: 'failed', error: 'opencode CLI 未安装' };
 
     const args = buildOpencodeArgs(input);
-    const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+    const opts: {
+      timeoutMs?: number;
+      env?: NodeJS.ProcessEnv;
+      onProcessStarted?: (pid: number) => void;
+    } = {};
     if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
     // G3-4b：agent.env_vars 显式覆盖子进程 env
     if (input.envVars) opts.env = input.envVars;
+    if (input.onProcessStarted) opts.onProcessStarted = input.onProcessStarted;
     return spawnLineProcess(
       det.path,
       args,

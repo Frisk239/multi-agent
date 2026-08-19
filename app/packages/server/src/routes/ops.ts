@@ -19,6 +19,11 @@ import {
   previewSafeRestore,
   readRestoreJournal,
 } from '../safe-live-restore.js';
+import {
+  cleanLegacySecretLiterals,
+  scanSecretSafety,
+  SECRET_SAFETY_CONFIRMATION,
+} from '../secret-safety.js';
 
 function pingSqlite(): DbPingResult {
   const t0 = Date.now();
@@ -63,6 +68,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
       sizeBytes: result.sizeBytes,
       createdAt: result.createdAt,
       dir: result.dir,
+      secretSafety: result.secretSafety,
     };
   });
 
@@ -81,6 +87,47 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
       dir: result.dir,
       backups: result.backups,
     };
+  });
+
+  /**
+   * G8-3: read-only legacy credential scan. Findings contain stable metadata
+   * only (agent/key/path/length/fingerprint), never a credential value.
+   */
+  app.post('/api/ops/secret-safety/scan', async () => ({
+    success: true,
+    summary: scanSecretSafety(sqlite),
+  }));
+
+  /**
+   * G8-3: an intentionally explicit, local-token protected cleanup action.
+   * Automatic startup migration is avoided because it could silently mutate a
+   * legacy setup before the operator has seen the dry-run findings.
+   */
+  app.post('/api/ops/secret-safety/apply', async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (body.confirmation !== SECRET_SAFETY_CONFIRMATION) {
+      return reply.status(400).send({
+        success: false,
+        code: 'SECRET_SAFETY_CONFIRMATION_REQUIRED',
+        error: `请显式传入 confirmation: ${SECRET_SAFETY_CONFIRMATION}`,
+      });
+    }
+    try {
+      const result = cleanLegacySecretLiterals(sqlite);
+      return {
+        success: true,
+        applied: true,
+        updatedAgents: result.updatedAgents,
+        summary: result.summary,
+        after: result.after,
+      };
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        code: 'SECRET_SAFETY_APPLY_FAILED',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   // Snapshot v1: versioned DB + global Wiki archive. Restore is validation-only.

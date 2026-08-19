@@ -76,6 +76,9 @@ vi.mock('./RunEventTimeline', () => ({
   RunEventTimelineDrawer: () => null,
   RunEventTimelineInline: () => null,
 }));
+vi.mock('./RunTranscriptPreview', () => ({
+  RunTranscriptPreview: () => null,
+}));
 vi.mock('./ActivityTimeline', () => ({
   ActivityTimeline: () => null,
 }));

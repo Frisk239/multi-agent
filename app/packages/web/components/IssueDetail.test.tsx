@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import { IssueDetail } from './IssueDetail';
+import { IssueDetail, pickDefaultRunId } from './IssueDetail';
 
 const issue = {
   id: 'iss-1',
@@ -57,6 +57,7 @@ const attachments = [
 ];
 
 const uploadMutateAsync = vi.fn();
+const retryMutate = vi.fn();
 
 vi.mock('@/lib/api', () => ({
   useIssue: () => ({ data: issue, isLoading: false, error: null }),
@@ -100,7 +101,7 @@ vi.mock('@/lib/api', () => ({
   useAgentsReadinessMap: () => ({ data: {} }),
   useCancelRun: () => ({ mutate: vi.fn(), isPending: false }),
   useRerunIssue: () => ({ mutate: vi.fn(), isPending: false }),
-  useRetryRun: () => ({ mutate: vi.fn(), isPending: false }),
+  useRetryRun: () => ({ mutate: retryMutate, isPending: false }),
   useSquad: () => ({ data: undefined, isLoading: false }),
   useIssueChildren: () => ({ data: [] }),
   // W1 · 附件区
@@ -164,6 +165,14 @@ vi.mock('./RunEventTimeline', () => ({
   ),
 }));
 
+vi.mock('./RunTranscriptPreview', () => ({
+  RunTranscriptPreview: ({ runId }: { runId: string }) => (
+    <div data-testid="run-preview" data-run-id={runId}>
+      preview {runId}
+    </div>
+  ),
+}));
+
 vi.mock('./ActivityTimeline', () => ({
   ActivityTimeline: () => <div data-testid="activity-timeline">activity</div>,
 }));
@@ -215,6 +224,7 @@ describe('IssueDetail variant', () => {
     cleanup();
     uploadMutateAsync.mockReset();
     uploadMutateAsync.mockResolvedValue({ id: 'att-new', originalName: '新文件.txt' });
+    retryMutate.mockReset();
   });
   afterEach(() => {
     cleanup();
@@ -276,6 +286,21 @@ describe('IssueDetail variant', () => {
     );
     expect(screen.getByTestId('run-status-bar')).toBeTruthy();
     expect(screen.getByText('最近运行')).toBeTruthy();
+    expect(screen.getByTestId('run-preview')).toHaveAttribute('data-run-id', 'run-1');
+    const failCta = screen.getByTestId('issue-sheet-fail-cta');
+    expect(failCta.tagName).toBe('BUTTON');
+    expect(failCta).not.toHaveAttribute('href');
+    fireEvent.click(failCta);
+    expect(retryMutate).toHaveBeenCalledWith('run-1');
+  });
+
+  it('pickDefaultRunId prefers waiting_local_directory as live', () => {
+    expect(
+      pickDefaultRunId([
+        { id: 'old', status: 'completed' },
+        { id: 'wait', status: 'waiting_local_directory' },
+      ]),
+    ).toBe('wait');
   });
 });
 

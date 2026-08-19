@@ -13,6 +13,8 @@ import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
 const ACTIVE = ACTIVE_RUN_STATUSES;
 const RETRYABLE = ['failed', 'cancelled', 'timed_out'] as const;
+/** 去重只挡尚未开跑的 pending（学 Multica HasPendingTask：queued/dispatched）。本仓无 dispatched。running 可再插 1 条 follow-up。 */
+const DEDUPE_PENDING_STATUSES = ['queued', 'waiting_local_directory'] as const;
 
 // 乒乓熔断阈值（spec §7.4 R1）：FRI-11 闭环正常路径 = 1 leader + 3 worker = 4 run。
 // 15 给 3 倍余量，防住失控但不误杀正常多轮交互。
@@ -84,6 +86,24 @@ function publishEnqueueBlockedComment(
       authorType: 'member',
       authorId: 'system',
       body: `⚠️ 未开工（${label}）：${detail}`,
+      createdAt: Date.now(),
+    })
+    .run();
+  const cRow = db.select().from(comments).where(eq(comments.id, cid)).get();
+  if (cRow) eventBus.publish({ type: 'comment:created', comment: toComment(cRow) });
+}
+
+/** running 时已有 queued follow-up：再评不插第二行，时间线留一句，避免静默 */
+function publishFollowUpMergedNote(issueId: string): void {
+  const cid = crypto.randomUUID();
+  db.insert(comments)
+    .values({
+      id: cid,
+      issueId,
+      type: 'comment',
+      authorType: 'member',
+      authorId: 'system',
+      body: '已并入排队中的跟进',
       createdAt: Date.now(),
     })
     .run();
@@ -245,7 +265,7 @@ async function checkAndEnqueue(
     return res;
   }
 
-  // 硬闸：cwd_missing / runtime_missing / detect error（busy 仍可排队）
+  // 硬闸：cwd_missing / runtime_missing / detect 或显式安全预检失败（busy 仍可排队）
   // 紧急旁路：MA_ENQUEUE_ALLOW_NOT_READY=1（仅本地排障）
   if (!allowNotReadyEnqueue()) {
     const rd = await computeAgentReadiness(agentId);
@@ -284,9 +304,10 @@ async function checkAndEnqueue(
     }
   }
 
-  // per-(issue,agent) 去重（spec §6.1）
+  // per-(issue,agent) 去重（spec §6.1）：只挡 queued / waiting_local_directory。
+  // running 不当 already_active——再评插入最多 1 条 queued follow-up；claim 时走 buildPrompt。
   // bu03：仅对 kind=issue 工作 run 去重；quick_create 回链后可能仍 active，不能挡 M1 工作 enqueue
-  const activeForAgent = db
+  const pendingForAgent = db
     .select()
     .from(agentRuns)
     .where(
@@ -294,14 +315,30 @@ async function checkAndEnqueue(
         eq(agentRuns.issueId, issueId),
         eq(agentRuns.agentId, agentId),
         eq(agentRuns.kind, 'issue'),
-        inArray(agentRuns.status, [...ACTIVE]),
+        inArray(agentRuns.status, [...DEDUPE_PENDING_STATUSES]),
       ),
     )
     .get();
-  if (activeForAgent) {
+  if (pendingForAgent) {
+    const runningForAgent = db
+      .select()
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.issueId, issueId),
+          eq(agentRuns.agentId, agentId),
+          eq(agentRuns.kind, 'issue'),
+          eq(agentRuns.status, 'running'),
+        ),
+      )
+      .get();
+    if (runningForAgent) {
+      publishFollowUpMergedNote(issueId);
+      return skipped('already_active', '已并入排队中的跟进');
+    }
     return skipped(
       'already_active',
-      `该 agent 在此 issue 上已有进行中的 run（${activeForAgent.id.slice(0, 8)}…）`,
+      `该 agent 在此 issue 上已有进行中的 run（${pendingForAgent.id.slice(0, 8)}…）`,
     );
   }
 

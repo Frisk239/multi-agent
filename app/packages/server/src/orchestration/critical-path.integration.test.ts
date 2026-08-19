@@ -379,7 +379,7 @@ describe('critical-path integration (Slice 41)', () => {
     expect(cards).toHaveLength(0);
   });
 
-  it('orphan recover: running without live abort → failed once', () => {
+  it('G8-2 orphan recover: no verifiable owner → fails once and notifies for manual confirmation', () => {
     const now = Date.now();
     const id = 'run-orphan-1';
     testState.db!.insert(agentRuns)
@@ -408,19 +408,21 @@ describe('critical-path integration (Slice 41)', () => {
     const row = testState.db!.select().from(agentRuns).where(eq(agentRuns.id, id)).get();
     expect(row?.status).toBe('failed');
     expect(row?.error).toMatch(/orphan/i);
+    expect(row?.failureReason).toBe('unknown_external_execution');
     expect(mocks.publish).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'run:failed' }),
     );
-    // stale_heartbeat is infrastructure-retryable: the failed source is
-    // visible in WS/activity while its bounded child owns recovery.
-    expect(mocks.notifyRunTerminal).not.toHaveBeenCalled();
+    // 缺少可核验 owner 时绝不按 PID 猜测或静默自动重试：用户需要在 Inbox
+    // 看见待确认项，并先核查本机 CLI/工作目录。
+    expect(mocks.notifyRunTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ failureReason: 'unknown_external_execution' }),
+    );
     const retryChild = testState.db!
       .select()
       .from(agentRuns)
       .where(eq(agentRuns.autoRetryOfRunId, id))
       .get();
-    expect(retryChild?.status).toBe('queued');
-    expect(retryChild?.attempt).toBe(2);
+    expect(retryChild).toBeUndefined();
 
     // 已是终态：再扫 0
     mocks.publish.mockClear();

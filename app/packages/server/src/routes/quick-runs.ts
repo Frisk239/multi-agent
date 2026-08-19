@@ -54,7 +54,7 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       squadId = squad.id;
     }
 
-    // A3：硬闸对齐 issue enqueue（busy 仍可排队）
+    // A3：硬闸对齐 issue enqueue（含显式安全预检失败；busy 仍可排队）
     if (!allowNotReadyEnqueue()) {
       const rd = await computeAgentReadiness(agentId);
       if (!rd) {

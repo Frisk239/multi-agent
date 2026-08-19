@@ -28,7 +28,7 @@ describe('buildSheetFailCta', () => {
     ).toBe(false);
   });
 
-  it('shows for failed with run deep link', () => {
+  it('failed → in-place rerun, no run deep link', () => {
     const cta = buildSheetFailCta({
       issueId: 'iss-1',
       latestRunStatus: 'failed',
@@ -36,8 +36,23 @@ describe('buildSheetFailCta', () => {
       latestRunId: 'run-9',
     });
     expect(cta.show).toBe(true);
-    expect(cta.href).toBe('/runs/run-9');
-    expect(cta.label).toMatch(/失败|重试/);
+    expect(cta.action).toBe('rerun');
+    expect(cta.runId).toBe('run-9');
+    expect(cta.issueId).toBe('iss-1');
+    expect(cta.href).toBe('');
+    expect(cta.label).toMatch(/再执行/);
     expect(cta.reason).toBe('timeout');
+  });
+
+  it('cancelled → open-run deep link', () => {
+    const cta = buildSheetFailCta({
+      issueId: 'iss-1',
+      latestRunStatus: 'cancelled',
+      latestRunId: 'run-9',
+    });
+    expect(cta.show).toBe(true);
+    expect(cta.action).toBe('open-run');
+    expect(cta.href).toBe('/runs/run-9');
+    expect(cta.label).toMatch(/取消/);
   });
 });

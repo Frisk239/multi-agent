@@ -72,7 +72,7 @@ export function useChatLiveState(threadId: string | undefined) {
           hint: '可用同一条用户消息再开一轮。',
           settingsHref: null as string | null,
         }
-      : classifyRunFailure(failedRun.error)
+      : classifyRunFailure(failedRun.error, failedRun.failureReason)
     : null;
 
   return {

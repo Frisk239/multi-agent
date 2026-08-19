@@ -34,6 +34,10 @@ const mocks = vi.hoisted(() => ({
   notifyRunTerminal: vi.fn(),
   notifyDeferredUnclaimed: vi.fn(),
   notifySquadEscalated: vi.fn(),
+  getExecutionOwnership: vi.fn(),
+  verifyExecutionOwnership: vi.fn(),
+  clearExecutionOwnership: vi.fn(),
+  killProcessTree: vi.fn((_pid: number) => ({ attempted: true, taskkill: false })),
   toAgentRun: vi.fn((row: any) => row),
   lastFromTable: null as any,
   readInboxPrefs: vi.fn((): any => ({
@@ -136,6 +140,16 @@ vi.mock('./inbox-prefs.js', () => ({
 vi.mock('./run-control.js', () => ({
   abortRun: (...args: unknown[]) => mocks.abortRun(...args),
   hasRunAbort: (...args: unknown[]) => mocks.hasRunAbort(...args),
+}));
+
+vi.mock('./execution-ownership.js', () => ({
+  getExecutionOwnership: (runId: string) => mocks.getExecutionOwnership(runId),
+  verifyExecutionOwnership: (row: unknown) => mocks.verifyExecutionOwnership(row),
+  clearExecutionOwnership: (runId: string) => mocks.clearExecutionOwnership(runId),
+}));
+
+vi.mock('../runtime/process-tree.js', () => ({
+  killProcessTree: (pid: number) => mocks.killProcessTree(pid),
 }));
 
 vi.mock('./tool-watchdog-state.js', () => ({
@@ -255,13 +269,19 @@ describe('recoverOrphanedRunningRuns (G5-4 重启 orphan / 取消中崩溃语义
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     mocks.hasRunAbort.mockReturnValue(false); // 崩溃后注册表为空
+    mocks.getExecutionOwnership.mockReturnValue(undefined);
+    mocks.verifyExecutionOwnership.mockReturnValue({
+      verified: false,
+      reason: 'missing_owner',
+      pid: null,
+    });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('DB running + 无 abort 条目（崩溃残留）→ failed（orphan 文案 + stale_heartbeat）', () => {
+  it('DB running + 无 owner 条目 → visible unknown，绝不按 PID 盲杀', () => {
     const now = 10_000_000;
     const row = {
       id: 'run-orphan-1',
@@ -280,10 +300,53 @@ describe('recoverOrphanedRunningRuns (G5-4 重启 orphan / 取消中崩溃语义
     expect(mocks.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'failed',
-        failureReason: 'stale_heartbeat',
-        error: 'orphan: no live executor after restart',
+        failureReason: 'unknown_external_execution',
+        error: expect.stringContaining('not terminated automatically'),
       }),
     );
+    expect(mocks.killProcessTree).not.toHaveBeenCalled();
+    expect(mocks.clearExecutionOwnership).toHaveBeenCalledWith('run-orphan-1');
+  });
+
+  it('only requests tree termination after a complete ownership match', () => {
+    const now = 10_000_000;
+    const row = {
+      id: 'run-verified-owner', status: 'running', agentId: 'agt-1', kind: 'issue', issueId: 'iss-1',
+      attempt: 1, maxAttempts: 2,
+    };
+    mocks.selectAll.mockReturnValue([row]);
+    mocks.selectGet.mockReturnValue({ ...row, status: 'failed' });
+    mocks.getExecutionOwnership.mockReturnValue({ runId: row.id, pid: 4242, fingerprint: 'same' });
+    mocks.verifyExecutionOwnership.mockReturnValue({ verified: true, pid: 4242 });
+
+    expect(recoverOrphanedRunningRuns(now)).toBe(1);
+    expect(mocks.killProcessTree).toHaveBeenCalledWith(4242);
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      failureReason: 'orphan_termination_attempted',
+      error: expect.stringContaining('termination requested'),
+    }));
+    expect(mocks.clearExecutionOwnership).toHaveBeenCalledWith(row.id);
+  });
+
+  it('does not kill a PID whose persisted fingerprint no longer matches', () => {
+    const now = 10_000_000;
+    const row = {
+      id: 'run-reused-pid', status: 'running', agentId: 'agt-1', kind: 'issue', issueId: 'iss-1',
+      attempt: 1, maxAttempts: 2,
+    };
+    mocks.selectAll.mockReturnValue([row]);
+    mocks.selectGet.mockReturnValue({ ...row, status: 'failed' });
+    mocks.getExecutionOwnership.mockReturnValue({ runId: row.id, pid: 4242, fingerprint: 'old' });
+    mocks.verifyExecutionOwnership.mockReturnValue({
+      verified: false, reason: 'fingerprint_mismatch', pid: 4242,
+    });
+
+    expect(recoverOrphanedRunningRuns(now)).toBe(1);
+    expect(mocks.killProcessTree).not.toHaveBeenCalled();
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({
+      failureReason: 'unknown_external_execution',
+      error: expect.stringContaining('fingerprint_mismatch'),
+    }));
   });
 
   it('DB running + 仍有 abort 条目（活 executor）→ 跳过不终态化', () => {

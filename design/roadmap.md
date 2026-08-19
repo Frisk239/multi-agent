@@ -117,7 +117,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 
 **目标陈述：** run 调度按优先级公平（紧急不排后）；自动化派发的副作用严格发生在幂等占位之后；失败/跳过/静默吞错全部可观测；主路径模块测试盲区清零。
 
-**现状基线：** run 认领 FCFS（`run-worker.ts:116` 仅按 createdAt）；automation 派发先副作用后守卫行（`automation-dispatch.ts:321→347`，重叠 tick 可致重复 Issue/孤儿 run）；sweeper 多处全表扫描 + N+1 + 「假批量」注释（`stale-runs.ts:191-630`）；claude-code / run-service（519 行熔断·改派）/ wiki-llm 无直测；pi `extension_ui_request` 静默丢弃（`pi.ts:380`）；无请求级慢日志；inbox/activity 写失败静默吞。
+**现状基线：** run 认领 FCFS（`run-worker.ts:116` 仅按 createdAt）；automation 派发先副作用后守卫行（`automation-dispatch.ts:321→347`，重叠 tick 可致重复 Issue/孤儿 run）；sweeper 多处全表扫描 + N+1 + 「假批量」注释（`stale-runs.ts:191-630`）；claude-code / run-service（519 行熔断·改派）/ wiki-llm 无直测；pi `extension_ui_request` 已采用无人值守自动取消；无请求级慢日志；inbox/activity 写失败静默吞。
 
 | 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
 |---|---|---|---|---|---|
@@ -125,9 +125,9 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G6-2 | **Automation 派发幂等顺序修复**（先插 `(rule_id, planned_at)` 占位行/事务，赢家才干活；或进程内单飞互斥；学 multica tryClaim「先占位后 Handler」`manager.go:95`） | 中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-2-automation-placeholder-closeout-2026-08-03.md)；两阶段占位：UNIQUE 判定赢家 → 赢家才建卡/enqueue，输家零副作用；超龄占位升级 failed；全量 1495 用例绿） |
 | G6-3 | **核心模块测试补网**（claude-code args 抽纯函数 + run-service enqueue 决策/熔断阈值边界 + wiki-llm 降级分支直测；复用 `__test-helpers__/livebind` 基建） | 高 | 中 | — | ✅（2026-08-03，[closeout](app/.progress/g6-3-test-net-closeout-2026-08-03.md)；buildClaudeArgv 纯函数 + 6 用例 · llm 双 provider/无 key/模板/归一化 11 用例 · enqueue 熔断 14/15 边界 + QC 不计数 + 去重 4 用例；全量 1516 用例绿） |
 | G6-4 | **Sweeper 收尸路径原子化 + 假批量注释修正**（无内存依赖路径改单条条件 UPDATE，学 multica `agent.sql:569`；deferred 查重去 N+1；修「批量更新」注释与行为不符的诚实性污点） | 低·中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-4-sweeper-atomic-closeout-2026-08-03.md)；escalateFailedSquadRuns 逐条条件 UPDATE + 幂等 + 注释修正；deferred N+1 去重；+4 用例；全量 1526 用例绿） |
-| G6-5 | **消息/列表端点游标分页 + 形状统一**（`/api/runs/:id/messages` 加 `?afterSeq=&limit=`；列表端点统一 `{data}` 形状，PaginatedResponse 契约全量执行） | 低 | 小 | — | ⬜ |
-| G6-6 | **pi extension_ui_request 诚实提示**（CLI 中途求确认时 run:progress 告知「CLI 在等确认，超时按 idle 收尸」，不再静默卡 30 分钟无文案） | 低·中 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-6-pi-ui-honest-closeout-2026-08-03.md)；per-run 提示一次「CLI 在等确认（method）+ idle 收尸」；全量 1517 用例绿） |
-| G6-7 | **Automation 连续 skipped 运营警示**（最近 N 次 dispatch 全 skipped → Settings 规则标黄 + 文案；可选复用 G5-5 系统通知） | 低·中 | 小 | — | ⬜ |
+| G6-5 | **消息/列表端点游标分页 + 形状统一**（`/api/runs/:id/messages` 加 `?afterSeq=&limit=`；列表端点统一 `{data}` 形状，PaginatedResponse 契约全量执行） | 低 | 小 | — | ✅（2026-08-08；消息接口游标 + 500 上限，Run 详情增量加载） |
+| G6-6 | **pi extension_ui_request 无人值守闭环**（confirm/select/input/editor 立即回传 cancelled，并用 run log 说明，不再静默卡到 idle） | 低·中 | 小 | — | ✅（2026-08-08；阻塞式请求 fail-closed 自动取消，保留 per-run 解释日志） |
+| G6-7 | **Automation 连续 skipped 运营警示**（最近 N 次 dispatch 全 skipped → Settings 规则标黄 + 文案；可选复用 G5-5 系统通知） | 低·中 | 小 | — | ✅（2026-08-08；连续 3 次显示运营警示） |
 | G6-8 | **请求级慢日志**（Fastify onResponse：>1s 请求记 warn，含 path/耗时/状态码；用户报「某页慢」有据可查） | 低 | 极小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-8-slow-log-closeout-2026-08-03.md)；onResponse hook + 纯函数 5 用例；全量 1522 用例绿） |
 | G6-9 | **memory pgvector/embedder 测试**（provider 选择/软回退逻辑直测，防 G1-5 降级行为漂移；embedder 无 key/网络失败分支钉死） | 低 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-9-embedder-test-closeout-2026-08-03.md)；embedder 10 用例：config 默认/覆盖、无 key/HTTP/dims 分支、index 排序、vectorLiteral；manager G1-5 回归；全量 1540 用例绿） |
 | G6-10 | **inbox/activity 写失败可观测**（logger.warn + 计数进 ops-snapshot，不再静默吞） | 低 | 极小 | — | ✅（2026-08-03，[closeout](app/.progress/g6-10-inbox-observability-closeout-2026-08-03.md)；notifyInbox 汇聚点降级 warn + 计数 + snapshot 透出；+4 用例；全量 1530 用例绿） |
@@ -153,6 +153,21 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G7-11 | **Memory 空/错/loading 行 colSpan 修复**（thead 实为 8 列，3 处 7→8） | 低 | 极小 | — | ✅（同上） |
 | G7-12 | **看板工具栏收纳导入/导出**（低频运维按钮收进「筛选」展开区 + 分隔线；功能本身 G5-7 已关不动，只动摆放） | 低 | 极小 | — | ✅（同上） |
 
+### G8 可信执行 — 声明与真实世界一致（2026-08-10 注册）
+
+**目标陈述：** 崩溃后 CLI 可 reconcile；旧密钥不长期躺 SQLite；派活前知道「装了 ≠ 能跑」；看板路径锁等待可见；transcript 不无意落密钥；长轨迹看最新；running 再评能接上。
+
+| 切片 | 说明 | 价值 | 成本 | 依赖 | 状态 |
+|---|---|---|---|---|---|
+| G8-1 | 看板 `waiting_local_directory` 活性 | 高 | 小 | — | ✅（工作区随本波合入） |
+| G8-2 | 崩溃后 CLI execution ownership（禁 PID 盲杀） | 高 | 中 | — | ✅（[closeout](app/.progress/g8-execution-ownership-impl-1.md)） |
+| G8-3 | 旧密钥清库 + envRef fail-closed + 备份诚实 | 高 | 中 | — | ✅（[closeout](app/.progress/g8-secret-safety-impl-1.md)） |
+| G8-4a | Runtime preflight 状态/capability UI 诚实（无真 probe） | 高 | 中 | — | ✅（[closeout](app/.progress/g8-preflight-readiness-impl-1.md)） |
+| G8-4b | 无副作用 adapter probe | 中 | 中 | 一手证据 | ⬜ 禁开 |
+| G8-5a | transcript 写前密钥脱敏 | 高 | 中 | G8-3 | ✅（[closeout](app/.progress/g8-transcript-scrub-impl-1.md)） |
+| G8-6 | 看板 Sheet 最新尾窗 + beforeSeq + 就地再执行 | 高 | 中 | G6-5 | ✅（[closeout](app/.progress/g8-6-board-live-transcript-impl-1.md)） |
+| follow-up | running 再评排队 1 条 follow-up | 高 | 中 | — | ✅（[closeout](app/.progress/comment-followup-queue-impl-1.md)） |
+
 ## §4 切片队列总表（建议迭代顺序）
 
 > 状态列：⬜ 未开 · 🔨 进行中 · ✅ 已关。关刀后由 Slice Owner 更新。
@@ -177,6 +192,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 16 | **第七波（品质波）：M1 ACP 边界 · M2 技术债 · M3 性能 · M4 摩擦清扫**（Q1–Q7，Goal 自编号） | — | ✅ 已关（2026-08-03：Q1 [set_model UI](app/.progress/q1-set-model-ui-closeout-2026-08-03.md) 真机 pi 200/grok-4.5 绑定回读 · Q2 [MCP 经 ACP 注入](app/.progress/q2-mcp-inject-closeout-2026-08-03.md) 真机 fs__read_text_file 读到文件 · Q3 api.ts 拆分 10 领域模块 barrel 兼容 · Q4 KanbanBoard 拆分 3 模块 + dnd 纯函数 · M2c Settings「在途 x/上限 y」· M4a 流式分块合并 35 chunk→1 段落 · Q6 [settings/status 3s→0.21s](app/.progress/q6-perf-settings-status-closeout-2026-08-03.md) · Q7 [全链路走查摩擦清扫](app/.progress/q7-walkthrough-closeout-2026-08-03.md)（WS URL 推导 / grok 模型列表可用项 / onboarding-status 缓存）；全量 1488 用例绿（shared 121 + server 902 + web 465）） |
 | 17 | **第八波（后端精细度）：G6-1 → G6-2 → G6-3** | G6 | G6-1 ✅（[closeout](app/.progress/g6-1-priority-scheduling-closeout-2026-08-03.md)）· G6-2 ✅（[closeout](app/.progress/g6-2-automation-placeholder-closeout-2026-08-03.md)）· G6-3 ✅（[closeout](app/.progress/g6-3-test-net-closeout-2026-08-03.md)）· **G6-6 ✅（[closeout](app/.progress/g6-6-pi-ui-honest-closeout-2026-08-03.md)）** · **G6-8 ✅（[closeout](app/.progress/g6-8-slow-log-closeout-2026-08-03.md)）** · **G6-4 ✅（[closeout](app/.progress/g6-4-sweeper-atomic-closeout-2026-08-03.md)）** · **G6-10 ✅（[closeout](app/.progress/g6-10-inbox-observability-closeout-2026-08-03.md)）** · **G6-9 ✅（2026-08-03，[closeout](app/.progress/g6-9-embedder-test-closeout-2026-08-03.md)，全量 1540 用例绿）** → 池内剩余按 §3 价值取用（G6-5 分页 / G6-7 skipped 警示） |
 | 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | ✅ 已关（2026-08-04，[closeout](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)：**G7-1…G7-12 全部 12 刀收官**——Sheet 后退关闭/返回不闪屏/Memory 15s 实时/transcript 虚拟化（120 条消息 run 实测 rendered 22/120）/Sheet 优先级+标签/新建表单可搜指派/Inbox Enter/Toast 上限+hover 暂停/页标题/分享链复制/colSpan/工具栏收纳；Playwright 17/17 PASS + 回归 6/6；全量 1546 用例绿（shared 121 + server 954 + web 471）） |
+| 19 | **G8 可信执行 + 08-08 硬缺口合入** | G8 | ✅ 本波合入：G8-1…5a / G6-5 / G6-7 / envRef / Memory projectId / waiting 投影（文件已交织，一次提交） |
+| 20 | **G8-6 加厚 + comment follow-up** | G8 | ✅（2026-08-19：[G8-6](app/.progress/g8-6-board-live-transcript-impl-1.md) · [follow-up](app/.progress/comment-followup-queue-impl-1.md)） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 

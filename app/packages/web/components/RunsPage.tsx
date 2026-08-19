@@ -625,7 +625,7 @@ function RunsPageInner() {
                 {visibleRuns.map((r) => {
                   const cls =
                     r.status === 'failed' || r.error
-                      ? classifyRunFailure(r.error)
+                      ? classifyRunFailure(r.error, r.failureReason)
                       : null;
                   const failureAction = shouldShowFailureActionChip({
                     status: r.status,

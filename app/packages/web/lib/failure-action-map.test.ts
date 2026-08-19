@@ -42,6 +42,24 @@ const EXPECTED: Array<{
     variant: 'neutral',
   },
   {
+    reason: 'orphan_termination_attempted',
+    label: '已请求清理残留执行',
+    action: '确认工作目录已停止变动后再执行',
+    variant: 'human',
+  },
+  {
+    reason: 'unknown_external_execution',
+    label: '外部执行待确认',
+    action: '检查本机 CLI/工作目录后再决定是否重试',
+    variant: 'human',
+  },
+  {
+    reason: 'missing_required_env_ref',
+    label: '缺少宿主环境变量',
+    action: '在启动 server 的环境中设置所提示变量后再执行',
+    variant: 'human',
+  },
+  {
     reason: 'session_poisoned',
     label: '会话损坏',
     action: '强制新会话后重试',

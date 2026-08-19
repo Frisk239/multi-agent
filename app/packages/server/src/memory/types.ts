@@ -8,6 +8,8 @@ export interface MemoryItemView {
   source?: string;
   /** G4-4：四级 scope 标签（workspace/agent/issue/run） */
   scope?: string | null;
+  /** null = global；非 null 只属于该 project */
+  projectId?: string | null;
   issueId?: string | null;
   runId?: string | null;
   createdAt?: string;
@@ -24,6 +26,7 @@ export interface MemorySyncInput {
   issueId: string;
   runId: string;
   agentId?: string | null;
+  projectId?: string | null;
   userText: string;
   assistantText: string;
   /** G4-4：run 完成记忆默认 run scope */
@@ -39,12 +42,24 @@ export interface MemoryProvider {
   initialize(): void | Promise<void>;
   prefetch(
     query: string,
-    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+    opts?: {
+      sessionId?: string;
+      limit?: number;
+      includeInvalid?: boolean;
+      scope?: MemoryPrefetchScope;
+      projectId?: string | null;
+    },
   ): Promise<MemoryPrefetchResult>;
   /** 同步变体：S09 buildPrompt 用；默认可 throw 或委托 async */
   prefetchSync?(
     query: string,
-    opts?: { sessionId?: string; limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+    opts?: {
+      sessionId?: string;
+      limit?: number;
+      includeInvalid?: boolean;
+      scope?: MemoryPrefetchScope;
+      projectId?: string | null;
+    },
   ): MemoryPrefetchResult;
   syncTurn(input: MemorySyncInput): Promise<void>;
   /** 可选：按 id 删除（memory-item-delete） */

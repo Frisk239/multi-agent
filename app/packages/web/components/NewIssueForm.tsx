@@ -241,6 +241,9 @@ export function NewIssueForm({
         name: ag?.name ?? id,
         status: rd?.status,
         detail: rd?.detail,
+        runtimeInstalled: rd?.runtimeInstalled,
+        runtimeVerification: rd?.runtimeVerification,
+        preflightStatus: rd?.preflightStatus,
       };
     }
     if (assigneeValue.startsWith('squad:')) {
@@ -254,6 +257,9 @@ export function NewIssueForm({
         name: sq?.name ?? id,
         status: rd?.status,
         detail: rd?.detail,
+        runtimeInstalled: rd?.runtimeInstalled,
+        runtimeVerification: rd?.runtimeVerification,
+        preflightStatus: rd?.preflightStatus,
       };
     }
     return null;
@@ -263,6 +269,12 @@ export function NewIssueForm({
     selectedAssignee?.status != null &&
     selectedAssignee.status !== 'ready' &&
     selectedAssignee.status !== 'busy';
+  // detect 只证明 CLI 可发现。没有明确的安全预检时，仍允许创建/派活，
+  // 但必须让操作者看到首次运行的真实不确定性。
+  const assigneeUnverified =
+    selectedAssignee?.runtimeInstalled === true &&
+    selectedAssignee.runtimeVerification === 'unverified' &&
+    selectedAssignee.preflightStatus !== 'failed';
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
@@ -658,18 +670,30 @@ export function NewIssueForm({
           </div>
         </div>
       </div>
-      {selectedAssignee && assigneeBlocked ? (
+      {selectedAssignee && (assigneeBlocked || assigneeUnverified) ? (
         <div
-          className="new-issue-assignee-banner"
+          className={`new-issue-assignee-banner${assigneeUnverified ? ' is-unverified' : ''}`}
           data-testid="new-issue-assignee-banner"
           data-status={selectedAssignee.status ?? 'unknown'}
+          data-runtime-verification={selectedAssignee.runtimeVerification ?? 'unknown'}
+          data-preflight-status={selectedAssignee.preflightStatus ?? 'unknown'}
           role="status"
         >
           <span>
-            <strong>指派方可能无法执行</strong>
-            {selectedAssignee.type === 'agent' ? '智能体' : '小队队长'}「
-            {selectedAssignee.name}」：{selectedAssignee.status}
-            {selectedAssignee.detail ? ` · ${selectedAssignee.detail}` : ''}
+            {assigneeUnverified ? (
+              <>
+                <strong>运行时尚未安全预检</strong>
+                {selectedAssignee.type === 'agent' ? '智能体' : '小队队长'}「
+                {selectedAssignee.name}」的 CLI 已安装，尚无安全预检；认证、模型和 MCP 尚未验证，首次运行仍可能失败。
+              </>
+            ) : (
+              <>
+                <strong>指派方可能无法执行</strong>
+                {selectedAssignee.type === 'agent' ? '智能体' : '小队队长'}「
+                {selectedAssignee.name}」：{selectedAssignee.status}
+                {selectedAssignee.detail ? ` · ${selectedAssignee.detail}` : ''}
+              </>
+            )}
           </span>
           <div className="new-issue-cwd-actions" data-testid="new-issue-assignee-actions">
             {selectedAssignee.status === 'runtime_missing' ? (
@@ -700,7 +724,7 @@ export function NewIssueForm({
             >
               详情
             </Link>
-            {selectedAssignee.status ? (
+            {assigneeBlocked && selectedAssignee.status ? (
               <Link
                 href={
                   selectedAssignee.type === 'agent'
@@ -722,6 +746,7 @@ export function NewIssueForm({
         data-testid="new-issue-submit"
         data-cwd-blocked={showCwdWarn ? '1' : '0'}
         data-assignee-blocked={assigneeBlocked ? '1' : '0'}
+        data-assignee-unverified={assigneeUnverified ? '1' : '0'}
         data-exec-mode={
           execPreview.kind === 'project_local'
             ? 'project_local'
@@ -734,6 +759,8 @@ export function NewIssueForm({
             ? '工作区未就绪时服务端拒绝开工'
             : assigneeBlocked
               ? '指派方可能无法执行'
+              : assigneeUnverified
+                ? 'CLI 已安装但尚未安全预检；首次运行仍可能失败'
               : execPreview.kind === 'invalid_path'
                 ? '项目路径无效，指派后 run 可能失败'
                 : execPreview.kind === 'isolated'

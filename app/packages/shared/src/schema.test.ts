@@ -21,6 +21,7 @@ import {
   AgentRun,
   SquadSummary,
   SkillInfo,
+  classifyRunFailure,
 } from './schema';
 
 describe('Shared Schema Validators', () => {
@@ -142,11 +143,90 @@ describe('Shared Schema Validators', () => {
         'user_aborted',
         // G2-1：deferred 宽限后自动升级
         'deferred_escalated',
+        // G8-2：崩溃后的安全 execution ownership 恢复
+        'orphan_termination_attempted',
+        'unknown_external_execution',
+        // G8-3：必需宿主密钥引用不可解析，CLI 不启动
+        'missing_required_env_ref',
       ];
       for (const r of reasons) {
         expect(AgentRunFailureReason.parse(r)).toBe(r);
       }
       expect(AgentRunFailureReason.options).toEqual(reasons);
+    });
+  });
+
+  describe('classifyRunFailure', () => {
+    it('lets explicit G8-2 ownership state override the legacy orphan text classifier', () => {
+      const unknown = classifyRunFailure(
+        'orphan: execution owner could not be verified after server restart',
+        'unknown_external_execution',
+      );
+      expect(unknown.title).toBe('外部执行状态待确认');
+      expect(unknown.hint).toContain('避免误杀');
+      expect(unknown.settingsHref).toBe('/settings');
+
+      const terminated = classifyRunFailure(
+        'orphan: verified owner termination requested',
+        'orphan_termination_attempted',
+      );
+      expect(terminated.title).toBe('已请求清理残留执行');
+      expect(terminated.hint).toContain('请求终止');
+
+      const missingEnv = classifyRunFailure(
+        '宿主环境缺少 GITHUB_TOKEN（供 MCP mcpServers.github.headers.Authorization 使用），未启动 CLI',
+        'missing_required_env_ref',
+      );
+      expect(missingEnv.title).toBe('缺少运行所需的宿主环境变量');
+      expect(missingEnv.hint).toContain('没有启动');
+      expect(missingEnv.settingsHref).toBe('/settings');
+    });
+  });
+
+  describe('snapshot secret-safety contracts', () => {
+    const snapshotManifestBase = {
+      archiveVersion: 1 as const,
+      createdAt: '2026-08-17T00:00:00.000Z',
+      dbSchema: '53',
+      workspace: { path: null, source: 'none' as const, configured: false, exists: false },
+      wiki: {
+        root: 'D:/wiki',
+        source: 'cwd' as const,
+        projectScopedExcluded: true as const,
+        excludedProjectWikiRoots: [],
+        exclusions: [],
+      },
+      files: [],
+    };
+
+    it('accepts an older manifest with no advisory and a G8-3 manifest with one', async () => {
+      const { SnapshotManifest, SnapshotEntry } = await import('./schema.js');
+      expect(SnapshotManifest.safeParse(snapshotManifestBase).success).toBe(true);
+      expect(
+        SnapshotManifest.safeParse({
+          ...snapshotManifestBase,
+          secretSafety: {
+            status: 'no_known_legacy_literals',
+            remediation: 'not an absolute guarantee',
+          },
+        }).success,
+      ).toBe(true);
+
+      const entry = {
+        name: 'ma-snapshot-x.ma-backup.zip',
+        path: 'D:/backup/ma-snapshot-x.ma-backup.zip',
+        sizeBytes: 1,
+        createdAt: '2026-08-17T00:00:00.000Z',
+        sha256: null,
+        valid: true,
+      };
+      expect(SnapshotEntry.safeParse(entry).success).toBe(false);
+      expect(
+        SnapshotEntry.safeParse({
+          ...entry,
+          secretSafety: { status: 'scan_inconclusive', remediation: 'legacy archive' },
+        }).success,
+      ).toBe(true);
     });
   });
 

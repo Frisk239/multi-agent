@@ -26,8 +26,10 @@ interface Props {
   onDrop?: (status: IssueStatus, beforeId: string | null) => void;
   readinessByAgentId?: Record<string, AgentReadiness | null>;
   failedIssueIds?: Set<string>;
-  /** queued/running run 覆盖的 issue */
+  /** queued/running/waiting run 覆盖的 issue */
   activeIssueIds?: Set<string>;
+  /** 纯 waiting_local_directory（卡面「等目录」） */
+  waitingIssueIds?: Set<string>;
   /** issueId → agentId（用于 squad 时已解析为 leader） */
   assigneeAgentByIssueId?: Record<string, string | undefined>;
   selectedIds?: Set<string>;
@@ -47,6 +49,7 @@ function renderCard(
     | 'readinessByAgentId'
     | 'failedIssueIds'
     | 'activeIssueIds'
+    | 'waitingIssueIds'
     | 'assigneeAgentByIssueId'
     | 'selectedIds'
     | 'onToggleSelect'
@@ -63,6 +66,7 @@ function renderCard(
       readiness={rd}
       lastRunFailed={props.failedIssueIds?.has(iss.id)}
       runActive={props.activeIssueIds?.has(iss.id)}
+      runWaiting={props.waitingIssueIds?.has(iss.id)}
       selected={props.selectedIds?.has(iss.id)}
       onToggleSelect={props.onToggleSelect}
       detailHref={props.getDetailHref?.(iss)}
@@ -86,6 +90,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   readinessByAgentId,
   failedIssueIds,
   activeIssueIds,
+  waitingIssueIds,
   assigneeAgentByIssueId,
   selectedIds,
   onToggleSelect,
@@ -119,6 +124,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
     readinessByAgentId,
     failedIssueIds,
     activeIssueIds,
+    waitingIssueIds,
     assigneeAgentByIssueId,
     selectedIds,
     onToggleSelect,

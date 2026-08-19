@@ -10,6 +10,13 @@ import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
 import { transitionRun } from './run-transitions.js';
+import { publishActivityCreated } from './activity-logger.js';
+import {
+  clearExecutionOwnership,
+  getExecutionOwnership,
+  verifyExecutionOwnership,
+} from './execution-ownership.js';
+import { killProcessTree } from '../runtime/process-tree.js';
 import {
   hasActiveAutoRetryChild,
   insertEscalatedChild,
@@ -256,9 +263,9 @@ export function failStaleRunningRuns(now = Date.now()): number {
 /**
  * 启动时：DB 中 running 但本进程无 AbortController → 上轮崩溃残留。
  * G5-4 语义：取消中崩溃 / graceful-shutdown 中断 / executor 异常消失 的统一处置
- * —— 重启后一律 failed（'orphan: no live executor after restart'，
- * failureReason=stale_heartbeat），终态可解释；DB 已终态（cancel UPDATE 先提交）
- * 的 run 不在此列（仅查 running，天然不碰）。
+ * —— 重启后先检查持久 owner sidecar。只有 PID + OS 启动指纹 + 安全进程组
+ * 都仍匹配，才请求 tree kill；其余任何情况均明确标 unknown、绝不 PID 盲杀。
+ * DB 已终态（cancel UPDATE 先提交）的 run 不在此列（仅查 running，天然不碰）。
  */
 export function recoverOrphanedRunningRuns(now = Date.now()): number {
   const rows = db
@@ -269,18 +276,53 @@ export function recoverOrphanedRunningRuns(now = Date.now()): number {
   let n = 0;
   for (const row of rows) {
     if (hasRunAbort(row.id)) continue;
+    const owner = getExecutionOwnership(row.id);
+    const verification = owner
+      ? verifyExecutionOwnership(owner)
+      : { verified: false as const, reason: 'missing_owner' as const, pid: null };
+    let error: string;
+    let failureReason: 'orphan_termination_attempted' | 'unknown_external_execution';
+
+    if (verification.verified) {
+      const termination = killProcessTree(verification.pid);
+      error = termination.attempted
+        ? `orphan: verified prior executor (pid ${verification.pid}); termination requested after server restart`
+        : `orphan: verified prior executor (pid ${verification.pid}); termination could not be requested after server restart`;
+      failureReason = 'orphan_termination_attempted';
+      logger.warn(
+        { runId: row.id, pid: verification.pid, termination },
+        'recovered orphaned run after verified execution ownership match',
+      );
+    } else {
+      error =
+        `orphan: execution owner could not be verified after server restart (${verification.reason}); ` +
+        'not terminated automatically. Check the local CLI and workspace before retrying.';
+      failureReason = 'unknown_external_execution';
+      logger.warn(
+        { runId: row.id, pid: verification.pid, reason: verification.reason },
+        'orphaned run was not terminated because execution ownership is unverified',
+      );
+    }
     const tr = transitionAndScheduleAutoRetry({
       id: row.id,
       fromStatuses: ['running'],
       patch: {
         status: 'failed',
         finishedAt: now,
-        error: 'orphan: no live executor after restart',
-        failureReason: 'stale_heartbeat',
+        error,
+        failureReason,
         prepareLeaseExpiresAt: null,
       },
     });
     if (tr.applied && tr.row) {
+      try {
+        clearExecutionOwnership(row.id);
+      } catch (err) {
+        logger.warn(
+          { runId: row.id, err: err instanceof Error ? err.message : String(err) },
+          'orphan execution ownership cleanup failed',
+        );
+      }
       publishFailedRun(tr.row, now, tr.autoRetryChild);
       n++;
     }
@@ -670,6 +712,7 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     if (!tr.applied || !tr.row) continue;
     const deferredRun = tr.row;
     const deferredObs = toAgentRun(deferredRun);
+    eventBus.publish({ type: 'run:deferred', run: deferredObs });
 
     // Slice 70：草稿 reassign — 只写 note，不真改派
     const reassignDraft = {
@@ -680,26 +723,38 @@ export function escalateDeferredUnclaimedRuns(now = Date.now()): number {
     const inboxItem = notifyDeferredUnclaimed(deferredObs, { thresholdMs, reassignDraft });
 
     if (row.issueId) {
+      const activityId = crypto.randomUUID();
+      const activityPayload = {
+        runId: row.id,
+        agentId: row.agentId,
+        thresholdMs,
+        ageMs: now - row.createdAt,
+        reason: 'queued_unclaimed',
+        deferred: true,
+        fireAt: deferredRun.fireAt,
+        reassignDraft,
+      };
       db.insert(activityLogs)
         .values({
-          id: crypto.randomUUID(),
+          id: activityId,
           issueId: row.issueId,
           actorType: 'system',
           actorName: '系统',
           eventType: 'run_deferred',
-          payload: JSON.stringify({
-            runId: row.id,
-            agentId: row.agentId,
-            thresholdMs,
-            ageMs: now - row.createdAt,
-            reason: 'queued_unclaimed',
-            deferred: true,
-            fireAt: deferredRun.fireAt,
-            reassignDraft,
-          }),
+          payload: JSON.stringify(activityPayload),
           createdAt: now,
         })
         .run();
+      publishActivityCreated({
+        id: activityId,
+        issueId: row.issueId,
+        actorType: 'system',
+        actorId: null,
+        actorName: '系统',
+        eventType: 'run_deferred',
+        payload: activityPayload,
+        createdAt: new Date(now).toISOString(),
+      });
     }
 
     // 无 issue 时仅 inbox 可观测；inbox 被 prefs/mute 挡掉仍计一次扫过（靠 dedupe 下次 skip）

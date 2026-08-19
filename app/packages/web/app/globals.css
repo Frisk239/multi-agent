@@ -1492,6 +1492,13 @@ a.issue-status-board-link:hover {
   animation: issue-card-pulse 1.6s ease-in-out infinite;
 }
 
+/* G8-1：waiting_local_directory — 黄脉冲，与 running 绿区分 */
+.issue-card--run-waiting {
+  border-color: color-mix(in srgb, var(--color-yellow, #ca8a04) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-yellow, #ca8a04) 28%, transparent);
+  animation: issue-card-pulse-waiting 1.6s ease-in-out infinite;
+}
+
 @keyframes issue-card-pulse {
   0%,
   100% {
@@ -1502,8 +1509,19 @@ a.issue-status-board-link:hover {
   }
 }
 
+@keyframes issue-card-pulse-waiting {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-yellow, #ca8a04) 22%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-yellow, #ca8a04) 28%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .issue-card--run-active {
+  .issue-card--run-active,
+  .issue-card--run-waiting {
     animation: none;
   }
 }
@@ -1523,6 +1541,12 @@ a.issue-status-board-link:hover {
   line-height: 16px;
 }
 
+.issue-card-run-active.issue-card-run-waiting {
+  color: var(--color-yellow, #ca8a04);
+  background: color-mix(in srgb, var(--color-yellow, #ca8a04) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-yellow, #ca8a04) 40%, transparent);
+}
+
 .issue-card-run-active::before {
   content: '';
   width: 6px;
@@ -1531,6 +1555,11 @@ a.issue-status-board-link:hover {
   background: var(--color-green, #10b981);
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-green, #10b981) 50%, transparent);
   animation: issue-dot-blink 1.2s ease-in-out infinite;
+}
+
+.issue-card-run-active.issue-card-run-waiting::before {
+  background: var(--color-yellow, #ca8a04);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-yellow, #ca8a04) 50%, transparent);
 }
 
 @keyframes issue-dot-blink {

@@ -67,11 +67,18 @@ export class SqliteTextProvider implements MemoryProvider {
 
   prefetchSync(
     query: string,
-    opts?: { limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+    opts?: {
+      limit?: number;
+      includeInvalid?: boolean;
+      scope?: MemoryPrefetchScope;
+      projectId?: string | null;
+    },
   ): MemoryPrefetchResult {
     const limit = opts?.limit ?? 5;
     const includeInvalid = opts?.includeInvalid ?? false;
     const scopeFilter = opts?.scope ?? null;
+    const projectFilter = opts?.projectId !== undefined;
+    const projectId = opts?.projectId ?? null;
     const tokens = tokenize(query);
     const now = Date.now();
 
@@ -84,12 +91,22 @@ export class SqliteTextProvider implements MemoryProvider {
     if (scopeFilter) {
       conds.push(eq(memoryItems.scope, scopeFilter));
     }
+    // Automatic project-scoped recall sees the project's rows plus explicit
+    // global rows. A null project context sees global rows only. Omitted
+    // projectId is reserved for the operator-wide memory list.
+    if (projectFilter) {
+      conds.push(
+        projectId
+          ? or(eq(memoryItems.projectId, projectId), isNull(memoryItems.projectId))
+          : isNull(memoryItems.projectId),
+      );
+    }
     if (conds.length > 0) {
       baseQuery = baseQuery.where(and(...conds)) as any;
     }
     
     let rows: Array<{
-      id: string; scope: string; issueId: string | null; agentId: string | null;
+      id: string; scope: string; issueId: string | null; agentId: string | null; projectId: string | null;
       runId: string | null; text: string; validAt: number | null; invalidAt: number | null;
       createdAt: number; score: number;
     }>;
@@ -97,29 +114,36 @@ export class SqliteTextProvider implements MemoryProvider {
       rows = (baseQuery
         .orderBy(desc(memoryItems.createdAt))
         .limit(limit)
-        .all() as never as Array<{ id: string; scope: string; issueId: string | null; agentId: string | null; runId: string | null; text: string; validAt: number | null; invalidAt: number | null; createdAt: number }>)
+        .all() as never as Array<{ id: string; scope: string; issueId: string | null; agentId: string | null; projectId: string | null; runId: string | null; text: string; validAt: number | null; invalidAt: number | null; createdAt: number }>)
         .map((r) => ({ ...r, score: 0 }));
     } else {
       // G4-1：FTS5 全量召回（BM25 排序，不再受 200 行上限约束）+ 二次重排：
       // scope 加权 + 30 天时间衰减（记忆越多检索越准，不再退化）
       const matchQ = tokens.join(' '); // FTS5 隐式 AND = 原「全 token AND」语义
       const scopeClause = scopeFilter ? 'AND m.scope = ?' : '';
-      const ftsParams = scopeFilter
-        ? [matchQ, scopeFilter, FTS_CANDIDATE_K]
-        : [matchQ, FTS_CANDIDATE_K];
+      const projectClause = projectFilter
+        ? projectId
+          ? 'AND (m.project_id = ? OR m.project_id IS NULL)'
+          : 'AND m.project_id IS NULL'
+        : '';
+      const ftsParams: unknown[] = [matchQ];
+      if (scopeFilter) ftsParams.push(scopeFilter);
+      if (projectFilter && projectId) ftsParams.push(projectId);
+      ftsParams.push(FTS_CANDIDATE_K);
       const raw = sqlite
         .prepare(
           `SELECT m.id AS id, m.scope AS scope, m.issue_id AS issueId, m.agent_id AS agentId,
+                  m.project_id AS projectId,
                   m.run_id AS runId, m.text AS text, m.valid_at AS validAt, m.invalid_at AS invalidAt,
                   m.created_at AS createdAt, bm25(${FTS_TABLE}) AS bm25
            FROM ${FTS_TABLE} f
            JOIN memory_item m ON m.rowid = f.rowid
-           WHERE ${FTS_TABLE} MATCH ? ${scopeClause}
+           WHERE ${FTS_TABLE} MATCH ? ${scopeClause} ${projectClause}
            ORDER BY bm25(${FTS_TABLE})
            LIMIT ?`,
         )
         .all(...ftsParams) as Array<{
-        id: string; scope: string; issueId: string | null; agentId: string | null;
+        id: string; scope: string; issueId: string | null; agentId: string | null; projectId: string | null;
         runId: string | null; text: string; validAt: number | null; invalidAt: number | null;
         createdAt: number; bm25: number;
       }>;
@@ -143,6 +167,7 @@ export class SqliteTextProvider implements MemoryProvider {
         source: 'sqlite-text',
         scope: r.scope,
         issueId: r.issueId,
+        projectId: r.projectId,
         runId: r.runId,
         createdAt: new Date(r.createdAt).toISOString(),
         validAt: r.validAt ? new Date(r.validAt).toISOString() : null,
@@ -153,7 +178,12 @@ export class SqliteTextProvider implements MemoryProvider {
 
   async prefetch(
     query: string,
-    opts?: { limit?: number; includeInvalid?: boolean; scope?: MemoryPrefetchScope },
+    opts?: {
+      limit?: number;
+      includeInvalid?: boolean;
+      scope?: MemoryPrefetchScope;
+      projectId?: string | null;
+    },
   ): Promise<MemoryPrefetchResult> {
     return this.prefetchSync(query, opts);
   }
@@ -165,6 +195,7 @@ export class SqliteTextProvider implements MemoryProvider {
     );
     this.addRaw(text, {
       issueId: input.issueId,
+      projectId: input.projectId ?? null,
       agentId: input.agentId ?? null,
       runId: input.runId,
       scope: input.scope ?? 'run',
@@ -178,6 +209,7 @@ export class SqliteTextProvider implements MemoryProvider {
       issueId?: string | null;
       agentId?: string | null;
       runId?: string | null;
+      projectId?: string | null;
       scope?: MemoryPrefetchScope;
     },
   ): MemoryItemView {
@@ -186,11 +218,13 @@ export class SqliteTextProvider implements MemoryProvider {
     const issueId = meta?.issueId ?? null;
     const agentId = meta?.agentId ?? null;
     const runId = meta?.runId ?? null;
+    const projectId = meta?.projectId ?? null;
     const scope = meta?.scope ?? 'workspace';
     const ins = db.insert(memoryItems)
       .values({
         id,
         scope,
+        projectId,
         issueId,
         agentId,
         runId,
@@ -208,6 +242,7 @@ export class SqliteTextProvider implements MemoryProvider {
       text,
       source: 'sqlite-text',
       scope,
+      projectId,
       issueId,
       runId,
       createdAt: new Date(now).toISOString(),
@@ -235,6 +270,7 @@ export class SqliteTextProvider implements MemoryProvider {
       text: row.text,
       source: 'sqlite-text',
       issueId: row.issueId ?? null,
+      projectId: row.projectId ?? null,
       runId: row.runId ?? null,
       createdAt: new Date(row.createdAt).toISOString(),
       validAt: row.validAt ? new Date(row.validAt).toISOString() : null,

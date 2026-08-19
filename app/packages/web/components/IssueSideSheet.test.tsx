@@ -81,6 +81,7 @@ describe('IssueSideSheet', () => {
       'data-variant',
       'sheet',
     );
+    expect(screen.getByText('Markdown · 附件')).toBeTruthy();
     expect(screen.getByTestId('issue-side-sheet-fullpage')).toHaveAttribute(
       'href',
       '/issues/iss-42',

@@ -15,6 +15,8 @@
  * 安全：MCP 条目常含 API token（env/headers）——本文件不写日志。
  */
 
+import { parseMcpServers, resolveMcpServersEnv } from './mcp-config.js';
+
 export interface AcpMcpServerEntry {
   name: string;
   command: string;
@@ -63,13 +65,9 @@ export function buildAcpMcpServers(rawConfig: string | null | undefined): AcpMcp
   const trimmed = (rawConfig ?? '').trim();
   if (!trimmed || trimmed === 'null') return [];
 
-  let parsed: { mcpServers?: Record<string, unknown> };
-  try {
-    parsed = JSON.parse(trimmed) as { mcpServers?: Record<string, unknown> };
-  } catch (err) {
-    throw new Error(`parse mcp_config json: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  const servers = parsed.mcpServers;
+  // The web/API contract stores the concise `{name: entry}` map. Accept the
+  // older Claude wrapper too so Grok cannot silently no-op on a valid config.
+  const servers = resolveMcpServersEnv(parseMcpServers(trimmed));
   if (!servers || Object.keys(servers).length === 0) return [];
 
   const names = Object.keys(servers).sort();

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { classifyRunFailure, isAutoRetryableFailureReason, type RunMessage } from '@ma/shared';
 import {
   useAgent,
@@ -31,6 +31,11 @@ import {
   runRecoveryKind,
 } from '@/lib/run-recovery';
 import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
+import {
+  isNearBottom,
+  NEAR_BOTTOM_PX,
+  shouldAutoStick,
+} from '@/lib/chat-scroll';
 import { confirmDialog } from '@/lib/confirm-store';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FailureActionChip } from './FailureActionChip';
@@ -212,7 +217,13 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const { data: run, isLoading, isError, error, refetch, isFetching } = useRun(runId);
   // G7-9：标签页标题 = 运行短 id（多标签可辨）
   usePageTitle(run?.id ? `运行 ${shortId(run.id)}` : null);
-  const { data: messages = [], isFetching: msgFetching } = useRunMessages(runId);
+  const {
+    data: messages = [],
+    isFetching: msgFetching,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
+  } = useRunMessages(runId);
   const { data: childRuns = [] } = useChildRuns(runId, {
     refetchIntervalMs: run?.status === 'running' || run?.status === 'queued' ? 3000 : false,
   });
@@ -257,7 +268,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
     run?.status === 'running';
   const failure =
     run && (run.status === 'failed' || run.error)
-      ? classifyRunFailure(run.error)
+      ? classifyRunFailure(run.error, run.failureReason)
       : null;
   const failureAction =
     run &&
@@ -284,6 +295,9 @@ export function RunDetailPage({ runId }: { runId: string }) {
   // 行高可估（折叠行 ~40px），展开态行高经 measureElement 动态校准。
   const TRANSCRIPT_VIRTUALIZE_THRESHOLD = 100;
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const lastScrollLenRef = useRef(0);
+  const stickThrottleRef = useRef(0);
   const virtualizeTranscript = filtered.length >= TRANSCRIPT_VIRTUALIZE_THRESHOLD;
   const transcriptVirtualizer = useVirtualizer({
     count: virtualizeTranscript ? filtered.length : 0,
@@ -297,6 +311,41 @@ export function RunDetailPage({ runId }: { runId: string }) {
   const transcriptVirtualItems = virtualizeTranscript
     ? transcriptVirtualizer.getVirtualItems()
     : [];
+
+  useEffect(() => {
+    setStickToBottom(true);
+    lastScrollLenRef.current = 0;
+  }, [runId]);
+
+  const handleTranscriptScroll = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    setStickToBottom(isNearBottom(el, NEAR_BOTTOM_PX));
+  }, []);
+
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el || filtered.length === 0) return;
+    const prevHeight = lastScrollLenRef.current;
+    const near = isNearBottom(el, NEAR_BOTTOM_PX);
+    const should = shouldAutoStick(stickToBottom, near) || prevHeight === 0;
+    if (!should) return;
+    const now = Date.now();
+    if (prevHeight > 0 && now - stickThrottleRef.current < 80) return;
+    stickThrottleRef.current = now;
+    lastScrollLenRef.current = el.scrollHeight;
+    if (virtualizeTranscript) {
+      void transcriptVirtualizer.scrollToIndex(filtered.length - 1, { align: 'end' });
+    }
+    el.scrollTop = el.scrollHeight;
+  }, [
+    messages.length,
+    filtered.length,
+    streamChunk,
+    progress,
+    stickToBottom,
+    virtualizeTranscript,
+  ]);
 
   // G7-4：展开态窗口感知——只保留当前窗口（含 overscan）内的 key，
   // 防止长 run 无限滚动时 expanded 记录无限膨胀（窗口外的行收起可接受）
@@ -932,7 +981,7 @@ export function RunDetailPage({ runId }: { runId: string }) {
             ) : null}
             {run.sessionResumeStatus === 'unsupported' ? (
               <p className="run-path-lock-note text-dim" data-testid="run-session-unsupported">
-                claude-code / opencode / cursor 支持真 session resume；Grok（单轮打印模式）与 Pi 暂不支持。
+                claude-code / opencode / cursor / Grok / Pi 均支持真 session resume。
               </p>
             ) : null}
             {run.sessionResumeStatus === 'force_fresh' ? (
@@ -1049,6 +1098,17 @@ export function RunDetailPage({ runId }: { runId: string }) {
             <strong>{failure.title}</strong>
             <p className="text-sm run-failure-hint">{failure.hint}</p>
             {run.error ? <pre className="run-error-pre">{run.error}</pre> : null}
+            {failure.settingsHref ? (
+              <div className="run-failure-actions">
+                <Link
+                  href={failure.settingsHref}
+                  className="btn btn-secondary btn-sm"
+                  data-testid="run-detail-failure-settings"
+                >
+                  打开环境诊断
+                </Link>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -1086,6 +1146,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
           </span>
         </div>
 
+        {hasPreviousPage ? (
+          <div className="run-transcript-load-more">
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              data-testid="run-detail-load-more"
+              disabled={isFetchingPreviousPage}
+              onClick={() => void fetchPreviousPage()}
+            >
+              {isFetchingPreviousPage ? '加载中…' : '加载更早的事件'}
+            </button>
+          </div>
+        ) : null}
         {filtered.length === 0 ? (
           <div className="run-trace-empty" data-testid="run-detail-empty">
             {isLive
@@ -1096,41 +1169,44 @@ export function RunDetailPage({ runId }: { runId: string }) {
                   ? '当前筛选无事件'
                   : '无事件消息'}
           </div>
-        ) : virtualizeTranscript ? (
+        ) : (
           <div
             ref={transcriptRef}
             className="run-transcript-viewport"
             data-testid="run-transcript-viewport"
+            onScroll={handleTranscriptScroll}
             style={{ maxHeight: 'min(70vh, 720px)', overflow: 'auto' }}
           >
-            <ol
-              className="run-transcript-list"
-              data-testid="run-detail-events"
-              data-virtualized="1"
-              data-virtual-count={filtered.length}
-              data-virtual-rendered={transcriptVirtualItems.length}
-              style={{
-                height: `${transcriptVirtualizer.getTotalSize()}px`,
-                position: 'relative',
-              }}
-            >
-              {transcriptVirtualItems.map((virtualRow) =>
-                renderTranscriptRow(
-                  filtered[virtualRow.index],
-                  virtualRow.index,
-                  virtualRow,
-                ),
-              )}
-            </ol>
+            {virtualizeTranscript ? (
+              <ol
+                className="run-transcript-list"
+                data-testid="run-detail-events"
+                data-virtualized="1"
+                data-virtual-count={filtered.length}
+                data-virtual-rendered={transcriptVirtualItems.length}
+                style={{
+                  height: `${transcriptVirtualizer.getTotalSize()}px`,
+                  position: 'relative',
+                }}
+              >
+                {transcriptVirtualItems.map((virtualRow) =>
+                  renderTranscriptRow(
+                    filtered[virtualRow.index],
+                    virtualRow.index,
+                    virtualRow,
+                  ),
+                )}
+              </ol>
+            ) : (
+              <ol
+                className="run-transcript-list"
+                data-testid="run-detail-events"
+                data-virtualized="0"
+              >
+                {filtered.map((item, index) => renderTranscriptRow(item, index))}
+              </ol>
+            )}
           </div>
-        ) : (
-          <ol
-            className="run-transcript-list"
-            data-testid="run-detail-events"
-            data-virtualized="0"
-          >
-            {filtered.map((item, index) => renderTranscriptRow(item, index))}
-          </ol>
         )}
       </section>
     </div>

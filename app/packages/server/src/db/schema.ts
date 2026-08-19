@@ -352,6 +352,23 @@ export const agentRuns = sqliteTable(
     }),
 );
 
+// —— run_execution_owner（G8-2：活跃 CLI 的安全重启归属）——
+// 与 agent_run 的业务终态分离：仅当前仍由本服务执行的子进程保留一行；
+// 崩溃后仅当 PID + 不可逆启动指纹可复核，才允许请求 kill tree。
+export const runExecutionOwners = sqliteTable(
+  'run_execution_owner',
+  {
+    runId: text('run_id')
+      .primaryKey()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    pid: integer('pid').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    // cwd 同时也在 agent_run.cwd_path；侧表保留快照，便于孤儿诊断无需猜测。
+    cwdPath: text('cwd_path'),
+    recordedAt: integer('recorded_at').notNull(),
+  },
+);
+
 // —— run_message（S03 执行轨迹回放，对齐 multica task_message）——
 export const runMessages = sqliteTable(
   'run_message',
@@ -425,6 +442,8 @@ export const memoryItems = sqliteTable(
   {
     id: text('id').primaryKey(),
     scope: text('scope').notNull().default('workspace'),
+    // null = global memory; non-null rows are isolated to one project.
+    projectId: text('project_id'),
     issueId: text('issue_id'),
     agentId: text('agent_id'),
     runId: text('run_id'),
@@ -435,6 +454,7 @@ export const memoryItems = sqliteTable(
   },
   (t) => ({
     createdIdx: index('idx_memory_item_created').on(t.createdAt),
+    projectIdx: index('idx_memory_item_project').on(t.projectId),
     issueIdx: index('idx_memory_item_issue').on(t.issueId),
   }),
 );

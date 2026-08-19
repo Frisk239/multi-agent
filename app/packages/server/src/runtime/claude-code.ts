@@ -10,8 +10,9 @@ import { spawnLineProcess, type LineContext } from './spawn-line.js';
 import { parseUsageFromResultLine } from './usage-parse.js';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseMcpServers, resolveMcpServersEnv } from './mcp-config.js';
 import { tmpdir } from 'node:os';
-import { safeFormatToolError } from './event-normalizer.js';
+import { scrubAndTruncateToolResult } from './secret-scrubber.js';
 type ClaudeEvent =
   | { type: 'system'; subtype?: string; session_id?: string; sessionId?: string; [k: string]: unknown }
   | { type: 'assistant'; message?: { content?: Array<{ type: string; text?: string; name?: string; input?: unknown }> }; session_id?: string; sessionId?: string; [k: string]: unknown }
@@ -30,12 +31,7 @@ function pickSessionId(j: ClaudeEvent): string | null {
 }
 
 function safeStringifyResult(content: unknown): string {
-  if (typeof content === 'string') return content;
-  try {
-    return JSON.stringify(content ?? '').slice(0, 4000);
-  } catch (err) {
-    return safeFormatToolError(err);
-  }
+  return scrubAndTruncateToolResult(content);
 }
 
 function parseClaudeLine(
@@ -138,6 +134,8 @@ export class ClaudeCodeBackend implements RuntimeBackend {
   readonly label = 'Claude Code';
   /** Slice 50 / DS1：真 --resume + session_id 解析可观测 */
   readonly supportsSessionResume = true;
+  readonly supportsMcpConfig = true;
+  readonly supportsCustomArgs = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CLAUDE_PATH', ['claude']);
@@ -169,9 +167,9 @@ export class ClaudeCodeBackend implements RuntimeBackend {
     let mcpTmpPath: string | null = null;
     if (input.mcpServers) {
       try {
-        const parsed = JSON.parse(input.mcpServers);
-        // 存的已是 {<name>: {...}}，直接包成 claude 要的 {mcpServers: {...}}
-        const config = JSON.stringify({ mcpServers: parsed });
+        const parsed = parseMcpServers(input.mcpServers);
+        // 存储/编辑使用 canonical server map，Claude 原生需要外层 mcpServers。
+        const config = JSON.stringify({ mcpServers: resolveMcpServersEnv(parsed) });
         mcpTmpPath = join(tmpdir(), `ma-mcp-${input.runId}.json`);
         writeFileSync(mcpTmpPath, config);
         args.push('--mcp-config', mcpTmpPath);
@@ -181,17 +179,18 @@ export class ClaudeCodeBackend implements RuntimeBackend {
       }
     }
 
-    // G3-4b：agent.custom_args 追加 argv 尾（claude 全 flag 形态，追加安全）
-    const customArgs = input.customArgs?.length ? input.customArgs : [];
-    args.push(...customArgs);
-
     // try/finally 包临时文件清理（R3）：即使 abort 兜底（spawn-line 5s 强制 finish）
     // execute 的 await 返回后 finally 也能清理，防资源泄露。
     try {
-      const opts: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {};
+      const opts: {
+        timeoutMs?: number;
+        env?: NodeJS.ProcessEnv;
+        onProcessStarted?: (pid: number) => void;
+      } = {};
       if (input.timeoutMs) opts.timeoutMs = input.timeoutMs;
       // G3-4b：agent.env_vars 显式覆盖子进程 env
       if (input.envVars) opts.env = input.envVars;
+      if (input.onProcessStarted) opts.onProcessStarted = input.onProcessStarted;
       return await spawnLineProcess(
         det.path,
         args,

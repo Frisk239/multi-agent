@@ -228,7 +228,7 @@ describe('MemoryManager (Slice 24: serial write + circuit breaker)', () => {
       provider: 'mock',
       available: true,
       backend: 'none',
-      perProject: false,
+      perProject: true,
       breakerOpen: false,
       breakerFailures: 0,
       breakerOpenUntil: null,

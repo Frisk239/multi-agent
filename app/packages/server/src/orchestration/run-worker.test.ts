@@ -10,7 +10,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, runMessages, workspaces } from '../db/schema.js';
+import {
+  activityLogs,
+  agents,
+  agentRuns,
+  chatMessages,
+  chatThreads,
+  comments,
+  runMessages,
+  workspaces,
+} from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { cancelRunById } from './run-service.js';
 import { failStalePrepareLeaseRuns } from './stale-runs.js';
@@ -21,7 +30,16 @@ const state = vi.hoisted(() => ({
   cleanup: null as (() => void) | null,
   // fake backend：每次测试可配置 execute 行为
   executeImpl: null as ((input: unknown, onEvent: (e: unknown) => void) => Promise<ExecutionResult>) | null,
+  recordExecutionOwnership: vi.fn((..._args: unknown[]) => ({ recorded: true })),
+  clearExecutionOwnership: vi.fn((..._args: unknown[]) => undefined),
+  eventPublish: vi.fn<(event: unknown) => void>(),
+  parseAndDispatchSubagents: vi.fn<(parentRunId: string, text: string) => Promise<void>>(async () => undefined),
+  memorySyncRunCompleted: vi.fn<(input: unknown) => void>(),
 }));
+
+// Intentionally synthetic format-only fixtures; none are usable credentials.
+const fakeBearer = 'g8_bearer_fixture_1234567890';
+const fakeAssigned = 'g8_assigned_fixture_1234567890';
 
 vi.mock('../db/client.js', () => ({
   get db() {
@@ -42,7 +60,10 @@ vi.mock('../db/client.js', () => ({
 }));
 
 vi.mock('../orchestration/event-bus.js', () => ({
-  eventBus: { publish: vi.fn(), on: vi.fn() },
+  eventBus: {
+    publish: (event: unknown) => state.eventPublish(event),
+    on: vi.fn(),
+  },
 }));
 
 // fake backend：claim 后 execute 由测试注入行为
@@ -86,7 +107,7 @@ vi.mock('../runtime/session-resume.js', () => ({
 
 vi.mock('../memory/manager.js', () => ({
   memoryManager: {
-    syncRunCompleted: vi.fn(),
+    syncRunCompleted: (input: unknown) => state.memorySyncRunCompleted(input),
     ambientCapture: vi.fn(),
     getStatus: vi.fn(),
   },
@@ -103,7 +124,16 @@ vi.mock('../orchestration/comment-trigger.js', () => ({
 }));
 
 vi.mock('../orchestration/subagent-dispatch.js', () => ({
-  parseAndDispatchSubagents: () => Promise.resolve(),
+  parseAndDispatchSubagents: (parentRunId: string, text: string) => (
+    state.parseAndDispatchSubagents(parentRunId, text)
+  ),
+}));
+
+vi.mock('./execution-ownership.js', () => ({
+  recordExecutionOwnership: (runId: string, pid: number, cwdPath: string | null) => (
+    state.recordExecutionOwnership(runId, pid, cwdPath)
+  ),
+  clearExecutionOwnership: (runId: string) => state.clearExecutionOwnership(runId),
 }));
 
 vi.mock('../process-health.js', () => ({
@@ -130,6 +160,32 @@ function insertQueuedRun(id: string, agentId = 'agt-test-1', priority = 'none'):
     .run();
 }
 
+function insertQueuedChatRun(id: string, threadId = 'thr-secret'): void {
+  const now = Date.now();
+  state.db!.insert(chatThreads)
+    .values({
+      id: threadId,
+      agentId: 'agt-test-1',
+      title: 'Secret scrub fixture',
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+  state.db!.insert(agentRuns)
+    .values({
+      id,
+      issueId: null,
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      status: 'queued',
+      kind: 'chat',
+      priority: 'none',
+      chatThreadId: threadId,
+      createdAt: now,
+    })
+    .run();
+}
+
 function runRow(id: string): { status: string; lastHeartbeatAt: number | null; finishedAt: number | null; error: string | null } {
   return state.db!.select().from(agentRuns).where(eq(agentRuns.id, id)).get() as any;
 }
@@ -143,6 +199,11 @@ describe('W5 run-worker fault injection', () => {
     state.cleanup = t.cleanup;
     seedTestFixtures(t.db);
     state.executeImpl = null;
+    state.recordExecutionOwnership.mockClear();
+    state.clearExecutionOwnership.mockClear();
+    state.eventPublish.mockClear();
+    state.parseAndDispatchSubagents.mockClear();
+    state.memorySyncRunCompleted.mockClear();
     process.env.MA_ISSUE_TIMEOUT_MS = '0';
   });
 
@@ -167,6 +228,28 @@ describe('W5 run-worker fault injection', () => {
     await flush();
     expect(executeCalls).toBe(1);
     expect(runRow('run-race').status).toBe('completed');
+  });
+
+  it('follow-up queued after running completes can be claimed', async () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-current',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'completed',
+        kind: 'issue',
+        startedAt: now - 1_000,
+        finishedAt: now,
+        createdAt: now - 1_000,
+      })
+      .run();
+    insertQueuedRun('run-followup');
+    state.executeImpl = async () => ({ finalText: 'ok', exitReason: 'completed' });
+    await tick();
+    await flush();
+    expect(runRow('run-followup').status).toBe('completed');
   });
 
   it('G6-1 priority claim: urgent run is claimed before an earlier low-priority run', async () => {
@@ -342,6 +425,210 @@ describe('W5 run-worker fault injection', () => {
     const msgs = state.db!.select().from(runMessages).where(eq(runMessages.runId, 'run-ok')).all();
     // 至少含 fake 发的 assistant 消息；完成路径还会追加 system 消息（如自动沉淀记忆），条数不锁死
     expect(msgs.some((m) => m.kind === 'assistant' && m.body.includes('hello from fake'))).toBe(true);
+  });
+
+  it('G8-5 scrubs messages, tool events, streams, final fan-out, and replay API before persistence or publish', async () => {
+    insertQueuedRun('run-secret-transcript');
+    const rawToolArgs = { api_key: fakeAssigned, nested: { Authorization: `Bearer ${fakeBearer}` } };
+    state.executeImpl = async (_, onEvent) => {
+      const emit = onEvent as (e: any) => void;
+      emit({ type: 'message', role: 'assistant', text: `message api_key=${fakeAssigned}` });
+      emit({ type: 'tool_start', name: 'fixture_tool', args: rawToolArgs });
+      emit({ type: 'tool_end', name: 'fixture_tool', result: `access_token=${fakeAssigned}` });
+      // Deliberately split prefix/body/terminator over three deltas.
+      emit({ type: 'message_delta', text: 'live Bear' });
+      emit({ type: 'message_delta', text: `er ${fakeBearer}` });
+      emit({ type: 'message_delta', text: '\nvisible text' });
+      emit({ type: 'log', text: 'log access_' });
+      emit({ type: 'log', text: `token=${fakeAssigned}` });
+      emit({ type: 'log', text: '\nlog visible' });
+      return { finalText: `final Bearer ${fakeBearer}`, exitReason: 'completed' };
+    };
+
+    await tick();
+    await vi.waitFor(() => {
+      expect(runRow('run-secret-transcript').status).toBe('completed');
+    });
+
+    // Runtime-owned input must not be mutated while the published / persisted
+    // clone is redacted.
+    expect(rawToolArgs.api_key).toBe(fakeAssigned);
+    expect(rawToolArgs.nested.Authorization).toBe(`Bearer ${fakeBearer}`);
+
+    const messages = state.db!
+      .select()
+      .from(runMessages)
+      .where(eq(runMessages.runId, 'run-secret-transcript'))
+      .all();
+    const comment = state.db!
+      .select()
+      .from(comments)
+      .where(eq(comments.issueId, 'iss-test-1'))
+      .orderBy(comments.createdAt)
+      .all()
+      .find((row) => row.authorType === 'agent');
+    const persisted = JSON.stringify({ messages, comment });
+    expect(persisted).not.toContain(fakeBearer);
+    expect(persisted).not.toContain(fakeAssigned);
+    expect(persisted).toContain('[redacted]');
+
+    const published = state.eventPublish.mock.calls.map(([event]) => event as { type?: string });
+    const eventPayload = JSON.stringify(published);
+    expect(eventPayload).not.toContain(fakeBearer);
+    expect(eventPayload).not.toContain(fakeAssigned);
+    expect(published.some((event) => event.type === 'run:message')).toBe(true);
+    expect(published.some((event) => event.type === 'runtime:event')).toBe(true);
+    expect(published.some((event) => event.type === 'run:progress')).toBe(true);
+    expect(published.some((event) => event.type === 'run:stream_chunk')).toBe(true);
+
+    // finalText goes to subagent parsing and memory even when no adapter emits a
+    // matching message event; both must see the same safe value.
+    expect(JSON.stringify(state.parseAndDispatchSubagents.mock.calls)).not.toContain(fakeBearer);
+    expect(JSON.stringify(state.memorySyncRunCompleted.mock.calls)).not.toContain(fakeBearer);
+    expect(state.parseAndDispatchSubagents).toHaveBeenCalledWith(
+      'run-secret-transcript',
+      `final ${'[redacted]'}`,
+    );
+
+    const { buildApp } = await import('../app.js');
+    const app = await buildApp();
+    try {
+      const replay = await app.inject({
+        method: 'GET',
+        url: '/api/runs/run-secret-transcript/messages?afterSeq=0&limit=100',
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.body).not.toContain(fakeBearer);
+      expect(replay.body).not.toContain(fakeAssigned);
+      expect(replay.body).toContain('[redacted]');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('G8-5 scrubs CLI / child-result error before activity, agent_runs, and run:failed fan-out', async () => {
+    insertQueuedRun('run-secret-failed');
+    state.executeImpl = async () => ({
+      finalText: '',
+      exitReason: 'failed',
+      error: `access_token=${fakeAssigned}`,
+    });
+
+    await tick();
+    await vi.waitFor(() => {
+      expect(runRow('run-secret-failed').status).toBe('failed');
+    });
+
+    const row = state.db!.select().from(agentRuns).where(eq(agentRuns.id, 'run-secret-failed')).get()!;
+    const activities = state.db!
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.issueId, 'iss-test-1'))
+      .all();
+    const domainEvents = state.eventPublish.mock.calls.map(([event]) => event as { type?: string });
+    const serialized = JSON.stringify({ row, activities, domainEvents });
+    expect(serialized).not.toContain(fakeAssigned);
+    expect(serialized).toContain('[redacted]');
+    expect(domainEvents.some((event) => event.type === 'run:failed')).toBe(true);
+  });
+
+  it('G8-5 sends a redacted terminal chat error instead of raw child stderr', async () => {
+    insertQueuedChatRun('run-secret-chat');
+    state.executeImpl = async () => ({
+      finalText: '',
+      exitReason: 'failed',
+      error: `Bearer ${fakeBearer}`,
+    });
+
+    await tick();
+    await vi.waitFor(() => {
+      expect(runRow('run-secret-chat').status).toBe('failed');
+    });
+
+    const row = state.db!.select().from(agentRuns).where(eq(agentRuns.id, 'run-secret-chat')).get()!;
+    const chat = state.db!
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.runId, 'run-secret-chat'))
+      .all();
+    const serialized = JSON.stringify({ row, chat, events: state.eventPublish.mock.calls });
+    expect(serialized).not.toContain(fakeBearer);
+    expect(serialized).toContain('[redacted]');
+    expect(chat).toHaveLength(1);
+  });
+
+  it('G8-2 persists the backend PID after spawn and clears ownership after settle', async () => {
+    insertQueuedRun('run-owner');
+    state.executeImpl = async (input) => {
+      const onProcessStarted = (input as { onProcessStarted?: (pid: number) => void }).onProcessStarted;
+      expect(onProcessStarted).toBeTypeOf('function');
+      onProcessStarted!(4242);
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+
+    await tick();
+    await vi.waitFor(() => {
+      expect(runRow('run-owner').status).toBe('completed');
+    });
+
+    expect(state.recordExecutionOwnership).toHaveBeenCalledWith('run-owner', 4242, process.cwd());
+    expect(state.clearExecutionOwnership).toHaveBeenCalledWith('run-owner');
+  });
+
+  it('G8-3 missing sensitive Agent envRef fails before backend execute', async () => {
+    state.db!
+      .update(agents)
+      .set({
+        envVars: JSON.stringify([
+          { key: 'API_TOKEN', value: '', envRef: 'MA_G8_WORKER_MISSING_TOKEN' },
+        ]),
+      })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+    delete process.env.MA_G8_WORKER_MISSING_TOKEN;
+    insertQueuedRun('run-missing-agent-env');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'should not run', exitReason: 'completed' };
+    };
+
+    await tick();
+    await vi.waitFor(() => {
+      const row = runRow('run-missing-agent-env') as any;
+      expect(row.status).toBe('failed');
+      expect(row.failureReason).toBe('missing_required_env_ref');
+      expect(row.error).toContain('宿主环境缺少 MA_G8_WORKER_MISSING_TOKEN');
+    });
+    expect(executeCalls).toBe(0);
+  });
+
+  it('G8-3 missing sensitive MCP envRef fails before backend writes/executes config', async () => {
+    state.db!
+      .update(agents)
+      .set({
+        mcpServers: JSON.stringify({
+          github: { headers: { Authorization: '${env:MA_G8_WORKER_MISSING_MCP}' } },
+        }),
+      })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+    delete process.env.MA_G8_WORKER_MISSING_MCP;
+    insertQueuedRun('run-missing-mcp-env');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'should not run', exitReason: 'completed' };
+    };
+
+    await tick();
+    await vi.waitFor(() => {
+      const row = runRow('run-missing-mcp-env') as any;
+      expect(row.status).toBe('failed');
+      expect(row.failureReason).toBe('missing_required_env_ref');
+      expect(row.error).toContain('宿主环境缺少 MA_G8_WORKER_MISSING_MCP');
+    });
+    expect(executeCalls).toBe(0);
   });
 
   // —— G2-5：workspace 全局在途并发配额（只拦 claim，不拦 enqueue）——
