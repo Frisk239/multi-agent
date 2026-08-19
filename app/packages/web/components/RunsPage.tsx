@@ -7,6 +7,7 @@ import { classifyRunFailure, isAutoRetryableFailureReason, type AgentRun } from 
 import {
   useAgents,
   useCancelRunsMany,
+  useProjects,
   useRecoverStuckRuns,
   useRetryRun,
   useSquads,
@@ -194,11 +195,18 @@ function RunsPageInner() {
   // G7-9：标签页标题（多标签可辨；详情页 RunDetailPage 另行拼接 run 短 id）
   usePageTitle('运行');
 
-  const status = parseStatus(searchParams.get('status'));
+  const qFromUrl = searchParams.get('q') ?? '';
+  const projectId = searchParams.get('project') ?? '';
+  // 有任务/项目定位时默认检索全量 run；无筛选时维持既有失败运维入口。
+  const status =
+    searchParams.get('status') === null && (qFromUrl.trim() || projectId)
+      ? ''
+      : parseStatus(searchParams.get('status'));
   const agentId = searchParams.get('agent') ?? '';
   const squadId = searchParams.get('squad') ?? '';
   const leaderOnly = searchParams.get('leader') === '1';
   const highlightRunId = searchParams.get('run') ?? '';
+  const [qDraft, setQDraft] = useState(qFromUrl);
   const [timelineRunId, setTimelineRunId] = useState<string | null>(null);
   const [restoredRunId, setRestoredRunId] = useState<string | null>(null);
   const listViewKey = useMemo(
@@ -206,13 +214,17 @@ function RunsPageInner() {
       makeListViewKey({
         page: 'runs',
         status: status || 'all',
+        q: qFromUrl.trim(),
+        project: projectId,
         agent: agentId,
         squad: squadId,
         leader: leaderOnly ? '1' : '',
       }),
-    [status, agentId, squadId, leaderOnly],
+    [status, qFromUrl, projectId, agentId, squadId, leaderOnly],
   );
-  const [filtersOpen, setFiltersOpen] = useState(Boolean(agentId || squadId || leaderOnly));
+  const [filtersOpen, setFiltersOpen] = useState(
+    Boolean(qFromUrl.trim() || projectId || agentId || squadId || leaderOnly),
+  );
 
   const replaceParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -235,12 +247,30 @@ function RunsPageInner() {
     [replaceParams],
   );
 
+  useEffect(() => {
+    setQDraft(qFromUrl);
+  }, [qFromUrl]);
+
+  // 搜索只替换当前 URL，避免每个按键制造浏览器历史记录。
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = qDraft.trim();
+      if (next === qFromUrl.trim()) return;
+      replaceParams({ q: next || null });
+    }, 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only draft drives debounce
+  }, [qDraft]);
+
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: projects = [] } = useProjects();
   const recoverStuck = useRecoverStuckRuns();
   const cancelMany = useCancelRunsMany();
   const { data: runs, isLoading, isError, error, refetch, isFetching } = useWorkspaceRuns({
     status: status || undefined,
+    q: qFromUrl || undefined,
+    projectId: projectId || undefined,
     agentId: agentId || undefined,
     squadId: squadId || undefined,
     isLeader: leaderOnly ? true : undefined,
@@ -326,7 +356,7 @@ function RunsPageInner() {
     return s.size;
   }, [status, visibleRuns]);
 
-  const hasExtraFilters = Boolean(agentId || squadId || leaderOnly);
+  const hasExtraFilters = Boolean(qFromUrl.trim() || projectId || agentId || squadId || leaderOnly);
 
   const rareStatus =
     status === 'queued' ||
@@ -489,6 +519,33 @@ function RunsPageInner() {
         {filtersOpen || hasExtraFilters ? (
           <div className="runs-filters collection-toolbar" data-testid="runs-filters">
             <label>
+              搜索
+              <input
+                type="search"
+                value={qDraft}
+                placeholder="Issue、会话或项目"
+                data-testid="runs-search"
+                aria-label="搜索任务、会话或项目"
+                onChange={(e) => setQDraft(e.target.value)}
+              />
+            </label>
+            <label>
+              项目
+              <Select
+                value={projectId}
+                data-testid="runs-project-filter"
+                onChange={(e) => replaceParams({ project: e.target.value || null })}
+                aria-label="筛选项目"
+              >
+                <option value="">全部</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label>
               Agent
               <Select
                 value={agentId}
@@ -560,6 +617,29 @@ function RunsPageInner() {
             data-testid="runs-active-filters"
             aria-label="当前筛选"
           >
+            {qFromUrl.trim() ? (
+              <button
+                type="button"
+                className="kanban-active-chip"
+                data-testid="runs-chip-q"
+                onClick={() => {
+                  setQDraft('');
+                  replaceParams({ q: null });
+                }}
+              >
+                搜索 · {qFromUrl.trim()} ×
+              </button>
+            ) : null}
+            {projectId ? (
+              <button
+                type="button"
+                className="kanban-active-chip"
+                data-testid="runs-chip-project"
+                onClick={() => replaceParams({ project: null })}
+              >
+                项目 · {projects.find((project) => project.id === projectId)?.title ?? projectId.slice(0, 8)} ×
+              </button>
+            ) : null}
             {agentId ? (
               <button
                 type="button"
@@ -595,11 +675,16 @@ function RunsPageInner() {
               className="kanban-active-chip kanban-active-chip--clear"
               data-testid="runs-chip-clear-all"
               onClick={() =>
-                replaceParams({
-                  agent: null,
-                  squad: null,
-                  leader: null,
-                })
+                {
+                  setQDraft('');
+                  replaceParams({
+                    q: null,
+                    project: null,
+                    agent: null,
+                    squad: null,
+                    leader: null,
+                  });
+                }
               }
             >
               清除筛选
@@ -618,11 +703,13 @@ function RunsPageInner() {
           <EmptyState
             icon="📭"
             title={
-              status === 'active'
+              hasExtraFilters
+                ? '没有匹配的任务/会话'
+                : status === 'active'
                 ? '当前没有在途运行'
                 : status === 'failed'
                   ? '没有失败运行'
-                  : '没有匹配的运行'
+                  : '没有匹配的任务/会话'
             }
             description={
               status === 'active'
@@ -737,23 +824,25 @@ function RunsPageInner() {
                       </td>
                       <td className="runs-col-task">
                         <div className="runs-task-main">
-                          {r.issueId ? (
+                          {r.subject?.issue || (!r.subject && r.issueId) ? (
                             <Link
-                              href={`/issues/${r.issueId}`}
+                              href={`/issues/${r.subject?.issue?.id ?? r.issueId}`}
                               className="runs-task-link"
                               data-testid="runs-issue-link"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {shortId(r.issueId)}
+                              {r.subject?.issue
+                                ? `${r.subject.issue.identifier} · ${r.subject.issue.title}`
+                                : shortId(r.issueId!)}
                             </Link>
-                          ) : r.kind === 'chat' && r.chatThreadId ? (
+                          ) : r.subject?.chat || (!r.subject && r.kind === 'chat' && r.chatThreadId) ? (
                             <Link
                               href={chatThreadHref(r) ?? `/runs/${r.id}`}
                               className="runs-task-link"
                               data-testid="runs-chat-thread-link"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              会话 {shortId(r.chatThreadId)}
+                              {r.subject?.chat?.title ?? `会话 ${shortId(r.chatThreadId!)}`}
                             </Link>
                           ) : (
                             <Link
@@ -767,6 +856,19 @@ function RunsPageInner() {
                           )}
                           <span className="runs-task-meta">
                             {kindLabel(r.kind)}
+                            {r.subject?.project ? (
+                              <>
+                                {' · '}
+                                <Link
+                                  href={`/runs?project=${encodeURIComponent(r.subject.project.id)}`}
+                                  className="runs-task-meta-link"
+                                  data-testid="runs-project-link"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {r.subject.project.title}
+                                </Link>
+                              </>
+                            ) : null}
                             <span
                               className="runs-retry-budget"
                               data-testid="runs-row-retry-budget"

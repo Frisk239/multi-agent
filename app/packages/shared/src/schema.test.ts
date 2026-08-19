@@ -20,6 +20,7 @@ import {
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
+  ListRunsQuery,
   SquadSummary,
   SkillInfo,
   classifyRunFailure,
@@ -508,6 +509,49 @@ describe('Shared Schema Validators', () => {
       expect(AgentRun.parse(base).escalatedFromRunId).toBeUndefined();
       const withLineage = AgentRun.parse({ ...base, escalatedFromRunId: 'run-0' });
       expect(withLineage.escalatedFromRunId).toBe('run-0');
+    });
+  });
+
+  describe('Runs subject projection and query', () => {
+    const runBase = {
+      id: 'run-1',
+      issueId: null,
+      agentId: 'ag-1',
+      runtime: 'claude-code',
+      status: 'queued',
+      kind: 'quick_create',
+      quickPrompt: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      lastHeartbeatAt: null,
+      isLeader: false,
+      squadId: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    it('keeps AgentRun backward compatible while accepting a complete subject projection', () => {
+      expect(AgentRun.parse(runBase).subject).toBeUndefined();
+      expect(
+        AgentRun.parse({
+          ...runBase,
+          subject: {
+            issue: { id: 'iss-42', identifier: 'ISS-42', title: '登录' },
+            chat: null,
+            project: { id: 'proj-a', title: 'Alpha' },
+          },
+        }).subject,
+      ).toEqual({
+        issue: { id: 'iss-42', identifier: 'ISS-42', title: '登录' },
+        chat: null,
+        project: { id: 'proj-a', title: 'Alpha' },
+      });
+    });
+
+    it('trims q, permits empty q, and caps it at 200 characters', () => {
+      expect(ListRunsQuery.parse({ q: '  Alpha  ' }).q).toBe('Alpha');
+      expect(ListRunsQuery.parse({ q: '   ' }).q).toBe('');
+      expect(() => ListRunsQuery.parse({ q: 'x'.repeat(201) })).toThrow();
     });
   });
 

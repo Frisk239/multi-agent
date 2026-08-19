@@ -170,6 +170,10 @@ export function useIssueRunUsage(issueId: string) {
 /** 工作区级 runs 列表（issueId 可选） */
 export function useWorkspaceRuns(params?: {
   status?: string;
+  /** 服务端任务/会话/有效项目定位。 */
+  q?: string;
+  /** 有效项目（Issue > chat thread > agent run）。 */
+  projectId?: string;
   agentId?: string;
   squadId?: string;
   chatThreadId?: string;
@@ -184,6 +188,8 @@ export function useWorkspaceRuns(params?: {
   enabled?: boolean;
 }) {
   const status = params?.status;
+  const q = params?.q;
+  const projectId = params?.projectId;
   const agentId = params?.agentId;
   const squadId = params?.squadId;
   const chatThreadId = params?.chatThreadId;
@@ -198,6 +204,8 @@ export function useWorkspaceRuns(params?: {
       'runs',
       'workspace',
       status ?? '',
+      q ?? '',
+      projectId ?? '',
       agentId ?? '',
       squadId ?? '',
       chatThreadId ?? '',
@@ -208,6 +216,8 @@ export function useWorkspaceRuns(params?: {
     queryFn: async () => {
       const sp = new URLSearchParams();
       if (status) sp.set('status', status);
+      if (q) sp.set('q', q);
+      if (projectId) sp.set('projectId', projectId);
       if (agentId) sp.set('agentId', agentId);
       if (squadId) sp.set('squadId', squadId);
       if (chatThreadId) sp.set('chatThreadId', chatThreadId);

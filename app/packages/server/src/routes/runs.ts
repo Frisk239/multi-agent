@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, desc, asc, and, gt, lt, inArray, type SQL, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import {
   CancelRunsManyInput,
   ListRunMessagesQuery,
@@ -9,7 +10,7 @@ import {
   type RunsActiveCount,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, runMessages } from '../db/schema.js';
+import { agentRuns, chatThreads, issues, projects, runMessages } from '../db/schema.js';
 import { toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { cancelRunById, cancelRunsMany, retryRun } from '../orchestration/run-service.js';
 import { recoverStuckRuns } from '../orchestration/stale-runs.js';
@@ -27,6 +28,54 @@ const ACTIVE_STATUSES = [
   'waiting_local_directory',
   'running',
 ] as const;
+
+// 固定连接三个项目来源，避免按行读取 Issue / Thread / Project。
+const issueProjects = alias(projects, 'run_issue_project');
+const chatProjects = alias(projects, 'run_chat_project');
+const runProjects = alias(projects, 'run_direct_project');
+
+const effectiveProjectId = sql<string | null>`coalesce(${issues.projectId}, ${chatThreads.projectId}, ${agentRuns.projectId})`;
+const effectiveProjectTitle = sql<string | null>`coalesce(${issueProjects.title}, ${chatProjects.title}, ${runProjects.title})`;
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+function withSubject(
+  row: {
+    run: typeof agentRuns.$inferSelect;
+    subjectIssueId: string | null;
+    subjectIssueIdentifier: string | null;
+    subjectIssueTitle: string | null;
+    subjectChatId: string | null;
+    subjectChatTitle: string | null;
+    subjectProjectId: string | null;
+    subjectProjectTitle: string | null;
+  },
+  now = Date.now(),
+) {
+  return {
+    ...enrichRunRowWithPathLock(row.run, withAutoRetrySummary(row.run, now)),
+    subject: {
+      issue:
+        row.subjectIssueId && row.subjectIssueIdentifier != null && row.subjectIssueTitle != null
+          ? {
+              id: row.subjectIssueId,
+              identifier: row.subjectIssueIdentifier,
+              title: row.subjectIssueTitle,
+            }
+          : null,
+      chat:
+        row.subjectChatId && row.subjectChatTitle != null
+          ? { id: row.subjectChatId, title: row.subjectChatTitle }
+          : null,
+      project:
+        row.subjectProjectId && row.subjectProjectTitle != null
+          ? { id: row.subjectProjectId, title: row.subjectProjectTitle }
+          : null,
+    },
+  };
+}
 
 function withAutoRetrySummary(row: typeof agentRuns.$inferSelect, now = Date.now()) {
   const child = db
@@ -54,7 +103,7 @@ function withAutoRetrySummary(row: typeof agentRuns.$inferSelect, now = Date.now
 // runs list / detail / messages / cancel / retry（S03 + run-observability）
 // runs-active-nav：active 筛选 + active-count 角标
 export async function runRoutes(app: FastifyInstance) {
-  // GET /api/runs —— issueId 可选；可按 status/agentId/kind/isLeader/limit 筛选
+  // GET /api/runs —— 在 DB 端按运行、任务/会话文本和有效项目定位。
   app.get('/api/runs', async (req, reply) => {
     const parsed = ListRunsQuery.safeParse(req.query ?? {});
     if (!parsed.success) {
@@ -68,6 +117,16 @@ export async function runRoutes(app: FastifyInstance) {
     if (q.chatThreadId) filters.push(eq(agentRuns.chatThreadId, q.chatThreadId));
     if (q.parentRunId) filters.push(eq(agentRuns.parentRunId, q.parentRunId));
     if (q.autoRetryOfRunId) filters.push(eq(agentRuns.autoRetryOfRunId, q.autoRetryOfRunId));
+    if (q.projectId) filters.push(sql`${effectiveProjectId} = ${q.projectId}`);
+    if (q.q) {
+      const needle = `%${escapeLike(q.q)}%`;
+      filters.push(sql`(
+        lower(${issues.identifier}) LIKE lower(${needle}) ESCAPE '\\'
+        OR lower(${issues.title}) LIKE lower(${needle}) ESCAPE '\\'
+        OR lower(${chatThreads.title}) LIKE lower(${needle}) ESCAPE '\\'
+        OR lower(${effectiveProjectTitle}) LIKE lower(${needle}) ESCAPE '\\'
+      )`);
+    }
     if (q.status === 'active') {
       filters.push(inArray(agentRuns.status, [...ACTIVE_STATUSES]));
     } else if (q.status) {
@@ -80,19 +139,45 @@ export async function runRoutes(app: FastifyInstance) {
       filters.push(eq(agentRuns.isLeader, 0));
     }
 
-    let query = db.select().from(agentRuns).$dynamic();
+    let query = db
+      .select({
+        run: agentRuns,
+        subjectIssueId: issues.id,
+        subjectIssueIdentifier: issues.identifier,
+        subjectIssueTitle: issues.title,
+        subjectChatId: chatThreads.id,
+        subjectChatTitle: chatThreads.title,
+        subjectProjectId: effectiveProjectId,
+        subjectProjectTitle: effectiveProjectTitle,
+      })
+      .from(agentRuns)
+      .leftJoin(issues, eq(agentRuns.issueId, issues.id))
+      .leftJoin(chatThreads, eq(agentRuns.chatThreadId, chatThreads.id))
+      .leftJoin(issueProjects, eq(issues.projectId, issueProjects.id))
+      .leftJoin(chatProjects, eq(chatThreads.projectId, chatProjects.id))
+      .leftJoin(runProjects, eq(agentRuns.projectId, runProjects.id))
+      .$dynamic();
     if (filters.length === 1) query = query.where(filters[0]!);
     else if (filters.length > 1) query = query.where(and(...filters));
 
     const whereClause = filters.length === 1 ? filters[0]! : filters.length > 1 ? and(...filters) : undefined;
-    const totalRow = db.select({ count: sql<number>`count(*)` }).from(agentRuns).where(whereClause).get();
+    const totalRow = db
+      .select({ count: sql<number>`count(*)` })
+      .from(agentRuns)
+      .leftJoin(issues, eq(agentRuns.issueId, issues.id))
+      .leftJoin(chatThreads, eq(agentRuns.chatThreadId, chatThreads.id))
+      .leftJoin(issueProjects, eq(issues.projectId, issueProjects.id))
+      .leftJoin(chatProjects, eq(chatThreads.projectId, chatProjects.id))
+      .leftJoin(runProjects, eq(agentRuns.projectId, runProjects.id))
+      .where(whereClause)
+      .get();
     const total = totalRow?.count ?? 0;
     const limit = q.limit;
     const offset = q.offset;
 
     const rows = query.orderBy(desc(agentRuns.createdAt)).limit(limit).offset(offset).all();
     const now = Date.now();
-    const data = rows.map((row) => enrichRunRowWithPathLock(row, withAutoRetrySummary(row, now)));
+    const data = rows.map((row) => withSubject(row, now));
     return { data, total, limit, offset };
   });
 

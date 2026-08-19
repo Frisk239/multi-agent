@@ -7524,6 +7524,23 @@ button.memory-kind-chip.is-active {
   padding: 0 8px;
 }
 
+.runs-filters input[type='search'] {
+  min-width: 14rem;
+  height: 32px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  padding: 0 8px;
+}
+
+.runs-filters input[type='search']:focus {
+  outline: none;
+  border-color: var(--accent, #5b8def);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #5b8def) 18%, transparent);
+}
+
 .runs-insight {
   display: flex;
   flex-wrap: wrap;

@@ -157,6 +157,36 @@ export const AgentRun = z.object({
     .optional(),
   // B2：QC 等无 issue 时绑定的 project（cwd / 建卡继承）
   projectId: BusinessId.nullable().optional(),
+  /**
+   * Runs 列表的关联对象观察态。为兼容既有单条/写入响应整体可省略；
+   * GET /api/runs 会始终提供三个键（关联丢失时为 null）。
+   */
+  subject: z
+    .object({
+      issue: z
+        .object({
+          id: BusinessId,
+          identifier: z.string(),
+          title: z.string(),
+        })
+        .nullable()
+        .optional(),
+      chat: z
+        .object({
+          id: BusinessId,
+          title: z.string(),
+        })
+        .nullable()
+        .optional(),
+      project: z
+        .object({
+          id: BusinessId,
+          title: z.string(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .optional(),
   // C1 + follow-up serial claim：读取投影的等待原因（不新增持久状态）。
   // 字段名为兼容既有 path-lock API 保留；same_issue_busy 不是目录锁。
   pathWaitReason: z.enum(['path_busy', 'same_issue_busy']).nullable().optional(),
@@ -358,6 +388,10 @@ export type ListRunsStatus = z.infer<typeof ListRunsStatus>;
 
 export const ListRunsQuery = z.object({
   issueId: BusinessId.optional(),
+  /** 任务/会话/有效项目的服务端定位；trim 后空串不筛选。 */
+  q: z.string().trim().max(200).optional(),
+  /** 有效项目：Issue > chat thread > agent run。 */
+  projectId: BusinessId.optional(),
   agentId: BusinessId.optional(),
   // squad-runs-timeline：按小队过滤 leader/member run
   squadId: BusinessId.optional(),
