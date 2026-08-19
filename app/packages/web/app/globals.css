@@ -4956,6 +4956,11 @@ button.memory-kind-chip.is-active {
   border-color: color-mix(in srgb, var(--color-green) 45%, var(--border));
 }
 
+.toast--warning {
+  border-color: color-mix(in srgb, var(--color-yellow) 55%, var(--border));
+  color: var(--color-yellow);
+}
+
 .toast--error {
   border-color: color-mix(in srgb, var(--color-red) 55%, var(--border));
   color: var(--color-red);

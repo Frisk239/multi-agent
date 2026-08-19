@@ -1,7 +1,14 @@
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToastProvider, toastSuccess, toastError, enqueueToast, MAX_TOASTS } from './toast';
+import {
+  ToastProvider,
+  toastSuccess,
+  toastWarning,
+  toastError,
+  enqueueToast,
+  MAX_TOASTS,
+} from './toast';
 
 /**
  * G7-8 Toast 堆叠上限 + hover 暂停 + 关闭钮分离
@@ -107,6 +114,16 @@ describe('ToastProvider (G7-8)', () => {
     expect(close).toBeTruthy();
     fireEvent.click(close);
     expect(screen.queryByText('boom')).toBeNull();
+  });
+
+  it('renders warning as a non-error status with its own visual variant', () => {
+    render(<Harness />);
+    act(() => {
+      toastWarning('still dispatching');
+    });
+    const toast = screen.getByRole('status');
+    expect(toast).toHaveClass('toast--warning');
+    expect(toast).toHaveTextContent('still dispatching');
   });
 
   it('dismisses after durationMs without interaction', () => {

@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 
-type ToastKind = 'success' | 'error';
+type ToastKind = 'success' | 'warning' | 'error';
 
 type ToastAction = {
   label: string;
@@ -34,6 +34,7 @@ type ToastItem = {
 
 type ToastApi = {
   success: (message: string, opts?: ToastOptions) => void;
+  warning: (message: string, opts?: ToastOptions) => void;
   error: (message: string, opts?: ToastOptions) => void;
 };
 
@@ -56,6 +57,10 @@ export function enqueueToast<T extends { id: number }>(
 
 export function toastSuccess(message: string, opts?: ToastOptions) {
   externalApi?.success(message, opts);
+}
+
+export function toastWarning(message: string, opts?: ToastOptions) {
+  externalApi?.warning(message, opts);
 }
 
 export function toastError(message: string, opts?: ToastOptions) {
@@ -166,6 +171,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const api = useMemo<ToastApi>(
     () => ({
       success: (message, opts) => push('success', message, opts),
+      warning: (message, opts) => push('warning', message, opts),
       error: (message, opts) => push('error', message, opts),
     }),
     [push],
@@ -221,6 +227,7 @@ export function useToast() {
   if (!ctx) {
     return {
       success: toastSuccess,
+      warning: toastWarning,
       error: toastError,
     };
   }

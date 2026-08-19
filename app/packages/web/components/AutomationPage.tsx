@@ -34,6 +34,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
 import { AssigneeCombobox } from './AssigneeSelect';
 import { automationRunHref } from '@/lib/automation-run-link';
+import { classifyAutomationRunNowOutcome } from '@/lib/automation-run-now-outcome';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
@@ -91,17 +92,29 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
   const reconcile = useReconcileAutomationRun(ruleId);
 
   if (isLoading) {
-    return <div className="automation-runs text-dim text-sm">加载执行记录…</div>;
+    return (
+      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+        加载执行记录…
+      </div>
+    );
   }
   if (isError) {
-    return <div className="automation-runs text-dim text-sm">加载执行记录失败</div>;
+    return (
+      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+        加载执行记录失败
+      </div>
+    );
   }
   if (!runs || runs.length === 0) {
-    return <div className="automation-runs text-dim text-sm">暂无执行记录</div>;
+    return (
+      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+        暂无执行记录
+      </div>
+    );
   }
 
   return (
-    <div className="automation-runs">
+    <div className="automation-runs" data-testid={`automation-rule-runs-${ruleId}`}>
       <table className="data-table automation-runs-table">
         <thead>
           <tr>
@@ -413,6 +426,19 @@ function AutomationPageInner() {
         },
       });
     })();
+  }
+
+  function handleRunNow(rule: AutomationRule) {
+    runNow.mutate(rule.id, {
+      onSuccess: (run) => {
+        // HTTP 201 includes both successful dispatch and persisted domain failures.
+        // A non-success result belongs next to this rule's existing recent-run repair UI.
+        if (classifyAutomationRunNowOutcome(run.status) !== 'success') {
+          setEditingId(null);
+          setExpandedId(rule.id);
+        }
+      },
+    });
   }
 
   const rules = data ?? [];
@@ -1122,8 +1148,9 @@ function AutomationPageInner() {
                       <button
                         type="button"
                         className="btn btn-primary btn-sm"
+                        data-testid={`automation-run-now-${rule.id}`}
                         disabled={runNow.isPending}
-                        onClick={() => runNow.mutate(rule.id)}
+                        onClick={() => handleRunNow(rule)}
                       >
                         {runNow.isPending ? '执行中…' : '立即执行'}
                       </button>{' '}
