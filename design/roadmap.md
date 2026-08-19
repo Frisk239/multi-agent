@@ -82,6 +82,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-5 | **附件真实上传**（文件选择 + 拖拽 + IssueDetail 附件区，≤25MiB；现状仅粘贴图最小路径） | 中 | 中 | — | ✅ |
 | G3-6 | **Issue 自定义字段 UI**（schema 有 customFields JSON，缺编辑界面，GAP-05） | 中 | 中 | — | ✅ |
 | G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | 🔨（第四波已落 CmdK 高亮 + 失败卡一键重试；余项池内多已存在：拼音/scroll restoration/指派搜索——待按痛点续取） |
+| G3-8 | **Runs Mission Control 任务语义 + 定位**（Issue/会话标题、有效项目、服务端 q/project 与 URL 锚点） | 高 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)） |
+| G3-9 | **Issue run 区块真实性**（runs 请求失败显示局部错误 + retry，不能伪装为空态） | 高 | 小 | — | ⬜ |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -194,6 +196,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | ✅ 已关（2026-08-04，[closeout](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)：**G7-1…G7-12 全部 12 刀收官**——Sheet 后退关闭/返回不闪屏/Memory 15s 实时/transcript 虚拟化（120 条消息 run 实测 rendered 22/120）/Sheet 优先级+标签/新建表单可搜指派/Inbox Enter/Toast 上限+hover 暂停/页标题/分享链复制/colSpan/工具栏收纳；Playwright 17/17 PASS + 回归 6/6；全量 1546 用例绿（shared 121 + server 954 + web 471）） |
 | 19 | **G8 可信执行 + 08-08 硬缺口合入** | G8 | ✅ 本波合入：G8-1…5a / G6-5 / G6-7 / envRef / Memory projectId / waiting 投影（文件已交织，一次提交） |
 | 20 | **G8-6 加厚 + comment follow-up** | G8 | ✅（2026-08-19：[G8-6](app/.progress/g8-6-board-live-transcript-impl-1.md) · [enqueue](app/.progress/comment-followup-queue-impl-1.md) · [claim 串行](app/.progress/followup-serial-claim-impl-1.md)） |
+| 21 | **Runs Mission Control 任务语义 + 定位** | G3 | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)：服务端 subject / q / projectId + URL 搜索筛选 + 真实 Playwright） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
