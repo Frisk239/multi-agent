@@ -1,7 +1,7 @@
 # Spec: agent-direct-issue-create
 
 日期：2026-08-19
-状态：实施中
+状态：已关（实现 `30f42d9`）
 上一刀 Intake：`app/.progress/agent-active-task-peek-intake.md`（通过）
 
 ## 用户路径

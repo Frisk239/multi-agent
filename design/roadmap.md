@@ -87,6 +87,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-10 | **Chat 标题与安全删除**（行内改名；仅归档后可删；有任何 run 时保留历史） | 中 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)） |
 | G3-11 | **Issue 评论线程与结论 UI**（根评论 + 一层回复；定论/撤销；已定论默认折叠且可展开） | 高 | 小 | 既有 S3 评论契约 | ✅（2026-08-19，[closeout](app/.progress/issue-comment-thread-conclusion-ui-impl-1.md)） |
 | G3-12 | **Agents roster 当前任务可行动化**（批量 active Issue 投影；单条直达 Run，多条直达筛选列表；chat 不伪装 Issue） | 高 | 小 | 既有 run/Issue 读模型 | ✅（2026-08-19，[closeout](app/.progress/agent-active-task-peek-impl-1.md)） |
+| G3-13 | **Agent 详情直达派活**（“分配工作”预填 New Issue；保留独立“查看已指派 Issue”；复用 readiness/preflight 与 enqueue） | 高 | 小 | G3-12 + 既有 NewIssueForm | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -206,6 +207,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 24 | **Worker tick 健康真实性** | G5 | ✅（2026-08-19，[closeout](app/.progress/worker-tick-health-truth-impl-1.md)：四 worker success/failure health、healthz/ops/Settings、Playwright；Vitest 4 worker 上限迁移以消除 WAL 并发假红） |
 | 25 | **Issue 评论线程与结论 UI** | G3 | ✅（2026-08-19，[closeout](app/.progress/issue-comment-thread-conclusion-ui-impl-1.md)：一层回复、结论/撤销、折叠展开、真实 Playwright） |
 | 26 | **Agents roster 当前任务可行动化** | G3 | ✅（2026-08-19，[closeout](app/.progress/agent-active-task-peek-impl-1.md)：bulk currentIssueRun、单 run Run detail、多 run active 筛选、真实 Playwright） |
+| 27 | **Agent 详情直达派活** | G3 | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)：URL 创建意图、有效 Agent 预填、既有 readiness/preflight+enqueue、真实 Playwright） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 

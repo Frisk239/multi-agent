@@ -59,8 +59,8 @@
 
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（Goal 体系 + 切片队列）。**不是工单。**
 - **工程模式：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) — 对照 Hermes pipeline：保留 Slice Owner + main 直推；CI = `pnpm check` + `scripts/check-docs.mjs`。
-- **▶ 已关：** `374afc5` 同 Agent × Issue follow-up claim 串行；`20b4ae9` Runs Mission Control 任务语义+定位（subject SQL 投影、服务端 q/project、URL 搜索/筛选与锚点）；`ca2aabe` Issue 内 runs 请求失败显示局部错误 + retry，不再伪装「尚未执行」；`7e0a63d` Chat 行内改名 + 仅归档 zero-run 删除，有 run 统一 409 保留可观测性；`cf53b17` 四 worker tick 仅成功 heartbeat，失败摘要贯通 healthz/ops/Settings 且会自愈；`74052d0` Issue 评论一层线程、结论/撤销、折叠展开和回复草稿隔离；`ef4f8a0` Agents roster 批量当前 Issue 投影，单 run 直达详情、多 run 保留并行列表入口。
-- **▶ 下一刀：** Agent 详情“分配工作”直达预填的新建 Issue，另保留“查看已指派 Issue”；必须复用 readiness/preflight 与现有 enqueue 真相。G8-4b 仍禁开。
+- **▶ 已关：** `374afc5` 同 Agent × Issue follow-up claim 串行；`20b4ae9` Runs Mission Control 任务语义+定位（subject SQL 投影、服务端 q/project、URL 搜索/筛选与锚点）；`ca2aabe` Issue 内 runs 请求失败显示局部错误 + retry，不再伪装「尚未执行」；`7e0a63d` Chat 行内改名 + 仅归档 zero-run 删除，有 run 统一 409 保留可观测性；`cf53b17` 四 worker tick 仅成功 heartbeat，失败摘要贯通 healthz/ops/Settings 且会自愈；`74052d0` Issue 评论一层线程、结论/撤销、折叠展开和回复草稿隔离；`ef4f8a0` Agents roster 批量当前 Issue 投影，单 run 直达详情、多 run 保留并行列表入口；`30f42d9` Agent 详情“分配工作”直达预填 New Issue，保留“查看已指派 Issue”筛选，且不绕过 readiness/preflight 或 enqueue。
+- **▶ 下一刀：** Automation“立即执行”按领域结果诚实反馈：只把明确启动视为成功，跳过/进行中/未知分别可理解地表达并保留诊断入口。G8-4b 仍禁开。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 
