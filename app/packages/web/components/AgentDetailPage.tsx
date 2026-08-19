@@ -1336,10 +1336,19 @@ function SkillsTab({ agentId }: { agentId: string }) {
   const { data: allSkills } = useSkills();
   const { data: assigned } = useAgentSkills(agentId);
   const update = useUpdateAgentSkills(agentId);
+  const [skillQ, setSkillQ] = useState('');
 
   if (!allSkills || !assigned) return <p className="skill-assign-empty">加载中…</p>;
 
   const assignedSet = new Set(assigned);
+  const q = skillQ.trim().toLowerCase();
+  const visible = q
+    ? allSkills.filter(
+        (sk) =>
+          sk.name.toLowerCase().includes(q) ||
+          (sk.description ?? '').toLowerCase().includes(q),
+      )
+    : allSkills;
 
   const toggle = (name: string) => {
     const next = assignedSet.has(name)
@@ -1351,7 +1360,7 @@ function SkillsTab({ agentId }: { agentId: string }) {
   if (allSkills.length === 0) {
     return (
       <p className="skill-assign-empty">
-        工作区暂无 skill。在 .skills/ 放 SKILL.md 后点「重新扫描」。
+        暂无 skill。内置方法论在扫描后可见；也可在 .skills/ 放 SKILL.md 后「重新扫描」。
       </p>
     );
   }
@@ -1361,7 +1370,16 @@ function SkillsTab({ agentId }: { agentId: string }) {
       <div className="skill-assign-summary" data-testid="agent-skills-summary">
         已绑定 {assigned.length} / {allSkills.length}
       </div>
-      {allSkills.map((sk) => (
+      <input
+        type="search"
+        className="agent-model-freeform"
+        placeholder="搜索 skill 名称或说明"
+        value={skillQ}
+        onChange={(e) => setSkillQ(e.target.value)}
+        data-testid="agent-skills-search"
+        aria-label="搜索 skill"
+      />
+      {visible.map((sk) => (
         <label key={sk.name} className="skill-assign-item">
           <input
             type="checkbox"
@@ -1373,10 +1391,18 @@ function SkillsTab({ agentId }: { agentId: string }) {
           />
           <span className="skill-assign-info">
             <span className="skill-assign-name">{sk.name}</span>
+            <span className="text-dim text-sm">
+              {sk.source === 'builtin' ? '内置' : sk.source}
+            </span>
             {sk.description && <div className="skill-assign-desc">{sk.description}</div>}
           </span>
         </label>
       ))}
+      {visible.length === 0 ? (
+        <p className="skill-assign-empty" data-testid="agent-skills-search-empty">
+          无匹配 skill
+        </p>
+      ) : null}
     </div>
   );
 }

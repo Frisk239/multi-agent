@@ -12,6 +12,7 @@ import { PageHeaderMore } from './PageHeaderMore';
 import { PageSkeleton } from './Skeleton';
 import { CreateSkillDialog } from './CreateSkillDialog';
 import { Select } from './Select';
+import { skillSourceChip } from '@/lib/skill-source-label';
 
 type SourceFilter = '' | 'project' | 'user' | 'workspace' | 'builtin';
 
@@ -128,8 +129,8 @@ function SkillsPageInner() {
             </span>
           </h1>
           <p className="page-desc page-desc--quiet">
-            指令真源：用户 <code>~/.multi-agent/skills/</code>、工作区 <code>.skills/</code>、以及已绑
-            本机路径的项目 <code>localPath/.skills/</code>（无工作区 cwd 仍可管理用户级）
+            指令真源：产品<strong>内置</strong>、用户 <code>~/.multi-agent/skills/</code>、工作区{' '}
+            <code>.skills/</code>、项目 <code>localPath/.skills/</code>。同名时后者覆盖内置。
           </p>
         </div>
         <div className="page-actions">
@@ -238,13 +239,7 @@ function SkillsPageInner() {
                 data-testid="skills-chip-source"
                 onClick={() => replaceParams({ source: null })}
               >
-                来源 ·{' '}
-                {sourceFromUrl === 'project'
-                  ? '项目本机'
-                  : sourceFromUrl === 'workspace'
-                    ? '工作区'
-                    : '用户级'}{' '}
-                ×
+                来源 · {skillSourceChip(sourceFromUrl)} ×
               </button>
             ) : null}
             <button
@@ -352,15 +347,9 @@ function SkillsPageInner() {
                       data-testid="skill-source"
                       data-source={sk.source}
                     >
-                      {sk.source === 'project'
-                        ? sk.projectTitle
-                          ? `项目 · ${sk.projectTitle}`
-                          : '项目本机'
-                        : sk.source === 'workspace'
-                          ? '工作区'
-                          : sk.source === 'builtin'
-                            ? '内置 · 不可删'
-                            : '用户级'}
+                      {sk.source === 'builtin'
+                        ? '内置 · 不可删'
+                        : skillSourceChip(sk.source, sk.projectTitle)}
                     </span>
                     <span className="skills-list-desc text-dim text-sm">
                       {sk.description || '—'}

@@ -159,6 +159,14 @@ describe('SkillsPage', () => {
     expect(skillNames()).toEqual(['alpha', 'zeta']);
   });
 
+  it('source=builtin chip says 内置 not 用户级', () => {
+    pushSkill('ma-planning', { source: 'builtin' });
+    mockSearchParams = new URLSearchParams('source=builtin');
+    renderPage();
+    expect(screen.getByTestId('skills-chip-source')).toHaveTextContent('来源 · 内置');
+    expect(screen.getByTestId('skill-source')).toHaveTextContent('内置');
+  });
+
   it('default sort keeps server-provided order', () => {
     pushSkill('zeta');
     pushSkill('alpha');

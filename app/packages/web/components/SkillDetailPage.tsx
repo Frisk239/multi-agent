@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSkill } from '@/lib/api';
 import { MarkdownBody } from './MarkdownBody';
 import { PageBreadcrumb } from './PageBreadcrumb';
+import { skillSourceChip, skillSourceMeta } from '@/lib/skill-source-label';
 
 /**
  * Multica 式 skill 详情：正文 + 元数据 + 只读 usedBy（不在此跳 agent）
@@ -58,7 +59,9 @@ export function SkillDetailPage({ name }: { name: string }) {
                 className={`source-badge source-${data.source}`}
                 data-testid="skill-detail-source"
               >
-                {data.source === 'project' ? '项目级' : '用户级'}
+                {data.source === 'builtin'
+                  ? '内置 · 不可删'
+                  : skillSourceChip(data.source)}
               </span>
               <span className="text-dim text-sm" title={data.path}>
                 {data.path}
@@ -84,7 +87,7 @@ export function SkillDetailPage({ name }: { name: string }) {
               </div>
               <div>
                 <dt>来源</dt>
-                <dd>{data.source === 'project' ? '项目 .skills' : '用户 skills'}</dd>
+                <dd>{skillSourceMeta(data.source)}</dd>
               </div>
               <div>
                 <dt>路径</dt>
@@ -109,10 +112,14 @@ export function SkillDetailPage({ name }: { name: string }) {
                     <span className="skills-usedby-avatar" aria-hidden>
                       {a.name.slice(0, 1)}
                     </span>
-                    <span className="skill-detail-usedby-text">
+                    <Link
+                      href={`/agents/${a.id}`}
+                      className="skill-detail-usedby-text"
+                      data-testid="skill-detail-usedby-link"
+                    >
                       <span className="skill-detail-usedby-name">{a.name}</span>
                       <span className="text-dim text-sm">{a.runtime}</span>
-                    </span>
+                    </Link>
                   </li>
                 ))}
               </ul>

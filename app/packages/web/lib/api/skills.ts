@@ -5,6 +5,7 @@
  */
 import type {
   SkillInfo,
+  SkillDetail,
   ScanLocalSkillsResponse,
   ImportLocalSkillsInput,
   ImportLocalSkillsResponse,
@@ -29,19 +30,12 @@ export function useSkills() {
 
 /** GET /api/skills/:name —— Multica 式详情 */
 export function useSkill(name: string | undefined) {
-  return useQuery({
+  return useQuery<SkillDetail>({
     queryKey: ['skill', name],
     queryFn: async () => {
       const res = await apiFetch(`${API}/skills/${encodeURIComponent(name!)}`);
       if (!res.ok) throw new Error(await apiError(res, '加载 skill 失败'));
-      return res.json() as Promise<{
-        name: string;
-        description: string;
-        source: 'project' | 'user';
-        body: string;
-        path: string;
-        usedBy: { id: string; name: string; runtime: string }[];
-      }>;
+      return res.json();
     },
     enabled: Boolean(name),
   });

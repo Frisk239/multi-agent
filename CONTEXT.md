@@ -59,8 +59,8 @@
 
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（Goal 体系 + 切片队列）。**不是工单。**
 - **工程模式：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) — 对照 Hermes pipeline：保留 Slice Owner + main 直推；CI = `pnpm check` + `scripts/check-docs.mjs`。
-- **▶ 已推：** 向导 Thinking `c1a6d85`。本刀：G9-1 方法论 skill pack。
-- **▶ 下一刀候选：** Skills 页手验后的小摩擦；G8-4b 仍禁开。G9-1 不强制全员挂载。
+- **▶ 已推：** G9-1 `02a05c4`。本刀：G9-2 Skills 来源诚实 + 绑定可搜。
+- **▶ 下一刀候选：** Automation 指派可搜（G3-7 池）；G8-4b 仍禁开。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 
