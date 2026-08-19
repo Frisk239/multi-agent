@@ -16,6 +16,7 @@ vi.mock('next/navigation', () => ({
 
 const openHelp = vi.fn();
 let liveProbesData: any = undefined;
+let opsSnapshotData: any = undefined;
 
 vi.mock('@/lib/use-shortcuts', () => ({
   useShortcuts: () => ({ isHelpOpen: false, openHelp, closeHelp: vi.fn() }),
@@ -51,7 +52,7 @@ vi.mock('@/lib/api', () => ({
   useInboxPrefs: () => ({ data: undefined }),
   useSetInboxPrefs: () => ({ mutate: vi.fn(), isPending: false }),
   useOpsSnapshot: () => ({
-    data: undefined,
+    data: opsSnapshotData,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -111,6 +112,7 @@ describe('SettingsPage', () => {
     vi.clearAllMocks();
     mockSearchParams = new URLSearchParams();
     liveProbesData = undefined;
+    opsSnapshotData = undefined;
   });
 
   afterEach(() => {
@@ -202,6 +204,53 @@ describe('SettingsPage', () => {
     const inflight = screen.getByTestId('settings-run-health-inflight');
     expect(inflight.textContent).toContain('在途 2');
     expect(inflight.textContent).not.toContain(' / ');
+  });
+
+  it('将 worker 顶层 tick 失败明确呈现为降级，而不伪装成普通 age', () => {
+    opsSnapshotData = {
+      ts: Date.now(),
+      status: 'degraded',
+      runs: {
+        active: { total: 1, queued: 1, running: 0, waitingLocalDirectory: 0, retryBackoff: 0 },
+        eligibleQueueAge: { count: 1, maxMs: 50, avgMs: 50, p50Ms: 50, p95Ms: 50 },
+        queueSamples: [],
+        terminalReasons: [],
+        terminalWindow: '7d',
+      },
+      wiki: { dead: 0, pending: 0, running: 0, failed: 0, completed: 0 },
+      memory: { breakerOpen: false, breakerFailures: 0, breakerOpenUntil: null },
+      workers: {
+        runWorker: {
+          running: true,
+          lastTickAt: 100,
+          ageMs: 50,
+          consecutiveFailures: 2,
+          lastFailureAt: 149,
+          lastFailureSummary: 'sqlite locked; retrying next tick',
+        },
+        automationWorker: {
+          running: true,
+          lastTickAt: 100,
+          ageMs: 50,
+          consecutiveFailures: 0,
+          lastFailureAt: null,
+          lastFailureSummary: null,
+        },
+      },
+      process: { status: 'degraded', uptimeMs: 1000, db: { ok: true, latencyMs: 1 } },
+      automation: { lastError: null, failedRules: 0, lastFailedAt: null },
+      resumeStats: { sessionPoisoned: 0, resumeMiss: 0, deferredUnclaimed: 0, window: '7d' },
+    };
+    renderPage();
+    fireEvent.click(screen.getByTestId('settings-nav-health'));
+
+    const row = screen.getByTestId('settings-ops-worker-runWorker');
+    expect(row).toHaveClass('is-degraded');
+    expect(row).toHaveTextContent('上次成功 50ms');
+    expect(row).toHaveTextContent('降级：连续失败 2');
+    expect(row).toHaveTextContent('sqlite locked; retrying next tick');
+    expect(screen.getByTestId('settings-ops-worker-runWorker-failure')).toBeTruthy();
+    expect(screen.queryByTestId('settings-ops-worker-automationWorker-failure')).toBeNull();
   });
 
   it('密钥安全检查默认不扫描、不回显密钥，并提供显式扫描入口', () => {

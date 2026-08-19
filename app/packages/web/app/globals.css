@@ -7215,6 +7215,21 @@ button.memory-kind-chip.is-active {
   margin: 4px 0 0;
   padding-left: 1.25rem;
 }
+.settings-ops-worker-list {
+  margin-top: var(--space-1);
+}
+.settings-ops-worker {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+.settings-ops-worker.is-degraded {
+  color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-red) 35%, transparent);
+}
+.settings-ops-worker-failure {
+  font-weight: 600;
+}
 .settings-cwd-line {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

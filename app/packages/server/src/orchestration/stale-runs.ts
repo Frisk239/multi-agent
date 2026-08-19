@@ -8,7 +8,12 @@ import { readInboxPrefs } from './inbox-prefs.js';
 import { abortRun, hasRunAbort } from './run-control.js';
 import { clearToolInflight, getToolInflight } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
-import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
+import {
+  invokeWorkerTickSafely,
+  markWorkerStarted,
+  markWorkerStopped,
+  trackWorkerTick,
+} from '../process-health.js';
 import { transitionRun } from './run-transitions.js';
 import { publishActivityCreated } from './activity-logger.js';
 import {
@@ -541,29 +546,37 @@ export function recoverStuckRuns(now = Date.now()): RunRecoveryReport {
 
 let sweepTimer: ReturnType<typeof setInterval> | null = null;
 
+function tick(): Promise<void> {
+  return trackWorkerTick('staleRunSweeper', () => {
+    // 周期清扫与目录锁动态续租
+    touchWaitingLocalDirectoryLeases();
+    // Slice 68：半 claim prepare_lease 过期 → fail（先于 heartbeat/orphan 语义）
+    failStalePrepareLeaseRuns();
+    failStaleRunningRuns();
+    failQueuedMissingAgentRuns();
+    // deferred 在 hard-fail 之前：仍为 queued 时可观测升级
+    escalateDeferredUnclaimedRuns();
+    // G2-1：deferred 到点（fire_at 宽限结束）→ 自动升级（fail 原 run + 配 fallback 则改派）
+    fireDeferredRuns();
+    failStaleQueuedRuns();
+    failStaleWaitingLocalDirectoryRuns();
+    escalateFailedSquadRuns();
+  });
+}
+
+function tickSafe(): void {
+  invokeWorkerTickSafely(
+    () => tick(),
+    (err) => {
+      logger.error({ err }, '[run] stale sweep failed');
+    },
+  );
+}
+
 export function startStaleRunSweeper(): void {
   if (sweepTimer) return;
   markWorkerStarted('staleRunSweeper');
-  sweepTimer = setInterval(() => {
-    try {
-      noteWorkerTick('staleRunSweeper');
-      // 周期清扫与目录锁动态续租
-      touchWaitingLocalDirectoryLeases();
-      // Slice 68：半 claim prepare_lease 过期 → fail（先于 heartbeat/orphan 语义）
-      failStalePrepareLeaseRuns();
-      failStaleRunningRuns();
-      failQueuedMissingAgentRuns();
-      // deferred 在 hard-fail 之前：仍为 queued 时可观测升级
-      escalateDeferredUnclaimedRuns();
-      // G2-1：deferred 到点（fire_at 宽限结束）→ 自动升级（fail 原 run + 配 fallback 则改派）
-      fireDeferredRuns();
-      failStaleQueuedRuns();
-      failStaleWaitingLocalDirectoryRuns();
-      escalateFailedSquadRuns();
-    } catch (e) {
-      logger.error({ err: e instanceof Error ? e.message : String(e) }, '[run] stale sweep failed');
-    }
-  }, STALE_SWEEP_INTERVAL_MS);
+  sweepTimer = setInterval(tickSafe, STALE_SWEEP_INTERVAL_MS);
 }
 
 /** Slice 23：优雅退出时停周期收尸，避免与 cancel 竞态 */

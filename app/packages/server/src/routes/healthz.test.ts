@@ -12,6 +12,7 @@ import { healthzRoutes } from './healthz.js';
 import {
   __resetProcessHealthForTests,
   markWorkerStarted,
+  noteWorkerFailure,
   noteWorkerTick,
 } from '../process-health.js';
 
@@ -54,7 +55,14 @@ describe('GET /healthz', () => {
       ts: number;
       uptimeMs: number;
       db: { ok: boolean; latencyMs: number | null };
-      workers: Record<string, { lastTickAt: number | null; ageMs: number | null; running: boolean }>;
+      workers: Record<string, {
+        lastTickAt: number | null;
+        ageMs: number | null;
+        running: boolean;
+        consecutiveFailures: number;
+        lastFailureAt: number | null;
+        lastFailureSummary: string | null;
+      }>;
     };
 
     expect(body.status === 'ok' || body.status === 'degraded').toBe(true);
@@ -68,5 +76,38 @@ describe('GET /healthz', () => {
     expect(body.workers.automationWorker).toBeDefined();
     expect(body.workers.wikiIngestWorker).toBeDefined();
     expect(body.workers.staleRunSweeper).toBeDefined();
+  });
+
+  it('projects worker failure metadata without leaking the full error into a synthetic shape', async () => {
+    const { app, routes } = makeApp();
+    await healthzRoutes(app);
+    const handler = routes['GET /healthz']!;
+
+    const now = Date.now();
+    for (const key of [
+      'runWorker',
+      'automationWorker',
+      'wikiIngestWorker',
+      'staleRunSweeper',
+    ] as const) {
+      markWorkerStarted(key, now);
+      noteWorkerTick(key, now);
+    }
+    noteWorkerFailure('runWorker', 'sqlite busy token=healthz-test-secret', now + 1);
+
+    const body = (await handler({})) as {
+      status: string;
+      workers: Record<string, {
+        consecutiveFailures: number;
+        lastFailureAt: number | null;
+        lastFailureSummary: string | null;
+      }>;
+    };
+    expect(body.status).toBe('degraded');
+    expect(body.workers.runWorker).toMatchObject({
+      consecutiveFailures: 1,
+      lastFailureAt: now + 1,
+    });
+    expect(body.workers.runWorker.lastFailureSummary).not.toContain('healthz-test-secret');
   });
 });

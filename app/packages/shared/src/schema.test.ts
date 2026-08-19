@@ -24,6 +24,7 @@ import {
   SquadSummary,
   SkillInfo,
   UpdateChatThreadInput,
+  OpsWorkerHealthSnapshot,
   classifyRunFailure,
 } from './schema';
 
@@ -563,6 +564,24 @@ describe('Shared Schema Validators', () => {
       expect(ListRunsQuery.parse({ q: '  Alpha  ' }).q).toBe('Alpha');
       expect(ListRunsQuery.parse({ q: '   ' }).q).toBe('');
       expect(() => ListRunsQuery.parse({ q: 'x'.repeat(201) })).toThrow();
+    });
+  });
+
+  describe('OpsWorkerHealthSnapshot', () => {
+    it('requires truthful failure metadata alongside the legacy tick fields', () => {
+      expect(
+        OpsWorkerHealthSnapshot.parse({
+          lastTickAt: 100,
+          ageMs: 50,
+          running: true,
+          consecutiveFailures: 2,
+          lastFailureAt: 149,
+          lastFailureSummary: 'sqlite busy',
+        }),
+      ).toMatchObject({ consecutiveFailures: 2, lastFailureSummary: 'sqlite busy' });
+      expect(() =>
+        OpsWorkerHealthSnapshot.parse({ lastTickAt: 100, ageMs: 50, running: true }),
+      ).toThrow();
     });
   });
 

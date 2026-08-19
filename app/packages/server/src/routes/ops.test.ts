@@ -64,6 +64,7 @@ import { opsRoutes } from './ops.js';
 import {
   __resetProcessHealthForTests,
   markWorkerStarted,
+  noteWorkerFailure,
   noteWorkerTick,
 } from '../process-health.js';
 
@@ -139,6 +140,11 @@ describe('GET /api/ops/snapshot', () => {
     expect(body.wiki?.pending).toEqual(expect.any(Number));
     expect(body.memory?.breakerOpen).toEqual(expect.any(Boolean));
     expect(body.workers?.runWorker).toBeDefined();
+    expect(body.workers?.runWorker).toMatchObject({
+      consecutiveFailures: 0,
+      lastFailureAt: null,
+      lastFailureSummary: null,
+    });
     expect(body.automation).toHaveProperty('lastError');
     expect(body.process?.db?.ok).toBe(true);
     expect(body.sqlite).toMatchObject({
@@ -153,6 +159,32 @@ describe('GET /api/ops/snapshot', () => {
       deferredUnclaimed: expect.any(Number),
       window: '7d',
     });
+  });
+
+  it('projects a degraded worker failure into the ops snapshot', async () => {
+    const { app, routes } = makeApp();
+    await opsRoutes(app);
+    const handler = routes['GET /api/ops/snapshot']!;
+
+    const now = Date.now();
+    for (const key of [
+      'runWorker',
+      'automationWorker',
+      'wikiIngestWorker',
+      'staleRunSweeper',
+    ] as const) {
+      markWorkerStarted(key, now);
+      noteWorkerTick(key, now);
+    }
+    noteWorkerFailure('wikiIngestWorker', 'queue query failed password=ops-test-secret', now + 1);
+
+    const body = (await handler({})) as Record<string, any>;
+    expect(body.status).toBe('degraded');
+    expect(body.workers.wikiIngestWorker).toMatchObject({
+      consecutiveFailures: 1,
+      lastFailureAt: now + 1,
+    });
+    expect(body.workers.wikiIngestWorker.lastFailureSummary).not.toContain('ops-test-secret');
   });
 });
 

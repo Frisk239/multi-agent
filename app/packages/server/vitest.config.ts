@@ -11,9 +11,8 @@ export default defineConfig({
     // 默认 5s/10s —— 放宽降低波动；单测本身不依赖紧超时
     testTimeout: 10_000,
     hookTimeout: 20_000,
-    // 本机常驻 MCP 进程多、内存余量小：限制 worker 数防 VirtualAlloc 峰值
-    poolOptions: {
-      forks: { maxForks: 4 },
-    },
+    // Vitest 4 已移除 poolOptions。本机常驻 MCP 进程多，且测试的既有
+    // fixture DB 不能承受默认的全核并发；保留原本「最多 4 worker」意图。
+    maxWorkers: 4,
   },
 });

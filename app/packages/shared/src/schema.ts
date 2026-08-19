@@ -2200,6 +2200,11 @@ export const OpsWorkerHealthSnapshot = z.object({
   lastTickAt: z.number().int().nullable(),
   ageMs: z.number().int().nonnegative().nullable(),
   running: z.boolean(),
+  /** 最近成功 tick 以来连续失败数；非零即 worker degraded。 */
+  consecutiveFailures: z.number().int().nonnegative(),
+  /** 仅供运维展示的安全失败摘要，后端已脱敏并限长。 */
+  lastFailureAt: z.number().int().nonnegative().nullable(),
+  lastFailureSummary: z.string().nullable(),
 });
 export type OpsWorkerHealthSnapshot = z.infer<typeof OpsWorkerHealthSnapshot>;
 

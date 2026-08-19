@@ -57,7 +57,12 @@ import {
 } from './tool-watchdog-state.js';
 import { logger } from '../logger.js';
 import { parseAndDispatchSubagents } from './subagent-dispatch.js';
-import { markWorkerStarted, markWorkerStopped, noteWorkerTick } from '../process-health.js';
+import {
+  invokeWorkerTickSafely,
+  markWorkerStarted,
+  markWorkerStopped,
+  trackWorkerTick,
+} from '../process-health.js';
 import {
   ACTIVE_RUN_STATUSES,
   CLAIMABLE_RUN_STATUSES,
@@ -82,13 +87,21 @@ const HEARTBEAT_INTERVAL_MS = 5_000;
 let timer: ReturnType<typeof setInterval> | null = null;
 let stopped = false;
 
+function tickSafe(): void {
+  invokeWorkerTickSafely(
+    () => tick(),
+    (err) => {
+      // logger 保留完整 Error；process-health 只投影安全、限长摘要。
+      logger.error({ err }, '[run-worker] tick failed');
+    },
+  );
+}
+
 export function startRunWorker(): void {
   if (timer) return;
   stopped = false;
   markWorkerStarted('runWorker');
-  timer = setInterval(() => {
-    void tick();
-  }, 500);
+  timer = setInterval(tickSafe, 500);
 }
 
 /** Slice 23：关停时清 timer，阻止 wake 再 claim */
@@ -103,7 +116,7 @@ export function stopRunWorker(): void {
 
 export function wakeRunWorker(): void {
   if (stopped) return;
-  void tick();
+  tickSafe();
 }
 
 // tick —— 遍历 queued / waiting_local_directory，对每个检查其 agent 的 per-agent 槽位（active running < agent.concurrency），
@@ -112,7 +125,10 @@ export function wakeRunWorker(): void {
 // W5：导出 tick 供故障注入测试直接驱动（生产入口 startRunWorker 不变）
 export async function tick(): Promise<void> {
   if (stopped) return;
-  noteWorkerTick('runWorker');
+  await trackWorkerTick('runWorker', runTickWork);
+}
+
+function runTickWork(): void {
   const queuedRows = db
     .select()
     .from(agentRuns)

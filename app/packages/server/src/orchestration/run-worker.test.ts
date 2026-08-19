@@ -141,9 +141,13 @@ vi.mock('./execution-ownership.js', () => ({
 }));
 
 vi.mock('../process-health.js', () => ({
+  invokeWorkerTickSafely: (operation: () => unknown | Promise<unknown>, onError: (error: unknown) => void) => {
+    void Promise.resolve().then(operation).catch(onError);
+  },
   markWorkerStarted: vi.fn(),
   markWorkerStopped: vi.fn(),
   noteWorkerTick: vi.fn(),
+  trackWorkerTick: async (_key: string, operation: () => unknown | Promise<unknown>) => operation(),
 }));
 
 import { tick } from './run-worker.js';

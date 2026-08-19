@@ -1628,14 +1628,37 @@ function OpsSnapshotCard() {
               : null}
           </li>
           <li data-testid="settings-ops-workers">
-            Workers 上次 tick：
-            {Object.entries(data.workers)
-              .map(([k, w]) => {
-                const age =
-                  w.ageMs == null ? '—' : formatAgeMs(w.ageMs);
-                return ` ${k}${w.running ? '' : '(停)'} ${age}`;
-              })
-              .join(' ·')}
+            <span>Workers（上次成功 tick）：</span>
+            <ul className="settings-ops-inline-list settings-ops-worker-list">
+              {Object.entries(data.workers).map(([k, w]) => {
+                const age = w.ageMs == null ? '—' : formatAgeMs(w.ageMs);
+                const failures = w.consecutiveFailures ?? 0;
+                const degraded = failures > 0;
+                return (
+                  <li
+                    key={k}
+                    className={degraded ? 'settings-ops-worker is-degraded' : 'settings-ops-worker'}
+                    data-testid={`settings-ops-worker-${k}`}
+                  >
+                    <strong>{k}</strong>
+                    {w.running ? '' : '（停）'} · 上次成功 {age}
+                    {degraded ? (
+                      <span
+                        className="settings-ops-worker-failure"
+                        data-testid={`settings-ops-worker-${k}-failure`}
+                        title={w.lastFailureSummary ?? 'worker tick failed'}
+                      >
+                        {' · '}降级：连续失败 {failures}
+                        {w.lastFailureAt != null
+                          ? ` · 最近失败 ${new Date(w.lastFailureAt).toLocaleString()}`
+                          : ''}
+                        {w.lastFailureSummary ? ` · ${w.lastFailureSummary}` : ''}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           </li>
           <li data-testid="settings-ops-automation-error">
             自动化最近错误：{' '}
