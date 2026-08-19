@@ -107,6 +107,8 @@ vi.mock('@/lib/api', () => ({
         }
       : { data: undefined },
   useUpdateIssue: () => ({ mutate: vi.fn(), isPending: false }),
+  useResolveCommentThread: () => ({ mutate: vi.fn(), isPending: false, variables: null }),
+  useUnresolveCommentThread: () => ({ mutate: vi.fn(), isPending: false, variables: null }),
   useIssueSubscription: () => ({ data: { subscribed: false } }),
   useToggleIssueSubscription: () => ({ mutate: vi.fn(), isPending: false }),
   useProjects: () => ({ data: [] }),
@@ -149,11 +151,49 @@ vi.mock('./IssueHeader', () => ({
 }));
 
 vi.mock('./Timeline', () => ({
-  Timeline: () => <div data-testid="timeline-mock">timeline</div>,
+  Timeline: ({
+    onReply,
+  }: {
+    onReply?: (root: (typeof comments)[number]) => void;
+  }) => (
+    <div data-testid="timeline-mock">
+      timeline
+      {onReply ? (
+        <button
+          type="button"
+          data-testid="timeline-mock-reply"
+          onClick={() => onReply(comments[0])}
+        >
+          reply
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock('./CommentComposer', () => ({
-  CommentComposer: () => <div data-testid="comment-composer">composer</div>,
+  CommentComposer: ({
+    parentCommentId,
+    replyTo,
+    onReplySuccess,
+  }: {
+    parentCommentId?: string | null;
+    replyTo?: { authorLabel: string } | null;
+    onReplySuccess?: () => void;
+  }) => (
+    <div
+      data-testid="comment-composer"
+      data-parent-comment-id={parentCommentId ?? ''}
+    >
+      composer
+      {replyTo ? <span data-testid="comment-composer-reply-target">@{replyTo.authorLabel}</span> : null}
+      {onReplySuccess ? (
+        <button type="button" data-testid="comment-composer-reply-success" onClick={onReplySuccess}>
+          sent
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock('./RunStatusBar', () => ({
@@ -336,6 +376,29 @@ describe('IssueDetail variant', () => {
     render(<IssueDetail id="iss-1" />);
     expect(screen.getByTestId('issue-exec-summary')).toHaveTextContent('运行状态暂不可用');
     expect(screen.getByTestId('issue-exec-summary')).not.toHaveTextContent('尚未执行');
+  });
+
+  it('only wires reply state into the comments-tab Composer and clears it after success', () => {
+    render(<IssueDetail id="iss-1" />);
+    // 默认 Storyline 的「读后即回」只建根评论，不显示任何 reply target。
+    expect(screen.getByTestId('comment-composer')).toHaveAttribute(
+      'data-parent-comment-id',
+      '',
+    );
+
+    fireEvent.click(screen.getByTestId('activity-tab-comments'));
+    fireEvent.click(screen.getByTestId('timeline-mock-reply'));
+    expect(screen.getByTestId('comment-composer')).toHaveAttribute(
+      'data-parent-comment-id',
+      'c-1',
+    );
+    expect(screen.getByTestId('comment-composer-reply-target')).toHaveTextContent('@Me');
+
+    fireEvent.click(screen.getByTestId('comment-composer-reply-success'));
+    expect(screen.getByTestId('comment-composer')).toHaveAttribute(
+      'data-parent-comment-id',
+      '',
+    );
   });
 });
 

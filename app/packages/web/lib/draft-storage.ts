@@ -16,6 +16,9 @@ export const DRAFT_PREFIX = 'ma-draft:';
 
 export const draftKey = {
   comment: (issueId: string) => `${DRAFT_PREFIX}comment:${issueId}`,
+  /** 根评论与任一根下的回复草稿必须隔离，避免切换回复对象时串写。 */
+  commentReply: (issueId: string, parentCommentId: string) =>
+    `${DRAFT_PREFIX}comment-reply:${issueId}:${parentCommentId}`,
   chat: (threadId: string) => `${DRAFT_PREFIX}chat:${threadId}`,
   newIssue: `${DRAFT_PREFIX}new-issue`,
 } as const;

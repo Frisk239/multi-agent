@@ -563,6 +563,54 @@ export function useCreateComment(issueId: string) {
   });
 }
 
+type ThreadResolutionAction = 'resolve' | 'unresolve';
+
+/**
+ * S3 已有的根评论定论接口。服务端只回传更新后的 root，故在同一条 comments
+ * React Query cache 内精确替换它，避免 resolve/unresolve 后等待整页重新拉取。
+ */
+function useCommentThreadResolution(
+  issueId: string,
+  action: ThreadResolutionAction,
+) {
+  const qc = useQueryClient();
+  const isResolve = action === 'resolve';
+  const successMessage = isResolve ? '已将最后回复设为结论' : '已撤销定论';
+  const failureMessage = isResolve ? '设定结论失败' : '撤销定论失败';
+
+  return useMutation({
+    mutationFn: async (rootCommentId: string) => {
+      const res = await apiFetch(`${API}/comments/${rootCommentId}/${action}`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(await apiError(res, failureMessage));
+      const data = (await res.json()) as { success?: boolean; comment?: Comment };
+      if (!data.comment) throw new Error(failureMessage);
+      return data.comment;
+    },
+    onSuccess: (updatedRoot) => {
+      qc.setQueryData<Comment[]>(['comments', issueId], (old) => {
+        if (!old) return old;
+        return old.map((comment) =>
+          comment.id === updatedRoot.id ? updatedRoot : comment,
+        );
+      });
+      toastSuccess(successMessage);
+    },
+    onError: (err) => toastError(errMessage(err, failureMessage)),
+  });
+}
+
+/** 根评论的最后一条直接回复设为结论（服务端负责选择与幂等）。 */
+export function useResolveCommentThread(issueId: string) {
+  return useCommentThreadResolution(issueId, 'resolve');
+}
+
+/** 清除根评论的结论标记，恢复全部一层回复。 */
+export function useUnresolveCommentThread(issueId: string) {
+  return useCommentThreadResolution(issueId, 'unresolve');
+}
+
 /* ───────────────────────── W1 · 附件数据层 ───────────────────────── */
 
 /**

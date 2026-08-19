@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import type { Comment, IssueStatus } from '@ma/shared';
+import type { ReactNode } from 'react';
 import { StatusChangeBody } from '@ma/shared';
 import { MarkdownBody } from './MarkdownBody';
 
@@ -22,7 +23,22 @@ function formatTime(iso: string) {
   }
 }
 
-export function TimelineItemView({ item }: { item: Comment }) {
+export type TimelineItemViewProps = {
+  item: Comment;
+  /** 评论 Tab 的一层回复视觉缩进；Storyline 不传，保持既有显示。 */
+  isReply?: boolean;
+  /** 该回复为 root 指定的结论。 */
+  isResolution?: boolean;
+  /** 由 Timeline 提供的 thread action；status_change 不使用。 */
+  actions?: ReactNode;
+};
+
+export function TimelineItemView({
+  item,
+  isReply = false,
+  isResolution = false,
+  actions,
+}: TimelineItemViewProps) {
   if (item.type === 'status_change') {
     let text = item.body;
     let toStatus: string | null = null;
@@ -36,7 +52,7 @@ export function TimelineItemView({ item }: { item: Comment }) {
       /* raw */
     }
     return (
-      <div className="timeline-item timeline-item--status">
+      <div className="timeline-item timeline-item--status" data-testid={`timeline-item-${item.id}`}>
         <div className="timeline-meta">
           <span className="timeline-author">{item.authorLabel}</span>
           <span className="timeline-time">{formatTime(item.createdAt)}</span>
@@ -64,11 +80,16 @@ export function TimelineItemView({ item }: { item: Comment }) {
 
   return (
     <div
-      className={`timeline-item${isDispatchSummary ? ' timeline-item--dispatch' : ''}`}
+      className={`timeline-item${isDispatchSummary ? ' timeline-item--dispatch' : ''}${
+        isReply ? ' timeline-item--reply' : ''
+      }${isResolution ? ' timeline-item--resolution' : ''}`}
+      data-testid={`timeline-item-${item.id}`}
+      data-thread-role={isReply ? 'reply' : undefined}
     >
       <div className="timeline-meta">
         <span className="timeline-author">{item.authorLabel}</span>
         <span className="timeline-time">{formatTime(item.createdAt)}</span>
+        {isResolution && <span className="timeline-badge timeline-badge--resolution">结论</span>}
         {isDispatchSummary && (
           <span className="timeline-badge timeline-badge--dispatch">派发</span>
         )}
@@ -79,6 +100,7 @@ export function TimelineItemView({ item }: { item: Comment }) {
       <div className="timeline-body">
         <MarkdownBody source={item.body} />
       </div>
+      {actions ? <div className="timeline-item-actions">{actions}</div> : null}
     </div>
   );
 }

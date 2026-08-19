@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { localStorageOrNull, recordVisit } from '@/lib/recent-visits';
-import type { Issue, IssueStatus, Priority } from '@ma/shared';
+import type { Comment, Issue, IssueStatus, Priority } from '@ma/shared';
 import { IssueStatus as IssueStatusEnum, Priority as PriorityEnum } from '@ma/shared';
 import {
   API,
@@ -14,8 +14,10 @@ import {
   useIssue,
   useIssueAttachments,
   useIssueRunUsage,
+  useResolveCommentThread,
   useRetryRun,
   useRuns,
+  useUnresolveCommentThread,
   useUpdateIssue,
   useUploadAttachment,
 } from '@/lib/api';
@@ -257,6 +259,8 @@ export function IssueDetail({
       : null,
   );
   const { data: comments, isLoading: cl } = useComments(id);
+  const resolveCommentThread = useResolveCommentThread(id);
+  const unresolveCommentThread = useUnresolveCommentThread(id);
   const { data: activities = [] } = useActivities(id);
   // 运行摘要、状态栏与历史必须消费同一份 query state；错误不能被任何子区块降为 []。
   const {
@@ -306,7 +310,13 @@ export function IssueDetail({
   const [activityTab, setActivityTab] = useState<
     'storyline' | 'comments' | 'activity'
   >('storyline');
+  // 回复对象只供评论 Tab 底部的 Composer 消费；故事线 Composer 始终新建根评论。
+  const [replyTarget, setReplyTarget] = useState<Comment | null>(null);
   const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setReplyTarget(null);
+  }, [id]);
 
   useEffect(() => {
     if (isSheet) {
@@ -678,13 +688,48 @@ export function IssueDetail({
                 </>
               ) : activityTab === 'comments' ? (
                 <>
-                  <Timeline items={comments ?? []} hideHeader />
+                  <Timeline
+                    items={comments ?? []}
+                    hideHeader
+                    onReply={setReplyTarget}
+                    onResolveThread={(rootCommentId) =>
+                      resolveCommentThread.mutate(rootCommentId)
+                    }
+                    onUnresolveThread={(rootCommentId) =>
+                      unresolveCommentThread.mutate(rootCommentId)
+                    }
+                    resolvingRootId={
+                      resolveCommentThread.isPending
+                        ? (resolveCommentThread.variables ?? null)
+                        : null
+                    }
+                    unresolvingRootId={
+                      unresolveCommentThread.isPending
+                        ? (unresolveCommentThread.variables ?? null)
+                        : null
+                    }
+                  />
                   <div
                     className="issue-reply-zone"
                     data-testid={replyZoneTestId ?? 'issue-reply-zone'}
                   >
-                    <div className="issue-reply-zone-label text-dim text-sm">读后即回</div>
-                    <CommentComposer issueId={id} />
+                    <div className="issue-reply-zone-label text-dim text-sm">
+                      {replyTarget ? '回复评论' : '读后即回'}
+                    </div>
+                    <CommentComposer
+                      issueId={id}
+                      parentCommentId={replyTarget?.id ?? null}
+                      replyTo={
+                        replyTarget
+                          ? {
+                              id: replyTarget.id,
+                              authorLabel: replyTarget.authorLabel,
+                            }
+                          : null
+                      }
+                      onCancelReply={() => setReplyTarget(null)}
+                      onReplySuccess={() => setReplyTarget(null)}
+                    />
                   </div>
                 </>
               ) : (

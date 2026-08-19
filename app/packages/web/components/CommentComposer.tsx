@@ -29,12 +29,39 @@ import {
   validateImageDataUrl,
 } from '@/lib/comment-attachments';
 
-export function CommentComposer({ issueId }: { issueId: string }) {
+export type CommentComposerReplyTarget = {
+  id: string;
+  authorLabel: string;
+};
+
+export type CommentComposerProps = {
+  issueId: string;
+  /** 缺省为根评论；存在时 POST 到既有的一层回复契约。 */
+  parentCommentId?: string | null;
+  /** 仅回复模式展示，避免用户误把内容发到根评论。 */
+  replyTo?: CommentComposerReplyTarget | null;
+  onCancelReply?: () => void;
+  onReplySuccess?: () => void;
+};
+
+export function CommentComposer({
+  issueId,
+  parentCommentId = null,
+  replyTo = null,
+  onCancelReply,
+  onReplySuccess,
+}: CommentComposerProps) {
+  const isReply = Boolean(parentCommentId);
+  const composerDraftKey = issueId
+    ? parentCommentId
+      ? draftKey.commentReply(issueId, parentCommentId)
+      : draftKey.comment(issueId)
+    : null;
   const {
     value: body,
     setValue: setBody,
     clear: clearDraftBody,
-  } = usePersistentDraft(issueId ? draftKey.comment(issueId) : null);
+  } = usePersistentDraft(composerDraftKey);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [mentionQ, setMentionQ] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -57,6 +84,16 @@ export function CommentComposer({ issueId }: { issueId: string }) {
   const { data: squads = [] } = useSquads();
   const create = useCreateComment(issueId);
   const upload = useUploadAttachment(issueId);
+
+  // 切换根评论/Issue 时，附件等临时态不能带到另一个 thread；草稿由 key 自行恢复。
+  useEffect(() => {
+    setMode('edit');
+    setMentionQ(null);
+    setAttachError(null);
+    pendingRef.current = [];
+    setPendingIds([]);
+    setPendingMeta({});
+  }, [composerDraftKey]);
 
   // 整理可选的 Agent 和 Squad 槽位
   const roster = useMemo(
@@ -285,6 +322,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
     create.mutate(
       {
         body: t,
+        ...(parentCommentId ? { parentCommentId } : {}),
         ...(attachmentIds.length > 0 ? { attachmentIds: [...attachmentIds] } : {}),
       },
       {
@@ -293,6 +331,7 @@ export function CommentComposer({ issueId }: { issueId: string }) {
           setMode('edit');
           setAttachError(null);
           clearPending();
+          onReplySuccess?.();
         },
       }
     );
@@ -345,6 +384,21 @@ export function CommentComposer({ issueId }: { issueId: string }) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {isReply ? (
+        <div className="composer-reply-context" data-testid="composer-reply-target">
+          <span>
+            回复 <strong>@{replyTo?.authorLabel ?? '该评论'}</strong>
+          </span>
+          <button
+            type="button"
+            className="composer-reply-cancel"
+            onClick={onCancelReply}
+            data-testid="composer-reply-cancel"
+          >
+            取消回复
+          </button>
+        </div>
+      ) : null}
       {/* W1 · 受控隐藏 file input（不再 document.createElement） */}
       <input
         ref={fileInputRef}
@@ -629,7 +683,13 @@ export function CommentComposer({ issueId }: { issueId: string }) {
             disabled={create.isPending || upload.isPending || !body.trim()}
             data-testid="comment-submit-btn"
           >
-            {create.isPending ? '发送中…' : upload.isPending ? '上传中…' : '发送评论'}
+            {create.isPending
+              ? '发送中…'
+              : upload.isPending
+                ? '上传中…'
+                : isReply
+                  ? '发送回复'
+                  : '发送评论'}
           </button>
         </div>
       </div>

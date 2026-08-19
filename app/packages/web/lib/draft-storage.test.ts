@@ -11,6 +11,9 @@ import {
 describe('draftKey', () => {
   it('builds stable localStorage keys', () => {
     expect(draftKey.comment('iss-1')).toBe('ma-draft:comment:iss-1');
+    expect(draftKey.commentReply('iss-1', 'comment-9')).toBe(
+      'ma-draft:comment-reply:iss-1:comment-9',
+    );
     expect(draftKey.chat('th-9')).toBe('ma-draft:chat:th-9');
     expect(draftKey.newIssue).toBe('ma-draft:new-issue');
   });

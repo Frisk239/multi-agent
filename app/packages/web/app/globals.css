@@ -3038,6 +3038,78 @@ html.dark .btn-ghost:hover {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
+/* 评论 Tab 的一层 thread：不复用 Storyline 的全局排序，只在这里缩进回复。 */
+.timeline-thread {
+  margin-bottom: var(--space-3);
+}
+
+.timeline-thread-replies {
+  margin: 0 0 var(--space-2) var(--space-4);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.timeline-item--reply {
+  border-left-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+
+.timeline-item--resolution {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.timeline-badge--resolution {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.timeline-item-actions,
+.timeline-thread-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.timeline-item-actions {
+  margin-top: var(--space-2);
+}
+
+.timeline-thread-action,
+.timeline-thread-toggle {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.timeline-thread-toggle {
+  margin: 0 0 var(--space-2) var(--space-4);
+}
+
+.timeline-thread-action:hover:not(:disabled),
+.timeline-thread-toggle:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.timeline-thread-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.timeline-thread-action:focus-visible,
+.timeline-thread-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .timeline-meta {
   display: flex;
   gap: var(--space-2);
@@ -12547,6 +12619,34 @@ a.issue-card-run-fail--link:hover {
 .composer-card:focus-within {
   border-color: var(--accent, #3b82f6);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3b82f6) 20%, transparent);
+}
+
+.composer-reply-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 7px 10px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 8%, var(--bg-hover, #f3f4f6));
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.composer-reply-cancel {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.composer-reply-cancel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .composer-toolbar {
