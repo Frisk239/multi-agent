@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { classifyRunFailure } from '@ma/shared';
+import { classifyRunFailure, type AgentRun } from '@ma/shared';
 import {
-  useRuns,
   useCancelRun,
   useRerunIssue,
   useRetryRun,
@@ -13,6 +12,7 @@ import {
 import { useRunProgressStore } from '@/lib/ws';
 import { waitingElapsedLabel } from '@/lib/waiting-elapsed';
 import { MarkdownBody } from './MarkdownBody';
+import { ErrorState } from './ErrorState';
 
 /**
  * Issue 详情 · 当前/最近一次 run 状态。
@@ -20,12 +20,23 @@ import { MarkdownBody } from './MarkdownBody';
  */
 export function RunStatusBar({
   issueId,
+  runs,
+  runsIsLoading = false,
+  runsIsError = false,
+  runsError,
+  onRetryRuns,
   onOpenTimeline,
 }: {
   issueId: string;
+  /** Query state belongs to IssueDetail so summary/history/status cannot disagree. */
+  runs: AgentRun[];
+  runsIsLoading?: boolean;
+  runsIsError?: boolean;
+  runsError?: unknown;
+  /** Retry only reloads the existing runs query; it never creates a run. */
+  onRetryRuns?: () => void;
   onOpenTimeline?: (runId: string) => void;
 }) {
-  const { data: runs = [] } = useRuns(issueId);
   const cancel = useCancelRun();
   const rerunIssue = useRerunIssue(issueId);
   const retryRun = useRetryRun();
@@ -46,6 +57,30 @@ export function RunStatusBar({
   const { data: squad, isLoading: squadLoading } = useSquad(
     showBriefing && active?.squadId ? active.squadId : '',
   );
+
+  if (runsIsError) {
+    return (
+      <div className="run-status-query-error" data-testid="run-status-error">
+        <ErrorState
+          title="运行状态暂不可用"
+          description={
+            runsError instanceof Error && runsError.message
+              ? runsError.message
+              : '暂时无法加载此 Issue 的运行记录，请重试。'
+          }
+          onRetry={onRetryRuns}
+        />
+      </div>
+    );
+  }
+
+  if (runsIsLoading) {
+    return (
+      <p className="run-status-hint" data-testid="run-status-loading">
+        正在加载运行状态…
+      </p>
+    );
+  }
 
   if (!active) {
     return (

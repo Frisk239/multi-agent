@@ -58,6 +58,20 @@ const attachments = [
 
 const uploadMutateAsync = vi.fn();
 const retryMutate = vi.fn();
+const refetchRuns = vi.fn();
+let runsState: {
+  data: typeof runs;
+  isLoading?: boolean;
+  isError?: boolean;
+  error?: Error | null;
+  refetch?: typeof refetchRuns;
+} = {
+  data: runs,
+  isLoading: false,
+  isError: false,
+  error: null,
+  refetch: refetchRuns,
+};
 
 vi.mock('@/lib/api', () => ({
   useIssue: () => ({ data: issue, isLoading: false, error: null }),
@@ -78,7 +92,7 @@ vi.mock('@/lib/api', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
-  useRuns: () => ({ data: runs }),
+  useRuns: () => runsState,
   useIssueRunUsage: (id: string) =>
     id
       ? {
@@ -225,6 +239,14 @@ describe('IssueDetail variant', () => {
     uploadMutateAsync.mockReset();
     uploadMutateAsync.mockResolvedValue({ id: 'att-new', originalName: '新文件.txt' });
     retryMutate.mockReset();
+    refetchRuns.mockReset();
+    runsState = {
+      data: runs,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: refetchRuns,
+    };
   });
   afterEach(() => {
     cleanup();
@@ -301,6 +323,19 @@ describe('IssueDetail variant', () => {
         { id: 'wait', status: 'waiting_local_directory' },
       ]),
     ).toBe('wait');
+  });
+
+  it('labels a failed runs query truthfully instead of 尚未执行', () => {
+    runsState = {
+      data: [],
+      isLoading: false,
+      isError: true,
+      error: new Error('runs 500'),
+      refetch: refetchRuns,
+    };
+    render(<IssueDetail id="iss-1" />);
+    expect(screen.getByTestId('issue-exec-summary')).toHaveTextContent('运行状态暂不可用');
+    expect(screen.getByTestId('issue-exec-summary')).not.toHaveTextContent('尚未执行');
   });
 });
 

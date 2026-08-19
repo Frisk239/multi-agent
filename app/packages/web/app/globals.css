@@ -2574,6 +2574,10 @@ html.dark .btn-ghost:hover {
   margin: var(--space-2) 0;
 }
 
+.run-status-query-error {
+  margin: var(--space-2) 0;
+}
+
 .run-status-bar {
   display: flex;
   align-items: center;

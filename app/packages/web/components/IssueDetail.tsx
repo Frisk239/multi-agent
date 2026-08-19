@@ -258,7 +258,14 @@ export function IssueDetail({
   );
   const { data: comments, isLoading: cl } = useComments(id);
   const { data: activities = [] } = useActivities(id);
-  const { data: runs = [] } = useRuns(id, { refetchActive: true });
+  // 运行摘要、状态栏与历史必须消费同一份 query state；错误不能被任何子区块降为 []。
+  const {
+    data: runs = [],
+    isLoading: runsLoading = false,
+    isError: runsIsError = false,
+    error: runsError,
+    refetch: refetchRuns,
+  } = useRuns(id, { refetchActive: true });
   const { data: usage } = useIssueRunUsage(isSheet ? '' : id);
   // W1：附件区（issue 级清单，评论上传的附件同样在此可见/可删）
   const { data: attachments = [], isLoading: attachmentsLoading } =
@@ -811,7 +818,11 @@ export function IssueDetail({
                     {isSheet ? '最近运行' : '运行'}
                   </span>
                   <span className="text-dim text-sm" data-testid="issue-exec-summary">
-                    {historyCount > 0
+                    {runsIsError
+                      ? '运行状态暂不可用'
+                      : runsLoading
+                        ? '加载中…'
+                        : historyCount > 0
                       ? live
                         ? `进行中 · ${historyCount}`
                         : selectedRun?.status === 'failed'
@@ -842,6 +853,13 @@ export function IssueDetail({
                 <div className="issue-exec-body" data-testid="issue-exec-body">
                   <RunStatusBar
                     issueId={id}
+                    runs={runs}
+                    runsIsLoading={runsLoading}
+                    runsIsError={runsIsError}
+                    runsError={runsError}
+                    onRetryRuns={() => {
+                      void refetchRuns();
+                    }}
                     onOpenTimeline={
                       isSheet
                         ? undefined
