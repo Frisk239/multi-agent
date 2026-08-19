@@ -215,7 +215,9 @@ describe('scanner 目录 walk', () => {
     scanSkills();
     const idx = getSkillIndex();
     expect(idx.has('with-refs')).toBe(true);
-    expect([...idx.keys()].filter((k) => k !== 'with-refs' && k !== 'ma-mentioning' && k !== 'ma-squads' && k !== 'ma-working-on-issues')).toEqual([]);
+    expect(
+      [...idx.keys()].filter((k) => k !== 'with-refs' && !k.startsWith('ma-')),
+    ).toEqual([]);
   });
 });
 

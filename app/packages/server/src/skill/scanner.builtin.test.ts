@@ -1,6 +1,6 @@
 /**
  * W6 · builtin 内置自省 skill 索引测试。
- * 验证：scanSkills 收录 src/skill/builtin/ 下 3 个 ma-* skill（source=builtin）、
+ * 验证：scanSkills 收录 src/skill/builtin/ 下 ma-* skill（source=builtin）、
  * 用户级同名 skill 可覆盖内置、refresh 后索引可恢复。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,12 +53,20 @@ describe('W6 builtin skills', () => {
     state.homes = [];
   });
 
-  it('scanSkills indexes the 3 ma-* builtin skills with source=builtin', () => {
+  it('scanSkills indexes ma-* builtin skills with source=builtin', () => {
     scanSkills();
     const idx = getSkillIndex();
     const builtins = [...idx.values()].filter((s) => s.source === 'builtin');
     const names = builtins.map((s) => s.name).sort();
-    expect(names).toEqual(['ma-mentioning', 'ma-squads', 'ma-working-on-issues']);
+    expect(names).toEqual([
+      'ma-closeout',
+      'ma-code-review',
+      'ma-mentioning',
+      'ma-planning',
+      'ma-squads',
+      'ma-testing',
+      'ma-working-on-issues',
+    ]);
     for (const s of builtins) {
       expect(s.description.length).toBeGreaterThan(10);
       expect(s.body.length).toBeGreaterThan(100);
