@@ -21,6 +21,7 @@ import { ErrorState } from './ErrorState';
 import { EmptyState } from './EmptyState';
 import { AgentBuilderWizard } from './AgentBuilderWizard';
 import { Select } from './Select';
+import { useListAnchor } from '@/lib/use-list-anchor';
 
 const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
 
@@ -172,6 +173,23 @@ function AgentsPageInner() {
       return true;
     });
   }, [data, qFromUrl, runtimeFilter, readyFromUrl, readinessMap]);
+
+  const visibleIds = useMemo(() => visible.map((a) => a.id), [visible]);
+  const listFilters = useMemo(
+    () => ({
+      scope,
+      q: qFromUrl,
+      runtime: runtimeFilter,
+      ready: readyFromUrl,
+    }),
+    [scope, qFromUrl, runtimeFilter, readyFromUrl],
+  );
+  const { restoredId, remember } = useListAnchor({
+    page: 'agents',
+    filters: listFilters,
+    itemIds: visibleIds,
+    attr: 'data-agent-id',
+  });
 
   function handleArchive(id: string, label: string) {
     void (async () => {
@@ -520,12 +538,20 @@ function AgentsPageInner() {
                 </td>
               </tr>
             ) : (
-              visible.map((ag) => {
+              visible.map((ag, rowIndex) => {
                 const rd = readinessMap[ag.id];
                 return (
-                  <tr key={ag.id} data-agent-id={ag.id}>
+                  <tr
+                    key={ag.id}
+                    data-agent-id={ag.id}
+                    data-restored={restoredId === ag.id ? '1' : '0'}
+                  >
                     <td>
-                      <Link href={`/agents/${ag.id}`} className="agent-cell">
+                      <Link
+                        href={`/agents/${ag.id}`}
+                        className="agent-cell"
+                        onClick={() => remember(ag.id, rowIndex)}
+                      >
                         <span className="agent-icon-sm">
                           <Icon name="agent" size={14} />
                         </span>
