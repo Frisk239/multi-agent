@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, type SQL } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { agentRuns } from '../db/schema.js';
 
@@ -24,15 +24,18 @@ export type TransitionRunResult = {
 };
 
 /**
- * 条件状态转移：WHERE id + status IN fromStatuses，以 changes 判定是否生效。
+ * 条件状态转移：WHERE id + status IN fromStatuses（可附加原子 DB 守卫），
+ * 以 changes 判定是否生效。
  * changes===0 → applied=false，调用方禁止伪成功副作用（事件/inbox/abort 等）。
  */
 export function transitionRun(args: {
   id: string;
   fromStatuses: readonly string[];
   patch: RunTransitionPatch;
+  /** Claim 等路径附加的 DB 条件；必须与状态 CAS 同一 UPDATE 执行。 */
+  additionalGuard?: SQL | null;
 }): TransitionRunResult {
-  const { id, fromStatuses, patch } = args;
+  const { id, fromStatuses, patch, additionalGuard } = args;
   if (fromStatuses.length === 0) return { applied: false };
 
   const result = db
@@ -42,6 +45,7 @@ export function transitionRun(args: {
       and(
         eq(agentRuns.id, id),
         inArray(agentRuns.status, [...fromStatuses] as RunStatus[]),
+        ...(additionalGuard ? [additionalGuard] : []),
       ),
     )
     .run();

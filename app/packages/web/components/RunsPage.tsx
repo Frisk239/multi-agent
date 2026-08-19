@@ -817,7 +817,20 @@ function RunsPageInner() {
                                 </span>
                               </>
                             ) : null}
-                            {r.pathWaitReason === 'path_busy' && r.pathBlockedByRunId ? (
+                            {r.pathWaitReason === 'same_issue_busy' && r.pathBlockedByRunId ? (
+                              <>
+                                {' · '}
+                                <Link
+                                  href={`/runs/${r.pathBlockedByRunId}`}
+                                  className="runs-path-wait"
+                                  data-testid="runs-row-same-issue-wait"
+                                  title="同一 Agent 正在处理这个 Issue 的前一轮，跟进会在结束后自动开工"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  等当前 Issue · {shortId(r.pathBlockedByRunId)}
+                                </Link>
+                              </>
+                            ) : r.pathWaitReason === 'path_busy' && r.pathBlockedByRunId ? (
                               <>
                                 {' · '}
                                 <Link

@@ -157,8 +157,9 @@ export const AgentRun = z.object({
     .optional(),
   // B2：QC 等无 issue 时绑定的 project（cwd / 建卡继承）
   projectId: BusinessId.nullable().optional(),
-  // C1：同 project_local 目录串行（API 计算，非独立状态机）
-  pathWaitReason: z.enum(['path_busy']).nullable().optional(),
+  // C1 + follow-up serial claim：读取投影的等待原因（不新增持久状态）。
+  // 字段名为兼容既有 path-lock API 保留；same_issue_busy 不是目录锁。
+  pathWaitReason: z.enum(['path_busy', 'same_issue_busy']).nullable().optional(),
   pathBlockedByRunId: BusinessId.nullable().optional(),
   /** running + project_local 时 true：正在占用本机目录 */
   pathHolding: z.boolean().optional(),

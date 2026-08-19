@@ -15,6 +15,7 @@ import {
   resolveRunCwd,
 } from '../runtime/resolve-run-cwd.js';
 import type { AgentRun } from '@ma/shared';
+import { attachSameIssueClaimWait } from './followup-serial-claim.js';
 
 export type PathHolder = {
   id: string;
@@ -260,7 +261,11 @@ export function enrichRunRowWithPathLock(
       };
     }
   }
-  return attachPathLockFields(run);
+  // The same Issue + Agent follow-up guard is not a path lock, but it uses
+  // this established read-model shape so list/detail consumers get a holder
+  // link without inventing a persisted wait state. It intentionally wins over
+  // a path preview: serial claim is the reason this run must stay queued.
+  return attachSameIssueClaimWait(row, attachPathLockFields(run));
 }
 
 /** 自检 / 脚本：解析 + 占锁探测 */

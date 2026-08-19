@@ -47,6 +47,10 @@ import {
   stampProjectLocalCwdPreview,
 } from './path-lock.js';
 import {
+  findSameIssueClaimHolder,
+  sameIssueClaimGuard,
+} from './followup-serial-claim.js';
+import {
   clearToolInflight,
   noteToolEnd,
   noteToolStart,
@@ -158,6 +162,11 @@ export async function tick(): Promise<void> {
       .get();
     if ((activeCount?.cnt ?? 0) >= agent.concurrency) continue; // 该 agent 槽满，跳过
 
+    // Follow-up serial claim: Agent 并发额度大于 1 时，同一 Issue 的下一轮
+    // 仍须等待当前轮。先在读路径短路，避免它被 path gate 误标成「等目录」；
+    // 真正的并发安全仍由下方同一 UPDATE 内的 NOT EXISTS 守卫保证。
+    if (findSameIssueClaimHolder(queued)) continue;
+
     // C1 path 闸：真仓被占用则跳过 claim，显式标记 waiting_local_directory 状态
     const pathGate = shouldDeferClaimForPath(queued, claimedPathKeys);
     if (pathGate.defer) {
@@ -169,6 +178,9 @@ export async function tick(): Promise<void> {
         const waitTr = transitionRun({
           id: queued.id,
           fromStatuses: ['queued'],
+          // 若另一个 tick 恰在 path 探测后 claim 了同 scope 的前一轮，
+          // 保持 queued，让 serial wait 的读取投影如实说明原因。
+          additionalGuard: sameIssueClaimGuard(queued),
           patch: {
             status: 'waiting_local_directory',
             lastHeartbeatAt: now,
@@ -181,6 +193,8 @@ export async function tick(): Promise<void> {
         if (waitTr.applied && waitTr.row) {
           const run = enrichRunRowWithPathLock(waitTr.row, toObservedAgentRun(waitTr.row));
           eventBus.publish({ type: 'run:waiting_local_directory', run });
+        } else {
+          continue;
         }
       }
 
@@ -210,6 +224,9 @@ export async function tick(): Promise<void> {
     const claimTr = transitionRun({
       id: queued.id,
       fromStatuses: CLAIMABLE_RUN_STATUSES,
+      // DB 行即锁：不依赖上述读检查或 Node 内存时序。不同 agent / Issue
+      // 不会命中此谓词，只有同 agent + same issue + issue kind 才串行。
+      additionalGuard: sameIssueClaimGuard(queued),
       patch: {
         status: 'running',
         startedAt: now,

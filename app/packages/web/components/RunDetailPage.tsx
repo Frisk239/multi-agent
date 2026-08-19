@@ -992,6 +992,16 @@ export function RunDetailPage({ runId }: { runId: string }) {
           </div>
         ) : null}
 
+        {run.pathWaitReason === 'same_issue_busy' && run.pathBlockedByRunId ? (
+          <p className="run-path-lock-note" data-testid="run-same-issue-wait">
+            等待当前同 Issue run ·{' '}
+            <Link href={`/runs/${run.pathBlockedByRunId}`}>
+              {shortId(run.pathBlockedByRunId)}
+            </Link>
+            （结束后自动开工，不会与同一 Agent 的前一轮并发）
+          </p>
+        ) : null}
+
         {run.cwdMode || run.cwdPath ? (
           <div
             className="run-detail-cwd"

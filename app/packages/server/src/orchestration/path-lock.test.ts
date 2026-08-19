@@ -28,6 +28,9 @@ vi.mock('../db/schema.js', () => ({
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(),
+  // followup-serial-claim 复用 path-lock 的读投影；本文件不执行它的查询，
+  // 但模块初始化会构造 SQL 常量，因此 mock 需提供 tag。
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
 }));
 
 vi.mock('../runtime/resolve-run-cwd.js', () => ({

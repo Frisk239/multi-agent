@@ -17,6 +17,7 @@ import {
   chatMessages,
   chatThreads,
   comments,
+  issues,
   runMessages,
   workspaces,
 } from '../db/schema.js';
@@ -146,6 +147,8 @@ vi.mock('../process-health.js', () => ({
 }));
 
 import { tick } from './run-worker.js';
+import { transitionRun } from './run-transitions.js';
+import { sameIssueClaimGuard } from './followup-serial-claim.js';
 
 function insertQueuedRun(id: string, agentId = 'agt-test-1', priority = 'none'): void {
   const now = Date.now();
@@ -255,6 +258,132 @@ describe('W5 run-worker fault injection', () => {
     await tick();
     await flush();
     expect(runRow('run-followup').status).toBe('completed');
+  });
+
+  it('follow-up serial claim: concurrency=2 时同 Agent × Issue 保持 queued、API 说明等待，前一轮终态后接续', async () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-followup-holder',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'running',
+        kind: 'issue',
+        startedAt: now - 1_000,
+        lastHeartbeatAt: now,
+        createdAt: now - 1_000,
+      })
+      .run();
+    insertQueuedRun('run-followup-blocked');
+
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+
+    // 读取快路径与 claim-time CAS 都不能让 follow-up 越过 holder。
+    await tick();
+    await flush();
+    expect(executeCalls).toBe(0);
+    expect(runRow('run-followup-blocked').status).toBe('queued');
+
+    const blocked = state.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.id, 'run-followup-blocked'))
+      .get()!;
+    const blockedClaim = transitionRun({
+      id: blocked.id,
+      fromStatuses: ['queued'],
+      additionalGuard: sameIssueClaimGuard(blocked),
+      patch: { status: 'running', startedAt: now },
+    });
+    expect(blockedClaim.applied).toBe(false); // DB guard，而非仅 worker 的读检查
+
+    const { buildApp } = await import('../app.js');
+    const app = await buildApp();
+    try {
+      const reply = await app.inject({ method: 'GET', url: '/api/runs/run-followup-blocked' });
+      expect(reply.statusCode).toBe(200);
+      expect(reply.json()).toMatchObject({
+        pathWaitReason: 'same_issue_busy',
+        pathBlockedByRunId: 'run-followup-holder',
+      });
+    } finally {
+      await app.close();
+    }
+
+    state.db!
+      .update(agentRuns)
+      .set({ status: 'completed', finishedAt: Date.now() })
+      .where(eq(agentRuns.id, 'run-followup-holder'))
+      .run();
+    await tick();
+    await vi.waitFor(() => {
+      expect(executeCalls).toBe(1);
+      expect(runRow('run-followup-blocked').status).toBe('completed');
+    });
+  });
+
+  it('follow-up serial claim: 不误串行不同 Agent 或同 Agent 的另一 Issue', async () => {
+    const now = Date.now();
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-scope-holder',
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'running',
+        kind: 'issue',
+        startedAt: now - 1_000,
+        lastHeartbeatAt: now,
+        createdAt: now - 1_000,
+      })
+      .run();
+    state.db!.insert(issues)
+      .values({
+        id: 'iss-test-2',
+        workspaceId: 'ws-local',
+        identifier: 'FRI-2',
+        title: 'Test Issue 2',
+        status: 'todo',
+        priority: 'none',
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        creatorType: 'member',
+        creatorId: 'user-linyuan',
+        position: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    insertQueuedRun('run-other-agent', 'agt-test-2');
+    state.db!.insert(agentRuns)
+      .values({
+        id: 'run-other-issue',
+        issueId: 'iss-test-2',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'queued',
+        kind: 'issue',
+        priority: 'none',
+        createdAt: now,
+      })
+      .run();
+
+    const executed: string[] = [];
+    state.executeImpl = async (input) => {
+      executed.push((input as { runId: string }).runId);
+      return { finalText: 'ok', exitReason: 'completed' };
+    };
+    await tick();
+    await vi.waitFor(() => {
+      expect(executed).toEqual(expect.arrayContaining(['run-other-agent', 'run-other-issue']));
+      expect(runRow('run-other-agent').status).toBe('completed');
+      expect(runRow('run-other-issue').status).toBe('completed');
+    });
   });
 
   it('G6-1 priority claim: urgent run is claimed before an earlier low-priority run', async () => {
