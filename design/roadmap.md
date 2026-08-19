@@ -65,6 +65,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G2-3 | **子代理成本汇总进父 run**（学 hermes delegate_tool.py:2730：子 run USD 折入父节点，嵌套树自然汇总） | 中 | 小 | — | ✅ |
 | G2-4 | **读投影残留清理**（WS 内部/quick-run 裸 shape → 统一 `toObservedAgentRun`，一处投影处处一致） | 中 | 小 | — | ✅ |
 | G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md)：workspace max_concurrent_runs，拦 claim 不拦 enqueue，排队不算在途） |
+| G2-6 | **Automation schedule catch-up truth**（schedule source 锚点、24h latest-only、5 分钟过窗 skipped 审计；不回放旧任务） | 高 | 中 | G2-2、G6-2 | ✅（2026-08-19，[closeout](app/.progress/automation-schedule-catchup-truth-impl-1.md)） |
+| G2-7 | **Automation 规则归档保留历史**（DELETE 归档并停未来派发，保留 AutomationRun/Issue/Run 证据） | 高 | 中 | G2-6 | 🔜（2026-08-19 调研，[discovery](app/.progress/automation-next-gap-discovery-2026-08-19.md)） |
 
 ### G3 前端体验 — 少摩擦、可发现
 
@@ -89,6 +91,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-12 | **Agents roster 当前任务可行动化**（批量 active Issue 投影；单条直达 Run，多条直达筛选列表；chat 不伪装 Issue） | 高 | 小 | 既有 run/Issue 读模型 | ✅（2026-08-19，[closeout](app/.progress/agent-active-task-peek-impl-1.md)） |
 | G3-13 | **Agent 详情直达派活**（“分配工作”预填 New Issue；保留独立“查看已指派 Issue”；复用 readiness/preflight 与 enqueue） | 高 | 小 | G3-12 + 既有 NewIssueForm | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)） |
 | G3-14 | **Automation Run Now 结果真实性**（HTTP 201 与领域成功分离；warning/repair/最近执行保留） | 高 | 小 | G2-2 + 既有 AutomationRun | ✅（2026-08-19，[closeout](app/.progress/automation-run-now-truth-impl-1.md)） |
+| G3-15 | **Automation 连续跳过一键钻取**（20 条窗口内的 skipped 告警直达原因组；不误报完整总数） | 中 | 小·中 | G6-7、G2-6 | 候选（2026-08-19 调研） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -210,6 +213,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 26 | **Agents roster 当前任务可行动化** | G3 | ✅（2026-08-19，[closeout](app/.progress/agent-active-task-peek-impl-1.md)：bulk currentIssueRun、单 run Run detail、多 run active 筛选、真实 Playwright） |
 | 27 | **Agent 详情直达派活** | G3 | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)：URL 创建意图、有效 Agent 预填、既有 readiness/preflight+enqueue、真实 Playwright） |
 | 28 | **Automation Run Now 结果真实性** | G3 | ✅（2026-08-19，[closeout](app/.progress/automation-run-now-truth-impl-1.md)：严格领域结果分类、warning、非成功自动展开、真实 runtime-missing Playwright） |
+| 29 | **Automation schedule catch-up truth** | G2 | ✅（2026-08-19，[closeout](app/.progress/automation-schedule-catchup-truth-impl-1.md)：24h latest-only、5 分钟过窗 skipped 审计、真实 worker + Playwright） |
+| 30 | **Automation 规则归档保留历史** | G2 | 🔜（删除不再级联抹掉执行证据；已调研，下一刀） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
