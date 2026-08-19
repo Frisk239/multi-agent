@@ -84,6 +84,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-7 | **二阶体验池**（F8 CmdK polish / F13 列表 scroll restoration / F9 失败恢复 CTA 统一层级 / F7 指派可搜 combobox / F12 页面模式一致性） | 低·中 | 小·中 | — | 🔨（第四波已落 CmdK 高亮 + 失败卡一键重试；余项池内多已存在：拼音/scroll restoration/指派搜索——待按痛点续取） |
 | G3-8 | **Runs Mission Control 任务语义 + 定位**（Issue/会话标题、有效项目、服务端 q/project 与 URL 锚点） | 高 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)） |
 | G3-9 | **Issue run 区块真实性**（runs 请求失败显示局部错误 + retry，不能伪装为空态） | 高 | 小 | — | ✅（2026-08-19，[closeout](app/.progress/issue-runs-truthful-error-impl-1.md)） |
+| G3-10 | **Chat 标题与安全删除**（行内改名；仅归档后可删；有任何 run 时保留历史） | 中 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -198,6 +199,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 20 | **G8-6 加厚 + comment follow-up** | G8 | ✅（2026-08-19：[G8-6](app/.progress/g8-6-board-live-transcript-impl-1.md) · [enqueue](app/.progress/comment-followup-queue-impl-1.md) · [claim 串行](app/.progress/followup-serial-claim-impl-1.md)） |
 | 21 | **Runs Mission Control 任务语义 + 定位** | G3 | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)：服务端 subject / q / projectId + URL 搜索筛选 + 真实 Playwright） |
 | 22 | **Issue run 区块真实性** | G3 | ✅（2026-08-19，[closeout](app/.progress/issue-runs-truthful-error-impl-1.md)：同一 runs query 下传；500 显示局部错误/retry，恢复后不新增 run） |
+| 23 | **Chat 标题与安全删除** | G3 | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)：行内改名；仅 archived 且 zero-run 可删；有运行记录 409 保留） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
