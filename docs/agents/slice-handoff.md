@@ -1,7 +1,7 @@
 # Slice 交接 — 关刀 · 验上一刀 · 开下一刀
 
-> 真源配套：`AGENTS.md` §工程模式 · [workflow.md](./workflow.md) · [merge.md](./merge.md)  
-> 合码由**人远程合并**；下一 Slice Owner **不负责** `git push origin main`。
+> 真源配套：`AGENTS.md` §工程模式 · [workflow.md](./workflow.md) · [merge.md](./merge.md) · [ADR 0007](../adr/0007-engineering-mode-after-hermes.md)  
+> 合码默认 **main 直推**（Owner 关刀后 `git push origin main`）。`feat/*` 仅高风险/并行。
 
 ## 两种交接
 
@@ -18,16 +18,15 @@
 
 在宣布「这刀做完、可以交给下一会话」前：
 
-1. **证据（硬）：** `pnpm typecheck` + **Playwright CLI 自测本刀 Must 路径**（默认 `http://localhost:3000` + API `localhost:3001`）写进 progress；浏览器不可用则 API smoke + 标明缺口  
+1. **证据（硬）：** `pnpm check` + **Playwright CLI 自测本刀 Must 路径**（默认 `http://localhost:3000` + API `localhost:3001`）写进 progress；浏览器不可用则 API smoke + 标明缺口  
 2. **偏离**：与 spec 不一致处写清（无则写「无」）  
-3. **未做 / 债**：刻意不做、已知坑、合并注意点  
-4. **push**：`feat/<slug>` 已在远程（或文档-only 已说明）  
-5. **关刀文档**（推荐路径之一，名称可带序号）：  
-   `app/.progress/<slug>-impl-*.md` 或 ticket `## Comments` + 可选 `/handoff`  
-6. **CONTEXT.md**：更新「下一刀」为待定或人已点名的主题（勿留过期刀名当已完成）  
-7. **（定期）Multica 对照：** 每 2～3 刀或人点名，短差距表驱动下一方向——见 [workflow.md](./workflow.md) 北星约束  
+3. **未做 / 债**：刻意不做、已知坑  
+4. **push**：默认已 `git push origin main`（或文档-only / `feat/*` 已说明）  
+5. **关刀文档：** `app/.progress/<slug>-impl-*.md`（须含 **git SHA + 跑过的命令 + 债**）  
+6. **CONTEXT.md**：更新方位；勿留过期刀名当已完成  
+7. **（定期）Multica 对照：** 每 2～3 刀或人点名，短差距表——见 [workflow.md](./workflow.md)  
 
-关刀文档至少让下一 Owner 能回答：合没合、**Playwright 测了啥**、差啥、别踩啥。
+关刀文档至少让下一 Owner 能回答：SHA 是啥、**测了啥**、差啥、别踩啥。
 
 ### 关刀文档建议结构
 
@@ -35,9 +34,9 @@
 # Closeout: <slug>
 
 ## 交付
-- 分支：feat/<slug> @ <sha>
-- Spec/票：.scratch/<slug>/…
-- 是否已请人远程合并：是/否
+- SHA：`<git sha>`
+- Spec/票：.scratch/<slug>/…（可选）
+- 已 push：main / feat/<slug> / 否
 
 ## 证据
 - typecheck
@@ -69,7 +68,7 @@
 
 ### 2. 验收上一刀（handoff-based intake）
 
-对照交接文档做 **轻量验收**，不是重做实现，也不是替代人远程合并：
+对照交接文档做 **轻量验收**，不是重做实现：
 
 | 检查 | 做法 |
 |---|---|

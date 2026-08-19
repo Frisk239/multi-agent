@@ -139,6 +139,9 @@ idea→ship 与本仓适配说明：[`docs/agents/workflow.md`](docs/agents/work
 > 工具层仍是 Matt skills（`/implement`、`/tdd`、`/code-review`、`/handoff`、`/research`…）；技能需显式调用或 `/ask-matt`。  
 > 决策记录：[docs/adr/0001-slice-owner-and-research-subagents.md](docs/adr/0001-slice-owner-and-research-subagents.md)
 
+**工程操作短文：** [docs/agents/engineering.md](docs/agents/engineering.md) · 合码真源 [merge.md](docs/agents/merge.md) · [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md)。  
+**Roadmap / Goal 不是工单**；一刀 = Must / Out / 可演示路径。关刀写 **SHA + 跑过的命令 + 债**。
+
 ### 核心方法：垂直切片 × Slice Owner × 子代理优先 × Matt skills
 
 | 维度 | 决定什么 | 落地 |

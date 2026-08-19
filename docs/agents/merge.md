@@ -1,7 +1,7 @@
 # 合码 — 默认 main 直推（简化）
 
-> 真源配套：`AGENTS.md` §工程模式 · [workflow.md](./workflow.md)  
-> 历史：[ADR 0002](../adr/0002-push-triggered-review-remote-merge.md)（**已被本简化覆盖**，仅作背景）
+> 合码**唯一真源**。配套：`AGENTS.md` · [workflow.md](./workflow.md) · [engineering.md](./engineering.md) · [ADR 0007](../adr/0007-engineering-mode-after-hermes.md)  
+> 历史：[ADR 0002](../adr/0002-push-triggered-review-remote-merge.md)（**Superseded**，正文「禁推 main」作废）
 
 ## 默认路径（2026-07-17 人授权）
 
@@ -19,10 +19,11 @@ Slice Owner 做绿（含 Playwright 自测）
 
 | 信号 | 要求 |
 |---|---|
-| `pnpm check` | 绿（= `pnpm typecheck` + 三包 vitest） |
-| e2e | 起服后 `cd app/packages/server && pnpm e2e --filter <涉及面>`（无服自动 SKIP，不假绿） |
-| Playwright CLI | 本刀 Must 路径（见 workflow 北星约束） |
-| progress | `app/.progress/<slug>-impl-*.md` |
+| `pnpm check` | 绿（= typecheck + 三包 vitest）。**CI 同名**（`.github/workflows/feat-branch-ci.yml`） |
+| 文档自检 | `node scripts/check-docs.mjs`（入口文件 + ADR Status + CI 命令冻结） |
+| e2e | 起服后 `cd app/packages/server && pnpm e2e --filter <涉及面>`（无服 **SKIP 不假绿**；**不进 CI**） |
+| Playwright CLI | 本刀 Must 路径（本机；**不进 CI**） |
+| progress | `app/.progress/<slug>-impl-*.md`（SHA + 命令 + 债） |
 
 ## 可选审查
 

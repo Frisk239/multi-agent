@@ -1,6 +1,6 @@
 # ADR 0002 — Push 触发审查，远程由人合并（不以开 PR 为流程中心）
 
-- **Status:** Superseded（2026-07-17 人授权：默认 main 直推，见 [merge.md](../agents/merge.md)）  
+- **Status:** Superseded（合码真源：[merge.md](../agents/merge.md)；工程模式：[ADR 0007](./0007-engineering-mode-after-hermes.md)。正文「禁止 push main」已作废。）  
 - **Date:** 2026-07-17  
 - **Deciders:** 人（产品/工程）   
 

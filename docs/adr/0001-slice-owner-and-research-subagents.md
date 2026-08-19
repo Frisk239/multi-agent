@@ -21,7 +21,7 @@
 2. **取消默认的计划者/执行者双角色**与「计划者禁止写业务代码」铁律。  
 3. **满血 grill 非默认：** 产品刀优先短对齐；grill-with-docs 留给领域/难逆决策。  
 4. **调研默认子代理：** 用户要求调研/对齐参考实现时，派子代理或 `/research` 读 `references/deep` 与 `references/repos`，Owner 只合并**短摘要 + 出处**；禁止为调研在 Owner 窗灌入大段上游源码。  
-5. **偏见隔离**改为：一切 `app/**` 经 **`feat/*` push → CI + code-review（分支 diff）→ 人远程合并**；**不以开 PR 为流程中心**（见 [ADR 0002](./0002-push-triggered-review-remote-merge.md)）。  
+5. **偏见隔离**改为：CI + 可选 `/code-review`（分支 diff）。**不以开 PR 为流程中心。** 合码真源已改为 [merge.md](../agents/merge.md)（main 直推）；本条原「feat → 人远程合并」被 [ADR 0007](./0007-engineering-mode-after-hermes.md) 覆盖。  
 6. 多会话拆分仅因 **切片厚度 / 窗口**，不因角色名。
 
 ## Consequences
@@ -40,7 +40,7 @@
 
 ### 不改变
 
-- 垂直切片、feature 分支、不写 main、先查参考再决策（阅读可外包）。  
+- 垂直切片、先查参考再决策（阅读可外包）。合码见 merge.md（默认可写/推 main；高风险才 `feat/*`）。  
 - 本地 `.scratch` 工单与 Matt skills 工具层。
 
 ## Alternatives considered

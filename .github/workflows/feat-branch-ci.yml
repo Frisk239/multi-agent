@@ -1,4 +1,4 @@
-# Push 触发：feat/* 与 main 上跑 monorepo typecheck（合码前自动信号）
+# Push 触发：main / feat/** 跑与关刀同名的 pnpm check + 文档自检
 name: branch-ci
 
 on:
@@ -12,8 +12,27 @@ concurrency:
   group: branch-ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  typecheck:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check docs + CI freeze
+        run: node scripts/check-docs.mjs
+      - name: Docs checker self-test
+        run: node --test scripts/check-docs.test.mjs
+
+  check:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,6 +40,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -37,9 +58,5 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm -r typecheck
-
-      - name: Test
-        # 942+ vitest 用例（shared 94 + server 593 + web 345）；串行 3 包
-        run: pnpm test
+      - name: Check
+        run: pnpm check

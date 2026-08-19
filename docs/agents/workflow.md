@@ -4,7 +4,7 @@
 > **默认编排（2026-07-17 人授权自动迭代）：**  
 > Slice Owner **可自行** intake → **（子代理）探索/调研** → **选定下一刀** → **（子代理）implement** → Owner 路径验收 → **Playwright** → **commit/push main**。  
 > **长程默认：** 探索 + 实现 **优先子代理**（`/slice-owner` → `references/subagents.md`）。  
-> 交接：[slice-handoff.md](./slice-handoff.md) · 合码：[merge.md](./merge.md) · ADR 0001。
+> 交接：[slice-handoff.md](./slice-handoff.md) · 合码：[merge.md](./merge.md) · 短模型：[engineering.md](./engineering.md) · [ADR 0007](../adr/0007-engineering-mode-after-hermes.md)。
 
 ## 模型
 
@@ -69,7 +69,7 @@ Slice Owner：从 roadmap §4 队列取刀 → 自动迭代（下方模型）→
 ```
 
 - **取刀：** 默认按 §4 建议顺序；也可按当前痛点取 §3 池中刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。
-- **回写：** 每刀关刀后更新 roadmap §4 状态列与 CONTEXT 方位段；Goal 增减需人点头（roadmap 是路线契约，不是流水账）。
+- **回写：** 每刀关刀后更新 roadmap §4 状态列与 CONTEXT 方位段；Goal 增减需人点头。**roadmap 是路线契约，不是工单。**
 
 ## 北星（迭代约束）
 

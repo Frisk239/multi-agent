@@ -1,7 +1,8 @@
 # CONTEXT.md — 领域词汇与当前方位
 
 > 本仓 **single-context** 领域真源。由工作流 skills（`/grill-with-docs`、`/domain-modeling`）增量维护。  
-> 系统架构细节仍以 `design/synthesis.md`、`AGENTS.md` 关键决策为准。
+> 系统架构细节仍以 `design/synthesis.md`、`AGENTS.md` 关键决策为准。  
+> **产品词 ≠ 工程词**（见下两表）。工程循环见 [docs/agents/engineering.md](docs/agents/engineering.md)。
 
 ## 产品一句话
 
@@ -29,6 +30,16 @@
 | **Workspace cwd** | 工作区根路径：`env MA_WORKSPACE_CWD` 覆盖 `workspace.root_path`（ADR 0003） | 「只能 export 才能跑」 |
 | **Run Health** | Settings/运行页：在途计数、心跳/排队收尸阈值、近收尸风险 | 仅看 failed 列表 |
 
+## 工程词（勿与上表产品词混用）
+
+| 工程词 | 含义 | 不是 |
+|---|---|---|
+| **Slice / 刀** | 一条可演示用户路径 | 看板上的 Issue |
+| **Slice Owner** | 本会话编排者 | 产品 Agent |
+| **Closeout** | `app/.progress/<slug>-impl-*.md` | Wiki / Memory |
+| **Goal 队列** | `design/roadmap.md` §3–§4（路线，**不是工单**） | Automation |
+| **Intake** | 验上一刀 | Inbox |
+
 ## 架构钉死（勿在实现里推翻）
 
 1. 不自造 Agent loop — Backend adapter 驱动已有 CLI  
@@ -44,18 +55,18 @@
 **要：** 看板派活、小队、run 观测/收尸/批量取消、Wiki/Memory 运维、Settings 诊断与 cwd 保存、Inbox 失败闭环——**天天用**。  
 **不要：** 云 webhook、多节点 daemon 协议 1:1、密钥写入 DB/UI、为答辩单独排期。
 
-## 当前方位（2026-08-17）
+## 当前方位（2026-08-19）
 
-- **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（G1–G5 Goal 体系 + 切片队列）——迭代走 goal 模式（`/goal` 定义目标）+ Slice Owner。
-- **▶ 当前切片：** G8-6 加厚已落地（未提交）——看板 Sheet 尾窗最新产出 + 就地再执行 + messages `beforeSeq`/limit-only 尾窗，见 [g8-6-board-live-transcript-impl-1.md](app/.progress/g8-6-board-live-transcript-impl-1.md)。G8-1…5a 仍仅工作区，未进 `e6ab04f`。
-- **▶ 刚关：** G8 波已推 `cb009de`。`pi-thinking-honest` 已落地（Pi 不再假写 `[thinking]`）。
-- **▶ 下一刀候选：** AgentBuilderWizard thinking 门控；或 G9-1 skill pack（人点头）。G8-4b 仍禁开。合入后须 `db:migrate`（0052/0053）。
+- **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（Goal 体系 + 切片队列）。**不是工单。**
+- **工程模式：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) — 对照 Hermes pipeline：保留 Slice Owner + main 直推；CI = `pnpm check` + `scripts/check-docs.mjs`。
+- **▶ 已推：** G8 波 `cb009de` · Pi thinking `bdb76be`。本刀：工程模式对齐。
+- **▶ 下一刀候选：** AgentBuilderWizard thinking 门控；或 G9-1 skill pack（人点头）。G8-4b 仍禁开。本地须 `db:migrate`（0052/0053）。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 
 - **阶段：** S01–S12 + 补1–5 + Phase A–F + 优化波 **全部已关** · **▶ 现行：Goal 体系（G1–G5）驱动**
 - **北星：** 本地 Multica 控制台体验（非 1:1 源码克隆）— [workflow.md](docs/agents/workflow.md) · [roadmap.md](design/roadmap.md)
-- **工程：** goal 模式（`/goal`）+ 自动迭代 Slice Owner · Playwright CLI 关刀 · **main 直推** · [merge.md](docs/agents/merge.md)
+- **工程：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) · [engineering.md](docs/agents/engineering.md) · Playwright + `pnpm check` · **main 直推**
 - **近期 closeout（08-01）：** [optimization-wave](app/.progress/optimization-wave-closeout-2026-08-01.md) · [hard-gap-close-wave](app/.progress/hard-gap-close-wave-closeout-2026-08-01.md) · [reopenable-db](app/.progress/reopenable-db-closeout-2026-08-01.md) · [f6-data-surface](app/.progress/f6-data-surface-closeout-2026-08-01.md) · [comment-routing](app/.progress/comment-routing-closeout-2026-08-01.md) · [pi-backend-f6](app/.progress/pi-backend-f6-closeout-2026-08-01.md)
 - **历史全量 gap（参考）：** [gap-analysis-full-2026-07-26.md](app/.progress/gap-analysis-full-2026-07-26.md) · 未做项已并入 roadmap §3
 
@@ -67,7 +78,8 @@
 | 读什么 | 路径 |
 |---|---|
 | 项目宪法 | `AGENTS.md` |
-| **路线 + 目标 + 切片队列（现行真源）** | `design/roadmap.md` |
+| **工程操作 / 合码** | [engineering.md](docs/agents/engineering.md) · [merge.md](docs/agents/merge.md) |
+| **路线 + 目标 + 切片队列（不是工单）** | `design/roadmap.md` · [TRACEABILITY](docs/agents/TRACEABILITY.md) |
 | 历史切片档案 | `design/slices.md` |
 | 技术选型 | `design/synthesis.md` |
 | 差距表（主航道） | `app/.progress/multica-gap-2026-07-17.md` |

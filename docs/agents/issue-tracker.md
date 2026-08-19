@@ -1,7 +1,7 @@
 # Issue tracker: Local Markdown（本仓）
 
 Issues 与 specs（PRD）以 markdown 落在仓库 `.scratch/` 下。  
-**GitHub** 用于 **分支托管 · CI · 远程合并**（`feat/*` push → 检查 → 人合 `main`），**不是**日常工单真源，也**不以开 PR 为必做步骤**——见 [merge.md](./merge.md)。
+**GitHub** 用于 **托管 · CI**。日常合码见 [merge.md](./merge.md)（默认 main 直推）。**不是**工单真源，也**不以开 PR 为步骤**。
 
 ## 约定
 
@@ -38,9 +38,9 @@ Issues 与 specs（PRD）以 markdown 落在仓库 `.scratch/` 下。
 | `docs/superpowers/plans/*.md` | 由 **tickets + implement** 替代；旧 plan 仅参考 |
 | `app/.progress/*-impl-*.md` | 可选会话笔记；**不**再作为工单真源。跨会话优先 ticket 正文 + `/handoff` |
 
-## 远程合并 vs 工单
+## 合码 vs 工单
 
 - 工单真源：始终 `.scratch/`。  
-- 合码：见 [merge.md](./merge.md)（push 触发审查，人远程合并）。  
+- 合码：见 [merge.md](./merge.md)（默认 main 直推；CI 为信号不挡）。  
 - 跨刀交接 / 下一 Owner 验收上一刀：见 [slice-handoff.md](./slice-handoff.md)。  
 - 外部/陌生人 PR 请求面：**关闭**（默认 off），不进 triage 队列。

@@ -14,9 +14,11 @@
 ## 自测结果（必须有证据）
 
 ```
-$ pnpm -r typecheck
+$ pnpm check
 （贴摘要）
 ```
+
+- SHA：`<git sha>`
 
 ## 偏离
 
@@ -28,7 +30,7 @@ $ pnpm -r typecheck
 
 ## 分支
 
-- `feat/<slug>` @ `<sha>` · 已 push：是/否 · 请人远程合并：是/否
+- `main` 或 `feat/<slug>` @ `<sha>` · 已 push：是/否
 
 ## 给下一 Owner
 
@@ -38,7 +40,7 @@ $ pnpm -r typecheck
 ## 下一 Owner 验收（intake · 由下一会话填写）
 
 - [ ] 读过 closeout/impl + spec/票
-- [ ] git：上一刀是否已在 main（人合并；不 push main）
+- [ ] git：上一刀 SHA 是否已在 `origin/main`
 - [ ] 证据可复核
 - 结论：`通过` / `有条件通过` / `需返工`
 - 债与风险：…
