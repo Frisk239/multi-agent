@@ -1,6 +1,6 @@
 # Slice Spec: followup-serial-claim
 
-日期：2026-08-19  
+日期：2026-08-19
 主目标：编排正确性（不新建 Goal，不触碰 G8-4b 禁开项）
 
 ## 用户路径

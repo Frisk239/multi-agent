@@ -1,6 +1,6 @@
 # Intake: g37-squads-scroll
 
-日期：2026-08-19  
+日期：2026-08-19
 上一刀提交：`a148d27 feat(web): /squads 进详情再返回锚定刚打开的行`
 
 ## Verdict：有条件通过

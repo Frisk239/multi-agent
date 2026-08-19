@@ -59,8 +59,8 @@
 
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（Goal 体系 + 切片队列）。**不是工单。**
 - **工程模式：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) — 对照 Hermes pipeline：保留 Slice Owner + main 直推；CI = `pnpm check` + `scripts/check-docs.mjs`。
-- **▶ 已推：** Skills 锚定 `cea63d0`。本刀：Squads 列表返回锚定。
-- **▶ 下一刀候选：** 列表锚定波已齐（看板/Runs/Agents/Skills/Squads）；下取日用摩擦或 G8-4b 仍禁开。
+- **▶ 已推：** `374afc5` 同 Agent × Issue follow-up claim 串行：并发额度>1 时也不与前一轮并发；Runs 列表/详情可见等待原因。
+- **▶ 下一刀候选：** Runs Mission Control 的任务语义+定位（Issue/会话标题、项目与 URL 可分享搜索/筛选）；依据 `app/.progress/goal-continuous-frontend-ux-research-2026-08-19.md`。G8-4b 仍禁开。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 

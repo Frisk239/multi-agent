@@ -166,7 +166,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G8-4b | 无副作用 adapter probe | 中 | 中 | 一手证据 | ⬜ 禁开 |
 | G8-5a | transcript 写前密钥脱敏 | 高 | 中 | G8-3 | ✅（[closeout](app/.progress/g8-transcript-scrub-impl-1.md)） |
 | G8-6 | 看板 Sheet 最新尾窗 + beforeSeq + 就地再执行 | 高 | 中 | G6-5 | ✅（[closeout](app/.progress/g8-6-board-live-transcript-impl-1.md)） |
-| follow-up | running 再评排队 1 条 follow-up | 高 | 中 | — | ✅（[closeout](app/.progress/comment-followup-queue-impl-1.md)） |
+| follow-up | running 再评排队 1 条 follow-up + 同 Agent × Issue claim 串行（concurrency>1 也不并发） | 高 | 中 | — | ✅（[enqueue closeout](app/.progress/comment-followup-queue-impl-1.md) · [serial claim closeout](app/.progress/followup-serial-claim-impl-1.md)） |
 
 ## §4 切片队列总表（建议迭代顺序）
 
@@ -193,7 +193,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 17 | **第八波（后端精细度）：G6-1 → G6-2 → G6-3** | G6 | G6-1 ✅（[closeout](app/.progress/g6-1-priority-scheduling-closeout-2026-08-03.md)）· G6-2 ✅（[closeout](app/.progress/g6-2-automation-placeholder-closeout-2026-08-03.md)）· G6-3 ✅（[closeout](app/.progress/g6-3-test-net-closeout-2026-08-03.md)）· **G6-6 ✅（[closeout](app/.progress/g6-6-pi-ui-honest-closeout-2026-08-03.md)）** · **G6-8 ✅（[closeout](app/.progress/g6-8-slow-log-closeout-2026-08-03.md)）** · **G6-4 ✅（[closeout](app/.progress/g6-4-sweeper-atomic-closeout-2026-08-03.md)）** · **G6-10 ✅（[closeout](app/.progress/g6-10-inbox-observability-closeout-2026-08-03.md)）** · **G6-9 ✅（2026-08-03，[closeout](app/.progress/g6-9-embedder-test-closeout-2026-08-03.md)，全量 1540 用例绿）** → 池内剩余按 §3 价值取用（G6-5 分页 / G6-7 skipped 警示） |
 | 18 | **第八波（前端体验第二波）：G7-1 → G7-2 → G7-3** | G7 | ✅ 已关（2026-08-04，[closeout](app/.progress/g7-frontend-wave-closeout-2026-08-04.md)：**G7-1…G7-12 全部 12 刀收官**——Sheet 后退关闭/返回不闪屏/Memory 15s 实时/transcript 虚拟化（120 条消息 run 实测 rendered 22/120）/Sheet 优先级+标签/新建表单可搜指派/Inbox Enter/Toast 上限+hover 暂停/页标题/分享链复制/colSpan/工具栏收纳；Playwright 17/17 PASS + 回归 6/6；全量 1546 用例绿（shared 121 + server 954 + web 471）） |
 | 19 | **G8 可信执行 + 08-08 硬缺口合入** | G8 | ✅ 本波合入：G8-1…5a / G6-5 / G6-7 / envRef / Memory projectId / waiting 投影（文件已交织，一次提交） |
-| 20 | **G8-6 加厚 + comment follow-up** | G8 | ✅（2026-08-19：[G8-6](app/.progress/g8-6-board-live-transcript-impl-1.md) · [follow-up](app/.progress/comment-followup-queue-impl-1.md)） |
+| 20 | **G8-6 加厚 + comment follow-up** | G8 | ✅（2026-08-19：[G8-6](app/.progress/g8-6-board-live-transcript-impl-1.md) · [enqueue](app/.progress/comment-followup-queue-impl-1.md) · [claim 串行](app/.progress/followup-serial-claim-impl-1.md)） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
