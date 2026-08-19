@@ -91,6 +91,17 @@ vi.mock('@/lib/api', () => ({
     data: { models: [] },
     isFetching: false,
   }),
+  useRuntimes: () => ({
+    data: {
+      runtimes: [
+        { id: 'claude-code', supportsThinkingLevel: true },
+        { id: 'opencode', supportsThinkingLevel: true },
+        { id: 'cursor', supportsThinkingLevel: true },
+        { id: 'grok', supportsThinkingLevel: true },
+        { id: 'pi', supportsThinkingLevel: false },
+      ],
+    },
+  }),
 }));
 
 describe('AgentBuilderWizard', () => {
@@ -162,6 +173,30 @@ describe('AgentBuilderWizard', () => {
     expect(arg.templateId).toBe('fullstack');
     expect(arg.overrides.name).toBe('全栈研发');
     expect(createMutate).not.toHaveBeenCalled();
+  });
+
+  it('opencode 显示 thinking 编辑器；pi 隐藏并提交 thinkingLevel=null', () => {
+    renderComponent();
+    fireEvent.click(screen.getByTestId('template-blank'));
+    fireEvent.change(screen.getByTestId('builder-name-input'), {
+      target: { value: 'Pi 助手' },
+    });
+    fireEvent.click(screen.getByText('下一步'));
+
+    expect(screen.getByTestId('builder-thinking-select')).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('builder-runtime-select'), {
+      target: { value: 'pi' },
+    });
+    expect(screen.queryByTestId('builder-thinking-select')).toBeNull();
+    expect(screen.getByTestId('builder-thinking-unavailable')).toHaveTextContent(
+      '此 runtime 不消费 Thinking/Effort',
+    );
+
+    fireEvent.click(screen.getByText('下一步'));
+    fireEvent.click(screen.getByText('下一步'));
+    fireEvent.click(screen.getByTestId('builder-submit'));
+    expect(createMutate.mock.calls[0][0].runtime).toBe('pi');
+    expect(createMutate.mock.calls[0][0].thinkingLevel).toBeNull();
   });
 
   it('blank path uses ordinary create agent', () => {

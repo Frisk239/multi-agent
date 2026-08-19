@@ -3,15 +3,18 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentTemplate, CreateAgentInput, RuntimeId } from '@ma/shared';
+import { RuntimeId as RuntimeIdSchema } from '@ma/shared';
 import {
   useAgentTemplates,
   useCreateAgent,
   useCreateAgentFromTemplate,
   useRuntimeModels,
+  useRuntimes,
 } from '@/lib/api';
+import { runtimeCapabilityState } from '@/lib/runtime-capability';
 import { Select } from './Select';
 
-const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
+const RUNTIMES: RuntimeId[] = [...RuntimeIdSchema.options];
 
 /** API 不可用时的本地兜底（与 shared AGENT_TEMPLATES 对齐的最小集） */
 const FALLBACK_TEMPLATES: AgentTemplate[] = [
@@ -92,6 +95,12 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
 
   const { data: createModelCatalog, isFetching: createModelsLoading } =
     useRuntimeModels(runtime);
+  const { data: runtimeCatalog } = useRuntimes();
+  const thinkingCapability = runtimeCapabilityState(
+    runtimeCatalog,
+    runtime,
+    'supportsThinkingLevel',
+  );
 
   const isSubmitting = create.isPending || createFromTemplate.isPending;
 
@@ -130,7 +139,10 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
       name: name.trim(),
       runtime,
       model: model.trim() ? model.trim() : null,
-      thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
+      thinkingLevel:
+        thinkingCapability === 'supported' && thinkingLevel.trim()
+          ? thinkingLevel.trim()
+          : null,
       category: category.trim() ? category.trim() : null,
       concurrency,
       instructions,
@@ -261,11 +273,61 @@ export function AgentBuilderWizard({ onCancel }: { onCancel: () => void }) {
         <div data-testid="builder-step-2" className="ops-form-grid">
           <label className="ops-field">
             <span>运行时</span>
-            <Select value={runtime} onChange={(e) => setRuntime(e.target.value as RuntimeId)}>
+            <Select
+              value={runtime}
+              onChange={(e) => {
+                const next = e.target.value as RuntimeId;
+                setRuntime(next);
+                const nextThinking = runtimeCapabilityState(
+                  runtimeCatalog,
+                  next,
+                  'supportsThinkingLevel',
+                );
+                if (nextThinking !== 'supported') setThinkingLevel('');
+              }}
+              data-testid="builder-runtime-select"
+            >
               {RUNTIMES.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </Select>
+          </label>
+          <label className="ops-field">
+            <span>Thinking / Effort</span>
+            {thinkingCapability === 'supported' ? (
+              <>
+                <Select
+                  value={
+                    ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
+                      ? thinkingLevel
+                      : thinkingLevel
+                        ? '__custom__'
+                        : ''
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__custom__') return;
+                    setThinkingLevel(v);
+                  }}
+                  data-testid="builder-thinking-select"
+                >
+                  <option value="">CLI 默认（不指定）</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="max">max</option>
+                </Select>
+                <span className="text-dim text-sm">
+                  claude/grok → --effort；cursor/opencode → --variant
+                </span>
+              </>
+            ) : (
+              <p className="text-dim text-sm" data-testid="builder-thinking-unavailable">
+                {thinkingCapability === 'unknown'
+                  ? 'Thinking/Effort 能力尚未确认，创建时不会写入。'
+                  : '此 runtime 不消费 Thinking/Effort'}
+              </p>
+            )}
           </label>
           <label className="ops-field">
             <span>模型</span>

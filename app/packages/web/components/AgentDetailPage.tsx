@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { AgentEnvVar, AgentReadiness, RuntimeId } from '@ma/shared';
+import { RuntimeId as RuntimeIdSchema } from '@ma/shared';
 import {
   useAgent,
   useAgents,
@@ -23,6 +24,10 @@ import {
   useRuntimes,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import {
+  runtimeCapabilityState,
+  type RuntimeCapabilityState,
+} from '@/lib/runtime-capability';
 import { Icon } from './Icon';
 import { AgentStatusBadge } from './AgentStatusBadge';
 import { PageBreadcrumb } from './PageBreadcrumb';
@@ -34,7 +39,6 @@ import { Select } from './Select';
 
 // bu02 + G12 + G13：对齐 Multica 概览/工作/能力/设置
 type TabId = 'overview' | 'work' | 'capabilities' | 'settings';
-type RuntimeCapabilityState = 'supported' | 'unsupported' | 'unknown';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'overview', label: '概览' },
@@ -43,33 +47,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'settings', label: '设置' },
 ];
 
-const RUNTIMES: RuntimeId[] = ['claude-code', 'opencode', 'cursor', 'grok'];
-
-/**
- * Runtime catalog is discovery data, not a promise that an adapter consumes a
- * particular configuration. Missing rows and optional capability fields must
- * therefore fail closed instead of briefly exposing a no-op editor.
- */
-function runtimeCapabilityState(
-  catalog:
-    | {
-        runtimes: Array<{
-          id: string;
-          supportsMcpConfig?: boolean;
-          supportsCustomArgs?: boolean;
-          supportsThinkingLevel?: boolean;
-        }>;
-      }
-    | undefined,
-  runtimeId: RuntimeId,
-  capability: 'supportsMcpConfig' | 'supportsCustomArgs' | 'supportsThinkingLevel',
-): RuntimeCapabilityState {
-  const runtime = catalog?.runtimes.find((item) => item.id === runtimeId);
-  if (!runtime) return 'unknown';
-  if (runtime[capability] === true) return 'supported';
-  if (runtime[capability] === false) return 'unsupported';
-  return 'unknown';
-}
+const RUNTIMES: RuntimeId[] = [...RuntimeIdSchema.options];
 
 function readinessClass(status: AgentReadiness['status']): string {
   if (status === 'ready') return 'readiness-chip readiness-ready';
