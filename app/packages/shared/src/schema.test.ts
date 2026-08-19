@@ -20,6 +20,7 @@ import {
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
+  AgentSummary,
   ListRunsQuery,
   SquadSummary,
   SkillInfo,
@@ -564,6 +565,40 @@ describe('Shared Schema Validators', () => {
       expect(ListRunsQuery.parse({ q: '  Alpha  ' }).q).toBe('Alpha');
       expect(ListRunsQuery.parse({ q: '   ' }).q).toBe('');
       expect(() => ListRunsQuery.parse({ q: 'x'.repeat(201) })).toThrow();
+    });
+  });
+
+  describe('AgentSummary currentIssueRun', () => {
+    const agentBase = {
+      id: 'agt-1',
+      name: 'Roster Agent',
+      runtime: 'opencode' as const,
+    };
+
+    it('keeps older roster responses compatible when the projection is absent', () => {
+      expect(AgentSummary.parse(agentBase).currentIssueRun).toBeUndefined();
+    });
+
+    it('accepts a nullable active Issue-run projection without inventing a task', () => {
+      expect(AgentSummary.parse({ ...agentBase, currentIssueRun: null }).currentIssueRun).toBeNull();
+      expect(
+        AgentSummary.parse({
+          ...agentBase,
+          currentIssueRun: {
+            runId: 'run-42',
+            runStatus: 'running',
+            issueId: 'iss-42',
+            issueIdentifier: 'FRI-42',
+            issueTitle: '显示当前任务',
+          },
+        }).currentIssueRun,
+      ).toEqual({
+        runId: 'run-42',
+        runStatus: 'running',
+        issueId: 'iss-42',
+        issueIdentifier: 'FRI-42',
+        issueTitle: '显示当前任务',
+      });
     });
   });
 

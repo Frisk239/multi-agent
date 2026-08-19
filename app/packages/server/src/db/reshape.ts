@@ -6,6 +6,7 @@ import type {
   AgentRun,
   RunMessage,
   InboxItem,
+  AgentCurrentIssueRun,
   AgentDetail,
   AgentSummary,
   AutomationRule,
@@ -378,11 +379,17 @@ export function toRunMessage(row: MsgRow): RunMessage {
   };
 }
 
-import { computeAgentLiveStatus } from '../orchestration/agent-status-broadcaster.js';
+import {
+  computeAgentLiveStatus,
+  type AgentLiveStatusInfo,
+} from '../orchestration/agent-status-broadcaster.js';
 
 // bu02：DB agent → API AgentSummary / AgentDetail
-export function toAgentSummary(row: AgentRow): AgentSummary {
-  const live = computeAgentLiveStatus(row.id);
+export function toAgentSummary(
+  row: AgentRow,
+  live: AgentLiveStatusInfo = computeAgentLiveStatus(row.id),
+  currentIssueRun: AgentCurrentIssueRun | null = null,
+): AgentSummary {
   return {
     id: row.id,
     name: row.name,
@@ -397,6 +404,7 @@ export function toAgentSummary(row: AgentRow): AgentSummary {
       row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     liveStatus: live.status,
     activeRunCount: live.activeRunCount,
+    currentIssueRun,
   };
 }
 

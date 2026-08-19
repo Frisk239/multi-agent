@@ -540,6 +540,16 @@ function AgentsPageInner() {
             ) : (
               visible.map((ag, rowIndex) => {
                 const rd = readinessMap[ag.id];
+                const currentIssueRun = ag.currentIssueRun ?? null;
+                const activeRunsHref = `/runs?agent=${encodeURIComponent(ag.id)}&status=active`;
+                // A single active Issue run can take the operator straight to its detail.
+                // Once there is more than one in-flight run, the roster must route to the
+                // filtered list instead so no concurrent work is hidden behind one title.
+                const currentTaskHref = currentIssueRun
+                  ? ag.activeRunCount > 1
+                    ? activeRunsHref
+                    : `/runs/${encodeURIComponent(currentIssueRun.runId)}`
+                  : null;
                 return (
                   <tr
                     key={ag.id}
@@ -547,23 +557,62 @@ function AgentsPageInner() {
                     data-restored={restoredId === ag.id ? '1' : '0'}
                   >
                     <td>
-                      <Link
-                        href={`/agents/${ag.id}`}
-                        className="agent-cell"
-                        onClick={() => remember(ag.id, rowIndex)}
-                      >
-                        <span className="agent-icon-sm">
-                          <Icon name="agent" size={14} />
-                        </span>
-                        <span>
-                          <div className="agent-cell-name">{ag.name}</div>
-                        </span>
-                        <AgentStatusBadge
-                          status={ag.liveStatus}
-                          activeRunCount={ag.activeRunCount}
-                          size="sm"
-                        />
-                      </Link>
+                      <div className="agent-cell">
+                        <Link
+                          href={`/agents/${ag.id}`}
+                          className="agent-cell-identity"
+                          data-testid="agent-list-identity"
+                          onClick={() => remember(ag.id, rowIndex)}
+                        >
+                          <span className="agent-icon-sm">
+                            <Icon name="agent" size={14} />
+                          </span>
+                          <span className="agent-cell-name">{ag.name}</span>
+                        </Link>
+                        <div className="agent-cell-live">
+                          <AgentStatusBadge
+                            status={ag.liveStatus}
+                            activeRunCount={ag.activeRunCount}
+                            size="sm"
+                          />
+                          {currentIssueRun && currentTaskHref ? (
+                            <Link
+                              href={currentTaskHref}
+                              className="agent-cell-task-link"
+                              data-testid="agent-list-current-task"
+                              data-agent-id={ag.id}
+                              data-run-id={currentIssueRun.runId}
+                              title={
+                                ag.activeRunCount > 1
+                                  ? `${currentIssueRun.issueIdentifier} · ${currentIssueRun.issueTitle} · ${ag.activeRunCount} 条在途运行`
+                                  : `${currentIssueRun.issueIdentifier} · ${currentIssueRun.issueTitle}`
+                              }
+                            >
+                              <span className="agent-cell-task-identifier">
+                                {currentIssueRun.issueIdentifier}
+                              </span>
+                              <span className="agent-cell-task-title">
+                                {' · '}{currentIssueRun.issueTitle}
+                              </span>
+                              {ag.activeRunCount > 1 ? (
+                                <span className="agent-cell-task-count">
+                                  {' · '}{ag.activeRunCount} 条在途
+                                </span>
+                              ) : null}
+                            </Link>
+                          ) : ag.activeRunCount > 1 ? (
+                            <Link
+                              href={activeRunsHref}
+                              className="agent-cell-task-link"
+                              data-testid="agent-list-active-runs"
+                              data-agent-id={ag.id}
+                              title={`查看 ${ag.activeRunCount} 条在途运行`}
+                            >
+                              查看 {ag.activeRunCount} 条在途运行
+                            </Link>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
                     <td className="text-dim">{ag.category || '—'}</td>
                     <td>

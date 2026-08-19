@@ -1136,6 +1136,21 @@ export const AgentPulseStatus = z.enum([
 ]);
 export type AgentPulseStatus = z.infer<typeof AgentPulseStatus>;
 
+/**
+ * Agents roster 的当前 Issue 工作投影。
+ *
+ * 它只描述 active `kind=issue` run；chat / quick_create 即使在途也不能借用
+ * Issue 标识或标题伪装成任务。列表端可能暂未提供该投影，故保持可选兼容。
+ */
+export const AgentCurrentIssueRun = z.object({
+  runId: BusinessId,
+  runStatus: AgentRunStatus,
+  issueId: BusinessId,
+  issueIdentifier: z.string(),
+  issueTitle: z.string(),
+});
+export type AgentCurrentIssueRun = z.infer<typeof AgentCurrentIssueRun>;
+
 export const AgentSummary = z.object({
   id: BusinessId,
   name: z.string(),
@@ -1155,6 +1170,8 @@ export const AgentSummary = z.object({
   // S13: Agent 实时脉冲状态
   liveStatus: AgentPulseStatus.optional().default('idle'),
   activeRunCount: z.number().int().nonnegative().optional().default(0),
+  // agent-active-task-peek：列表批量投影；null=没有 active Issue run，缺失=旧响应兼容。
+  currentIssueRun: AgentCurrentIssueRun.nullable().optional(),
 });
 export type AgentSummary = z.infer<typeof AgentSummary>;
 

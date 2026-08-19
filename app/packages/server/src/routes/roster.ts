@@ -5,6 +5,7 @@ import {
   CreateSquadInput,
   UpdateAgentInput,
   UpdateSquadInput,
+  type AgentCurrentIssueRun,
   type AgentWorkStats,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
@@ -12,6 +13,10 @@ import { agents, agentRuns, issues, squadMembers, squads } from '../db/schema.js
 import { toAgentDetail, toObservedAgentRun, toAgentSummary } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
+import {
+  ACTIVE_AGENT_RUN_STATUSES,
+  computeAgentLiveStatuses,
+} from '../orchestration/agent-status-broadcaster.js';
 import { normalizeAgentEnvVars } from '../runtime/agent-config.js';
 import { validateMcpConfig } from '../runtime/mcp-config.js';
 
@@ -45,6 +50,53 @@ function replaceSquadMembers(squadId: string, memberIds: string[]): void {
   }
 }
 
+/**
+ * 每个 Agent 只保留最新 active Issue run 的列表投影。
+ *
+ * `kind = issue` + inner issue join 是故意的：chat / quick_create 即使在途，也绝不
+ * 以 Issue 标题冒充当前任务。全量行按 createdAt/id 稳定倒序后，第一条即最新。
+ */
+function loadCurrentIssueRunsByAgentId(
+  agentIds: readonly string[],
+): Map<string, AgentCurrentIssueRun> {
+  const ids = [...new Set(agentIds.filter(Boolean))];
+  const result = new Map<string, AgentCurrentIssueRun>();
+  if (ids.length === 0) return result;
+
+  const rows = db
+    .select({
+      agentId: agentRuns.agentId,
+      runId: agentRuns.id,
+      runStatus: agentRuns.status,
+      issueId: issues.id,
+      issueIdentifier: issues.identifier,
+      issueTitle: issues.title,
+    })
+    .from(agentRuns)
+    .innerJoin(issues, eq(agentRuns.issueId, issues.id))
+    .where(
+      and(
+        inArray(agentRuns.agentId, ids),
+        eq(agentRuns.kind, 'issue'),
+        inArray(agentRuns.status, [...ACTIVE_AGENT_RUN_STATUSES]),
+      ),
+    )
+    .orderBy(desc(agentRuns.createdAt), desc(agentRuns.id))
+    .all();
+
+  for (const row of rows) {
+    if (result.has(row.agentId)) continue;
+    result.set(row.agentId, {
+      runId: row.runId,
+      runStatus: row.runStatus,
+      issueId: row.issueId,
+      issueIdentifier: row.issueIdentifier,
+      issueTitle: row.issueTitle,
+    });
+  }
+  return result;
+}
+
 export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   // —— Agents ——
 
@@ -60,7 +112,18 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     } else {
       rows = rows.filter((r) => r.archivedAt == null);
     }
-    return rows.map(toAgentSummary);
+    // 列表端一次 bulk 状态扫描 + 一次 active Issue join，不能由 toAgentSummary
+    // 对每位 Agent 分别查询 run（旧的 N+1 路径仍供单项兼容调用）。
+    const ids = rows.map((row) => row.id);
+    const liveByAgentId = computeAgentLiveStatuses(ids);
+    const currentIssueRunsByAgentId = loadCurrentIssueRunsByAgentId(ids);
+    return rows.map((row) =>
+      toAgentSummary(
+        row,
+        liveByAgentId.get(row.id),
+        currentIssueRunsByAgentId.get(row.id) ?? null,
+      ),
+    );
   });
 
   // 批量 readiness（须在 /:id 之前；避免 N+1）
