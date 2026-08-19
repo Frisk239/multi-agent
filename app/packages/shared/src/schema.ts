@@ -1894,6 +1894,12 @@ export const UpdateChatThreadProjectInput = z.object({
 });
 export type UpdateChatThreadProjectInput = z.infer<typeof UpdateChatThreadProjectInput>;
 
+/** 会话标题在服务端规范化：去首尾空白后必须保留 1–200 个字符。 */
+export const UpdateChatThreadInput = z.object({
+  title: z.string().trim().min(1).max(200),
+});
+export type UpdateChatThreadInput = z.infer<typeof UpdateChatThreadInput>;
+
 export const ListChatThreadsQuery = z.object({
   /** include archived rows (default false) */
   archived: z

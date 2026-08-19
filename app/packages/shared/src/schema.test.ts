@@ -23,6 +23,7 @@ import {
   ListRunsQuery,
   SquadSummary,
   SkillInfo,
+  UpdateChatThreadInput,
   classifyRunFailure,
 } from './schema';
 
@@ -264,6 +265,16 @@ describe('Shared Schema Validators', () => {
       expect(AgentRunKind.parse('issue')).toBe('issue');
       expect(AgentRunKind.parse('quick_create')).toBe('quick_create');
       expect(AgentRunKind.parse('chat')).toBe('chat');
+    });
+  });
+
+  describe('UpdateChatThreadInput', () => {
+    it('trims a valid title and enforces its post-trim length', () => {
+      expect(UpdateChatThreadInput.parse({ title: '  重命名后的会话  ' })).toEqual({
+        title: '重命名后的会话',
+      });
+      expect(() => UpdateChatThreadInput.parse({ title: '   ' })).toThrow();
+      expect(() => UpdateChatThreadInput.parse({ title: 'x'.repeat(201) })).toThrow();
     });
   });
 

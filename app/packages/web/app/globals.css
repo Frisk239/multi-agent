@@ -6104,6 +6104,11 @@ button.memory-kind-chip.is-active {
   color: var(--text-primary);
 }
 
+.chat-thread-action--danger:hover {
+  background: color-mix(in srgb, var(--color-red, #ef4444) 16%, transparent);
+  color: var(--color-red, #ef4444);
+}
+
 .chat-pin-mark {
   margin-right: 4px;
   color: #eab308;
@@ -6228,6 +6233,44 @@ button.memory-kind-chip.is-active {
   font-size: 15px;
   font-weight: 650;
   line-height: 1.35;
+}
+
+.chat-main-title-edit {
+  appearance: none;
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.chat-main-title-edit:hover {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.chat-main-title-input {
+  width: min(100%, 38rem);
+  margin: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: inherit;
+}
+
+.chat-main-title-input:focus {
+  box-shadow: var(--focus-ring);
 }
 
 .chat-main-sub {

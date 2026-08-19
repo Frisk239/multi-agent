@@ -2,8 +2,10 @@
  * W5 · chat 路由最小契约：threads 列表 / 创建 / 404 / 校验边界。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
+import { agentRuns, chatMessages, chatThreads } from '../db/schema.js';
 import type { FastifyInstance } from 'fastify';
 
 const state = vi.hoisted(() => ({
@@ -81,5 +83,174 @@ describe('W5 chat contracts', () => {
     const res = await app.inject({ method: 'POST', url: '/api/chat/threads', payload: {} });
     expect(res.statusCode).toBe(400);
     expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('PATCH /api/chat/threads/:id trims a title and updates updatedAt', async () => {
+    const db = state.db!;
+    db.insert(chatThreads)
+      .values({
+        id: 'chat-rename',
+        agentId: 'agt-test-1',
+        title: '旧标题',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/chat/threads/chat-rename',
+      payload: { title: '  新标题  ' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      id: 'chat-rename',
+      title: '新标题',
+    });
+    expect(res.json().updatedAt).not.toBe(new Date(1).toISOString());
+  });
+
+  it('PATCH /api/chat/threads/:id rejects blank and overlong titles', async () => {
+    const db = state.db!;
+    db.insert(chatThreads)
+      .values({
+        id: 'chat-title-validation',
+        agentId: 'agt-test-1',
+        title: '保留原标题',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+
+    const blank = await app.inject({
+      method: 'PATCH',
+      url: '/api/chat/threads/chat-title-validation',
+      payload: { title: '   ' },
+    });
+    const overlong = await app.inject({
+      method: 'PATCH',
+      url: '/api/chat/threads/chat-title-validation',
+      payload: { title: 'x'.repeat(201) },
+    });
+
+    expect(blank.statusCode).toBe(400);
+    expect(overlong.statusCode).toBe(400);
+    expect(db.select().from(chatThreads).where(eq(chatThreads.id, 'chat-title-validation')).get()?.title).toBe('保留原标题');
+  });
+
+  it('DELETE /api/chat/threads/:id requires archive and cascades zero-run messages', async () => {
+    const db = state.db!;
+    db.insert(chatThreads)
+      .values({
+        id: 'chat-delete-zero-run',
+        agentId: 'agt-test-1',
+        title: '可删除会话',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+    db.insert(chatMessages)
+      .values({
+        id: 'chat-delete-zero-run-message',
+        threadId: 'chat-delete-zero-run',
+        role: 'user',
+        body: '没有运行记录的消息',
+        runId: null,
+        createdAt: 1,
+      })
+      .run();
+
+    const active = await app.inject({
+      method: 'DELETE',
+      url: '/api/chat/threads/chat-delete-zero-run',
+    });
+    expect(active.statusCode).toBe(409);
+    expect(active.json()).toMatchObject({ code: 'CHAT_THREAD_NOT_ARCHIVED' });
+
+    db.update(chatThreads)
+      .set({ archivedAt: 2 })
+      .where(eq(chatThreads.id, 'chat-delete-zero-run'))
+      .run();
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: '/api/chat/threads/chat-delete-zero-run',
+    });
+
+    expect(deleted.statusCode).toBe(204);
+    expect(db.select().from(chatThreads).where(eq(chatThreads.id, 'chat-delete-zero-run')).get()).toBeUndefined();
+    expect(db.select().from(chatMessages).where(eq(chatMessages.threadId, 'chat-delete-zero-run')).all()).toEqual([]);
+  });
+
+  it('DELETE /api/chat/threads/:id preserves an archived thread, messages, and every related run', async () => {
+    const db = state.db!;
+    db.insert(chatThreads)
+      .values({
+        id: 'chat-delete-protected',
+        agentId: 'agt-test-1',
+        title: '有运行历史的会话',
+        createdAt: 1,
+        updatedAt: 1,
+        archivedAt: 2,
+      })
+      .run();
+    db.insert(chatMessages)
+      .values({
+        id: 'chat-delete-protected-message',
+        threadId: 'chat-delete-protected',
+        role: 'user',
+        body: '需保留的消息',
+        runId: null,
+        createdAt: 1,
+      })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        id: 'chat-delete-protected-run',
+        issueId: null,
+        chatThreadId: 'chat-delete-protected',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'completed',
+        kind: 'chat',
+        priority: 'none',
+        isLeader: 0,
+        squadId: null,
+        error: null,
+        createdAt: 1,
+      })
+      .run();
+    db.insert(agentRuns)
+      .values({
+        id: 'chat-delete-protected-active-run',
+        issueId: null,
+        chatThreadId: 'chat-delete-protected',
+        agentId: 'agt-test-1',
+        runtime: 'opencode',
+        status: 'running',
+        kind: 'chat',
+        priority: 'none',
+        isLeader: 0,
+        squadId: null,
+        error: null,
+        startedAt: 2,
+        createdAt: 2,
+      })
+      .run();
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/chat/threads/chat-delete-protected',
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({
+      code: 'CHAT_THREAD_HAS_RUNS',
+      error: '为保留运行记录，无法删除',
+    });
+    expect(db.select().from(chatThreads).where(eq(chatThreads.id, 'chat-delete-protected')).get()).toBeTruthy();
+    expect(db.select().from(chatMessages).where(eq(chatMessages.threadId, 'chat-delete-protected')).all()).toHaveLength(1);
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, 'chat-delete-protected-run')).get()?.chatThreadId).toBe('chat-delete-protected');
+    expect(db.select().from(agentRuns).where(eq(agentRuns.id, 'chat-delete-protected-active-run')).get()?.chatThreadId).toBe('chat-delete-protected');
   });
 });

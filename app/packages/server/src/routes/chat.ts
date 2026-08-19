@@ -8,6 +8,7 @@ import {
   ListChatThreadsQuery,
   PinChatThreadInput,
   PostChatMessageInput,
+  UpdateChatThreadInput,
   UpdateChatThreadProjectInput,
   type ChatExecContext,
   type ChatMessage,
@@ -158,6 +159,25 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     return execForThread(id, (row as { projectId?: string | null }).projectId);
   });
 
+  // PATCH /api/chat/threads/:id  { title }
+  // 标题是会话本身的用户可见元数据，因此与 project/archive 一样更新 updated_at。
+  app.patch('/api/chat/threads/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = UpdateChatThreadInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+    }
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
+
+    db.update(chatThreads)
+      .set({ title: parsed.data.title, updatedAt: Date.now() })
+      .where(eq(chatThreads.id, id))
+      .run();
+    const next = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
+    return toThread(next, lastPreviewFor(id));
+  });
+
   // PATCH /api/chat/threads/:id/project  { projectId: string | null }
   app.patch('/api/chat/threads/:id/project', async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -227,6 +247,40 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       .run();
     const next = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get()!;
     return toThread(next, lastPreviewFor(id));
+  });
+
+  // DELETE /api/chat/threads/:id
+  // 硬删只面向已归档、从未产生 run 的会话。agent_run 尚无 chat FK；
+  // 因此宁可拒绝，也不能留下孤儿运行历史或删掉审计信息。
+  app.delete('/api/chat/threads/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const row = db.select().from(chatThreads).where(eq(chatThreads.id, id)).get();
+    if (!row) return reply.status(404).send({ success: false, error: '会话不存在'  });
+    if (row.archivedAt == null) {
+      return reply.status(409).send({
+        success: false,
+        code: 'CHAT_THREAD_NOT_ARCHIVED',
+        error: '请先归档会话后再永久删除',
+      });
+    }
+
+    const relatedRun = db
+      .select({ id: agentRuns.id })
+      .from(agentRuns)
+      .where(eq(agentRuns.chatThreadId, id))
+      .limit(1)
+      .get();
+    if (relatedRun) {
+      return reply.status(409).send({
+        success: false,
+        code: 'CHAT_THREAD_HAS_RUNS',
+        error: '为保留运行记录，无法删除',
+      });
+    }
+
+    // chat_message.thread_id 有 FK cascade；不要触碰 agent_run。
+    db.delete(chatThreads).where(eq(chatThreads.id, id)).run();
+    return reply.status(204).send();
   });
 
   // GET /api/chat/threads/:id/messages

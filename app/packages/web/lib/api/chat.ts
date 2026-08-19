@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   ChatExecContext,
   CreateChatThreadInput,
+  UpdateChatThreadInput,
 } from '@ma/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, API, errMessage, apiError } from './http';
@@ -68,6 +69,57 @@ export function useArchiveChatThread() {
       toastSuccess(vars.archived ? '已归档会话' : '已取消归档');
     },
     onError: (err) => toastError(errMessage(err, '归档失败')),
+  });
+}
+
+/** 会话标题：服务端会 trim 并校验 1–200 字符。 */
+export function useUpdateChatThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: UpdateChatThreadInput['title'] }) => {
+      const res = await apiFetch(`${API}/chat/threads/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) throw new Error(await apiError(res, '更新会话标题失败'));
+      return res.json() as Promise<ChatThread>;
+    },
+    onSuccess: (thread) => {
+      // 先同步所有活跃/归档列表缓存，标题栏与列表不会短暂不一致；
+      // 再失效以保留服务端排序与预览的最终真源。
+      qc.setQueriesData<ChatThread[]>({ queryKey: ['chat-threads'] }, (current) =>
+        current?.map((item) => (item.id === thread.id ? { ...item, ...thread } : item)),
+      );
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      toastSuccess('已更新会话标题');
+    },
+    onError: (err) => toastError(errMessage(err, '更新会话标题失败')),
+  });
+}
+
+/** 已归档且没有任何 run 的会话才可永久删除。 */
+export function useDeleteChatThread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiFetch(`${API}/chat/threads/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(await apiError(res, '删除会话失败'));
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.setQueriesData<ChatThread[]>({ queryKey: ['chat-threads'] }, (current) =>
+        current?.filter((item) => item.id !== id),
+      );
+      qc.removeQueries({ queryKey: ['chat-messages', id] });
+      qc.removeQueries({ queryKey: ['chat-exec-context', id] });
+      qc.invalidateQueries({ queryKey: ['chat-threads'] });
+      toastSuccess('已永久删除会话');
+    },
+    // 409 保留服务端说明，例如「为保留运行记录，无法删除」。
+    onError: (err) => toastError(errMessage(err, '删除会话失败')),
   });
 }
 

@@ -14,9 +14,11 @@ import {
   useChatMessages,
   useChatThreads,
   useCreateChatThread,
+  useDeleteChatThread,
   usePinChatThread,
   usePostChatMessage,
   useProjects,
+  useUpdateChatThread,
   useUpdateChatThreadProject,
 } from '@/lib/api';
 import { isNearBottom, NEAR_BOTTOM_PX } from '@/lib/chat-scroll';
@@ -91,6 +93,8 @@ export function ChatPage() {
   });
   const pinThread = usePinChatThread();
   const archiveThread = useArchiveChatThread();
+  const updateThreadTitle = useUpdateChatThread();
+  const deleteThread = useDeleteChatThread();
   const updateThreadProject = useUpdateChatThreadProject();
   const {
     data: messages = [],
@@ -121,6 +125,9 @@ export function ChatPage() {
     clear: clearChatDraft,
   } = usePersistentDraft(threadId ? draftKey.chat(threadId) : null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const titleSaveInFlight = useRef(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   /** 近底才吸底；上滑超阈值停止自动滚 */
@@ -148,6 +155,16 @@ export function ChatPage() {
     () => threads.find((t) => t.id === threadId) ?? null,
     [threads, threadId],
   );
+
+  // 切换会话不可带走上一条的编辑草稿；服务端刷新标题时则同步新真源。
+  useEffect(() => {
+    titleSaveInFlight.current = false;
+    setEditingTitle(false);
+  }, [threadId]);
+
+  useEffect(() => {
+    if (!editingTitle) setTitleDraft(selectedThread?.title ?? '');
+  }, [selectedThread?.title, editingTitle]);
 
   const agentById = useMemo(() => {
     const m = new Map(agents.map((a) => [a.id, a]));
@@ -226,6 +243,53 @@ export function ChatPage() {
     const t = await createThread.mutateAsync({ agentId });
     setPickerOpen(false);
     selectThread(t.id);
+  }
+
+  function startTitleEdit() {
+    if (!selectedThread || updateThreadTitle.isPending) return;
+    setTitleDraft(selectedThread.title);
+    setEditingTitle(true);
+  }
+
+  function cancelTitleEdit() {
+    titleSaveInFlight.current = false;
+    setTitleDraft(selectedThread?.title ?? '');
+    setEditingTitle(false);
+  }
+
+  async function saveTitleEdit() {
+    const thread = selectedThread;
+    if (!thread || titleSaveInFlight.current) return;
+    const title = titleDraft.trim();
+    if (!title || title === thread.title) {
+      cancelTitleEdit();
+      return;
+    }
+
+    titleSaveInFlight.current = true;
+    try {
+      await updateThreadTitle.mutateAsync({ id: thread.id, title });
+      setEditingTitle(false);
+    } catch {
+      // hook 已给出服务端校验/网络 toast；保留草稿，用户可修正后重试。
+    } finally {
+      titleSaveInFlight.current = false;
+    }
+  }
+
+  async function handleDeleteThread(id: string, title: string) {
+    const ok = await confirmDialog({
+      title: '永久删除会话？',
+      description: `永久删除「${title}」及其消息？此操作不可恢复；带运行记录的会话会被保留。`,
+      confirmLabel: '永久删除',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    deleteThread.mutate(id, {
+      onSuccess: () => {
+        if (id === threadId) selectThread('');
+      },
+    });
   }
 
   async function checkGitDirty(projectId: string | null) {
@@ -480,6 +544,22 @@ export function ChatPage() {
                         >
                           ▤
                         </button>
+                        {showArchived ? (
+                          <button
+                            type="button"
+                            className="chat-thread-action chat-thread-action--danger"
+                            data-testid="chat-thread-delete"
+                            title="永久删除"
+                            aria-label="永久删除"
+                            disabled={deleteThread.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteThread(th.id, th.title);
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </div>
                     </li>
                   );
@@ -545,7 +625,40 @@ export function ChatPage() {
             <>
               <header className="chat-main-head" data-testid="chat-main-head">
                 <div className="chat-main-head-text">
-                  <h2 className="chat-main-title">{selectedThread.title}</h2>
+                  <h2 className="chat-main-title" data-testid="chat-main-title">
+                    {editingTitle ? (
+                      <input
+                        className="chat-main-title-input"
+                        data-testid="chat-title-input"
+                        aria-label="编辑会话标题"
+                        value={titleDraft}
+                        disabled={updateThreadTitle.isPending}
+                        autoFocus
+                        onChange={(e) => setTitleDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            void saveTitleEdit();
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            cancelTitleEdit();
+                          }
+                        }}
+                        onBlur={() => void saveTitleEdit()}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="chat-main-title-edit"
+                        data-testid="chat-title-edit"
+                        title="点击编辑会话标题"
+                        onClick={startTitleEdit}
+                      >
+                        {selectedThread.title}
+                      </button>
+                    )}
+                  </h2>
                   <p className="chat-main-sub">
                     {selectedAgent?.name ?? agentName(selectedThread.agentId)}
                     {selectedAgent?.runtime ? ` · ${selectedAgent.runtime}` : ''}
