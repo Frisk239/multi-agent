@@ -32,6 +32,12 @@ import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { RunEventTimelineDrawer } from './RunEventTimeline';
 import { Select } from './Select';
+import {
+  makeListViewKey,
+  readListViewState,
+  saveListViewState,
+  sessionStorageOrNull,
+} from '@/lib/issue-list-scroll-restore';
 
 /**
  * 运行观测页（本仓超车 Multica：真站无独立 /runs，本地做 Mission Control 列表）
@@ -194,6 +200,18 @@ function RunsPageInner() {
   const leaderOnly = searchParams.get('leader') === '1';
   const highlightRunId = searchParams.get('run') ?? '';
   const [timelineRunId, setTimelineRunId] = useState<string | null>(null);
+  const [restoredRunId, setRestoredRunId] = useState<string | null>(null);
+  const listViewKey = useMemo(
+    () =>
+      makeListViewKey({
+        page: 'runs',
+        status: status || 'all',
+        agent: agentId,
+        squad: squadId,
+        leader: leaderOnly ? '1' : '',
+      }),
+    [status, agentId, squadId, leaderOnly],
+  );
   const [filtersOpen, setFiltersOpen] = useState(Boolean(agentId || squadId || leaderOnly));
 
   const replaceParams = useCallback(
@@ -253,6 +271,25 @@ function RunsPageInner() {
     return visibleRuns.find((r) => r.id === timelineRunId);
   }, [timelineRunId, visibleRuns]);
 
+  const persistRunAnchor = useCallback(
+    (runId: string | null, index: number) => {
+      saveListViewState(sessionStorageOrNull(), listViewKey, {
+        pagesLoaded: 1,
+        anchorIssueId: runId,
+        anchorIndex: index,
+      });
+    },
+    [listViewKey],
+  );
+
+  const openRun = useCallback(
+    (runId: string, index: number) => {
+      persistRunAnchor(runId, index);
+      router.push(`/runs/${runId}`);
+    },
+    [persistRunAnchor, router],
+  );
+
   useEffect(() => {
     if (!highlightRunId || !visibleRuns?.length) return;
     const el = document.querySelector(`[data-run-id="${highlightRunId}"]`);
@@ -260,6 +297,18 @@ function RunsPageInner() {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [highlightRunId, visibleRuns]);
+
+  useEffect(() => {
+    if (highlightRunId || !visibleRuns?.length) return;
+    const saved = readListViewState(sessionStorageOrNull(), listViewKey);
+    const id = saved?.anchorIssueId;
+    if (!id || !visibleRuns.some((r) => r.id === id)) return;
+    setRestoredRunId(id);
+    const el = document.querySelector(`[data-run-id="${id}"]`);
+    if (el instanceof HTMLElement) {
+      el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightRunId, visibleRuns, listViewKey]);
 
   useEffect(() => {
     if (!highlightRunId) return;
@@ -622,7 +671,7 @@ function RunsPageInner() {
                 </tr>
               </thead>
               <tbody>
-                {visibleRuns.map((r) => {
+                {visibleRuns.map((r, rowIndex) => {
                   const cls =
                     r.status === 'failed' || r.error
                       ? classifyRunFailure(r.error, r.failureReason)
@@ -638,7 +687,7 @@ function RunsPageInner() {
                         status: r.status,
                       })
                     : null;
-                  const highlighted = highlightRunId === r.id;
+                  const highlighted = highlightRunId === r.id || restoredRunId === r.id;
                   const reasonTitle = cls
                     ? `${cls.title}${r.error ? `\n${r.error}` : ''}`
                     : (r.error ?? '');
@@ -650,12 +699,13 @@ function RunsPageInner() {
                       data-is-leader={r.isLeader ? '1' : '0'}
                       data-squad-id={r.squadId ?? ''}
                       data-highlight={highlighted ? '1' : '0'}
+                      data-restored={restoredRunId === r.id ? '1' : '0'}
                       className={`runs-row-clickable${highlighted ? ' runs-row--highlight' : ''}`}
-                      onClick={() => router.push(`/runs/${r.id}`)}
+                      onClick={() => openRun(r.id, rowIndex)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          router.push(`/runs/${r.id}`);
+                          openRun(r.id, rowIndex);
                         }
                       }}
                       tabIndex={0}
