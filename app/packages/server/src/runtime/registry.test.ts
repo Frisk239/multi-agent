@@ -35,6 +35,14 @@ describe('runtime registry', () => {
     }
   });
 
+  it('supportsThinkingLevel 仅 claude/grok/cursor/opencode 显式 true；pi 缺省不支持', () => {
+    expect(getBackend('claude-code').supportsThinkingLevel).toBe(true);
+    expect(getBackend('grok').supportsThinkingLevel).toBe(true);
+    expect(getBackend('cursor').supportsThinkingLevel).toBe(true);
+    expect(getBackend('opencode').supportsThinkingLevel).toBe(true);
+    expect(getBackend('pi').supportsThinkingLevel).not.toBe(true);
+  });
+
   it('throws error for unregistered runtime ID', () => {
     expect(() => getBackend('unknown' as RuntimeId)).toThrow('unknown runtime');
   });

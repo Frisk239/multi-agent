@@ -118,6 +118,11 @@ export interface RuntimeBackend {
   readonly supportsMcpConfig?: boolean;
   /** Agent.customArgs 只有显式 true 才会进入该 adapter。 */
   readonly supportsCustomArgs?: boolean;
+  /**
+   * Agent.thinkingLevel 只有显式 true 才会写入 [thinking] log / 被 UI 当可编辑。
+   * Missing / undefined / false → 不消费（Pi 等缺省不支持）。
+   */
+  readonly supportsThinkingLevel?: boolean;
   detect(): Promise<DetectResult>;
   /**
    * Optional documented-safe readiness check. See RuntimePreflightContext: do not

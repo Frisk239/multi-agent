@@ -35,6 +35,8 @@ const state = vi.hoisted(() => ({
   eventPublish: vi.fn<(event: unknown) => void>(),
   parseAndDispatchSubagents: vi.fn<(parentRunId: string, text: string) => Promise<void>>(async () => undefined),
   memorySyncRunCompleted: vi.fn<(input: unknown) => void>(),
+  backendId: 'opencode' as string,
+  supportsThinkingLevel: undefined as boolean | undefined,
 }));
 
 // Intentionally synthetic format-only fixtures; none are usable credentials.
@@ -69,7 +71,8 @@ vi.mock('../orchestration/event-bus.js', () => ({
 // fake backend：claim 后 execute 由测试注入行为
 vi.mock('../runtime/registry.js', () => ({
   getBackend: () => ({
-    id: 'opencode',
+    id: state.backendId,
+    supportsThinkingLevel: state.supportsThinkingLevel,
     async execute(input: unknown, onEvent: (e: unknown) => void) {
       if (!state.executeImpl) {
         return { finalText: '', exitReason: 'failed', error: 'no executeImpl' };
@@ -199,6 +202,8 @@ describe('W5 run-worker fault injection', () => {
     state.cleanup = t.cleanup;
     seedTestFixtures(t.db);
     state.executeImpl = null;
+    state.backendId = 'opencode';
+    state.supportsThinkingLevel = undefined;
     state.recordExecutionOwnership.mockClear();
     state.clearExecutionOwnership.mockClear();
     state.eventPublish.mockClear();
@@ -707,5 +712,31 @@ describe('W5 run-worker fault injection', () => {
     expect(executeCalls).toBe(2);
     expect(runRow('run-gq-null-a').status).toBe('completed');
     expect(runRow('run-gq-null-b').status).toBe('completed');
+  });
+
+  it('Pi / undeclared runtime: thinkingLevel 不写 [thinking] 假 log', async () => {
+    state.backendId = 'pi';
+    state.supportsThinkingLevel = undefined;
+    state.db!.update(agents).set({ thinkingLevel: 'high' }).where(eq(agents.id, 'agt-test-1')).run();
+    insertQueuedRun('run-pi-thinking');
+    state.executeImpl = async () => ({ finalText: 'ok', exitReason: 'completed' });
+    await tick();
+    await flush();
+    expect(runRow('run-pi-thinking').status).toBe('completed');
+    const published = JSON.stringify(state.eventPublish.mock.calls);
+    expect(published).not.toContain('[thinking]');
+  });
+
+  it('claude/grok: supportsThinkingLevel + 非空 thinkingLevel 才写 [thinking] log', async () => {
+    state.backendId = 'claude-code';
+    state.supportsThinkingLevel = true;
+    state.db!.update(agents).set({ thinkingLevel: 'high' }).where(eq(agents.id, 'agt-test-1')).run();
+    insertQueuedRun('run-claude-thinking');
+    state.executeImpl = async () => ({ finalText: 'ok', exitReason: 'completed' });
+    await tick();
+    await flush();
+    expect(runRow('run-claude-thinking').status).toBe('completed');
+    const published = JSON.stringify(state.eventPublish.mock.calls);
+    expect(published).toContain('[thinking] high');
   });
 });

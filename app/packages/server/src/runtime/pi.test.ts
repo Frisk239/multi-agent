@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'node:events';
-import type { ExecutionInput, AgentEvent } from './types.js';
+import type { ExecutionInput, AgentEvent, RuntimeBackend } from './types.js';
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -84,6 +84,7 @@ describe('PiBackend (real pi RPC backend)', () => {
     const backend = new PiBackend();
     expect(backend.executionImplemented).toBe(true);
     expect(backend.supportsSessionResume).toBe(true);
+    expect((backend as RuntimeBackend).supportsThinkingLevel).not.toBe(true);
     expect(backend.id).toBe('pi');
   });
 
@@ -255,6 +256,33 @@ describe('PiBackend (real pi RPC backend)', () => {
   });
 
   // ---- 场景 5：resume ----
+  it('thinkingLevel is ignored: spawn argv has no --effort/--variant', async () => {
+    const f = setupInstalled();
+    const promise = new PiBackend().execute(
+      { ...baseInput, thinkingLevel: 'high' },
+      () => {},
+      new AbortController().signal,
+    );
+    await tick();
+
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      '/usr/bin/pi',
+      ['--mode', 'rpc'],
+      expect.objectContaining({ cwd: '/tmp' }),
+    );
+    const argv = mocks.spawn.mock.calls[0]?.[1] as string[];
+    expect(argv).not.toContain('--effort');
+    expect(argv).not.toContain('--variant');
+    expect(argv).not.toContain('high');
+
+    f.feedJson([
+      { type: 'response', id: 'ma-prompt', command: 'prompt', success: true },
+      { type: 'agent_end', messages: [], willRetry: false },
+    ]);
+    f.close(0);
+    await promise;
+  });
+
   it('scenario 5: resumeSessionId → spawn args 含 --session-id', async () => {
     const backend = new PiBackend();
     expect(backend.supportsSessionResume).toBe(true);

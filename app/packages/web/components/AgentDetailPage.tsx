@@ -57,11 +57,12 @@ function runtimeCapabilityState(
           id: string;
           supportsMcpConfig?: boolean;
           supportsCustomArgs?: boolean;
+          supportsThinkingLevel?: boolean;
         }>;
       }
     | undefined,
   runtimeId: RuntimeId,
-  capability: 'supportsMcpConfig' | 'supportsCustomArgs',
+  capability: 'supportsMcpConfig' | 'supportsCustomArgs' | 'supportsThinkingLevel',
 ): RuntimeCapabilityState {
   const runtime = catalog?.runtimes.find((item) => item.id === runtimeId);
   if (!runtime) return 'unknown';
@@ -115,6 +116,9 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const customArgsCapability = agent
     ? runtimeCapabilityState(runtimeCatalog, agent.runtime, 'supportsCustomArgs')
     : 'unknown';
+  const thinkingCapability = agent
+    ? runtimeCapabilityState(runtimeCatalog, agent.runtime, 'supportsThinkingLevel')
+    : 'unknown';
 
   useEffect(() => {
     if (!agent) return;
@@ -155,11 +159,32 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       category: category.trim() ? category.trim() : null,
       runtime,
       model: model.trim() ? model.trim() : null,
-      thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null,
+      ...(thinkingCapability === 'supported'
+        ? { thinkingLevel: thinkingLevel.trim() ? thinkingLevel.trim() : null }
+        : {}),
       concurrency,
       fallbackAgentId: fallbackAgentId.trim() ? fallbackAgentId.trim() : null,
       invocationPermission,
     });
+  }
+
+  function clearUnsupportedThinking() {
+    void (async () => {
+      const confirmed = await confirmDialog({
+        title: '清除未消费的 Thinking/Effort？',
+        description:
+          '当前 runtime 不会消费该字段，或能力尚未确认。清除后不可恢复；其他尚未保存的属性草稿不会被提交。',
+        confirmLabel: '清除 Thinking',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+      update.mutate(
+        { thinkingLevel: null },
+        {
+          onSuccess: () => setThinkingLevel(''),
+        },
+      );
+    })();
   }
 
   function handleDelete() {
@@ -350,42 +375,83 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               </label>
               <label className="ops-field">
                 <span>Thinking / Effort</span>
-                <Select
-                  value={
-                    ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
-                      ? thinkingLevel
-                      : thinkingLevel
-                        ? '__custom__'
-                        : ''
-                  }
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '__custom__') return;
-                    setThinkingLevel(v);
-                  }}
-                  data-testid="agent-thinking-select"
-                >
-                  <option value="">CLI 默认（不指定）</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                  <option value="max">max</option>
-                  {thinkingLevel &&
-                  !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
-                    <option value="__custom__">{thinkingLevel}（当前）</option>
-                  ) : null}
-                </Select>
-                <input
-                  value={thinkingLevel}
-                  onChange={(e) => setThinkingLevel(e.target.value)}
-                  placeholder="或手填 effort/variant"
-                  data-testid="agent-thinking-input"
-                  autoComplete="off"
-                  className="agent-model-freeform"
-                />
-                <span className="text-dim text-sm">
-                  claude/grok → --effort；cursor/opencode → --variant（CLI 不支持会失败，可清空）
-                </span>
+                {thinkingCapability === 'supported' ? (
+                  <>
+                    <Select
+                      value={
+                        ['low', 'medium', 'high', 'max'].includes(thinkingLevel)
+                          ? thinkingLevel
+                          : thinkingLevel
+                            ? '__custom__'
+                            : ''
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '__custom__') return;
+                        setThinkingLevel(v);
+                      }}
+                      data-testid="agent-thinking-select"
+                    >
+                      <option value="">CLI 默认（不指定）</option>
+                      <option value="low">low</option>
+                      <option value="medium">medium</option>
+                      <option value="high">high</option>
+                      <option value="max">max</option>
+                      {thinkingLevel &&
+                      !['low', 'medium', 'high', 'max'].includes(thinkingLevel) ? (
+                        <option value="__custom__">{thinkingLevel}（当前）</option>
+                      ) : null}
+                    </Select>
+                    <input
+                      value={thinkingLevel}
+                      onChange={(e) => setThinkingLevel(e.target.value)}
+                      placeholder="或手填 effort/variant"
+                      data-testid="agent-thinking-input"
+                      autoComplete="off"
+                      className="agent-model-freeform"
+                    />
+                    <span className="text-dim text-sm">
+                      claude/grok → --effort；cursor/opencode → --variant（CLI 不支持会失败，可清空）
+                    </span>
+                  </>
+                ) : (
+                  <section
+                    className="mcp-editor-warning"
+                    data-testid="agent-thinking-unavailable"
+                    role="status"
+                  >
+                    <strong>
+                      {thinkingCapability === 'unknown'
+                        ? 'Thinking/Effort 能力尚未确认'
+                        : '此 runtime 不消费 Thinking/Effort'}
+                    </strong>
+                    <p>
+                      {thinkingCapability === 'unknown'
+                        ? '运行时能力目录尚未加载、未收录该 runtime，或未声明此能力。为避免保存后静默无效，暂不提供可编辑入口。'
+                        : '该 runtime adapter 不会把 Thinking/Effort 传给 CLI。为避免保存后静默无效，已禁用编辑入口。'}
+                    </p>
+                    {thinkingLevel ? (
+                      <>
+                        <input
+                          value={thinkingLevel}
+                          readOnly
+                          aria-label="未消费的历史 Thinking/Effort"
+                          data-testid="agent-thinking-readonly"
+                          className="agent-model-freeform"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={update.isPending}
+                          onClick={clearUnsupportedThinking}
+                          data-testid="agent-thinking-clear"
+                        >
+                          {update.isPending ? '清除中…' : '清除未消费的 Thinking/Effort'}
+                        </button>
+                      </>
+                    ) : null}
+                  </section>
+                )}
               </label>
               <label className="ops-field">
                 <span>并发</span>

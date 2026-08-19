@@ -667,6 +667,8 @@ export const RuntimeInfo = z.object({
   supportsMcpConfig: z.boolean().optional(),
   /** adapter 实际会消费 Agent 自定义 CLI 参数 */
   supportsCustomArgs: z.boolean().optional(),
+  /** adapter 实际会消费 Agent.thinkingLevel（--effort / --variant） */
+  supportsThinkingLevel: z.boolean().optional(),
   /** true 表示 runtime 声明支持 session resume */
   supportsSessionResume: z.boolean().optional(),
 });

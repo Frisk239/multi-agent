@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
           id: string;
           supportsMcpConfig?: boolean;
           supportsCustomArgs?: boolean;
+          supportsThinkingLevel?: boolean;
         }>;
       }
     | undefined,
@@ -376,5 +377,63 @@ describe('G8-4a runtime capability honesty', () => {
         expect.any(Object),
       );
     });
+  });
+});
+
+describe('pi-thinking-honest AgentDetail Thinking 门控', () => {
+  beforeEach(() => {
+    mocks.updateMutate.mockReset();
+    mocks.confirmDialog.mockReset();
+    mocks.readiness = null;
+    mocks.runtimeCatalog = undefined;
+    mocks.agent = makeAgent({ runtime: 'pi', thinkingLevel: 'high' });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('pi catalog → thinking 编辑器不可用，旧值只读 + 可清除', async () => {
+    mocks.runtimeCatalog = {
+      runtimes: [
+        { id: 'pi', supportsMcpConfig: false, supportsCustomArgs: true, supportsThinkingLevel: false },
+      ],
+    };
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    expect(screen.queryByTestId('agent-thinking-select')).toBeNull();
+    expect(screen.queryByTestId('agent-thinking-input')).toBeNull();
+    expect(screen.getByTestId('agent-thinking-unavailable')).toHaveTextContent(
+      '此 runtime 不消费 Thinking/Effort',
+    );
+    expect(screen.getByTestId('agent-thinking-readonly')).toHaveValue('high');
+
+    mocks.confirmDialog.mockResolvedValue(true);
+    fireEvent.click(screen.getByTestId('agent-thinking-clear'));
+    await waitFor(() => {
+      expect(mocks.updateMutate).toHaveBeenCalledWith(
+        { thinkingLevel: null },
+        expect.any(Object),
+      );
+    });
+  });
+
+  it('catalog 声明 supportsThinkingLevel 时仍可编辑', async () => {
+    mocks.agent = makeAgent({ runtime: 'claude-code', thinkingLevel: 'medium' });
+    mocks.runtimeCatalog = {
+      runtimes: [
+        {
+          id: 'claude-code',
+          supportsMcpConfig: true,
+          supportsCustomArgs: true,
+          supportsThinkingLevel: true,
+        },
+      ],
+    };
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    expect(screen.getByTestId('agent-thinking-select')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-thinking-input')).toHaveValue('medium');
+    expect(screen.queryByTestId('agent-thinking-unavailable')).toBeNull();
   });
 });

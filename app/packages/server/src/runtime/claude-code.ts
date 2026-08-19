@@ -136,6 +136,7 @@ export class ClaudeCodeBackend implements RuntimeBackend {
   readonly supportsSessionResume = true;
   readonly supportsMcpConfig = true;
   readonly supportsCustomArgs = true;
+  readonly supportsThinkingLevel = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CLAUDE_PATH', ['claude']);

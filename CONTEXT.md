@@ -48,8 +48,8 @@
 
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（G1–G5 Goal 体系 + 切片队列）——迭代走 goal 模式（`/goal` 定义目标）+ Slice Owner。
 - **▶ 当前切片：** G8-6 加厚已落地（未提交）——看板 Sheet 尾窗最新产出 + 就地再执行 + messages `beforeSeq`/limit-only 尾窗，见 [g8-6-board-live-transcript-impl-1.md](app/.progress/g8-6-board-live-transcript-impl-1.md)。G8-1…5a 仍仅工作区，未进 `e6ab04f`。
-- **▶ 刚关（未提交）：** G8-6 加厚 + **comment-followup-queue**（running 再评排队 1 条）。见 [comment-followup-queue-impl-1.md](app/.progress/comment-followup-queue-impl-1.md)。
-- **▶ 下一刀候选：** ① 把 08-08/G8-2…6/follow-up **按刀拆开提交**（禁止一锅端）；② 小诚实：Pi 不消费 thinking 却打 `[thinking]` 日志。G8-4b 仍禁开。
+- **▶ 刚关：** G8 波已推 `cb009de`。`pi-thinking-honest` 已落地（Pi 不再假写 `[thinking]`）。
+- **▶ 下一刀候选：** AgentBuilderWizard thinking 门控；或 G9-1 skill pack（人点头）。G8-4b 仍禁开。合入后须 `db:migrate`（0052/0053）。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 

@@ -217,6 +217,7 @@ export class CursorBackend implements RuntimeBackend {
   readonly supportsSessionResume = true;
   readonly supportsMcpConfig = false;
   readonly supportsCustomArgs = true;
+  readonly supportsThinkingLevel = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('CURSOR_PATH', ['cursor-agent', 'cursor']);

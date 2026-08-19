@@ -141,6 +141,10 @@ describe('GrokBackend 能力声明', () => {
     expect(backend.supportsSessionResume).toBe(true);
   });
 
+  it('supportsThinkingLevel=true（ACP --effort）', () => {
+    expect(backend.supportsThinkingLevel).toBe(true);
+  });
+
   it('sendRunCommand 诚实不支持（ACP v1 无 steer 等方法）', async () => {
     const r = await backend.sendRunCommand('run-1', { command: 'steer', message: 'go on' });
     expect(r.ok).toBe(false);

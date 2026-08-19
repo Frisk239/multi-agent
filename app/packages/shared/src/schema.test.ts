@@ -8,6 +8,7 @@ import {
   AuthorType,
   CommentType,
   RuntimeId,
+  RuntimeInfo,
   AgentRunStatus,
   AgentRunFailureReason,
   AgentRunKind,
@@ -100,6 +101,33 @@ describe('Shared Schema Validators', () => {
 
     it('rejects unknown runtime ids', () => {
       expect(() => RuntimeId.parse('python')).toThrow();
+    });
+  });
+
+  describe('RuntimeInfo', () => {
+    const base = {
+      id: 'pi' as const,
+      label: 'Pi SDK',
+      installed: true,
+      version: '1.0.0',
+      path: '/usr/bin/pi',
+      agentIds: [],
+    };
+
+    it('accepts optional supportsThinkingLevel and keeps other capability flags optional', () => {
+      expect(RuntimeInfo.parse(base).supportsThinkingLevel).toBeUndefined();
+      expect(
+        RuntimeInfo.parse({ ...base, supportsThinkingLevel: false }).supportsThinkingLevel,
+      ).toBe(false);
+      expect(
+        RuntimeInfo.parse({
+          ...base,
+          id: 'claude-code',
+          supportsMcpConfig: true,
+          supportsCustomArgs: true,
+          supportsThinkingLevel: true,
+        }).supportsThinkingLevel,
+      ).toBe(true);
     });
   });
 

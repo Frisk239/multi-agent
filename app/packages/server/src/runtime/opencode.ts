@@ -234,6 +234,7 @@ export class OpencodeBackend implements RuntimeBackend {
   readonly supportsSessionResume = true;
   readonly supportsMcpConfig = false;
   readonly supportsCustomArgs = true;
+  readonly supportsThinkingLevel = true;
 
   async detect(): Promise<DetectResult> {
     const path = await resolveCmd('OPENCODE_PATH', ['opencode']);

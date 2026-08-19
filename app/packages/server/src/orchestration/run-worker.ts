@@ -670,10 +670,12 @@ export async function tick(): Promise<void> {
       type: 'log',
       text: `[model] ${model ?? 'default'}\n`,
     });
-    onEvent({
-      type: 'log',
-      text: `[thinking] ${thinkingLevel ?? 'default'}\n`,
-    });
+    if (backend.supportsThinkingLevel === true && thinkingLevel) {
+      onEvent({
+        type: 'log',
+        text: `[thinking] ${thinkingLevel}\n`,
+      });
+    }
     // G3-4b：注入前诚实 log（与 agent 行配置一致）
     if (envVars) {
       onEvent({
