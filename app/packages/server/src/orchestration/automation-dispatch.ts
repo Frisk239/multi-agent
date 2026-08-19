@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, lt, or } from 'drizzle-orm';
 import {
   renderAutomationTemplate,
   type AutomationExecutionMode,
   type AutomationRun,
   type AutomationRunSource,
+  type AutomationScheduleKind,
 } from '@ma/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
@@ -16,6 +17,19 @@ import { computeAgentReadiness } from './readiness.js';
 import { wakeRunWorker } from './run-worker.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
+
+export type AutomationScheduleShape = {
+  scheduleKind: AutomationScheduleKind;
+  intervalMinutes: number | null;
+  dailyTime: string | null;
+  cronExpression: string | null;
+};
+
+/** Local app resume policy, aligned with Multica latest_only but intentionally auditable here. */
+export const SCHEDULE_CATCHUP_LOOKBACK_MS = 24 * 60 * 60_000;
+export const SCHEDULE_LATE_GRACE_MS = 5 * 60_000;
+export const SCHEDULE_CATCHUP_SKIPPED_ERROR =
+  '本机未运行，未补跑（错过计划时刻超过 5 分钟）';
 
 export function automationStatusForEnqueue(
   status: 'queued' | 'skipped' | 'not_applicable' | undefined,
@@ -59,12 +73,19 @@ export function renderTemplate(
   return renderAutomationTemplate(tpl, ctx);
 }
 
-/** latest_only：interval 对齐当前 grid；daily_at 取今日 HH:mm（本地时区）。 */
-export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
+/** Latest canonical slot at or before now. Daily may legitimately mean yesterday. */
+function latestCanonicalScheduleSlot(
+  rule: AutomationScheduleShape,
+  now: number,
+): number | null {
   if (rule.scheduleKind === 'cron') {
     if (!rule.cronExpression) return null;
     try {
-      const interval = CronExpressionParser.parse(rule.cronExpression, { currentDate: new Date(now) });
+      // cron-parser.prev() is strict; add one millisecond so a slot exactly at now
+      // is eligible for the planner's inclusive `plannedAt <= now` boundary.
+      const interval = CronExpressionParser.parse(rule.cronExpression, {
+        currentDate: new Date(now + 1),
+      });
       return interval.prev().getTime();
     } catch {
       return null;
@@ -84,12 +105,47 @@ export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
     const [hh, mm] = daily.split(':').map(Number);
     const d = new Date(now);
     d.setHours(hh, mm, 0, 0);
-    const planned = d.getTime();
-    if (now < planned) return null;
-    return planned;
+    if (d.getTime() > now) d.setDate(d.getDate() - 1);
+    return d.getTime();
   }
 
   return null;
+}
+
+/**
+ * Source-aware latest_only planner. Its anchor is supplied by the worker from
+ * the latest persisted schedule run (never manual lastPlannedAt). It intentionally
+ * does not enumerate every missed plan: only the one newest canonical slot can
+ * be returned, and only inside the bounded resume window.
+ */
+export function planLatestScheduleSlot(
+  rule: AutomationScheduleShape,
+  anchorMs: number,
+  now: number,
+  lookbackMs: number = SCHEDULE_CATCHUP_LOOKBACK_MS,
+): number | null {
+  if (!Number.isFinite(now) || !Number.isFinite(anchorMs)) return null;
+  const latest = latestCanonicalScheduleSlot(rule, now);
+  if (latest == null) return null;
+  const windowStart = Math.max(anchorMs, now - Math.max(0, lookbackMs));
+  return latest > windowStart && latest <= now ? latest : null;
+}
+
+/**
+ * Legacy current-time helper retained for callers/tests outside the worker.
+ * The schedule worker uses planLatestScheduleSlot with a persisted source-aware
+ * anchor instead.
+ */
+export function computeDuePlannedAt(rule: RuleRow, now: number): number | null {
+  if (rule.scheduleKind === 'daily_at') {
+    const daily = rule.dailyTime;
+    if (!daily || !/^\d{2}:\d{2}$/.test(daily)) return null;
+    const [hh, mm] = daily.split(':').map(Number);
+    const d = new Date(now);
+    d.setHours(hh, mm, 0, 0);
+    return now < d.getTime() ? null : d.getTime();
+  }
+  return latestCanonicalScheduleSlot(rule, now);
 }
 
 /**
@@ -244,6 +300,93 @@ function preflightExistingRun(ruleId: string, plannedAt: number): AutomationRun 
     }
   }
   return existing;
+}
+
+/** lastPlannedAt remains a UI/read-model watermark; older catch-up work must never rewind it. */
+function advanceAutomationWatermark(ruleId: string, plannedAt: number, now = Date.now()): void {
+  db.update(automationRules)
+    .set({ lastPlannedAt: plannedAt, updatedAt: now })
+    .where(
+      and(
+        eq(automationRules.id, ruleId),
+        or(
+          isNull(automationRules.lastPlannedAt),
+          lt(automationRules.lastPlannedAt, plannedAt),
+        ),
+      ),
+    )
+    .run();
+}
+
+function loadLatestScheduleAnchor(ruleId: string): number | null {
+  const row = db
+    .select({ plannedAt: automationRuns.plannedAt })
+    .from(automationRuns)
+    .where(
+      and(
+        eq(automationRuns.ruleId, ruleId),
+        eq(automationRuns.source, 'schedule'),
+      ),
+    )
+    .orderBy(desc(automationRuns.plannedAt))
+    .limit(1)
+    .get();
+  return row?.plannedAt ?? null;
+}
+
+function loadScheduleDispatchingRuns(ruleId: string): Array<typeof automationRuns.$inferSelect> {
+  return db
+    .select()
+    .from(automationRuns)
+    .where(
+      and(
+        eq(automationRuns.ruleId, ruleId),
+        eq(automationRuns.source, 'schedule'),
+        eq(automationRuns.status, 'dispatching'),
+      ),
+    )
+    .orderBy(automationRuns.plannedAt)
+    .all();
+}
+
+/**
+ * Persist an expired schedule slot without invoking any validation, Issue, or
+ * AgentRun path. The existing unique (rule_id, planned_at) key is the claim.
+ */
+export function recordMissedScheduleSlot(
+  ruleId: string,
+  plannedAt: number,
+  now = Date.now(),
+): AutomationRun {
+  const existing = preflightExistingRun(ruleId, plannedAt);
+  if (existing) return existing;
+
+  const id = crypto.randomUUID();
+  try {
+    db.insert(automationRuns)
+      .values({
+        id,
+        ruleId,
+        plannedAt,
+        source: 'schedule',
+        status: 'skipped',
+        issueId: null,
+        linkedRunId: null,
+        error: SCHEDULE_CATCHUP_SKIPPED_ERROR,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+  } catch (error) {
+    if (!isUniqueConflict(error)) throw error;
+    const winner = loadExistingRun(ruleId, plannedAt);
+    if (winner) return winner;
+    throw new Error(`automation missed-slot race lost without winner row: ${ruleId}@${plannedAt}`);
+  }
+
+  advanceAutomationWatermark(ruleId, plannedAt, now);
+  const row = db.select().from(automationRuns).where(eq(automationRuns.id, id)).get()!;
+  return toAutomationRun(row);
 }
 
 function validateAssignee(rule: RuleRow): string | null {
@@ -415,11 +558,8 @@ export async function dispatchAutomationRule(
     throw new Error(`automation dispatch race lost without winner row: ${ruleId}@${plannedAt}`);
   }
 
-  // 占位成功即视为本次 plannedAt 已处理（学 multica：claim 后更新规则指针）
-  db.update(automationRules)
-    .set({ lastPlannedAt: plannedAt, updatedAt: Date.now() })
-    .where(eq(automationRules.id, rule.id))
-    .run();
+  // 占位成功即视为本次 plannedAt 已处理；旧 catch-up slot cannot rewind UI watermark.
+  advanceAutomationWatermark(rule.id, plannedAt);
 
   // 阶段 2：仅赢家执行副作用；任何终态经 finishAutomationRun 写占位行
   try {
@@ -506,4 +646,36 @@ export async function dispatchAutomationRule(
     }
     throw e;
   }
+}
+
+/**
+ * One source-aware schedule tick for a rule.
+ *
+ * First revisit any persisted schedule dispatch placeholders so a crashed worker
+ * still gets the established preflight/stale-to-failed treatment. Only then use
+ * the latest schedule run (never a manual run) as the planner anchor.
+ */
+export async function processScheduledAutomationRule(
+  rule: RuleRow,
+  now: number = Date.now(),
+): Promise<AutomationRun | null> {
+  let activePlaceholder: AutomationRun | null = null;
+  for (const pending of loadScheduleDispatchingRuns(rule.id)) {
+    const checked = await dispatchAutomationRule(rule.id, pending.plannedAt, 'schedule');
+    if (checked.status === 'dispatching') activePlaceholder = checked;
+  }
+
+  // Do not stack a later schedule slot while an earlier claimed one is still
+  // genuinely in flight. A stale one above has already become failed and does
+  // not block this latest-only pass.
+  if (activePlaceholder) return activePlaceholder;
+
+  const anchor = loadLatestScheduleAnchor(rule.id) ?? rule.createdAt;
+  const plannedAt = planLatestScheduleSlot(rule, anchor, now);
+  if (plannedAt == null) return null;
+
+  if (now - plannedAt > SCHEDULE_LATE_GRACE_MS) {
+    return recordMissedScheduleSlot(rule.id, plannedAt, now);
+  }
+  return dispatchAutomationRule(rule.id, plannedAt, 'schedule');
 }

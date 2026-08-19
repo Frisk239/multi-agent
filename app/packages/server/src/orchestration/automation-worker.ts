@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { automationRules } from '../db/schema.js';
 import { logger } from '../logger.js';
-import { computeDuePlannedAt, dispatchAutomationRule } from './automation-dispatch.js';
+import { processScheduledAutomationRule } from './automation-dispatch.js';
 import {
   invokeWorkerTickSafely,
   markWorkerStarted,
@@ -12,23 +12,28 @@ import {
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
+/** Exported for fixed-clock SQLite coverage; the timer wrapper remains the only production scheduler. */
+export async function tickAutomationWorker(now: number = Date.now()): Promise<void> {
+  const rules = db
+    .select()
+    .from(automationRules)
+    .where(eq(automationRules.enabled, 1))
+    .all();
+  for (const rule of rules) {
+    try {
+      await processScheduledAutomationRule(rule, now);
+    } catch (e) {
+      logger.error(
+        { runId: rule.id, err: e instanceof Error ? e.message : String(e) },
+        '[automation] dispatch failed',
+      );
+    }
+  }
+}
+
 async function tick(): Promise<void> {
   await trackWorkerTick('automationWorker', async () => {
-    const now = Date.now();
-    const rules = db
-      .select()
-      .from(automationRules)
-      .where(eq(automationRules.enabled, 1))
-      .all();
-    for (const r of rules) {
-      const due = computeDuePlannedAt(r, now);
-      if (due == null) continue;
-      try {
-        await dispatchAutomationRule(r.id, due, 'schedule');
-      } catch (e) {
-        logger.error({ runId: r.id, err: e instanceof Error ? e.message : String(e) }, '[automation] dispatch failed');
-      }
-    }
+    await tickAutomationWorker();
   });
 }
 
