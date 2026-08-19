@@ -20,6 +20,7 @@ import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
 import { PageSkeleton } from './Skeleton';
+import { useListAnchor } from '@/lib/use-list-anchor';
 
 /** F6-1：本地单用户 id（与 server LOCAL_MEMBER 对齐） */
 const LOCAL_USER_ID = 'user-linyuan';
@@ -244,6 +245,23 @@ function SquadsPageInner() {
       return true;
     });
   }, [data, scope, qFromUrl, leaderFromUrl, readyFromUrl, readinessMap, agentNameById]);
+
+  const visibleIds = useMemo(() => visible.map((s) => s.id), [visible]);
+  const listFilters = useMemo(
+    () => ({
+      scope,
+      q: qFromUrl,
+      leader: leaderFromUrl,
+      ready: readyFromUrl,
+    }),
+    [scope, qFromUrl, leaderFromUrl, readyFromUrl],
+  );
+  const { restoredId, remember } = useListAnchor({
+    page: 'squads',
+    filters: listFilters,
+    itemIds: visibleIds,
+    attr: 'data-squad-id',
+  });
 
   const hasActiveFilters = Boolean(qFromUrl.trim() || readyFromUrl || leaderFromUrl);
 
@@ -629,12 +647,20 @@ function SquadsPageInner() {
                     </td>
                   </tr>
                 ) : (
-                  visible.map((sq) => {
+                  visible.map((sq, rowIndex) => {
                     const rd = sq.leaderId ? readinessMap[sq.leaderId] : null;
                     return (
-                      <tr key={sq.id} data-squad-id={sq.id}>
+                      <tr
+                        key={sq.id}
+                        data-squad-id={sq.id}
+                        data-restored={restoredId === sq.id ? '1' : '0'}
+                      >
                         <td>
-                          <Link href={`/squads/${sq.id}`} className="agent-cell">
+                          <Link
+                            href={`/squads/${sq.id}`}
+                            className="agent-cell"
+                            onClick={() => remember(sq.id, rowIndex)}
+                          >
                             <span className="agent-icon-sm">
                               <Icon name="squad" size={14} />
                             </span>
