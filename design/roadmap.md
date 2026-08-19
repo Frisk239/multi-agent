@@ -115,6 +115,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G5-5 | **系统/桌面通知**（run 完成、inbox 新项；纯本地，可用 Electron shell/notify 类机制） | 中 | 中 | — | ✅（第四波：零依赖 PowerShell 弹窗 + Settings 开关默认关） |
 | G5-6 | **运营统计加深**（cycle time / agent 利用率 / 失败率·改派率趋势；现 analytics 仅 token-usage） | 低·中 | 中 | — | ✅（第四波：/api/analytics/ops + UsagePage 运营区） |
 | G5-7 | **Issue/看板 JSON 导入导出**（迁移与备份场景；现仅 DB 级 ops-backup） | 低 | 中 | — | ✅（第四波：/api/issues/export + import，看板按钮） |
+| G5-8 | **Worker tick 健康真实性**（四个常驻 loop 仅成功 heartbeat；失败连续数/时间/脱敏摘要贯穿 healthz、ops、Settings） | 高 | 小 | — | ✅（2026-08-19，[closeout](app/.progress/worker-tick-health-truth-impl-1.md)） |
 
 ### G6 后端执行与运营精细度 — 调度公平、副作用诚实、盲区清零（新，2026-08-03 注册）
 
@@ -200,6 +201,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 21 | **Runs Mission Control 任务语义 + 定位** | G3 | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)：服务端 subject / q / projectId + URL 搜索筛选 + 真实 Playwright） |
 | 22 | **Issue run 区块真实性** | G3 | ✅（2026-08-19，[closeout](app/.progress/issue-runs-truthful-error-impl-1.md)：同一 runs query 下传；500 显示局部错误/retry，恢复后不新增 run） |
 | 23 | **Chat 标题与安全删除** | G3 | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)：行内改名；仅 archived 且 zero-run 可删；有运行记录 409 保留） |
+| 24 | **Worker tick 健康真实性** | G5 | ✅（2026-08-19，[closeout](app/.progress/worker-tick-health-truth-impl-1.md)：四 worker success/failure health、healthz/ops/Settings、Playwright；Vitest 4 worker 上限迁移以消除 WAL 并发假红） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
