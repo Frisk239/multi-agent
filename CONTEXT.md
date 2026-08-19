@@ -59,8 +59,8 @@
 
 - **路线/目标真源：** [design/roadmap.md](design/roadmap.md)（Goal 体系 + 切片队列）。**不是工单。**
 - **工程模式：** [ADR 0007](docs/adr/0007-engineering-mode-after-hermes.md) — 对照 Hermes pipeline：保留 Slice Owner + main 直推；CI = `pnpm check` + `scripts/check-docs.mjs`。
-- **▶ 已关：** `374afc5` 同 Agent × Issue follow-up claim 串行；`20b4ae9` Runs Mission Control 任务语义+定位（subject SQL 投影、服务端 q/project、URL 搜索/筛选与锚点）；`ca2aabe` Issue 内 runs 请求失败显示局部错误 + retry，不再伪装「尚未执行」；`7e0a63d` Chat 行内改名 + 仅归档 zero-run 删除，有 run 统一 409 保留可观测性；`cf53b17` 四 worker tick 仅成功 heartbeat，失败摘要贯通 healthz/ops/Settings 且会自愈。
-- **▶ 下一刀：** Issue 评论线程与结论 UI：已有一层回复 + resolve/unresolve 后端，前端仍 flat；按 Multica comment card 把回复、结论、折叠/展开接入。G8-4b 仍禁开。
+- **▶ 已关：** `374afc5` 同 Agent × Issue follow-up claim 串行；`20b4ae9` Runs Mission Control 任务语义+定位（subject SQL 投影、服务端 q/project、URL 搜索/筛选与锚点）；`ca2aabe` Issue 内 runs 请求失败显示局部错误 + retry，不再伪装「尚未执行」；`7e0a63d` Chat 行内改名 + 仅归档 zero-run 删除，有 run 统一 409 保留可观测性；`cf53b17` 四 worker tick 仅成功 heartbeat，失败摘要贯通 healthz/ops/Settings 且会自愈；`74052d0` Issue 评论一层线程、结论/撤销、折叠展开和回复草稿隔离。
+- **▶ 下一刀：** Agents roster 的“正在做什么”可行动化：现在只见 working(n)，应以批量最新 active issue run 投影显示并直达具体任务；多 run 去带筛选的 Runs。G8-4b 仍禁开。
 - **已关（勿重开）：** reopenable-db D1–D5、W1–W7、O1/O2/O5/O6/O7、P2-1–P2-4（改派 lineage）、契约/故障注入测试、Banner 队列、F6 列表页 IA、cwd 解析统一、G7-1…G7-12。
 - **2026-08-02 分析（本路线生成依据）：** 三份子代理分析（后端薄弱点 / 前端交互缺口 / 对照 references 新发现）+ 规划文档未做项清单，全部纳入 roadmap G1–G5 按价值排序。
 

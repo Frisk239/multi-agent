@@ -85,6 +85,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-8 | **Runs Mission Control 任务语义 + 定位**（Issue/会话标题、有效项目、服务端 q/project 与 URL 锚点） | 高 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/runs-mission-control-subjects-impl-1.md)） |
 | G3-9 | **Issue run 区块真实性**（runs 请求失败显示局部错误 + retry，不能伪装为空态） | 高 | 小 | — | ✅（2026-08-19，[closeout](app/.progress/issue-runs-truthful-error-impl-1.md)） |
 | G3-10 | **Chat 标题与安全删除**（行内改名；仅归档后可删；有任何 run 时保留历史） | 中 | 中 | — | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)） |
+| G3-11 | **Issue 评论线程与结论 UI**（根评论 + 一层回复；定论/撤销；已定论默认折叠且可展开） | 高 | 小 | 既有 S3 评论契约 | ✅（2026-08-19，[closeout](app/.progress/issue-comment-thread-conclusion-ui-impl-1.md)） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -202,6 +203,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 22 | **Issue run 区块真实性** | G3 | ✅（2026-08-19，[closeout](app/.progress/issue-runs-truthful-error-impl-1.md)：同一 runs query 下传；500 显示局部错误/retry，恢复后不新增 run） |
 | 23 | **Chat 标题与安全删除** | G3 | ✅（2026-08-19，[closeout](app/.progress/chat-title-safe-delete-impl-1.md)：行内改名；仅 archived 且 zero-run 可删；有运行记录 409 保留） |
 | 24 | **Worker tick 健康真实性** | G5 | ✅（2026-08-19，[closeout](app/.progress/worker-tick-health-truth-impl-1.md)：四 worker success/failure health、healthz/ops/Settings、Playwright；Vitest 4 worker 上限迁移以消除 WAL 并发假红） |
+| 25 | **Issue 评论线程与结论 UI** | G3 | ✅（2026-08-19，[closeout](app/.progress/issue-comment-thread-conclusion-ui-impl-1.md)：一层回复、结论/撤销、折叠展开、真实 Playwright） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
