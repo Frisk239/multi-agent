@@ -13,6 +13,7 @@ import { PageSkeleton } from './Skeleton';
 import { CreateSkillDialog } from './CreateSkillDialog';
 import { Select } from './Select';
 import { skillSourceChip } from '@/lib/skill-source-label';
+import { useListAnchor } from '@/lib/use-list-anchor';
 
 type SourceFilter = '' | 'project' | 'user' | 'workspace' | 'builtin';
 
@@ -94,6 +95,18 @@ function SkillsPageInner() {
     if (sortFromUrl === 'updated') rows.sort(byUpdatedAtDesc);
     return rows;
   }, [data, qFromUrl, sourceFromUrl, sortFromUrl]);
+
+  const filteredIds = useMemo(() => filtered.map((s) => s.name), [filtered]);
+  const listFilters = useMemo(
+    () => ({ source: sourceFromUrl, q: qFromUrl, sort: sortFromUrl }),
+    [sourceFromUrl, qFromUrl, sortFromUrl],
+  );
+  const { restoredId, remember } = useListAnchor({
+    page: 'skills',
+    filters: listFilters,
+    itemIds: filteredIds,
+    attr: 'data-skill-name',
+  });
 
   const hasActiveFilters = Boolean(qFromUrl.trim() || sourceFromUrl);
 
@@ -291,16 +304,18 @@ function SkillsPageInner() {
               <span className="skills-list-head-desc">简介</span>
             </div>
             <ul className="skills-list" data-testid="skills-list">
-              {filtered.map((sk) => (
+              {filtered.map((sk, rowIndex) => (
                 <li key={sk.name}>
                   <button
                     type="button"
                     className="skills-list-row"
                     data-testid="skills-list-row"
                     data-skill-name={sk.name}
-                    onClick={() =>
-                      router.push(`/skills/${encodeURIComponent(sk.name)}`)
-                    }
+                    data-restored={restoredId === sk.name ? '1' : '0'}
+                    onClick={() => {
+                      remember(sk.name, rowIndex);
+                      router.push(`/skills/${encodeURIComponent(sk.name)}`);
+                    }}
                   >
                     <span className="skills-list-name">
                       <strong>{sk.name}</strong>
