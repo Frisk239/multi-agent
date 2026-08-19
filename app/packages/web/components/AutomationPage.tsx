@@ -15,6 +15,7 @@ import {
   API,
   apiFetch,
   useAgents,
+  useAgentsReadinessMap,
   useAutomationRules,
   useAutomationRuns,
   useCreateAutomationRule,
@@ -31,6 +32,7 @@ import { FieldError } from './FieldError';
 import { Icon } from './Icon';
 import { PageHeaderMore } from './PageHeaderMore';
 import { Select } from './Select';
+import { AssigneeCombobox } from './AssigneeSelect';
 import { automationRunHref } from '@/lib/automation-run-link';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
@@ -172,6 +174,8 @@ function AutomationPageInner() {
   const { data, isLoading, isError, error, refetch, isFetching } = useAutomationRules();
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
+  const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   const create = useCreateAutomationRule();
   const update = useUpdateAutomationRule();
   const del = useDeleteAutomationRule();
@@ -662,33 +666,21 @@ function AutomationPageInner() {
             )}
             <label className="ops-field">
               <span>指派给</span>
-              <Select
+              <AssigneeCombobox
                 value={assigneeValue}
-                onChange={(e) => {
-                  setAssigneeValue(e.target.value);
+                onChange={(next) => {
+                  setAssigneeValue(next);
                   setFieldErrors((prev) => (prev.assignee ? { ...prev, assignee: '' } : prev));
                 }}
-                required
-                aria-label="指派 agent 或小队"
-                aria-invalid={fieldErrors.assignee ? true : undefined}
-                aria-describedby={fieldErrors.assignee ? 'automation-create-assignee-error' : undefined}
-              >
-                <option value="">选择 agent 或小队…</option>
-                <optgroup label="智能体">
-                  {agents.map((a) => (
-                    <option key={a.id} value={`agent:${a.id}`}>
-                      {a.name} · {a.runtime}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="小队">
-                  {squads.map((s) => (
-                    <option key={s.id} value={`squad:${s.id}`}>
-                      {s.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </Select>
+                agents={agents}
+                squads={squads}
+                readinessMap={readinessMap}
+                agentNameById={agentNameById}
+                listboxId="automation-create-assignee-listbox"
+                selectTestId="automation-create-assignee"
+                searchTestId="automation-create-assignee-search"
+                searchAriaLabel="搜索自动化指派对象"
+              />
               {fieldErrors.assignee ? (
                 <FieldError id="automation-create-assignee-error" message={fieldErrors.assignee} dataTestId="automation-create-assignee-error" />
               ) : null}
