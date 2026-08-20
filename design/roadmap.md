@@ -93,6 +93,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-13 | **Agent 详情直达派活**（“分配工作”预填 New Issue；保留独立“查看已指派 Issue”；复用 readiness/preflight 与 enqueue） | 高 | 小 | G3-12 + 既有 NewIssueForm | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)） |
 | G3-14 | **Automation Run Now 结果真实性**（HTTP 201 与领域成功分离；warning/repair/最近执行保留） | 高 | 小 | G2-2 + 既有 AutomationRun | ✅（2026-08-19，[closeout](app/.progress/automation-run-now-truth-impl-1.md)） |
 | G3-15 | **Automation 连续跳过一键钻取**（20 条窗口内的 skipped 告警直达原因组；不误报完整总数） | 中 | 小·中 | G6-7、G2-6 | ✅（2026-08-20，[closeout](app/.progress/automation-skipped-streak-drilldown-impl-1.md)） |
+| G3-16 | **CmdK 项目上下文直达**（缓存项目按标题/描述/本机目录确定性搜索，独立组显示状态/目录，Enter 进详情） | 中 | 小 | 既有 Project 读模型 | ✅（2026-08-20，[closeout](app/.progress/cmdk-project-context-impl-1.md)） |
 
 ### G4 知识/记忆 — 长期价值
 
@@ -218,6 +219,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 29 | **Automation schedule catch-up truth** | G2 | ✅（2026-08-19，[closeout](app/.progress/automation-schedule-catchup-truth-impl-1.md)：24h latest-only、5 分钟过窗 skipped 审计、真实 worker + Playwright） |
 | 30 | **Automation 规则归档保留历史** | G2 | ✅（2026-08-20，[closeout](app/.progress/automation-archive-history-impl-1.md)：删除变归档，执行证据保留） |
 | 31 | **归档 Agent 派发硬闸与遗留收口** | G8 | ✅（2026-08-20，[closeout](app/.progress/archived-agent-dispatch-fence-impl-1.md)：统一归档 gate、历史取消、worker claim guard、真实 Playwright） |
+| 32 | **CmdK 项目上下文直达** | G3 | ✅（2026-08-20，[closeout](app/.progress/cmdk-project-context-impl-1.md)：标题/描述/目录搜索、空查询导航、真实 Playwright） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
