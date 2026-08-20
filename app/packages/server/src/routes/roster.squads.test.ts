@@ -106,6 +106,7 @@ vi.mock('drizzle-orm', () => ({
   gte: (a: unknown, b: unknown) => ({ a, b }),
   inArray: (a: unknown, b: unknown) => ({ a, b }),
   isNull: (x: unknown) => ({ op: 'isNull', x }),
+  isNotNull: (x: unknown) => ({ op: 'isNotNull', x }),
   sql: (strings: TemplateStringsArray, ..._v: unknown[]) => strings.join(''),
 }));
 
@@ -487,7 +488,7 @@ describe('GET /api/squads (B5 排序)', () => {
     const { app, routes } = makeApp();
     await rosterRoutes(app);
     const reply = replyMock();
-    const result = await routes['GET /api/squads'](undefined, reply);
+    const result = await routes['GET /api/squads']({ query: {} }, reply);
     expect(orderByArgs.args).not.toBeNull();
     const [first, second] = orderByArgs.args as [unknown, unknown];
     expect(first).toBe('updatedAt');
@@ -509,7 +510,7 @@ describe('GET /api/squads (B5 排序)', () => {
     const { app, routes } = makeApp();
     await rosterRoutes(app);
     const reply = replyMock();
-    const result = (await routes['GET /api/squads'](undefined, reply)) as Array<{
+    const result = (await routes['GET /api/squads']({ query: {} }, reply)) as Array<{
       id: string;
       memberIds: string[];
       memberCount: number;

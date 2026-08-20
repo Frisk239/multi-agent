@@ -35,15 +35,28 @@ const squadsData: Array<{
   memberCount: number;
   memberIds?: string[];
 }> = [];
+// G2-9：归档视图数据源（useSquads('archived') 的返回）
+const archivedSquadsData: Array<{
+  id: string;
+  name: string;
+  leaderId?: string;
+  memberCount: number;
+  memberIds?: string[];
+  archivedAt?: string;
+}> = [];
 const agentsData: Array<{ id: string; name: string; runtime: string }> = [];
 
+// G2-9：记录 view 参数的 useSquads mock——active/undefined 返回 squadsData，archived 返回 archivedSquadsData
+const useSquadsMock = vi.fn((view?: string) => ({
+  data: view === 'archived' ? archivedSquadsData : squadsData,
+  isLoading: false,
+  isError: false,
+  error: null,
+}));
+
 vi.mock('@/lib/api', () => ({
-  useSquads: () => ({
-    data: squadsData,
-    isLoading: false,
-    isError: false,
-    error: null,
-  }),
+  // 闭包转发（不能直接引用 useSquadsMock：vi.mock 工厂被提升到文件顶部，立即解引用会 TDZ）
+  useSquads: (view?: string) => useSquadsMock(view),
   useAgents: () => ({
     data: agentsData,
   }),
@@ -85,6 +98,7 @@ describe('SquadsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     squadsData.length = 0;
+    archivedSquadsData.length = 0;
     agentsData.length = 0;
     mockSearchParams = new URLSearchParams();
   });
@@ -365,5 +379,114 @@ describe('SquadsPage', () => {
     // Tab 计数：我的 1 / 全部 2
     expect(screen.getByTestId('squads-scope-mine')).toHaveTextContent('1');
     expect(screen.getByTestId('squads-scope-all')).toHaveTextContent('2');
+  });
+
+  // ── G2-9：历史小队浏览（已归档 tab / ?view=archived）──
+
+  const ARCHIVED_AT = '2026-08-01T09:30:00.000Z';
+
+  it('已归档 tab 点击写 URL ?view=archived（清除 scope），再点全部回到 /squads', () => {
+    squadsData.push({ id: 'sqd-1', name: 'Alpha', leaderId: 'agt-1', memberCount: 1 });
+    archivedSquadsData.push({
+      id: 'sqd-a1',
+      name: 'Old Squad',
+      leaderId: 'agt-1',
+      memberCount: 2,
+      archivedAt: ARCHIVED_AT,
+    });
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    const { rerender } = renderPage();
+    fireEvent.click(screen.getByTestId('squads-scope-archived'));
+    expect(replace).toHaveBeenCalledWith('/squads?view=archived', { scroll: false });
+    rerender();
+    // 归档视图选中态 + 数据源切到归档小队
+    expect(screen.getByTestId('squads-scope-archived')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('squads-scope-all')).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+    expect(screen.getByText('Old Squad')).toBeTruthy();
+    expect(screen.queryByText('Alpha')).toBeNull();
+    // 再点「全部」：移除 view 参数回 active
+    fireEvent.click(screen.getByTestId('squads-scope-all'));
+    expect(replace).toHaveBeenLastCalledWith('/squads', { scroll: false });
+    rerender();
+    expect(screen.getByText('Alpha')).toBeTruthy();
+    expect(screen.queryByText('Old Squad')).toBeNull();
+  });
+
+  it('?view=archived 深链渲染「已归档」chip + 日期，行名可点进详情', () => {
+    squadsData.push({ id: 'sqd-1', name: 'Alpha', leaderId: 'agt-1', memberCount: 1 });
+    archivedSquadsData.push({
+      id: 'sqd-a1',
+      name: 'Old Squad',
+      leaderId: 'agt-1',
+      memberCount: 2,
+      archivedAt: ARCHIVED_AT,
+    });
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    mockSearchParams = new URLSearchParams('view=archived');
+    renderPage();
+    // chip：已归档 + 日期（格式与组件一致 toLocaleDateString）
+    const chip = screen.getByTestId('squad-archived-chip');
+    expect(chip).toHaveTextContent('已归档');
+    expect(chip).toHaveTextContent(new Date(ARCHIVED_AT).toLocaleDateString());
+    // 行名链接进既有只读详情
+    const link = screen.getByText('Old Squad').closest('a')!;
+    expect(link.getAttribute('href')).toBe('/squads/sqd-a1');
+    // 归档视图 tab 计数来自归档数据源
+    expect(screen.getByTestId('squads-scope-archived')).toHaveTextContent('1');
+  });
+
+  it('active 视图渲染 readiness 而无「已归档」chip', () => {
+    squadsData.push({ id: 'sqd-1', name: 'Alpha', leaderId: 'agt-1', memberCount: 1 });
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    renderPage();
+    expect(screen.queryByTestId('squad-archived-chip')).toBeNull();
+    expect(screen.getByTestId('squad-leader-readiness')).toBeTruthy();
+  });
+
+  it('hook 主数据源收到 view 参数：默认首调 active', () => {
+    renderPage();
+    // 组件内首个 useSquads 调用即主数据源（view 驱动；后续两个是 tab 计数用的恒定调用）
+    expect(useSquadsMock).toHaveBeenCalled();
+    expect(useSquadsMock.mock.calls[0]).toEqual(['active']);
+  });
+
+  it('hook 主数据源收到 view 参数：?view=archived 深链首调 archived', () => {
+    mockSearchParams = new URLSearchParams('view=archived');
+    renderPage();
+    expect(useSquadsMock).toHaveBeenCalled();
+    expect(useSquadsMock.mock.calls[0]).toEqual(['archived']);
+  });
+
+  it('归档视图隐藏 leader/ready 筛选与「归档」按钮，q 搜索保留', () => {
+    archivedSquadsData.push({
+      id: 'sqd-a1',
+      name: 'Old Squad',
+      leaderId: 'agt-1',
+      memberCount: 2,
+      archivedAt: ARCHIVED_AT,
+    });
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    mockSearchParams = new URLSearchParams('view=archived');
+    renderPage();
+    expect(screen.getByTestId('squads-search')).toBeTruthy();
+    expect(screen.queryByTestId('squads-leader-filter')).toBeNull();
+    expect(screen.queryByTestId('squads-ready-filter')).toBeNull();
+    // 归档视图只读：不放「归档」行动按钮
+    expect(screen.queryByText('归档')).toBeNull();
+  });
+
+  it('归档视图无归档小队时显示独立空态，不与 active 空态混淆', () => {
+    squadsData.push({ id: 'sqd-1', name: 'Alpha', leaderId: 'agt-1', memberCount: 1 });
+    agentsData.push({ id: 'agt-1', name: 'Agent One', runtime: 'opencode' });
+    mockSearchParams = new URLSearchParams('view=archived');
+    renderPage();
+    expect(screen.getByText('还没有已归档的小队')).toBeTruthy();
+    expect(screen.queryByText('创建一个小队开始协作')).toBeNull();
   });
 });

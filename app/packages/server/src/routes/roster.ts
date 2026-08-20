@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm';
 import {
   CreateAgentInput,
   CreateSquadInput,
@@ -461,11 +461,18 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
   // —— Squads ——
 
   // bu02：列表带 leaderId + memberCount + memberIds；B5：updatedAt desc，createdAt 兜底（旧行 null 排尾）
-  app.get('/api/squads', async () => {
+  // archived-squads-browsing：默认 active-only；?archived=1 仅归档（历史浏览）；all 全部
+  app.get('/api/squads', async (req) => {
+    const q = req.query as { archived?: string };
+    const mode = (q.archived ?? '0').toLowerCase();
+    const archivedOnly = mode === '1' || mode === 'true' || mode === 'archived';
+    const includeAll = mode === 'all';
     const rows = db
       .select()
       .from(squads)
-      .where(isNull(squads.archivedAt))
+      .where(
+        includeAll ? undefined : archivedOnly ? isNotNull(squads.archivedAt) : isNull(squads.archivedAt),
+      )
       .orderBy(desc(squads.updatedAt), desc(squads.createdAt))
       .all();
     // F6-3：一次查全成员表按 squadId 分组（避免逐行 N+1）
@@ -483,7 +490,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         leaderId: s.leaderId ?? undefined,
         memberCount: memberIds.length,
         memberIds,
-        archivedAt: null,
+        archivedAt: s.archivedAt == null ? null : new Date(s.archivedAt).toISOString(),
       };
     });
   });

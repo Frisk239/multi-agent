@@ -121,11 +121,13 @@ export function useAgents(opts?: { archived?: '0' | '1' | 'all' }) {
   });
 }
 
-export function useSquads() {
+/** G2-9：view='archived' → `?archived=1`（仅归档小队，含 archivedAt）；默认 active 无参 */
+export function useSquads(view?: 'active' | 'archived') {
+  const v = view ?? 'active';
   return useQuery<SquadSummary[]>({
-    queryKey: ['squads'],
+    queryKey: ['squads', v],
     queryFn: async () => {
-      const res = await apiFetch(`${API}/squads`);
+      const res = await apiFetch(`${API}/squads${v === 'archived' ? '?archived=1' : ''}`);
       if (!res.ok) throw new Error('加载 squads 失败');
       return res.json();
     },

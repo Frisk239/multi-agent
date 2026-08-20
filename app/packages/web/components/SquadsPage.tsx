@@ -32,6 +32,13 @@ function parseScope(raw: string | null): SquadScope {
   return 'all';
 }
 
+/** G2-9：历史小队浏览——?view=archived 深链可分享；默认 active */
+type SquadsView = 'active' | 'archived';
+
+function parseView(raw: string | null): SquadsView {
+  return raw === 'archived' ? 'archived' : 'active';
+}
+
 type ReadyFilter =
   | ''
   | 'ready'
@@ -143,7 +150,13 @@ function SquadsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data, isLoading, isError, error } = useSquads();
+  // G2-9：主数据源由 view 驱动；active/archived 恒取一份供 tab 计数（学 G25 AgentsPage 三查询模式，
+  // 同 key 由 React Query 去重；archived 归档小队是低频历史查阅，只读不发起任何变更）
+  const view = parseView(searchParams.get('view'));
+  const isArchivedView = view === 'archived';
+  const { data, isLoading, isError, error } = useSquads(view);
+  const { data: activeSquads = [] } = useSquads('active');
+  const { data: archivedSquads = [] } = useSquads('archived');
   const { data: agents = [] } = useAgents();
   const create = useCreateSquad();
   const del = useDeleteSquad();
@@ -195,12 +208,13 @@ function SquadsPageInner() {
 
   const leaderIds = useMemo(() => {
     const s = new Set<string>();
-    for (const sq of data ?? []) {
+    // 归档视图不展示就绪（状态列被「已归档」chip 取代），只对 active 数据取 readiness
+    for (const sq of activeSquads) {
       if (sq.leaderId) s.add(sq.leaderId);
     }
     for (const a of agents) s.add(a.id);
     return [...s];
-  }, [data, agents]);
+  }, [activeSquads, agents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(leaderIds);
 
   // 默认 leader：第一个 agent
@@ -210,16 +224,24 @@ function SquadsPageInner() {
   // （本地单用户不是 agent 成员，实际命中 leaderId 分支；memberIds 分支为逻辑正确性）
   const mySquads = useMemo(
     () =>
-      (data ?? []).filter(
+      activeSquads.filter(
         (sq) =>
           sq.leaderId === LOCAL_USER_ID || sq.memberIds?.includes(LOCAL_USER_ID),
       ),
-    [data],
+    [activeSquads],
   );
 
   const visible = useMemo(() => {
     const list = data ?? [];
     const q = qFromUrl.trim().toLowerCase();
+    // G2-9：归档视图只按名字搜索；leader/ready 就绪筛选语义只属 active 视图（归档小队只读）
+    if (isArchivedView) {
+      if (!q) return list;
+      return list.filter((sq) => {
+        const leaderName = sq.leaderId ? (agentNameById.get(sq.leaderId) ?? '') : '';
+        return `${sq.name} ${leaderName} ${sq.id}`.toLowerCase().includes(q);
+      });
+    }
     return list.filter((sq) => {
       if (
         scope === 'mine' &&
@@ -244,17 +266,18 @@ function SquadsPageInner() {
       }
       return true;
     });
-  }, [data, scope, qFromUrl, leaderFromUrl, readyFromUrl, readinessMap, agentNameById]);
+  }, [data, isArchivedView, scope, qFromUrl, leaderFromUrl, readyFromUrl, readinessMap, agentNameById]);
 
   const visibleIds = useMemo(() => visible.map((s) => s.id), [visible]);
   const listFilters = useMemo(
     () => ({
+      view,
       scope,
       q: qFromUrl,
       leader: leaderFromUrl,
       ready: readyFromUrl,
     }),
-    [scope, qFromUrl, leaderFromUrl, readyFromUrl],
+    [view, scope, qFromUrl, leaderFromUrl, readyFromUrl],
   );
   const { restoredId, remember } = useListAnchor({
     page: 'squads',
@@ -263,7 +286,10 @@ function SquadsPageInner() {
     attr: 'data-squad-id',
   });
 
-  const hasActiveFilters = Boolean(qFromUrl.trim() || readyFromUrl || leaderFromUrl);
+  // 归档视图下 leader/ready 筛选被忽略，不算「生效中」
+  const hasActiveFilters = isArchivedView
+    ? Boolean(qFromUrl.trim())
+    : Boolean(qFromUrl.trim() || readyFromUrl || leaderFromUrl);
 
   function resetForm() {
     setName('');
@@ -319,11 +345,22 @@ function SquadsPageInner() {
 
   function setScope(next: SquadScope) {
     // F6-1：默认「全部」= 无 scope 参数；「我的」= ?scope=mine 深链可分享
-    replaceParams({ scope: next === 'all' ? null : 'mine' });
+    // G2-9：回到 active 视图时移除 view 参数
+    replaceParams({ scope: next === 'all' ? null : 'mine', view: null });
+  }
+
+  function setView(next: SquadsView) {
+    // G2-9：?view=archived 深链可分享；active = 移除参数。tab 三选一：进归档清 scope
+    replaceParams({ view: next === 'archived' ? 'archived' : null, scope: null });
   }
 
   function clearAllFilters() {
     setQDraft('');
+    if (isArchivedView) {
+      // 归档视图：只清筛选，不切回 active（含清理 URL 里残留的 leader/ready）
+      replaceParams({ q: null, leader: null, ready: null });
+      return;
+    }
     router.replace(pathname, { scroll: false });
   }
 
@@ -377,26 +414,37 @@ function SquadsPageInner() {
 
       <div className="page-body">
       {/* F6-1（UI-SQD-002）：我的 / 全部 Tab，?scope= 深链可分享，刷新不丢 */}
+      {/* G2-9：第三 tab「已归档」（?view=archived），历史小队只读浏览 */}
       <div className="agents-scope-tabs" data-testid="squads-scope-tabs" role="tablist">
         <button
           type="button"
           role="tab"
-          aria-selected={scope === 'all'}
-          className={`my-issues-tab${scope === 'all' ? ' is-active' : ''}`}
+          aria-selected={scope === 'all' && !isArchivedView}
+          className={`my-issues-tab${scope === 'all' && !isArchivedView ? ' is-active' : ''}`}
           data-testid="squads-scope-all"
           onClick={() => setScope('all')}
         >
-          全部 <span className="my-issues-tab-count">{squads.length}</span>
+          全部 <span className="my-issues-tab-count">{activeSquads.length}</span>
         </button>
         <button
           type="button"
           role="tab"
-          aria-selected={scope === 'mine'}
-          className={`my-issues-tab${scope === 'mine' ? ' is-active' : ''}`}
+          aria-selected={scope === 'mine' && !isArchivedView}
+          className={`my-issues-tab${scope === 'mine' && !isArchivedView ? ' is-active' : ''}`}
           data-testid="squads-scope-mine"
           onClick={() => setScope('mine')}
         >
           我的 <span className="my-issues-tab-count">{mySquads.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isArchivedView}
+          className={`my-issues-tab${isArchivedView ? ' is-active' : ''}`}
+          data-testid="squads-scope-archived"
+          onClick={() => setView(isArchivedView ? 'active' : 'archived')}
+        >
+          已归档 <span className="my-issues-tab-count">{archivedSquads.length}</span>
         </button>
       </div>
 
@@ -503,10 +551,18 @@ function SquadsPageInner() {
       )}
 
       {squads.length === 0 ? (
-        <EmptyState
-          title="创建一个小队开始协作"
-          description="选择 leader 与成员，配置 protocol / directive"
-        />
+        isArchivedView ? (
+          // G2-9：归档空态与 active 创建引导空态明确区分
+          <EmptyState
+            title="还没有已归档的小队"
+            description="归档的小队会保留在这里，仅供查阅"
+          />
+        ) : (
+          <EmptyState
+            title="创建一个小队开始协作"
+            description="选择 leader 与成员，配置 protocol / directive"
+          />
+        )
       ) : (
         <>
           <div className="agents-filters collection-toolbar" data-testid="squads-filters">
@@ -533,37 +589,42 @@ function SquadsPageInner() {
                 </button>
               ) : null}
             </div>
-            <label className="agents-filter-field">
-              队长
-              <Select
-                value={leaderFromUrl}
-                data-testid="squads-leader-filter"
-                onChange={(e) => replaceParams({ leader: e.target.value || null })}
-                aria-label="按队长筛选"
-              >
-                <option value="">全部</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label className="agents-filter-field">
-              队长就绪
-              <Select
-                value={readyFromUrl}
-                data-testid="squads-ready-filter"
-                onChange={(e) => replaceParams({ ready: e.target.value || null })}
-                aria-label="按队长就绪筛选"
-              >
-                {READY_OPTIONS.map((o) => (
-                  <option key={o.value || 'all'} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            {/* G2-9：归档视图隐藏 leader/ready 筛选（就绪语义只属 active；归档行不可变更） */}
+            {!isArchivedView && (
+              <label className="agents-filter-field">
+                队长
+                <Select
+                  value={leaderFromUrl}
+                  data-testid="squads-leader-filter"
+                  onChange={(e) => replaceParams({ leader: e.target.value || null })}
+                  aria-label="按队长筛选"
+                >
+                  <option value="">全部</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            )}
+            {!isArchivedView && (
+              <label className="agents-filter-field">
+                队长就绪
+                <Select
+                  value={readyFromUrl}
+                  data-testid="squads-ready-filter"
+                  onChange={(e) => replaceParams({ ready: e.target.value || null })}
+                  aria-label="按队长就绪筛选"
+                >
+                  {READY_OPTIONS.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            )}
           </div>
 
           {hasActiveFilters ? (
@@ -585,7 +646,7 @@ function SquadsPageInner() {
                   搜索「{qFromUrl.trim()}」 ×
                 </button>
               ) : null}
-              {leaderFromUrl ? (
+              {!isArchivedView && leaderFromUrl ? (
                 <button
                   type="button"
                   className="kanban-active-chip"
@@ -595,7 +656,7 @@ function SquadsPageInner() {
                   队长 · {agentNameById.get(leaderFromUrl) ?? leaderFromUrl} ×
                 </button>
               ) : null}
-              {readyFromUrl ? (
+              {!isArchivedView && readyFromUrl ? (
                 <button
                   type="button"
                   className="kanban-active-chip"
@@ -622,7 +683,7 @@ function SquadsPageInner() {
                 <tr>
                   <th>小队</th>
                   <th>Leader</th>
-                  <th>队长就绪</th>
+                  <th>{isArchivedView ? '状态' : '队长就绪'}</th>
                   <th>成员</th>
                   <th />
                 </tr>
@@ -632,7 +693,7 @@ function SquadsPageInner() {
                   <tr>
                     <td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>
                       <div data-testid="squads-empty-filter">
-                        <div>没有匹配的小队</div>
+                        <div>{isArchivedView ? '没有匹配的已归档小队' : '没有匹配的小队'}</div>
                         <div style={{ marginTop: 8 }}>
                           <button
                             type="button"
@@ -671,20 +732,36 @@ function SquadsPageInner() {
                         </td>
                         <td>
                           {sq.leaderId ? (
-                            <Link
-                              href={`/squads?leader=${encodeURIComponent(sq.leaderId)}`}
-                              className="table-link"
-                              data-testid="squad-list-leader"
-                              title="筛选此队长的小队"
-                            >
-                              {agentNameById.get(sq.leaderId) ?? <code>{sq.leaderId}</code>}
-                            </Link>
+                            isArchivedView ? (
+                              // G2-9：归档视图 leader 不挂筛选链接（leader 筛选只属 active 视图）
+                              <span data-testid="squad-list-leader">
+                                {agentNameById.get(sq.leaderId) ?? <code>{sq.leaderId}</code>}
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/squads?leader=${encodeURIComponent(sq.leaderId)}`}
+                                className="table-link"
+                                data-testid="squad-list-leader"
+                                title="筛选此队长的小队"
+                              >
+                                {agentNameById.get(sq.leaderId) ?? <code>{sq.leaderId}</code>}
+                              </Link>
+                            )
                           ) : (
                             '—'
                           )}
                         </td>
                         <td>
-                          {sq.leaderId ? (
+                          {sq.archivedAt ? (
+                            // G2-9：归档行状态列 = 「已归档」chip + 日期（dim 风格对齐 readiness-archived）
+                            <span
+                              className="readiness-chip readiness-archived readiness-chip-inline"
+                              data-testid="squad-archived-chip"
+                              title={sq.archivedAt}
+                            >
+                              已归档 · {new Date(sq.archivedAt).toLocaleDateString()}
+                            </span>
+                          ) : sq.leaderId ? (
                             <Link
                               href={`/squads?ready=${encodeURIComponent(rd?.status ?? 'error')}`}
                               className={leaderReadinessClass(rd?.status)}
@@ -727,14 +804,17 @@ function SquadsPageInner() {
                           >
                             运行
                           </Link>{' '}
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            disabled={del.isPending}
-                            onClick={() => handleDelete(sq.id, sq.name)}
-                          >
-                            归档
-                          </button>
+                          {/* G2-9：归档行动作只属 active 视图——归档视图只读，不得再变更 */}
+                          {!isArchivedView && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              disabled={del.isPending}
+                              onClick={() => handleDelete(sq.id, sq.name)}
+                            >
+                              归档
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
