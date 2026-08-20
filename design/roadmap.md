@@ -91,7 +91,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G3-12 | **Agents roster 当前任务可行动化**（批量 active Issue 投影；单条直达 Run，多条直达筛选列表；chat 不伪装 Issue） | 高 | 小 | 既有 run/Issue 读模型 | ✅（2026-08-19，[closeout](app/.progress/agent-active-task-peek-impl-1.md)） |
 | G3-13 | **Agent 详情直达派活**（“分配工作”预填 New Issue；保留独立“查看已指派 Issue”；复用 readiness/preflight 与 enqueue） | 高 | 小 | G3-12 + 既有 NewIssueForm | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)） |
 | G3-14 | **Automation Run Now 结果真实性**（HTTP 201 与领域成功分离；warning/repair/最近执行保留） | 高 | 小 | G2-2 + 既有 AutomationRun | ✅（2026-08-19，[closeout](app/.progress/automation-run-now-truth-impl-1.md)） |
-| G3-15 | **Automation 连续跳过一键钻取**（20 条窗口内的 skipped 告警直达原因组；不误报完整总数） | 中 | 小·中 | G6-7、G2-6 | 🔜（2026-08-20 已选；[discovery](app/.progress/automation-next-gap-discovery-2026-08-19.md)） |
+| G3-15 | **Automation 连续跳过一键钻取**（20 条窗口内的 skipped 告警直达原因组；不误报完整总数） | 中 | 小·中 | G6-7、G2-6 | 🔨（2026-08-20，[spec](.scratch/automation-skipped-streak-drilldown/spec.md)；[discovery](app/.progress/automation-next-gap-discovery-2026-08-19.md)） |
 
 ### G4 知识/记忆 — 长期价值
 
