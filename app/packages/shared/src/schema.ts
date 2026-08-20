@@ -1303,7 +1303,7 @@ export type AgentReadiness = z.infer<typeof AgentReadiness>;
 /**
  * enqueue 跳过原因（学 Multica agent_ready 闸 + 本仓 cwd/runtime 硬闸）
  * - cwd_missing / runtime_missing / readiness_error：硬拦，不入队
- * - already_active / run_limit / agent_missing / agent_archived / no_leader：业务跳过
+ * - already_active / run_limit / agent/squad lifecycle / no_leader：业务跳过
  */
 export const EnqueueSkipReason = z.enum([
   'already_active',
@@ -1311,6 +1311,10 @@ export const EnqueueSkipReason = z.enum([
   'agent_missing',
   /** Agent archive is a domain lifecycle gate; readiness bypasses never override it. */
   'agent_archived',
+  /** Squad target disappeared before a new leader-context run could be inserted. */
+  'squad_missing',
+  /** Squad archive is a domain lifecycle gate; historical runs remain readable only. */
+  'squad_archived',
   'cwd_missing',
   'runtime_missing',
   'readiness_error',
@@ -1613,6 +1617,8 @@ export const SquadSummary = z.object({
   memberCount: z.number().int().optional(),
   // F6-3：成员 agentId 数组（前端「我的」Tab 命中 + 成员列头像堆叠）
   memberIds: z.array(BusinessId).optional(),
+  /** G2-9：列表默认只给 active squad；保留该字段供历史投影/兼容调用方。 */
+  archivedAt: z.string().datetime().nullable().optional(),
 });
 export type SquadSummary = z.infer<typeof SquadSummary>;
 
@@ -1631,6 +1637,8 @@ export const SquadDetail = z.object({
   operatingProtocol: z.string(),
   missionDirective: z.string(),
   members: z.array(SquadMember),
+  /** 已归档小队仍可作为 run / 详情历史读取。 */
+  archivedAt: z.string().datetime().nullable().optional(),
 });
 export type SquadDetail = z.infer<typeof SquadDetail>;
 

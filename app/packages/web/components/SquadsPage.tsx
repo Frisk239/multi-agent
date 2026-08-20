@@ -307,9 +307,9 @@ function SquadsPageInner() {
   function handleDelete(id: string, label: string) {
     void (async () => {
       const ok = await confirmDialog({
-        title: '删除小队？',
-        description: `确定删除小队「${label}」？`,
-        confirmLabel: '删除',
+        title: '归档小队？',
+        description: `归档后不可恢复；小队当前指派的 Issue 和未归档自动化规则将转交给 former leader。确定归档「${label}」？`,
+        confirmLabel: '归档小队',
         variant: 'danger',
       });
       if (!ok) return;
@@ -733,7 +733,7 @@ function SquadsPageInner() {
                             disabled={del.isPending}
                             onClick={() => handleDelete(sq.id, sq.name)}
                           >
-                            删除
+                            归档
                           </button>
                         </td>
                       </tr>

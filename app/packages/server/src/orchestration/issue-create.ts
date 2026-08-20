@@ -11,6 +11,7 @@ import {
   type EnqueueResult,
 } from './run-service.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
+import { checkSquadDispatchGate } from './squad-dispatch-gate.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { ensureIssueSubscriber, notifyAssigned } from './inbox-writer.js';
 
@@ -129,6 +130,16 @@ export async function createIssueCore(
     if (input.assignee.type === 'agent') {
       targetAgentId = input.assignee.id;
     } else if (input.assignee.type === 'squad') {
+      const squadGate = checkSquadDispatchGate(input.assignee.id);
+      if (!squadGate.ok) {
+        return {
+          ok: false,
+          status: squadGate.reason === 'squad_missing' ? 404 : 409,
+          error: squadGate.detail,
+          code: 'readiness_failed',
+          reason: squadGate.reason,
+        };
+      }
       const squad = loadSquadDetail(input.assignee.id);
       targetAgentId = squad?.leaderId ?? null;
       if (!targetAgentId) {
@@ -233,6 +244,15 @@ export async function createIssueCore(
       }
     } else if (input.assignee?.type === 'squad' && input.assignee.id) {
       try {
+        const squadGate = checkSquadDispatchGate(input.assignee.id);
+        if (!squadGate.ok) {
+          enqResult = {
+            run: null,
+            skipped: true,
+            reason: squadGate.reason,
+            detail: squadGate.detail,
+          };
+        } else {
         const squad = loadSquadDetail(input.assignee.id);
         if (squad?.leaderId) {
           enqResult = await enqueueLeaderRun(id, squad.leaderId, squad.id);
@@ -244,6 +264,7 @@ export async function createIssueCore(
             reason: 'no_leader',
             detail: `小队「${squad?.name ?? input.assignee.id}」无 leader，无法开工`,
           };
+        }
         }
       } catch (e) {
         console.error('[issue-create] enqueueLeaderRun failed', e);

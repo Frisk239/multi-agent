@@ -9,6 +9,7 @@ import { computeAgentReadiness } from './readiness.js';
 import { notifyEnqueueSkipped } from './inbox-writer.js';
 import { ACTIVE_RUN_STATUSES } from './run-transitions.js';
 import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
+import { checkSquadDispatchGate } from './squad-dispatch-gate.js';
 import { cancelRunById, cancelRunsMany } from './run-cancellation.js';
 import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
 
@@ -82,9 +83,13 @@ function publishEnqueueBlockedComment(
             ? 'agent 不存在'
             : reason === 'agent_archived'
               ? '智能体已归档'
-            : reason === 'readiness_error'
-              ? '就绪探测失败'
-              : reason;
+              : reason === 'squad_archived'
+                ? '小队已归档'
+                : reason === 'squad_missing'
+                  ? '小队不存在'
+                  : reason === 'readiness_error'
+                    ? '就绪探测失败'
+                    : reason;
   db.insert(comments)
     .values({
       id: cid,
@@ -216,6 +221,27 @@ async function checkAndEnqueue(
   const quickPrompt = opts?.quickPrompt ?? null;
   const forceFresh = opts?.forceFresh === true;
 
+  // A Squad-context run is only legal for an active Squad. Keep this ahead of
+  // runtime readiness so local readiness bypasses never revive a retired team.
+  if (squadId) {
+    const squadGate = checkSquadDispatchGate(squadId);
+    if (!squadGate.ok) {
+      const res = skipped(squadGate.reason, squadGate.detail);
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== agentId) {
+      const res = skipped(
+        'no_leader',
+        `小队「${squadGate.squad.name}」leader 已变化或为空，无法派发`,
+      );
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+  }
+
   // The lifecycle gate always runs before environment readiness. In particular
   // MA_ENQUEUE_ALLOW_NOT_READY is a local runtime/cwd escape hatch, never an
   // authorization to revive an archived Agent.
@@ -323,6 +349,24 @@ async function checkAndEnqueue(
   // `computeAgentReadiness` may await a runtime probe. Recheck the business
   // lifecycle immediately before the INSERT so an archive that lands during
   // that await is an explainable skip rather than a briefly-created queue row.
+  if (squadId) {
+    const squadGate = checkSquadDispatchGate(squadId);
+    if (!squadGate.ok) {
+      const res = skipped(squadGate.reason, squadGate.detail);
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== agentId) {
+      const res = skipped(
+        'no_leader',
+        `小队「${squadGate.squad.name}」leader 已变化或为空，无法派发`,
+      );
+      publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+      notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+      return res;
+    }
+  }
   const insertGate = checkAgentDispatchGate(agentId);
   if (!insertGate.ok) {
     const res = skipped(insertGate.reason, insertGate.detail);
@@ -437,9 +481,28 @@ export async function rerunIssue(
     if (src.kind !== 'issue') {
       return { ok: false, status: 400, error: '仅 issue 工作 run 可按历史行再执行' };
     }
-    agentId = src.agentId;
-    isLeader = src.isLeader === 1;
-    squadId = src.squadId ?? null;
+    // A historical Squad context remains readable, but a retry must never
+    // recreate retired briefing. Re-run the former leader as a plain Agent.
+    if (src.squadId) {
+      const historicalSquad = loadSquadDetail(src.squadId);
+      if (!historicalSquad) {
+        return { ok: false, status: 409, error: '历史小队不存在，无法按其上下文再执行' };
+      }
+      if (!historicalSquad.leaderId) {
+        return {
+          ok: false,
+          status: 409,
+          error: `历史小队「${historicalSquad.name}」无 leader，无法再执行`,
+        };
+      }
+      agentId = historicalSquad.leaderId;
+      isLeader = false;
+      squadId = null;
+    } else {
+      agentId = src.agentId;
+      isLeader = src.isLeader === 1;
+      squadId = null;
+    }
     rerunOf = src.id;
   } else {
     if (!issue.assigneeType || !issue.assigneeId) {
@@ -448,6 +511,10 @@ export async function rerunIssue(
     if (issue.assigneeType === 'agent') {
       agentId = issue.assigneeId;
     } else if (issue.assigneeType === 'squad') {
+      const squadGate = checkSquadDispatchGate(issue.assigneeId);
+      if (!squadGate.ok) {
+        return { ok: false, status: 409, error: squadGate.detail };
+      }
       const squad = loadSquadDetail(issue.assigneeId);
       if (!squad) return { ok: false, status: 400, error: '小队不存在' };
       if (!squad.leaderId) {

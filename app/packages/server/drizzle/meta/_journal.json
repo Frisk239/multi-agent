@@ -386,6 +386,13 @@
       "when": 1787130157741,
       "tag": "0054_automation_rule_archived",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1787184000000,
+      "tag": "0055_squad_archived",
+      "breakpoints": true
     }
   ]
 }

@@ -102,6 +102,7 @@ import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
 import { checkAgentDispatchGate } from '../orchestration/agent-dispatch-gate.js';
+import { checkSquadDispatchGate } from '../orchestration/squad-dispatch-gate.js';
 
 function allowNotReadyEnqueue(): boolean {
   const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
@@ -152,6 +153,16 @@ async function preflightAssignmentTarget(
     }
     dispatch = { kind: 'agent', agentId: agent.id };
   } else {
+    const squadGate = checkSquadDispatchGate(target.id);
+    if (!squadGate.ok) {
+      return {
+        ok: false,
+        status: squadGate.reason === 'squad_missing' ? 404 : 409,
+        error: squadGate.detail,
+        code: 'readiness_failed',
+        reason: squadGate.reason,
+      };
+    }
     const squad = loadSquadDetail(target.id);
     if (!squad) {
       return { ok: false, status: 404, error: '小队不存在' };
@@ -209,6 +220,31 @@ async function preflightAssignmentTarget(
         code: 'readiness_failed',
         reason:
           readiness.status === 'error' ? 'readiness_error' : readiness.status,
+      };
+    }
+  }
+
+  // Readiness probes may await CLI discovery. Re-read Squad lifecycle adjacent
+  // to returning a dispatchable assignment target so archive wins before the
+  // Issue assignment transaction can write a new dead Squad reference.
+  if (dispatch.kind === 'squad') {
+    const squadGate = checkSquadDispatchGate(dispatch.squadId);
+    if (!squadGate.ok) {
+      return {
+        ok: false,
+        status: squadGate.reason === 'squad_missing' ? 404 : 409,
+        error: squadGate.detail,
+        code: 'readiness_failed',
+        reason: squadGate.reason,
+      };
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== dispatch.agentId) {
+      return {
+        ok: false,
+        status: 409,
+        error: `小队「${squadGate.squad.name}」leader 已变化，请刷新后重试`,
+        code: 'readiness_failed',
+        reason: 'no_leader',
       };
     }
   }

@@ -91,6 +91,8 @@ export const squads = sqliteTable('squad', {
   leaderId: text('leader_id'),
   operatingProtocol: text('operating_protocol').notNull().default(''),
   missionDirective: text('mission_directive').notNull().default(''),
+  // G2-9：不可恢复软归档；历史 run / roster 仍需按 id 解析。
+  archivedAt: integer('archived_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at'),
 });

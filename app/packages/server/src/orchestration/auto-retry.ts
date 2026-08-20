@@ -8,7 +8,7 @@ import {
   type AgentRunFailureReason,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, agents, issues } from '../db/schema.js';
+import { agentRuns, agents, issues, squads } from '../db/schema.js';
 import * as schema from '../db/schema.js';
 import { toAgentRun, toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from './event-bus.js';
@@ -89,10 +89,28 @@ function insertRetryChild(
   // same archive lifecycle gate here so an Agent retired while its source was
   // failing cannot receive a delayed queued retry (even under env readiness
   // bypasses elsewhere).
+  // Squad history is retained after retirement, but retrying it must not copy
+  // the old squad_id/briefing. Resolve the former leader and emit a normal
+  // Agent run instead (also covers a historical member-run).
+  let targetAgentId = source.agentId;
+  let nextIsLeader = source.isLeader;
+  let nextSquadId = source.squadId;
+  if (source.squadId) {
+    const historicalSquad = executor
+      .select()
+      .from(squads)
+      .where(eq(squads.id, source.squadId))
+      .get();
+    if (!historicalSquad?.leaderId) return null;
+    targetAgentId = historicalSquad.leaderId;
+    nextIsLeader = 0;
+    nextSquadId = null;
+  }
+
   const sourceAgent = executor
     .select()
     .from(agents)
-    .where(eq(agents.id, source.agentId))
+    .where(eq(agents.id, targetAgentId))
     .get();
   if (!sourceAgent || sourceAgent.archivedAt != null) return null;
 
@@ -122,15 +140,15 @@ function insertRetryChild(
       .values({
         id: childId,
         issueId: source.issueId,
-        agentId: source.agentId,
-        runtime: source.runtime,
+        agentId: sourceAgent.id,
+        runtime: sourceAgent.runtime,
         status: 'queued',
         kind: source.kind,
         priority: source.priority, // G6-1：重试继承父 run 优先级快照，不因重试掉队
         quickPrompt: source.quickPrompt,
         chatThreadId: source.chatThreadId,
-        isLeader: source.isLeader,
-        squadId: source.squadId,
+        isLeader: nextIsLeader,
+        squadId: nextSquadId,
         rerunOfRunId: source.id,
         cwdPath: source.cwdPath,
         cwdMode: source.cwdMode,

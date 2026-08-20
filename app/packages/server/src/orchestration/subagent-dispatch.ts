@@ -9,6 +9,7 @@ import { computeAgentReadiness } from './readiness.js';
 import { toAgentRun, toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { logger } from '../logger.js';
 import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
+import { checkSquadDispatchGate } from './squad-dispatch-gate.js';
 
 /** 默认 K=2：depth 0/1 可再派，parent depth≥2 拒绝。env: MA_SUBAGENT_MAX_DEPTH */
 export function getSubagentMaxDepth(): number {
@@ -191,6 +192,11 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
   if (agent) {
     agentId = agent.id;
   } else {
+    const squadGate = checkSquadDispatchGate(targetId);
+    if (!squadGate.ok) {
+      reportDispatchFailure(parentRun, targetId, squadGate.detail);
+      return;
+    }
     const squad = loadSquadDetail(targetId);
     if (squad && squad.leaderId) {
       agentId = squad.leaderId;
@@ -235,6 +241,21 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
   // This path directly inserts a QC-style child, so repeat the shared
   // lifecycle gate directly adjacent to the insert instead of relying only on
   // the earlier readiness result.
+  if (squadId) {
+    const squadGate = checkSquadDispatchGate(squadId);
+    if (!squadGate.ok) {
+      reportDispatchFailure(parentRun, targetId, squadGate.detail);
+      return;
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== agentId) {
+      reportDispatchFailure(
+        parentRun,
+        targetId,
+        `小队「${squadGate.squad.name}」leader 已变化或为空，无法委派`,
+      );
+      return;
+    }
+  }
   const insertGate = checkAgentDispatchGate(agentId!);
   if (!insertGate.ok) {
     reportDispatchFailure(parentRun, targetId, insertGate.detail);

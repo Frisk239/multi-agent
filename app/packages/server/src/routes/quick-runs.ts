@@ -9,6 +9,7 @@ import { eventBus } from '../orchestration/event-bus.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
 import { checkAgentDispatchGate } from '../orchestration/agent-dispatch-gate.js';
+import { checkSquadDispatchGate } from '../orchestration/squad-dispatch-gate.js';
 
 function allowNotReadyEnqueue(): boolean {
   const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
@@ -43,6 +44,21 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
       agentId = agent.id;
     } else {
+      const squadGate = checkSquadDispatchGate(assignee.id);
+      if (!squadGate.ok) {
+        const status = squadGate.reason === 'squad_missing' ? 404 : 409;
+        return reply.status(status).send({
+          success: false,
+          error: squadGate.detail,
+          code: 'readiness_failed',
+          reason: squadGate.reason,
+          enqueue: {
+            status: 'skipped',
+            reason: squadGate.reason,
+            detail: squadGate.detail,
+          },
+        });
+      }
       const squad = loadSquadDetail(assignee.id);
       if (!squad) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
       if (!squad.leaderId) {
@@ -105,6 +121,33 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
     // Runtime readiness can yield. The lifecycle is re-read immediately
     // before this route's direct INSERT, so archive wins over any env bypass
     // or in-flight probe without creating a transient new run.
+    if (squadId) {
+      const squadGate = checkSquadDispatchGate(squadId);
+      if (!squadGate.ok) {
+        const status = squadGate.reason === 'squad_missing' ? 404 : 409;
+        return reply.status(status).send({
+          success: false,
+          error: squadGate.detail,
+          code: 'readiness_failed',
+          reason: squadGate.reason,
+          enqueue: {
+            status: 'skipped',
+            reason: squadGate.reason,
+            detail: squadGate.detail,
+          },
+        });
+      }
+      if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== agentId) {
+        const detail = `小队「${squadGate.squad.name}」leader 已变化或为空，无法快速派活`;
+        return reply.status(409).send({
+          success: false,
+          error: detail,
+          code: 'readiness_failed',
+          reason: 'no_leader',
+          enqueue: { status: 'skipped', reason: 'no_leader', detail },
+        });
+      }
+    }
     const insertGate = checkAgentDispatchGate(agentId);
     if (!insertGate.ok) {
       const status = insertGate.reason === 'agent_missing' ? 404 : 409;

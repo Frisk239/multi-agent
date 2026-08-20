@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import type { AgentReadiness } from '@ma/shared';
 import {
   useAgents,
@@ -41,7 +40,6 @@ function isBlocked(rd: AgentReadiness | null | undefined): boolean {
 
 // bu02 + 就绪汇总：小队详情可编辑 — protocol / directive / leader / members
 export function SquadDetailPage({ squadId }: { squadId: string }) {
-  const router = useRouter();
   const { data: squad, isLoading, isError, error } = useSquad(squadId);
   const { data: agents = [] } = useAgents();
   const update = useUpdateSquad(squadId);
@@ -158,15 +156,13 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
     if (!squad) return;
     void (async () => {
       const ok = await confirmDialog({
-        title: '删除小队？',
-        description: `确定删除小队「${squad.name}」？`,
-        confirmLabel: '删除',
+        title: '归档小队？',
+        description: `归档后不可恢复；「${squad.name}」当前指派的 Issue 和未归档自动化规则将转交给 former leader。既有 run 与 briefing 会保留为历史。`,
+        confirmLabel: '归档小队',
         variant: 'danger',
       });
       if (!ok) return;
-      del.mutate(squadId, {
-        onSuccess: () => router.push('/squads'),
-      });
+      del.mutate(squadId);
     })();
   }
 
@@ -174,6 +170,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
     agents.find((a) => a.id === squad.leaderId)?.name ?? squad.leaderId;
   const leaderRd = squad.leaderId ? readinessMap[squad.leaderId] : null;
   const leaderBlocked = isBlocked(leaderRd);
+  const archived = squad.archivedAt != null;
 
   return (
     <div className="page-container" data-testid="squad-detail">
@@ -335,13 +332,21 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
             >
               看板 · 本小队 Issue
             </Link>
+            {archived ? (
+              <p className="text-sm text-dim" data-testid="squad-archived-note">
+                已归档 · 历史只读
+                {squad.archivedAt ? `（${new Date(squad.archivedAt).toLocaleString('zh-CN')}）` : ''}
+                。当前 Issue 与活跃自动化已转交给队长，既有 run 与 briefing 保留为历史；归档不可恢复。
+              </p>
+            ) : null}
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              disabled={del.isPending}
+              disabled={del.isPending || archived}
+              title={archived ? '小队已归档' : undefined}
               onClick={handleDelete}
             >
-              删除小队
+              归档小队
             </button>
           </div>
         </aside>
@@ -351,7 +356,12 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
           <form className="ops-form ops-form-inline" onSubmit={save}>
             <label className="ops-field">
               <span>名称</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={archived}
+              />
             </label>
 
             <label className="ops-field">
@@ -360,6 +370,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
                 value={leaderId}
                 onChange={(e) => setLeaderId(e.target.value)}
                 required
+                disabled={archived}
                 data-testid="squad-leader-select"
                 aria-label="小队 Leader"
               >
@@ -382,6 +393,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
                 rows={5}
                 value={operatingProtocol}
                 onChange={(e) => setOperatingProtocol(e.target.value)}
+                disabled={archived}
               />
             </label>
 
@@ -392,6 +404,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
                 rows={5}
                 value={missionDirective}
                 onChange={(e) => setMissionDirective(e.target.value)}
+                disabled={archived}
               />
             </label>
 
@@ -406,6 +419,7 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
                         type="checkbox"
                         checked={memberIds.includes(a.id)}
                         onChange={() => toggleMember(a.id)}
+                        disabled={archived}
                       />
                       <span className="ops-check-label-row">
                         <span>
@@ -434,7 +448,8 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={update.isPending || !name.trim() || !leaderId}
+                disabled={update.isPending || archived || !name.trim() || !leaderId}
+                title={archived ? '小队已归档，历史只读' : undefined}
               >
                 {update.isPending ? '保存中…' : '保存'}
               </button>

@@ -410,15 +410,17 @@ export function useDeleteSquad() {
   return useMutation({
     mutationFn: async (squadId: string) => {
       const res = await apiFetch(`${API}/squads/${squadId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(await apiError(res, '删除小队失败'));
+      if (!res.ok) throw new Error(await apiError(res, '归档小队失败'));
       return squadId;
     },
     onSuccess: (squadId) => {
       qc.invalidateQueries({ queryKey: ['squads'] });
-      qc.removeQueries({ queryKey: ['squad', squadId] });
-      toastSuccess('已删除小队');
+      // Archive keeps the detail route/history readable; do not evict it as
+      // a physical delete would.
+      qc.invalidateQueries({ queryKey: ['squad', squadId] });
+      toastSuccess('已归档小队；当前 Issue 与活跃自动化已转交给队长');
     },
-    onError: (err) => toastError(errMessage(err, '删除小队失败')),
+    onError: (err) => toastError(errMessage(err, '归档小队失败')),
   });
 }
 

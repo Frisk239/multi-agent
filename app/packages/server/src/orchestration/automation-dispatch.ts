@@ -16,6 +16,7 @@ import { eventBus } from './event-bus.js';
 import { computeAgentReadiness } from './readiness.js';
 import { wakeRunWorker } from './run-worker.js';
 import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
+import { checkSquadDispatchGate } from './squad-dispatch-gate.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
@@ -411,13 +412,24 @@ export function recordMissedScheduleSlot(
 
 function resolveDispatchAgent(rule: RuleRow):
   | { ok: true; agentId: string; isLeader: boolean; squadId: string | null }
-  | { ok: false; reason: 'agent_missing' | 'agent_archived' | 'invalid_assignee'; error: string } {
+  | {
+      ok: false;
+      reason:
+        | 'agent_missing'
+        | 'agent_archived'
+        | 'squad_missing'
+        | 'squad_archived'
+        | 'invalid_assignee';
+      error: string;
+    } {
   if (rule.assigneeType === 'agent') {
     const gate = checkAgentDispatchGate(rule.assigneeId);
     if (!gate.ok) return { ok: false, reason: gate.reason, error: gate.detail };
     return { ok: true, agentId: gate.agent.id, isLeader: false, squadId: null };
   }
   if (rule.assigneeType === 'squad') {
+    const squadGate = checkSquadDispatchGate(rule.assigneeId);
+    if (!squadGate.ok) return { ok: false, reason: squadGate.reason, error: squadGate.detail };
     const detail = loadSquadDetail(rule.assigneeId);
     if (!detail) return { ok: false, reason: 'invalid_assignee', error: `squad 不存在: ${rule.assigneeId}` };
     if (!detail.leaderId) return { ok: false, reason: 'invalid_assignee', error: `squad 无 leader: ${rule.assigneeId}` };
@@ -464,6 +476,21 @@ async function dispatchRunOnly(
   // Repeat the lifecycle gate immediately before a direct agent_run insert.
   // Unlike runtime/cwd readiness, it remains mandatory even in local bypass
   // mode and makes archive-after-placeholder a truthful skipped audit row.
+  if (resolved.squadId) {
+    const squadGate = checkSquadDispatchGate(resolved.squadId);
+    if (!squadGate.ok) {
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: squadGate.detail,
+      });
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== resolved.agentId) {
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: `小队「${squadGate.squad.name}」leader 已变化或为空，未派发`,
+      });
+    }
+  }
   const dispatchGate = checkAgentDispatchGate(resolved.agentId);
   if (!dispatchGate.ok) {
     return finishAutomationRun(placeholderId, {
@@ -491,6 +518,21 @@ async function dispatchRunOnly(
   // `computeAgentReadiness` may yield to a CLI/runtime probe. Do not reuse a
   // pre-probe Agent snapshot: archive must still win immediately before the
   // direct quick_create INSERT, including when local readiness bypass is on.
+  if (resolved.squadId) {
+    const squadGate = checkSquadDispatchGate(resolved.squadId);
+    if (!squadGate.ok) {
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: squadGate.detail,
+      });
+    }
+    if (!squadGate.squad.leaderId || squadGate.squad.leaderId !== resolved.agentId) {
+      return finishAutomationRun(placeholderId, {
+        status: 'skipped',
+        error: `小队「${squadGate.squad.name}」leader 已变化或为空，未派发`,
+      });
+    }
+  }
   const insertGate = checkAgentDispatchGate(resolved.agentId);
   if (!insertGate.ok) {
     return finishAutomationRun(placeholderId, {
@@ -586,7 +628,10 @@ export async function dispatchAutomationRule(
       // fake successful launch. Bad/missing assignee configuration preserves
       // the pre-existing failed audit semantics.
       return finishAutomationRun(placeholder.id, {
-        status: resolved.reason === 'agent_archived' ? 'skipped' : 'failed',
+        status:
+          resolved.reason === 'agent_archived' || resolved.reason === 'squad_archived'
+            ? 'skipped'
+            : 'failed',
         error: resolved.error,
       });
     }

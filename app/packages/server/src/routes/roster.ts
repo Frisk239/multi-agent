@@ -1,16 +1,34 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import {
   CreateAgentInput,
   CreateSquadInput,
   UpdateAgentInput,
   UpdateSquadInput,
+  type ActivityLog,
   type AgentCurrentIssueRun,
   type AgentWorkStats,
 } from '@ma/shared';
 import { db, sqlite } from '../db/client.js';
-import { agents, agentRuns, issues, squadMembers, squads } from '../db/schema.js';
-import { toAgentDetail, toObservedAgentRun, toAgentSummary } from '../db/reshape.js';
+import {
+  activityLogs,
+  agents,
+  agentRuns,
+  automationRules,
+  issues,
+  squadMembers,
+  squads,
+} from '../db/schema.js';
+import {
+  loadChildProgressByParentIds,
+  loadLabelsByIssueIds,
+  loadParentIdentifiers,
+  loadProjectTitles,
+  toAgentDetail,
+  toIssue,
+  toObservedAgentRun,
+  toAgentSummary,
+} from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
 import {
@@ -20,6 +38,8 @@ import {
 import { normalizeAgentEnvVars } from '../runtime/agent-config.js';
 import { validateMcpConfig } from '../runtime/mcp-config.js';
 import { archiveAgentLifecycle } from '../orchestration/agent-archive.js';
+import { eventBus } from '../orchestration/event-bus.js';
+import { publishActivityCreated } from '../orchestration/activity-logger.js';
 
 const CLIENT_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
 
@@ -445,6 +465,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const rows = db
       .select()
       .from(squads)
+      .where(isNull(squads.archivedAt))
       .orderBy(desc(squads.updatedAt), desc(squads.createdAt))
       .all();
     // F6-3：一次查全成员表按 squadId 分组（避免逐行 N+1）
@@ -462,6 +483,7 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
         leaderId: s.leaderId ?? undefined,
         memberCount: memberIds.length,
         memberIds,
+        archivedAt: null,
       };
     });
   });
@@ -533,6 +555,9 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     }
     const existing = db.select().from(squads).where(eq(squads.id, id)).get();
     if (!existing) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
+    if (existing.archivedAt != null) {
+      return reply.status(409).send({ success: false, error: '小队已归档，仅可查看历史，不能编辑' });
+    }
 
     const patch = parsed.data;
     if (patch.leaderId !== undefined && !assertAgentExists(patch.leaderId)) {
@@ -577,39 +602,180 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     return detail;
   });
 
-  // bu02：DELETE /api/squads/:id
+  // G2-9：DELETE 的领域含义是不可恢复 archive。对齐 Multica：先将
+  // 当前 Issue / active Automation 交给 former leader，最后写 archived_at；
+  // 既有 AgentRun / squad_member 不删除也不取消，供历史 briefing / run 回放。
   app.delete('/api/squads/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
     const existing = db.select().from(squads).where(eq(squads.id, id)).get();
     if (!existing) return reply.status(404).send({ success: false, error: 'squad 不存在'  });
 
-    const busy = db
-      .select()
-      .from(issues)
-      .where(
-        and(
-          eq(issues.assigneeType, 'squad'),
-          eq(issues.assigneeId, id),
-          inArray(issues.status, [
-            'backlog',
-            'todo',
-            'in_progress',
-            'in_review',
-            'blocked',
-          ]),
-        ),
-      )
-      .get();
-    if (busy) {
-      return reply
-        .status(409)
-        .send({ success: false, error: `小队仍被指派到未完成 issue: ${busy.identifier}` });
+    // Idempotent no-op: a later Agent retirement must not turn an already
+    // completed Squad archive request into a false failure or duplicate audit.
+    if (existing.archivedAt != null) return reply.status(204).send();
+
+    // First check keeps the normal error fast and, critically, happens before
+    // any issue/rule write. The transaction repeats it below for the actual
+    // commit boundary.
+    const initialLeader = existing.leaderId
+      ? db
+          .select()
+          .from(agents)
+          .where(and(eq(agents.id, existing.leaderId), isNull(agents.archivedAt)))
+          .get()
+      : null;
+    if (!initialLeader) {
+      return reply.status(409).send({
+        success: false,
+        error: '小队 former leader 不存在或已归档，不能安全归档小队',
+      });
     }
 
-    sqlite.transaction(() => {
-      db.delete(squadMembers).where(eq(squadMembers.squadId, id)).run();
-      db.delete(squads).where(eq(squads.id, id)).run();
+    type ArchiveOutcome =
+      | { kind: 'archived'; issues: (typeof issues.$inferSelect)[]; activities: ActivityLog[] }
+      | { kind: 'already_archived' }
+      | { kind: 'leader_invalid' }
+      | { kind: 'missing' };
+
+    const outcome = sqlite.transaction((): ArchiveOutcome => {
+      const current = db.select().from(squads).where(eq(squads.id, id)).get();
+      if (!current) return { kind: 'missing' };
+      if (current.archivedAt != null) return { kind: 'already_archived' };
+
+      const leader = current.leaderId
+        ? db
+            .select()
+            .from(agents)
+            .where(and(eq(agents.id, current.leaderId), isNull(agents.archivedAt)))
+            .get()
+        : null;
+      if (!leader) return { kind: 'leader_invalid' };
+
+      const now = Date.now();
+      const transferredIssues = db
+        .select()
+        .from(issues)
+        .where(and(eq(issues.assigneeType, 'squad'), eq(issues.assigneeId, id)))
+        .all();
+      const activities: ActivityLog[] = [];
+
+      for (const issue of transferredIssues) {
+        db.update(issues)
+          .set({
+            assigneeType: 'agent',
+            assigneeId: leader.id,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(issues.id, issue.id),
+              eq(issues.assigneeType, 'squad'),
+              eq(issues.assigneeId, id),
+            ),
+          )
+          .run();
+
+        const activity: ActivityLog = {
+          id: crypto.randomUUID(),
+          issueId: issue.id,
+          actorType: 'system',
+          actorId: null,
+          actorName: '系统',
+          eventType: 'assignee_changed',
+          payload: {
+            from: `squad:${id}`,
+            to: `agent:${leader.id}`,
+            reason: 'squad_archived',
+            squadId: id,
+            leaderId: leader.id,
+          },
+          createdAt: new Date(now).toISOString(),
+        };
+        db.insert(activityLogs)
+          .values({
+            id: activity.id,
+            issueId: activity.issueId,
+            actorType: activity.actorType,
+            actorId: activity.actorId ?? null,
+            actorName: activity.actorName,
+            eventType: activity.eventType,
+            payload: JSON.stringify(activity.payload),
+            createdAt: now,
+          })
+          .run();
+        activities.push(activity);
+      }
+
+      // Archived rules are immutable audit history. Only future active rules
+      // move to the former leader so they cannot later become invalid_assignee.
+      db.update(automationRules)
+        .set({ assigneeType: 'agent', assigneeId: leader.id, updatedAt: now })
+        .where(
+          and(
+            eq(automationRules.assigneeType, 'squad'),
+            eq(automationRules.assigneeId, id),
+            isNull(automationRules.archivedAt),
+          ),
+        )
+        .run();
+
+      // This is deliberately last: a visible archived Squad always has its
+      // current work transfer committed with it.
+      db.update(squads)
+        .set({ archivedAt: now, updatedAt: now })
+        .where(and(eq(squads.id, id), isNull(squads.archivedAt)))
+        .run();
+
+      const updatedIssues = transferredIssues.map((issue) => ({
+        ...issue,
+        assigneeType: 'agent' as const,
+        assigneeId: leader.id,
+        updatedAt: now,
+      }));
+      return { kind: 'archived', issues: updatedIssues, activities };
     })();
+
+    if (outcome.kind === 'missing') {
+      return reply.status(404).send({ success: false, error: 'squad 不存在' });
+    }
+    if (outcome.kind === 'leader_invalid') {
+      return reply.status(409).send({
+        success: false,
+        error: '小队 former leader 不存在或已归档，不能安全归档小队',
+      });
+    }
+    if (outcome.kind === 'already_archived') return reply.status(204).send();
+
+    // Broadcast strictly after the transaction commits: consumers never see a
+    // half-transferred Issue/activity timeline.
+    const labelsByIssue = loadLabelsByIssueIds(outcome.issues.map((issue) => issue.id));
+    const parentById = loadParentIdentifiers(
+      outcome.issues
+        .map((issue) => issue.parentIssueId)
+        .filter((parentId): parentId is string => parentId != null),
+    );
+    const progressByIssue = loadChildProgressByParentIds(outcome.issues.map((issue) => issue.id));
+    const projectById = loadProjectTitles(
+      outcome.issues
+        .map((issue) => issue.projectId)
+        .filter((projectId): projectId is string => projectId != null),
+    );
+    for (const issue of outcome.issues) {
+      eventBus.publish({
+        type: 'issue:updated',
+        issue: toIssue(issue, labelsByIssue.get(issue.id) ?? [], {
+          parentIdentifier: issue.parentIssueId
+            ? (parentById.get(issue.parentIssueId) ?? null)
+            : null,
+          childProgress: progressByIssue.get(issue.id) ?? null,
+          projectTitle: issue.projectId ? (projectById.get(issue.projectId) ?? null) : null,
+        }),
+        statusChanged: false,
+        prevStatus: null,
+      });
+    }
+    for (const activity of outcome.activities) publishActivityCreated(activity);
+
     return reply.status(204).send();
   });
 }

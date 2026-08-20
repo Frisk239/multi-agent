@@ -19,6 +19,11 @@ vi.mock('../db/client.js', () => ({
         where: () => ({
           get: selectGet,
           all: selectAll,
+          // B5/归档列表：where(...).orderBy(...).all() 链
+          orderBy: (...args: unknown[]) => {
+            orderByArgs.args = args;
+            return { all: selectAll };
+          },
           innerJoin: () => ({
             where: () => ({ all: selectAll }),
           }),
@@ -57,11 +62,41 @@ vi.mock('../db/client.js', () => ({
 }));
 
 vi.mock('../db/schema.js', () => ({
+  activityLogs: {
+    id: 'id',
+    issueId: 'issueId',
+    actorType: 'actorType',
+    actorId: 'actorId',
+    actorName: 'actorName',
+    eventType: 'eventType',
+    payload: 'payload',
+    createdAt: 'createdAt',
+  },
   agents: { id: 'id', archivedAt: 'archivedAt' },
   agentRuns: { id: 'id', agentId: 'agentId', status: 'status', createdAt: 'createdAt' },
-  issues: { id: 'id', assigneeType: 'assigneeType', assigneeId: 'assigneeId', status: 'status', identifier: 'identifier' },
+  automationRules: {
+    assigneeType: 'assigneeType',
+    assigneeId: 'assigneeId',
+    archivedAt: 'archivedAt',
+    updatedAt: 'updatedAt',
+  },
+  issues: {
+    id: 'id',
+    assigneeType: 'assigneeType',
+    assigneeId: 'assigneeId',
+    status: 'status',
+    identifier: 'identifier',
+    updatedAt: 'updatedAt',
+  },
   squadMembers: { squadId: 'squadId', agentId: 'agentId' },
-  squads: { id: 'id', name: 'name', leaderId: 'leaderId', createdAt: 'createdAt', updatedAt: 'updatedAt' },
+  squads: {
+    id: 'id',
+    name: 'name',
+    leaderId: 'leaderId',
+    archivedAt: 'archivedAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+  },
 }));
 
 vi.mock('drizzle-orm', () => ({
@@ -70,13 +105,28 @@ vi.mock('drizzle-orm', () => ({
   eq: (a: unknown, b: unknown) => ({ a, b }),
   gte: (a: unknown, b: unknown) => ({ a, b }),
   inArray: (a: unknown, b: unknown) => ({ a, b }),
+  isNull: (x: unknown) => ({ op: 'isNull', x }),
   sql: (strings: TemplateStringsArray, ..._v: unknown[]) => strings.join(''),
 }));
 
 vi.mock('../db/reshape.js', () => ({
+  loadChildProgressByParentIds: vi.fn(() => new Map()),
+  loadLabelsByIssueIds: vi.fn(() => new Map()),
+  loadParentIdentifiers: vi.fn(() => new Map()),
+  loadProjectTitles: vi.fn(() => new Map()),
   toAgentDetail: (row: Record<string, unknown>) => row,
   toAgentRun: (row: unknown) => row,
   toAgentSummary: (row: unknown) => row,
+  toIssue: (row: unknown) => row,
+  toObservedAgentRun: (row: unknown) => row,
+}));
+
+vi.mock('../orchestration/event-bus.js', () => ({
+  eventBus: { publish: vi.fn() },
+}));
+
+vi.mock('../orchestration/activity-logger.js', () => ({
+  publishActivityCreated: vi.fn(),
 }));
 
 vi.mock('../db/squad-loader.js', () => ({
@@ -89,6 +139,8 @@ vi.mock('../orchestration/readiness.js', () => ({
 
 import { rosterRoutes } from './roster.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
+import { eventBus } from '../orchestration/event-bus.js';
+import { publishActivityCreated } from '../orchestration/activity-logger.js';
 
 type Handler = (req: unknown, reply?: unknown) => Promise<unknown> | unknown;
 
@@ -119,6 +171,8 @@ function replyMock() {
 }
 
 const mockLoadSquadDetail = vi.mocked(loadSquadDetail);
+const mockEventBus = vi.mocked(eventBus);
+const mockPublishActivityCreated = vi.mocked(publishActivityCreated);
 
 describe('POST /api/squads', () => {
   beforeEach(() => {
@@ -468,9 +522,15 @@ describe('GET /api/squads (B5 排序)', () => {
   });
 });
 
-describe('DELETE /api/squads/:id', () => {
+describe('DELETE /api/squads/:id（G2-9 归档语义）', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // clearAllMocks 只清调用记录，Once 队列/返回值会跨 describe 泄漏，
+    // 而归档事务对 select 链的调用次数敏感，必须完全重置。
+    selectGet.mockReset();
+    selectAll.mockReset();
+    updateSet.mockReset();
+    insertValues.mockReset();
+    deleteWhere.mockReset();
   });
 
   it('returns 404 when squad does not exist', async () => {
@@ -485,29 +545,13 @@ describe('DELETE /api/squads/:id', () => {
     expect(reply.statusCode).toBe(404);
   });
 
-  it('returns 409 when squad is assigned to active issue', async () => {
-    // squad exists
-    selectGet
-      .mockReturnValueOnce({ id: 'sqd-1', name: 'Busy', leaderId: 'agt-1' })
-      // active issue assigned to this squad
-      .mockReturnValueOnce({ id: 'iss-1', identifier: 'FRI-1', status: 'in_progress' });
-    const { app, routes } = makeApp();
-    await rosterRoutes(app);
-    const reply = replyMock();
-    await routes['DELETE /api/squads/:id'](
-      { params: { id: 'sqd-1' } },
-      reply,
-    );
-    expect(reply.statusCode).toBe(409);
-    expect((reply.body as { error?: string }).error).toContain('未完成 issue');
-  });
-
-  it('deletes squad with no active issues and returns 204', async () => {
-    // squad exists
-    selectGet
-      .mockReturnValueOnce({ id: 'sqd-1', name: 'Done', leaderId: 'agt-1' })
-      // no active issue
-      .mockReturnValueOnce(null);
+  it('returns 204 idempotent when squad already archived, no duplicate audit', async () => {
+    selectGet.mockReturnValueOnce({
+      id: 'sqd-1',
+      name: 'Old',
+      leaderId: 'agt-1',
+      archivedAt: '2026-08-19T00:00:00.000Z',
+    });
     const { app, routes } = makeApp();
     await rosterRoutes(app);
     const reply = replyMock();
@@ -516,7 +560,84 @@ describe('DELETE /api/squads/:id', () => {
       reply,
     );
     expect(reply.statusCode).toBe(204);
-    // delete squad_members then squad
-    expect(deleteWhere).toHaveBeenCalledTimes(2);
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(deleteWhere).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 with zero side effects when former leader missing or archived', async () => {
+    selectGet
+      .mockReturnValueOnce({ id: 'sqd-1', name: 'Busy', leaderId: 'agt-1', archivedAt: null })
+      .mockReturnValueOnce(null);
+    const { app, routes } = makeApp();
+    await rosterRoutes(app);
+    const reply = replyMock();
+    await routes['DELETE /api/squads/:id'](
+      { params: { id: 'sqd-1' } },
+      reply,
+    );
+    expect(reply.statusCode).toBe(409);
+    expect((reply.body as { error?: string }).error).toContain('former leader');
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(deleteWhere).not.toHaveBeenCalled();
+  });
+
+  it('archives squad: transfers issues + active automation rules to leader, writes audit, no hard delete', async () => {
+    const existing = { id: 'sqd-1', name: 'Done', leaderId: 'agt-1', archivedAt: null };
+    const leader = { id: 'agt-1', name: 'Leader', archivedAt: null };
+    selectGet
+      // initial load
+      .mockReturnValueOnce(existing)
+      // initial leader check
+      .mockReturnValueOnce(leader)
+      // transaction: reload current squad
+      .mockReturnValueOnce(existing)
+      // transaction: repeat leader check
+      .mockReturnValueOnce(leader);
+    // transaction: transferred issues (status does not gate transfer)
+    selectAll.mockReturnValueOnce([
+      {
+        id: 'iss-1',
+        identifier: 'FRI-1',
+        status: 'in_progress',
+        assigneeType: 'squad',
+        assigneeId: 'sqd-1',
+      },
+    ]);
+    const { app, routes } = makeApp();
+    await rosterRoutes(app);
+    const reply = replyMock();
+    await routes['DELETE /api/squads/:id'](
+      { params: { id: 'sqd-1' } },
+      reply,
+    );
+    expect(reply.statusCode).toBe(204);
+    // issue transfer + automation rule transfer + squad archive mark
+    expect(updateSet).toHaveBeenCalledTimes(3);
+    expect(updateSet.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ assigneeType: 'agent', assigneeId: 'agt-1' }),
+    );
+    expect(updateSet.mock.calls[1][0]).toEqual(
+      expect.objectContaining({ assigneeType: 'agent', assigneeId: 'agt-1' }),
+    );
+    expect(updateSet.mock.calls[2][0]).toEqual(
+      expect.objectContaining({ archivedAt: expect.any(Number) }),
+    );
+    // one traceable system assignee-change activity per transferred issue
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    expect(insertValues.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        issueId: 'iss-1',
+        actorType: 'system',
+        eventType: 'assignee_changed',
+      }),
+    );
+    expect(String(insertValues.mock.calls[0][0].payload)).toContain('squad_archived');
+    // archive never hard-deletes squad_members/squad rows
+    expect(deleteWhere).not.toHaveBeenCalled();
+    // broadcast strictly after commit
+    expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
+    expect(mockPublishActivityCreated).toHaveBeenCalledTimes(1);
   });
 });
