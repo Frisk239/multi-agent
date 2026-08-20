@@ -223,6 +223,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 33 | **Squad 安全退役与派发闭环** | G2 | ✅（2026-08-20，[closeout](app/.progress/squad-retirement-dispatch-closure-impl-1.md)：DELETE=不可恢复归档+原子转交 leader+审计；loader 双语义；统一 squad_archived gate；rerun/auto-retry 无 squadId；归档详情只读 UI；隔离 E2E 23/23） |
 | 34 | **Memory 项目上下文闭环** | G4 | ✅（2026-08-20，[closeout](app/.progress/memory-project-context-impl-1.md)：queryKey 三态、?project= URL 真源 picker、ProjectBadge 名称回链/已删 fallback、创建默认归属、项目详情入口；隔离 E2E 15/15） |
 | 35 | **历史小队浏览入口** | G3 | ✅（2026-08-20，[closeout](app/.progress/archived-squads-browsing-impl-1.md)：服务端 ?archived= 三态补齐、「已归档」tab URL 持久化、归档 chip+只读直达、独立空态；隔离 E2E 8/8；Owner 勘误 agents/squads 路由误读） |
+| 36 | **Issue 截止日期全链路** | G3 | ✅（2026-08-20，[closeout](app/.progress/issue-due-date-impl-1.md)：dueDate 三态 chip/列表排序列/双详情编辑/迁移 0056；隔离 E2E 11/11；调研源自 Multica 对照扫描，另产出 webhook/泳道/表格二阶候选） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
