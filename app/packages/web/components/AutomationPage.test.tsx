@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   runNowMutate: vi.fn(),
   archiveMutate: vi.fn(),
   confirmDialog: vi.fn(),
+  archivedAgentIds: new Set<string>(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -44,12 +45,23 @@ vi.mock('@/lib/api', () => ({
   useRunAutomationNow: () => ({ mutate: mocks.runNowMutate, isPending: false }),
   useReconcileAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateAutomationRule: () => ({ mutate: vi.fn(), isPending: false }),
-  useAgents: () => ({
-    data: [
-      { id: 'agt-alpha', name: '巡检甲', runtime: 'opencode' },
-      { id: 'agt-beta', name: '审查乙', runtime: 'claude-code' },
-    ],
-  }),
+  useAgents: (opts?: { archived?: '0' | '1' | 'all' }) => {
+    const all = [
+      {
+        id: 'agt-alpha',
+        name: '巡检甲',
+        runtime: 'opencode',
+        archivedAt: mocks.archivedAgentIds.has('agt-alpha') ? '2026-08-20T01:00:00.000Z' : null,
+      },
+      {
+        id: 'agt-beta',
+        name: '审查乙',
+        runtime: 'claude-code',
+        archivedAt: mocks.archivedAgentIds.has('agt-beta') ? '2026-08-20T01:00:00.000Z' : null,
+      },
+    ];
+    return { data: opts?.archived === 'all' ? all : all.filter((agent) => !agent.archivedAt) };
+  },
   useSquads: () => ({ data: [{ id: 'sqd-1', name: '产品小队' }] }),
   useAgentsReadinessMap: () => ({
     data: {
@@ -133,6 +145,7 @@ function resolveRunNow(run: AutomationRun) {
 describe('AutomationPage assignee search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.archivedAgentIds.clear();
     mocks.rules = [];
     mocks.runsByRule = {};
     mocks.useAutomationRunsCalls = [];
@@ -182,6 +195,7 @@ describe('AutomationPage assignee search', () => {
 describe('AutomationPage run-now outcomes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.archivedAgentIds.clear();
     mocks.rules = [rule()];
     mocks.runsByRule = { 'rule-1': [] };
     mocks.useAutomationRunsCalls = [];
@@ -210,6 +224,25 @@ describe('AutomationPage run-now outcomes', () => {
     expect(screen.queryByTestId('automation-rule-runs-rule-1')).toBeNull();
   });
 
+  it('marks an archived run_only target and presents Run Now as a persisted skipped outcome, not a launch', () => {
+    mocks.archivedAgentIds.add('agt-alpha');
+    const archivedSkip = automationRun('skipped', {
+      id: 'auto-archived-skip',
+      error: '智能体「巡检甲」已归档，恢复后才能派发',
+    });
+    mocks.runsByRule = { 'rule-1': [archivedSkip] };
+    renderPage();
+
+    expect(screen.getByTestId('automation-archived-target-rule-1')).toHaveTextContent(
+      '智能体已归档 · 立即执行将跳过',
+    );
+    resolveRunNow(archivedSkip);
+    expect(screen.getByTestId('automation-rule-runs-rule-1')).toBeInTheDocument();
+    expect(screen.getByTestId('automation-skipped-summary-rule-1')).toHaveTextContent(
+      '智能体「巡检甲」已归档，恢复后才能派发',
+    );
+  });
+
   it('keeps pending dispatch repair and linked-run actions inside auto-expanded recent runs', () => {
     const pending = automationRun('pending_dispatch', {
       id: 'auto-pending',
@@ -233,6 +266,7 @@ describe('AutomationPage run-now outcomes', () => {
 describe('AutomationPage skipped streak drilldown', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.archivedAgentIds.clear();
     mocks.rules = [rule({ skippedStreak: 3, lastRunStatus: 'skipped' })];
     mocks.useAutomationRunsCalls = [];
     mocks.runsByRule = {

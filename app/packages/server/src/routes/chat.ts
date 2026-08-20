@@ -15,10 +15,11 @@ import {
   type ChatThread,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agentRuns, agents, chatMessages, chatThreads, projects } from '../db/schema.js';
+import { agentRuns, chatMessages, chatThreads, projects } from '../db/schema.js';
 import { toObservedAgentRun } from '../db/reshape.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
+import { checkAgentDispatchGate } from '../orchestration/agent-dispatch-gate.js';
 import { resolveChatExecContext } from '../runtime/resolve-run-cwd.js';
 import { formatTrailingUserText } from '../runtime/prompt.js';
 
@@ -120,8 +121,19 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
-    const agent = db.select().from(agents).where(eq(agents.id, parsed.data.agentId)).get();
-    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
+    // A new chat is a future agent-work entry point. Keep historical threads
+    // readable, but never create a fresh one that can only fail after the
+    // operator deliberately archived its Agent.
+    const dispatchGate = checkAgentDispatchGate(parsed.data.agentId);
+    if (!dispatchGate.ok) {
+      return reply.status(dispatchGate.reason === 'agent_missing' ? 404 : 409).send({
+        success: false,
+        error: dispatchGate.detail,
+        code: 'readiness_failed',
+        reason: dispatchGate.reason,
+      });
+    }
+    const agent = dispatchGate.agent;
     const now = Date.now();
     const id = crypto.randomUUID();
     const title = parsed.data.title?.trim() || `与 ${agent.name} 的对话`;
@@ -309,11 +321,19 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     if (thread.archivedAt != null) {
       return reply.status(400).send({ success: false, error: '会话已归档，无法发送'  });
     }
-    const agent = db.select().from(agents).where(eq(agents.id, thread.agentId)).get();
-    if (!agent) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
-    if (agent.archivedAt != null) {
-      return reply.status(409).send({ success: false, error: '智能体已归档'  });
+    // This route directly inserts a queued chat run. Use the same lifecycle
+    // gate as Issue/Quick/Automation rather than a route-local archivedAt
+    // check, so an archived Agent receives the uniform explainable reason.
+    const dispatchGate = checkAgentDispatchGate(thread.agentId);
+    if (!dispatchGate.ok) {
+      return reply.status(dispatchGate.reason === 'agent_missing' ? 404 : 409).send({
+        success: false,
+        error: dispatchGate.detail,
+        code: 'readiness_failed',
+        reason: dispatchGate.reason,
+      });
     }
+    const agent = dispatchGate.agent;
 
     const now = Date.now();
     const body = parsed.data.body.trim();

@@ -19,6 +19,7 @@ import {
 } from '../orchestration/agent-status-broadcaster.js';
 import { normalizeAgentEnvVars } from '../runtime/agent-config.js';
 import { validateMcpConfig } from '../runtime/mcp-config.js';
+import { archiveAgentLifecycle } from '../orchestration/agent-archive.js';
 
 const CLIENT_ID_RE = /^[a-z][a-z0-9_-]{1,63}$/;
 
@@ -273,11 +274,20 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     if (patch.customArgs !== undefined) {
       updates.customArgs = patch.customArgs == null ? null : JSON.stringify(patch.customArgs);
     }
-    if (patch.archived !== undefined) {
-      updates.archivedAt = patch.archived ? Date.now() : null;
+    if (patch.archived === true) {
+      // Archive is a lifecycle stop, not a cosmetic timestamp. This shared
+      // path is deliberately idempotent so a repeat PATCH also sweeps any
+      // legacy queued/deferred/running work left behind by an older server.
+      archiveAgentLifecycle(id);
+    } else if (patch.archived === false) {
+      // Unarchive only reopens future dispatch. Terminal history stays
+      // terminal; it must never resurrect a cancelled run.
+      updates.archivedAt = null;
     }
 
-    db.update(agents).set(updates).where(eq(agents.id, id)).run();
+    if (Object.keys(updates).length > 0) {
+      db.update(agents).set(updates).where(eq(agents.id, id)).run();
+    }
     const row = db.select().from(agents).where(eq(agents.id, id)).get()!;
     return toAgentDetail(row);
   });
@@ -290,6 +300,15 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
     const existing = db.select().from(agents).where(eq(agents.id, id)).get();
     if (!existing) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
 
+    if (!hard) {
+      // PATCH { archived: true } and soft DELETE have exactly the same
+      // lifecycle: gate future work first, then honestly cancel unfinished
+      // historical runs while retaining all audit records.
+      archiveAgentLifecycle(id);
+      return reply.status(204).send();
+    }
+
+    // Keep hard-delete's existing safety semantics distinct from archive.
     const active = db
       .select()
       .from(agentRuns)
@@ -306,17 +325,6 @@ export async function rosterRoutes(app: FastifyInstance): Promise<void> {
       .get();
     if (active) {
       return reply.status(409).send({ success: false, error: 'agent 仍有未完成 run'  });
-    }
-
-    if (!hard) {
-      // G25：软归档（对齐 Multica「已归档」Tab）
-      if (existing.archivedAt == null) {
-        db.update(agents)
-          .set({ archivedAt: Date.now() })
-          .where(eq(agents.id, id))
-          .run();
-      }
-      return reply.status(204).send();
     }
 
     const lead = db.select().from(squads).where(eq(squads.leaderId, id)).get();

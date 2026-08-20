@@ -8,6 +8,7 @@ import { wakeRunWorker } from './run-worker.js';
 import { computeAgentReadiness } from './readiness.js';
 import { toAgentRun, toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { logger } from '../logger.js';
+import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
 
 /** 默认 K=2：depth 0/1 可再派，parent depth≥2 拒绝。env: MA_SUBAGENT_MAX_DEPTH */
 export function getSubagentMaxDepth(): number {
@@ -105,6 +106,10 @@ function reportDispatchFailure(
 async function assertSubagentReadiness(
   agentId: string,
 ): Promise<{ ok: true } | { ok: false; detail: string }> {
+  // Archive is a domain lifecycle stop, so it precedes the local environment
+  // bypass and gives the parent run a truthful delegation failure message.
+  const dispatchGate = checkAgentDispatchGate(agentId);
+  if (!dispatchGate.ok) return { ok: false, detail: dispatchGate.detail };
   if (allowNotReadyEnqueue()) return { ok: true };
   const rd = await computeAgentReadiness(agentId);
   if (!rd) {
@@ -227,11 +232,15 @@ async function dispatchSubagent(parentRun: any, targetId: string, prompt: string
     return;
   }
 
-  const realAgent = db.select().from(agents).where(eq(agents.id, agentId!)).get();
-  if (!realAgent) {
-    reportDispatchFailure(parentRun, targetId, `agent ${agentId} 不存在`);
+  // This path directly inserts a QC-style child, so repeat the shared
+  // lifecycle gate directly adjacent to the insert instead of relying only on
+  // the earlier readiness result.
+  const insertGate = checkAgentDispatchGate(agentId!);
+  if (!insertGate.ok) {
+    reportDispatchFailure(parentRun, targetId, insertGate.detail);
     return;
   }
+  const realAgent = insertGate.agent;
 
   const id = crypto.randomUUID();
   const createdAt = Date.now();

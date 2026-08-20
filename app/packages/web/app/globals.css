@@ -6991,6 +6991,13 @@ button.memory-kind-chip.is-active {
   border: 1px solid color-mix(in srgb, #eab308 45%, transparent);
 }
 
+/* Archive is an intentional lifecycle stop, not a runtime/environment fault. */
+.readiness-archived {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 35%, transparent);
+}
+
 .readiness-missing {
   color: #b42318;
   background: color-mix(in srgb, #ef4444 14%, transparent);

@@ -32,6 +32,7 @@ type ReadyFilter =
   | ''
   | 'ready'
   | 'busy'
+  | 'archived'
   | 'cwd_missing'
   | 'runtime_missing'
   | 'error'
@@ -41,6 +42,7 @@ const READY_OPTIONS: { value: ReadyFilter; label: string }[] = [
   { value: '', label: '全部就绪态' },
   { value: 'ready', label: 'ready' },
   { value: 'busy', label: 'busy' },
+  { value: 'archived', label: '已归档' },
   { value: 'cwd_missing', label: 'cwd 未配置' },
   { value: 'runtime_missing', label: 'runtime 缺失' },
   { value: 'error', label: 'error' },
@@ -51,6 +53,7 @@ function readinessLabel(rd: AgentReadiness | null | undefined): string {
   if (!rd) return '…';
   if (rd.status === 'ready') return 'ready';
   if (rd.status === 'busy') return 'busy';
+  if (rd.status === 'archived') return '已归档';
   if (rd.status === 'cwd_missing') return 'cwd 未配置';
   if (rd.status === 'runtime_missing') return 'runtime 缺失';
   return rd.status;
@@ -59,6 +62,7 @@ function readinessLabel(rd: AgentReadiness | null | undefined): string {
 function readinessClass(status: AgentReadiness['status'] | undefined): string {
   if (status === 'ready') return 'readiness-chip readiness-ready readiness-chip-inline';
   if (status === 'busy') return 'readiness-chip readiness-busy readiness-chip-inline';
+  if (status === 'archived') return 'readiness-chip readiness-archived readiness-chip-inline';
   return 'readiness-chip readiness-missing readiness-chip-inline';
 }
 
@@ -66,6 +70,7 @@ function parseReady(raw: string | null): ReadyFilter {
   if (
     raw === 'ready' ||
     raw === 'busy' ||
+    raw === 'archived' ||
     raw === 'cwd_missing' ||
     raw === 'runtime_missing' ||
     raw === 'error' ||

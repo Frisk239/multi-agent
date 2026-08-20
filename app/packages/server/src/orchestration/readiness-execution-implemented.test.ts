@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => {
       id: string;
       runtime: string;
       concurrency: number;
+      archivedAt?: number | null;
+      name?: string;
     },
     runningCount: 0,
     getBackend: vi.fn(),
@@ -46,6 +48,8 @@ vi.mock('../db/client.js', () => ({
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args: unknown[]) => args),
   and: vi.fn((...args: unknown[]) => args),
+  exists: vi.fn((...args: unknown[]) => args),
+  isNull: vi.fn((...args: unknown[]) => args),
   sql: Object.assign((..._args: unknown[]) => 'COUNT', { raw: vi.fn() }),
 }));
 
@@ -212,5 +216,28 @@ describe('readiness executionImplemented (Slice 44)', () => {
     );
     const rd = await computeAgentReadiness('missing');
     expect(rd).toBeNull();
+  });
+
+  it('reports archived before runtime/cwd probing and never relabels it as missing', async () => {
+    mocks.agentRow = {
+      id: 'agt-archived',
+      name: 'Archived Agent',
+      runtime: 'pi',
+      concurrency: 2,
+      archivedAt: Date.now(),
+    };
+    mocks.getBackend.mockReturnValue(makeBackend({ installed: false }));
+
+    const rd = await computeAgentReadiness('agt-archived');
+
+    expect(rd).toMatchObject({
+      agentId: 'agt-archived',
+      status: 'archived',
+      runtimeInstalled: false,
+      slotsAvailable: 0,
+      preflightStatus: 'not_available',
+    });
+    expect(rd!.detail).toContain('已归档');
+    expect(mocks.getBackend).not.toHaveBeenCalled();
   });
 });

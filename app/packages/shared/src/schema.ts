@@ -1290,7 +1290,12 @@ export const AgentReadiness = z.object({
   preflightStatus: RuntimePreflightStatus.optional(),
   /** detect 只证明 CLI 在 PATH；只有显式安全预检通过才是 verified。 */
   runtimeVerification: RuntimeVerification.optional(),
-  status: z.enum(['ready', 'busy', 'runtime_missing', 'cwd_missing', 'error']),
+  /**
+   * `archived` is a lifecycle stop, not an environment diagnosis. It must stay
+   * distinct from runtime/cwd failures so every dispatch surface can tell an
+   * operator that recovery means unarchiving the Agent, not changing its CLI.
+   */
+  status: z.enum(['ready', 'busy', 'archived', 'runtime_missing', 'cwd_missing', 'error']),
   detail: z.string().nullable(),
 });
 export type AgentReadiness = z.infer<typeof AgentReadiness>;
@@ -1298,12 +1303,14 @@ export type AgentReadiness = z.infer<typeof AgentReadiness>;
 /**
  * enqueue 跳过原因（学 Multica agent_ready 闸 + 本仓 cwd/runtime 硬闸）
  * - cwd_missing / runtime_missing / readiness_error：硬拦，不入队
- * - already_active / run_limit / agent_missing / no_leader：业务跳过
+ * - already_active / run_limit / agent_missing / agent_archived / no_leader：业务跳过
  */
 export const EnqueueSkipReason = z.enum([
   'already_active',
   'run_limit',
   'agent_missing',
+  /** Agent archive is a domain lifecycle gate; readiness bypasses never override it. */
+  'agent_archived',
   'cwd_missing',
   'runtime_missing',
   'readiness_error',

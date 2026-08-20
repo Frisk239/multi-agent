@@ -8,13 +8,14 @@ import {
 } from '@ma/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
-import { agentRuns, agents, automationRules, automationRuns, squads } from '../db/schema.js';
+import { agentRuns, automationRules, automationRuns, squads } from '../db/schema.js';
 import { toAgentRun, toObservedAgentRun, toAutomationRun } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { createIssueCore } from './issue-create.js';
 import { eventBus } from './event-bus.js';
 import { computeAgentReadiness } from './readiness.js';
 import { wakeRunWorker } from './run-worker.js';
+import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
@@ -408,43 +409,28 @@ export function recordMissedScheduleSlot(
   return toAutomationRun(row);
 }
 
-function validateAssignee(rule: RuleRow): string | null {
-  if (rule.assigneeType === 'agent') {
-    const agent = db.select().from(agents).where(eq(agents.id, rule.assigneeId)).get();
-    if (!agent) return `agent 不存在: ${rule.assigneeId}`;
-    return null;
-  }
-  if (rule.assigneeType === 'squad') {
-    const squad = db.select().from(squads).where(eq(squads.id, rule.assigneeId)).get();
-    if (!squad) return `squad 不存在: ${rule.assigneeId}`;
-    const detail = loadSquadDetail(rule.assigneeId);
-    if (!detail?.leaderId) return `squad 无 leader: ${rule.assigneeId}`;
-    return null;
-  }
-  return `非法 assigneeType: ${rule.assigneeType}`;
-}
-
-async function resolveDispatchAgent(rule: RuleRow): Promise<
+function resolveDispatchAgent(rule: RuleRow):
   | { ok: true; agentId: string; isLeader: boolean; squadId: string | null }
-  | { ok: false; error: string }
-> {
+  | { ok: false; reason: 'agent_missing' | 'agent_archived' | 'invalid_assignee'; error: string } {
   if (rule.assigneeType === 'agent') {
-    const agent = db.select().from(agents).where(eq(agents.id, rule.assigneeId)).get();
-    if (!agent) return { ok: false, error: `agent 不存在: ${rule.assigneeId}` };
-    return { ok: true, agentId: agent.id, isLeader: false, squadId: null };
+    const gate = checkAgentDispatchGate(rule.assigneeId);
+    if (!gate.ok) return { ok: false, reason: gate.reason, error: gate.detail };
+    return { ok: true, agentId: gate.agent.id, isLeader: false, squadId: null };
   }
   if (rule.assigneeType === 'squad') {
     const detail = loadSquadDetail(rule.assigneeId);
-    if (!detail) return { ok: false, error: `squad 不存在: ${rule.assigneeId}` };
-    if (!detail.leaderId) return { ok: false, error: `squad 无 leader: ${rule.assigneeId}` };
+    if (!detail) return { ok: false, reason: 'invalid_assignee', error: `squad 不存在: ${rule.assigneeId}` };
+    if (!detail.leaderId) return { ok: false, reason: 'invalid_assignee', error: `squad 无 leader: ${rule.assigneeId}` };
+    const gate = checkAgentDispatchGate(detail.leaderId);
+    if (!gate.ok) return { ok: false, reason: gate.reason, error: gate.detail };
     return {
       ok: true,
-      agentId: detail.leaderId,
+      agentId: gate.agent.id,
       isLeader: true,
       squadId: detail.id,
     };
   }
-  return { ok: false, error: `非法 assigneeType: ${rule.assigneeType}` };
+  return { ok: false, reason: 'invalid_assignee', error: `非法 assigneeType: ${rule.assigneeType}` };
 }
 
 /**
@@ -457,16 +443,8 @@ async function dispatchRunOnly(
   plannedAt: number,
   source: AutomationRunSource,
   placeholderId: string,
+  resolved: Extract<ReturnType<typeof resolveDispatchAgent>, { ok: true }>,
 ): Promise<AutomationRun> {
-  const resolved = await resolveDispatchAgent(rule);
-  if (!resolved.ok) {
-    // 规则已过 validateAssignee 准入，此处失败 = 竞态（agent/squad 被删/归档）→ skipped（学 multica errDispatchSkipped）
-    return finishAutomationRun(placeholderId, {
-      status: 'skipped',
-      error: resolved.error,
-    });
-  }
-
   const title = renderAutomationTemplate(rule.titleTemplate, {
     plannedAt,
     ruleName: rule.name,
@@ -483,6 +461,16 @@ async function dispatchRunOnly(
     plannedAt,
   });
 
+  // Repeat the lifecycle gate immediately before a direct agent_run insert.
+  // Unlike runtime/cwd readiness, it remains mandatory even in local bypass
+  // mode and makes archive-after-placeholder a truthful skipped audit row.
+  const dispatchGate = checkAgentDispatchGate(resolved.agentId);
+  if (!dispatchGate.ok) {
+    return finishAutomationRun(placeholderId, {
+      status: 'skipped',
+      error: dispatchGate.detail,
+    });
+  }
   if (!allowNotReadyEnqueue()) {
     const rd = await computeAgentReadiness(resolved.agentId);
     if (!rd) {
@@ -500,13 +488,17 @@ async function dispatchRunOnly(
     }
   }
 
-  const agent = db.select().from(agents).where(eq(agents.id, resolved.agentId)).get();
-  if (!agent) {
+  // `computeAgentReadiness` may yield to a CLI/runtime probe. Do not reuse a
+  // pre-probe Agent snapshot: archive must still win immediately before the
+  // direct quick_create INSERT, including when local readiness bypass is on.
+  const insertGate = checkAgentDispatchGate(resolved.agentId);
+  if (!insertGate.ok) {
     return finishAutomationRun(placeholderId, {
       status: 'skipped',
-      error: `agent 不存在: ${resolved.agentId}`,
+      error: insertGate.detail,
     });
   }
+  const agent = insertGate.agent;
 
   const linkedRunId = crypto.randomUUID();
   const createdAt = Date.now();
@@ -588,16 +580,22 @@ export async function dispatchAutomationRule(
 
   // 阶段 2：仅赢家执行副作用；任何终态经 finishAutomationRun 写占位行
   try {
-    const assigneeErr = validateAssignee(rule);
-    if (assigneeErr) {
-      return finishAutomationRun(placeholder.id, { status: 'failed', error: assigneeErr });
+    const resolved = resolveDispatchAgent(rule);
+    if (!resolved.ok) {
+      // An archived target is a normal lifecycle skip, not a broken rule or a
+      // fake successful launch. Bad/missing assignee configuration preserves
+      // the pre-existing failed audit semantics.
+      return finishAutomationRun(placeholder.id, {
+        status: resolved.reason === 'agent_archived' ? 'skipped' : 'failed',
+        error: resolved.error,
+      });
     }
 
     const mode = resolveAutomationExecutionMode(
       (rule as { executionMode?: string }).executionMode,
     );
     if (mode === 'run_only') {
-      return dispatchRunOnly(rule, plannedAt, source, placeholder.id);
+      return dispatchRunOnly(rule, plannedAt, source, placeholder.id, resolved);
     }
 
     const title = renderAutomationTemplate(rule.titleTemplate, {

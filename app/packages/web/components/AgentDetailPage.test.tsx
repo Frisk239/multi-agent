@@ -7,6 +7,8 @@ import { AgentDetailPage } from './AgentDetailPage';
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   updateMutate: vi.fn(),
+  unarchiveMutate: vi.fn(),
+  createChatMutate: vi.fn(),
   confirmDialog: vi.fn(),
   // 稳定引用：每次 render 返回同一对象，避免 useAgent 新对象导致
   // AgentDetailPage 的 useEffect([agent]) 反复重置本地 state
@@ -92,8 +94,9 @@ vi.mock('@/lib/api', () => ({
     isError: false,
     error: null,
   }),
-  useCreateChatThread: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateChatThread: () => ({ mutate: mocks.createChatMutate, isPending: false }),
   useDeleteAgent: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnarchiveAgent: () => ({ mutate: mocks.unarchiveMutate, isPending: false }),
   useSkills: () => ({ data: [], isLoading: false }),
   useAgentSkills: () => ({ data: [], isLoading: false }),
   useUpdateAgent: () => ({ mutate: mocks.updateMutate, isPending: false }),
@@ -180,6 +183,58 @@ describe('AgentDetailPage · fallback agent（后备 agent）', () => {
         expect.objectContaining({ fallbackAgentId: null }),
       );
     });
+  });
+});
+
+describe('G8-7 archived Agent lifecycle UX', () => {
+  beforeEach(() => {
+    mocks.updateMutate.mockReset();
+    mocks.unarchiveMutate.mockReset();
+    mocks.createChatMutate.mockReset();
+    mocks.confirmDialog.mockReset();
+    mocks.agent = makeAgent({ archivedAt: '2026-08-20T01:02:03.000Z' });
+    mocks.readiness = {
+      agentId: 'agent-primary',
+      runtime: 'opencode',
+      runtimeInstalled: false,
+      runtimePath: null,
+      runtimeVersion: null,
+      concurrency: 1,
+      runningCount: 0,
+      slotsAvailable: 0,
+      cwdConfigured: true,
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
+      status: 'archived',
+      detail: '智能体「主岗」已归档，恢复后才能派发',
+    };
+    mocks.runtimeCatalog = undefined;
+    mocks.agentsList = [];
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('uses a neutral archived readiness state, keeps history navigation, and removes future-dispatch CTAs', async () => {
+    render(<AgentDetailPage agentId="agent-primary" />);
+
+    const readiness = await screen.findByTitle('智能体「主岗」已归档，恢复后才能派发');
+    expect(readiness).toHaveTextContent('已归档');
+    expect(readiness).toHaveClass('readiness-archived');
+    expect(screen.getByTestId('agent-archived-dispatch-note')).toHaveTextContent(
+      '历史 Issue、运行和聊天仍可查看',
+    );
+    expect(screen.getByTestId('agent-dm-chat')).toBeDisabled();
+    expect(screen.getByTestId('agent-direct-issue-create-disabled')).toBeDisabled();
+    expect(screen.queryByTestId('agent-direct-issue-create')).toBeNull();
+    expect(screen.getByTestId('agent-to-active-runs')).toHaveAttribute(
+      'href',
+      '/runs?agent=agent-primary&status=active',
+    );
+
+    fireEvent.click(screen.getByTestId('agent-detail-unarchive'));
+    expect(mocks.unarchiveMutate).toHaveBeenCalledWith('agent-primary');
   });
 });
 

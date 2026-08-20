@@ -22,6 +22,7 @@ import {
   useRetryRun,
   useRuntimeModels,
   useRuntimes,
+  useUnarchiveAgent,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 import {
@@ -52,6 +53,7 @@ const RUNTIMES: RuntimeId[] = [...RuntimeIdSchema.options];
 function readinessClass(status: AgentReadiness['status']): string {
   if (status === 'ready') return 'readiness-chip readiness-ready';
   if (status === 'busy') return 'readiness-chip readiness-busy';
+  if (status === 'archived') return 'readiness-chip readiness-archived';
   return 'readiness-chip readiness-missing';
 }
 
@@ -71,6 +73,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
   const { data: readiness } = useAgentReadiness(agentId);
   const update = useUpdateAgent(agentId);
   const del = useDeleteAgent();
+  const unarchive = useUnarchiveAgent();
   const createChat = useCreateChatThread();
   const [tab, setTab] = useState<TabId>('overview');
 
@@ -128,6 +131,11 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
       </div>
     );
   }
+
+  // Archive is a lifecycle state, not a transient readiness failure. Keep the
+  // historical views available while removing every CTA that could imply a
+  // future dispatch will succeed.
+  const isArchived = agent.archivedAt != null || readiness?.status === 'archived';
 
   function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -207,7 +215,7 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
 
           {readiness && (
             <div className={readinessClass(readiness.status)} title={readiness.detail ?? undefined}>
-              {readiness.status}
+              {readiness.status === 'archived' ? '已归档' : readiness.status}
               {readiness.detail ? ` · ${readiness.detail}` : ''}
             </div>
           )}
@@ -241,6 +249,22 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
                 >
                   运行时探测
                 </Link>
+              ) : null}
+              {readiness.status === 'archived' ? (
+                <>
+                  <p className="text-sm text-dim" data-testid="agent-archived-dispatch-note">
+                    已停止未来派活；历史 Issue、运行和聊天仍可查看。恢复后才可新建工作或私信。
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    data-testid="agent-detail-unarchive"
+                    disabled={unarchive.isPending}
+                    onClick={() => unarchive.mutate(agentId)}
+                  >
+                    {unarchive.isPending ? '恢复中…' : '恢复智能体'}
+                  </button>
+                </>
               ) : null}
               <Link
                 href={`/agents?ready=${encodeURIComponent(readiness.status)}`}
@@ -492,7 +516,8 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
               type="button"
               className="btn btn-primary btn-sm"
               data-testid="agent-dm-chat"
-              disabled={createChat.isPending}
+              disabled={createChat.isPending || isArchived}
+              title={isArchived ? '智能体已归档；恢复后才可私信' : undefined}
               onClick={() => {
                 createChat.mutate(
                   { agentId, title: `与 ${agent.name} 的对话` },
@@ -506,14 +531,26 @@ export function AgentDetailPage({ agentId }: { agentId: string }) {
             >
               {createChat.isPending ? '创建会话…' : '私信'}
             </button>
-            <Link
-              href={`/?new=1&createAssignee=agent:${encodeURIComponent(agentId)}`}
-              className="btn btn-primary btn-sm"
-              data-testid="agent-direct-issue-create"
-              title="新建 Issue 并预选本智能体"
-            >
-              分配工作
-            </Link>
+            {isArchived ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                data-testid="agent-direct-issue-create-disabled"
+                disabled
+                title="智能体已归档；恢复后才可分配工作"
+              >
+                已归档，无法派活
+              </button>
+            ) : (
+              <Link
+                href={`/?new=1&createAssignee=agent:${encodeURIComponent(agentId)}`}
+                className="btn btn-primary btn-sm"
+                data-testid="agent-direct-issue-create"
+                title="新建 Issue 并预选本智能体"
+              >
+                分配工作
+              </Link>
+            )}
             <Link
               href={`/?assignee=agent:${encodeURIComponent(agentId)}`}
               className="btn btn-secondary btn-sm"

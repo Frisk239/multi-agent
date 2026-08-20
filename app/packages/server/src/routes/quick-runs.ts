@@ -8,6 +8,7 @@ import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from '../orchestration/event-bus.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
 import { wakeRunWorker } from '../orchestration/run-worker.js';
+import { checkAgentDispatchGate } from '../orchestration/agent-dispatch-gate.js';
 
 function allowNotReadyEnqueue(): boolean {
   const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
@@ -54,6 +55,24 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       squadId = squad.id;
     }
 
+    // Lifecycle comes before any environment probe/bypass. A local emergency
+    // readiness override can never turn an archived Agent into a quick-run
+    // target.
+    const dispatchGate = checkAgentDispatchGate(agentId);
+    if (!dispatchGate.ok) {
+      const status = dispatchGate.reason === 'agent_missing' ? 404 : 409;
+      return reply.status(status).send({
+        success: false,
+        error: dispatchGate.detail,
+        code: 'readiness_failed',
+        reason: dispatchGate.reason,
+        enqueue: {
+          status: 'skipped',
+          reason: dispatchGate.reason,
+          detail: dispatchGate.detail,
+        },
+      });
+    }
     // A3：硬闸对齐 issue enqueue（含显式安全预检失败；busy 仍可排队）
     if (!allowNotReadyEnqueue()) {
       const rd = await computeAgentReadiness(agentId);
@@ -83,7 +102,26 @@ export async function quickRunRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    const agent = db.select().from(agents).where(eq(agents.id, agentId)).get()!;
+    // Runtime readiness can yield. The lifecycle is re-read immediately
+    // before this route's direct INSERT, so archive wins over any env bypass
+    // or in-flight probe without creating a transient new run.
+    const insertGate = checkAgentDispatchGate(agentId);
+    if (!insertGate.ok) {
+      const status = insertGate.reason === 'agent_missing' ? 404 : 409;
+      return reply.status(status).send({
+        success: false,
+        error: insertGate.detail,
+        code: 'readiness_failed',
+        reason: insertGate.reason,
+        enqueue: {
+          status: 'skipped',
+          reason: insertGate.reason,
+          detail: insertGate.detail,
+        },
+      });
+    }
+    const agent = insertGate.agent;
+
     const id = crypto.randomUUID();
     const createdAt = Date.now();
     db.insert(agentRuns)

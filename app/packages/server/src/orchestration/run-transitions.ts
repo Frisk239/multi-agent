@@ -9,6 +9,10 @@ export const CLAIMABLE_RUN_STATUSES = ['queued', 'waiting_local_directory'] as c
 export const ACTIVE_RUN_STATUSES = [
   'queued',
   'waiting_local_directory',
+  // Deferred is still an unfinished, scheduled work item. Treat it as
+  // cancellable so an Agent archive cannot leave a later auto-escalation path
+  // that silently revives work for the retired Agent.
+  'deferred',
   'running',
 ] as const;
 

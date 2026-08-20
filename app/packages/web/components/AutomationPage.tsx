@@ -304,9 +304,13 @@ function AutomationPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data, isLoading, isError, error, refetch, isFetching } = useAutomationRules();
+  // Creation keeps its active-only roster, but existing rules may legitimately
+  // point to an archived agent. Load all here so their lifecycle state is not
+  // silently rendered as an unknown id.
   const { data: agents = [] } = useAgents();
+  const { data: allAgents = [] } = useAgents({ archived: 'all' });
   const { data: squads = [] } = useSquads();
-  const agentIds = useMemo(() => agents.map((a) => a.id), [agents]);
+  const agentIds = useMemo(() => allAgents.map((a) => a.id), [allAgents]);
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   const create = useCreateAutomationRule();
   const update = useUpdateAutomationRule();
@@ -383,9 +387,13 @@ function AutomationPageInner() {
 
   const agentNameById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const a of agents) m.set(a.id, a.name);
+    for (const a of allAgents) m.set(a.id, a.name);
     return m;
-  }, [agents]);
+  }, [allAgents]);
+  const archivedAgentIds = useMemo(
+    () => new Set(allAgents.filter((agent) => agent.archivedAt != null).map((agent) => agent.id)),
+    [allAgents],
+  );
   const squadNameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of squads) m.set(s.id, s.name);
@@ -397,6 +405,16 @@ function AutomationPageInner() {
       return agentNameById.get(rule.assigneeId) ?? rule.assigneeId.slice(0, 8);
     }
     return squadNameById.get(rule.assigneeId) ?? rule.assigneeId.slice(0, 8);
+  }
+
+  function archivedTargetLabel(rule: AutomationRule): string | null {
+    if (rule.assigneeType === 'agent') {
+      return archivedAgentIds.has(rule.assigneeId) ? '智能体已归档 · 立即执行将跳过' : null;
+    }
+    const squad = squads.find((candidate) => candidate.id === rule.assigneeId);
+    return squad?.leaderId && archivedAgentIds.has(squad.leaderId)
+      ? '队长已归档 · 立即执行将跳过'
+      : null;
   }
 
   function clearAllFilters() {
@@ -1137,6 +1155,7 @@ function AutomationPageInner() {
             ) : null}
             {visible.map((rule) => {
               const expanded = expandedRuns?.ruleId === rule.id;
+              const archivedTarget = archivedTargetLabel(rule);
               return (
                 <tbody key={rule.id} className="automation-rule-group">
                   <tr data-testid={`automation-rule-row-${rule.id}`} data-rule-id={rule.id}>
@@ -1222,6 +1241,15 @@ function AutomationPageInner() {
                             </Link>
                           </>
                         )}
+                        {archivedTarget ? (
+                          <span
+                            className="text-dim text-sm"
+                            data-testid={`automation-archived-target-${rule.id}`}
+                            title="归档 Agent 不会接收新的自动化派发；立即执行会记录已跳过原因。"
+                          >
+                            {archivedTarget}
+                          </span>
+                        ) : null}
                       </span>
                     </td>
                     <td

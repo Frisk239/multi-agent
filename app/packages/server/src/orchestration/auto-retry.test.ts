@@ -208,6 +208,25 @@ describe('bounded infrastructure auto-retry', () => {
     });
     expect(scheduleAutoRetryForFailedRun(ordinaryRun, automation.now)).toBeNull();
   });
+
+  it('does not direct-insert an auto-retry child after its source Agent is archived', () => {
+    const { db, now, issueId } = setup();
+    db.update(agents)
+      .set({ archivedAt: now })
+      .where(eq(agents.id, 'agent-retry'))
+      .run();
+    const source = insertRun(db, {
+      id: 'run-archived-retry-source',
+      issueId,
+      status: 'failed',
+      failureReason: 'timeout',
+    });
+
+    expect(scheduleAutoRetryForFailedRun(source, now)).toBeNull();
+    expect(
+      db.select().from(agentRuns).all().filter((row) => row.autoRetryOfRunId === source.id),
+    ).toHaveLength(0);
+  });
 });
 
 // —— P2-4：显式 fallback 自动改派（runtime 连接不上 + 预算用尽）——

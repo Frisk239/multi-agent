@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, chatMessages, chatThreads } from '../db/schema.js';
+import { agents, agentRuns, chatMessages, chatThreads } from '../db/schema.js';
 import type { FastifyInstance } from 'fastify';
 
 const state = vi.hoisted(() => ({
@@ -77,6 +77,51 @@ describe('W5 chat contracts', () => {
       payload: { agentId: 'agt-nope' },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('rejects archived Agent chat creation and legacy-thread messages without persisting future work', async () => {
+    const db = state.db!;
+    db.update(agents)
+      .set({ archivedAt: Date.now() })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/chat/threads',
+      payload: { agentId: 'agt-test-1' },
+    });
+    expect(create.statusCode).toBe(409);
+    expect(create.json()).toMatchObject({
+      code: 'readiness_failed',
+      reason: 'agent_archived',
+    });
+
+    db.insert(chatThreads)
+      .values({
+        id: 'chat-archived-agent-history',
+        agentId: 'agt-test-1',
+        title: '历史会话仍可读',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .run();
+    const send = await app.inject({
+      method: 'POST',
+      url: '/api/chat/threads/chat-archived-agent-history/messages',
+      payload: { body: '不得为归档智能体创建 run' },
+    });
+    expect(send.statusCode).toBe(409);
+    expect(send.json()).toMatchObject({
+      code: 'readiness_failed',
+      reason: 'agent_archived',
+    });
+    expect(
+      db.select().from(chatMessages).where(eq(chatMessages.threadId, 'chat-archived-agent-history')).all(),
+    ).toEqual([]);
+    expect(
+      db.select().from(agentRuns).where(eq(agentRuns.chatThreadId, 'chat-archived-agent-history')).all(),
+    ).toEqual([]);
   });
 
   it('POST /api/chat/threads rejects missing agentId', async () => {

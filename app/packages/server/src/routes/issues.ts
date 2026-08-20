@@ -101,6 +101,7 @@ import { wakeWikiIngestWorker } from '../wiki/ingest-worker.js';
 import { memoryManager } from '../memory/manager.js';
 import { createIssueCore } from '../orchestration/issue-create.js';
 import { computeAgentReadiness } from '../orchestration/readiness.js';
+import { checkAgentDispatchGate } from '../orchestration/agent-dispatch-gate.js';
 
 function allowNotReadyEnqueue(): boolean {
   const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
@@ -121,7 +122,7 @@ type AssignmentPreflightSuccess = {
 
 type AssignmentPreflightFailure = {
   ok: false;
-  status: 400 | 404;
+  status: 400 | 404 | 409;
   error: string;
   code?: 'readiness_failed';
   reason?: EnqueueSkipReason;
@@ -175,8 +176,22 @@ async function preflightAssignmentTarget(
     dispatch = { kind: 'squad', agentId: leader.id, squadId: squad.id };
   }
 
-  // MA_ENQUEUE_ALLOW_NOT_READY 仅绕过环境 readiness，不能放过不存在的
-  // agent/squad 或无 leader 的坏目标（它们已在上面同步拒绝）。
+  // Lifecycle gate is intentionally outside MA_ENQUEUE_ALLOW_NOT_READY. The
+  // env flag only bypasses local runtime/cwd diagnostics, never a deliberate
+  // archive stop, and the same reason remains explainable to single/bulk UI.
+  const dispatchGate = checkAgentDispatchGate(dispatch.agentId);
+  if (!dispatchGate.ok) {
+    return {
+      ok: false,
+      status: dispatchGate.reason === 'agent_missing' ? 404 : 409,
+      error: dispatchGate.detail,
+      code: 'readiness_failed',
+      reason: dispatchGate.reason,
+    };
+  }
+
+  // MA_ENQUEUE_ALLOW_NOT_READY only bypasses environment readiness. Existence,
+  // squad-leader and archive lifecycle checks above always remain hard gates.
   if (!allowNotReadyEnqueue()) {
     const readiness = await computeAgentReadiness(dispatch.agentId);
     if (!readiness) {

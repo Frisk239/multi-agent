@@ -5,7 +5,7 @@ import {
   runtimeUnassignableReason,
 } from '@ma/shared';
 import { db } from '../db/client.js';
-import { agents, agentRuns } from '../db/schema.js';
+import { agentRuns } from '../db/schema.js';
 import { getBackend } from '../runtime/registry.js';
 import {
   evaluateRuntimePreflight,
@@ -13,6 +13,7 @@ import {
 } from '../runtime/preflight.js';
 import { resolveWorkspaceCwd } from '../workspace-cwd.js';
 import type { DetectResult, RuntimeBackend } from '../runtime/types.js';
+import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
 
 const probeSuccessTTL = new Map<string, { det: DetectResult; ts: number }>();
 const GRACE_PERIOD_MS = 60_000;
@@ -21,8 +22,35 @@ const GRACE_PERIOD_MS = 60_000;
 // 默认执行 cwd 为 ~/.multi-agent 隔离目录（学 Multica execenv），不强制 Settings 工作区。
 // 仅 MA_ISSUE_USE_WORKSPACE_CWD=1 时，宿主项目路径才是执行前置条件。
 export async function computeAgentReadiness(agentId: string): Promise<AgentReadiness | null> {
-  const row = db.select().from(agents).where(eq(agents.id, agentId)).get();
-  if (!row) return null;
+  // Lifecycle is the first readiness gate. Do not invoke a runtime detect or a
+  // workspace probe for archived Agents: "archived" is a deliberate stop, not
+  // an environment fault that MA_ENQUEUE_ALLOW_NOT_READY could paper over.
+  const dispatchGate = checkAgentDispatchGate(agentId);
+  if (!dispatchGate.ok && dispatchGate.reason === 'agent_missing') return null;
+  const row = dispatchGate.agent;
+  if (!dispatchGate.ok) {
+    const runningCount =
+      db
+        .select({ cnt: sql<number>`COUNT(*)` })
+        .from(agentRuns)
+        .where(and(eq(agentRuns.agentId, agentId), eq(agentRuns.status, 'running')))
+        .get()?.cnt ?? 0;
+    return {
+      agentId: row.id,
+      runtime: row.runtime as RuntimeId,
+      runtimeInstalled: false,
+      runtimePath: null,
+      runtimeVersion: null,
+      concurrency: row.concurrency,
+      runningCount,
+      slotsAvailable: 0,
+      cwdConfigured: true,
+      preflightStatus: 'not_available',
+      runtimeVerification: 'unverified',
+      status: 'archived',
+      detail: dispatchGate.detail,
+    };
+  }
 
   const cwd = resolveWorkspaceCwd();
   const forceWorkspace =

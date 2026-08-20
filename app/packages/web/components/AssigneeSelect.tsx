@@ -37,6 +37,7 @@ function readinessHint(rd: AgentReadiness | null | undefined): string {
   const preflightHint = isRuntimeUnverified(rd) ? ' · 未安全预检' : '';
   if (rd.status === 'ready') return `ready${preflightHint}`;
   if (rd.status === 'busy') return `busy${preflightHint}`;
+  if (rd.status === 'archived') return '已归档';
   if (rd.status === 'cwd_missing') return 'cwd 未配置';
   if (rd.status === 'runtime_missing') return 'runtime 缺失';
   return rd.status;
@@ -53,7 +54,8 @@ function isHardBlocked(rd: AgentReadiness | null | undefined): boolean {
   return (
     rd.status === 'cwd_missing' ||
     rd.status === 'runtime_missing' ||
-    rd.status === 'error'
+    rd.status === 'error' ||
+    rd.status === 'archived'
   );
 }
 
@@ -68,6 +70,9 @@ function readinessBlockMessage(
   }
   if (rd.status === 'runtime_missing') {
     return `${name} 不可指派：runtime ${rd.runtime} 未检测到（服务端硬闸）。请到「运行时」安装 CLI。`;
+  }
+  if (rd.status === 'archived') {
+    return `${name} 不可指派：智能体已归档。请先在智能体详情恢复后再派活。`;
   }
   if (rd.status === 'error') {
     return `${name} 不可指派：就绪探测失败${rd.detail ? `（${rd.detail}）` : ''}。`;
@@ -235,7 +240,9 @@ export function AssigneeSelect({
   issueId: string;
   currentAssignee: Assignee;
 }) {
-  const { data: agents = [] } = useAgents();
+  // Keep an already assigned archived agent visible with its true lifecycle
+  // state; the hard gate below still prevents a new assignment to it.
+  const { data: agents = [] } = useAgents({ archived: 'all' });
   const { data: squads = [] } = useSquads();
   const update = useUpdateIssue();
 

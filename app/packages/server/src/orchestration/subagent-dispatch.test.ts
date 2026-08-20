@@ -336,6 +336,42 @@ describe('subagent-dispatch', () => {
       expect(body).toMatch(/runtime_missing|未安装/);
     });
 
+    it('does not let MA_ENQUEUE_ALLOW_NOT_READY bypass an archived no-issue delegate', async () => {
+      process.env.MA_ENQUEUE_ALLOW_NOT_READY = '1';
+      const parent = {
+        id: 'parent',
+        parentRunId: null,
+        issueId: null,
+        projectId: 'p1',
+        chatThreadId: null,
+      };
+      mocks.agentRunsGet
+        .mockReturnValueOnce(parent)
+        .mockReturnValueOnce(parent);
+      // direct target resolution, then shared lifecycle readiness gate
+      mocks.agentsGet
+        .mockReturnValueOnce({
+        id: 'agent-a',
+        runtime: 'claude-code',
+        archivedAt: Date.now(),
+        name: 'Archived delegate',
+        })
+        .mockReturnValueOnce({
+          id: 'agent-a',
+          runtime: 'claude-code',
+          archivedAt: Date.now(),
+          name: 'Archived delegate',
+        });
+
+      await parseAndDispatchSubagents('parent', '[delegate:agent-a](must not queue)');
+
+      expect(mocks.computeAgentReadiness).not.toHaveBeenCalled();
+      expect(mocks.insertRun).not.toHaveBeenCalled();
+      expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
+      expect(mocks.insertMsg).toHaveBeenCalled();
+      expect(mocks.insertMsg.mock.calls[0][0].body).toMatch(/已归档/);
+    });
+
     it('inserts quick_create child when readiness ok', async () => {
       const parent = {
         id: 'parent',

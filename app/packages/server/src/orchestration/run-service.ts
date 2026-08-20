@@ -4,12 +4,17 @@ import { agentRuns, agents, comments, issues, runMessages } from '../db/schema.j
 import { toComment, toObservedAgentRun, toRunMessage } from '../db/reshape.js';
 import { loadSquadDetail } from '../db/squad-loader.js';
 import { eventBus } from './event-bus.js';
-import { abortRun } from './run-control.js';
 import { wakeRunWorker } from './run-worker.js';
 import { computeAgentReadiness } from './readiness.js';
 import { notifyEnqueueSkipped } from './inbox-writer.js';
-import { ACTIVE_RUN_STATUSES, transitionRun } from './run-transitions.js';
+import { ACTIVE_RUN_STATUSES } from './run-transitions.js';
+import { checkAgentDispatchGate } from './agent-dispatch-gate.js';
+import { cancelRunById, cancelRunsMany } from './run-cancellation.js';
 import type { AgentRun, EnqueueSkipReason, IssueEnqueueMeta } from '@ma/shared';
+
+// Preserve the established import surface for routes/tests while allowing the
+// worker and archive lifecycle to share a cycle-free cancellation primitive.
+export { cancelRunById, cancelRunsMany } from './run-cancellation.js';
 
 const ACTIVE = ACTIVE_RUN_STATUSES;
 const RETRYABLE = ['failed', 'cancelled', 'timed_out'] as const;
@@ -75,6 +80,8 @@ function publishEnqueueBlockedComment(
           ? 'run 上限'
           : reason === 'agent_missing'
             ? 'agent 不存在'
+            : reason === 'agent_archived'
+              ? '智能体已归档'
             : reason === 'readiness_error'
               ? '就绪探测失败'
               : reason;
@@ -123,54 +130,6 @@ export function cancelActiveRunsForIssue(issueId: string): void {
   for (const row of rows) {
     cancelRunById(row.id);
   }
-}
-
-// cancelRunById —— 唯一取消入口的底层实现（spec §6.3 R1：POST /api/runs/:runId/cancel）。
-// Slice 39：transitionRun 查 changes；0-change 不 abort、不发 run:cancelled。
-export function cancelRunById(runId: string): { ok: boolean; run?: AgentRun } {
-  const finishedAt = Date.now();
-  const tr = transitionRun({
-    id: runId,
-    fromStatuses: ACTIVE,
-    patch: {
-      status: 'cancelled',
-      finishedAt,
-      // Slice 66：离开 waiting 清进入时刻
-      waitingLocalEnteredAt: null,
-      // Slice 68：离开半 claim / 任意活跃态清 prepare lease
-      prepareLeaseExpiresAt: null,
-    },
-  });
-  if (!tr.applied || !tr.row) return { ok: false };
-  // 崩溃窗口（G5-4）：UPDATE 已提交 cancelled、abortRun 前进程崩溃 → 终态=cancelled
-  // 已落库（重启不会重新执行）；未杀掉的孤儿 CLI 子进程由 OS 接管。
-  abortRun(runId); // 触发 AbortController → spawn-line kill 子进程
-  const run = toObservedAgentRun(tr.row, finishedAt);
-  eventBus.publish({ type: 'run:cancelled', run });
-  return { ok: true, run };
-}
-
-/** 批量取消：逐 id 走 cancelRunById，保证 abort 与事件一致 */
-export function cancelRunsMany(ids: string[]): {
-  requested: number;
-  cancelled: number;
-  skipped: number;
-  runs: AgentRun[];
-} {
-  const unique = [...new Set(ids.filter(Boolean))].slice(0, 100);
-  let cancelled = 0;
-  let skipped = 0;
-  const runs: AgentRun[] = [];
-  for (const id of unique) {
-    const res = cancelRunById(id);
-    if (res.ok && res.run) {
-      cancelled += 1;
-      runs.push(res.run);
-    } else {
-      skipped += 1;
-    }
-  }
-  return { requested: unique.length, cancelled, skipped, runs };
 }
 
 // enqueueAgentRun —— 指派 agent 时插入 queued run（spec §6.1）。
@@ -257,14 +216,16 @@ async function checkAndEnqueue(
   const quickPrompt = opts?.quickPrompt ?? null;
   const forceFresh = opts?.forceFresh === true;
 
-  const agent = db.select().from(agents).where(eq(agents.id, agentId)).get();
-  if (!agent) {
-    const res = skipped('agent_missing', `agent ${agentId} 不存在`);
+  // The lifecycle gate always runs before environment readiness. In particular
+  // MA_ENQUEUE_ALLOW_NOT_READY is a local runtime/cwd escape hatch, never an
+  // authorization to revive an archived Agent.
+  const dispatchGate = checkAgentDispatchGate(agentId);
+  if (!dispatchGate.ok) {
+    const res = skipped(dispatchGate.reason, dispatchGate.detail);
     publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
     notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
     return res;
   }
-
   // 硬闸：cwd_missing / runtime_missing / detect 或显式安全预检失败（busy 仍可排队）
   // 紧急旁路：MA_ENQUEUE_ALLOW_NOT_READY=1（仅本地排障）
   if (!allowNotReadyEnqueue()) {
@@ -358,6 +319,18 @@ async function checkAndEnqueue(
     notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
     return res;
   }
+
+  // `computeAgentReadiness` may await a runtime probe. Recheck the business
+  // lifecycle immediately before the INSERT so an archive that lands during
+  // that await is an explainable skip rather than a briefly-created queue row.
+  const insertGate = checkAgentDispatchGate(agentId);
+  if (!insertGate.ok) {
+    const res = skipped(insertGate.reason, insertGate.detail);
+    publishEnqueueBlockedComment(issueId, res.reason!, res.detail!);
+    notifyEnqueueSkipped(issueId, agentId, res.reason!, res.detail!);
+    return res;
+  }
+  const agent = insertGate.agent;
 
   const id = crypto.randomUUID();
   const createdAt = Date.now();

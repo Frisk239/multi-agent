@@ -51,6 +51,9 @@ export function toastEnqueueMeta(issueId: string, enqueue?: IssueEnqueueMeta | n
   } else if (reason === 'no_leader') {
     href = '/squads';
     label = '小队列表';
+  } else if (reason === 'agent_archived') {
+    href = '/agents?scope=archived';
+    label = '查看已归档智能体';
   }
   toastError(enqueue.detail ?? '未开工：派发被跳过', {
     action: { label, href },

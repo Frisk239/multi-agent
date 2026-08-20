@@ -24,6 +24,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { cancelRunById } from './run-service.js';
 import { failStalePrepareLeaseRuns } from './stale-runs.js';
+import { agentDispatchableClaimGuard } from './agent-dispatch-gate.js';
 import type { ExecutionResult } from '../runtime/types.js';
 
 const state = vi.hoisted(() => ({
@@ -36,6 +37,8 @@ const state = vi.hoisted(() => ({
   eventPublish: vi.fn<(event: unknown) => void>(),
   parseAndDispatchSubagents: vi.fn<(parentRunId: string, text: string) => Promise<void>>(async () => undefined),
   memorySyncRunCompleted: vi.fn<(input: unknown) => void>(),
+  promptCalls: vi.fn(),
+  promptImpl: null as null | (() => string | Promise<string | null>),
   backendId: 'opencode' as string,
   supportsThinkingLevel: undefined as boolean | undefined,
 }));
@@ -84,7 +87,10 @@ vi.mock('../runtime/registry.js', () => ({
 }));
 
 vi.mock('../runtime/prompt.js', () => ({
-  resolveRunPrompt: () => 'test prompt',
+  resolveRunPrompt: () => {
+    state.promptCalls();
+    return state.promptImpl ? state.promptImpl() : 'test prompt';
+  },
 }));
 
 vi.mock('../runtime/resolve-run-cwd.js', () => ({
@@ -216,6 +222,8 @@ describe('W5 run-worker fault injection', () => {
     state.eventPublish.mockClear();
     state.parseAndDispatchSubagents.mockClear();
     state.memorySyncRunCompleted.mockClear();
+    state.promptCalls.mockClear();
+    state.promptImpl = null;
     process.env.MA_ISSUE_TIMEOUT_MS = '0';
   });
 
@@ -240,6 +248,71 @@ describe('W5 run-worker fault injection', () => {
     await flush();
     expect(executeCalls).toBe(1);
     expect(runRow('run-race').status).toBe('completed');
+  });
+
+  it('archive-vs-claim uses the Agent lifecycle predicate in the same UPDATE and never executes the CLI', async () => {
+    insertQueuedRun('run-archive-claim-race');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'must not execute', exitReason: 'completed' };
+    };
+
+    const queued = state.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.id, 'run-archive-claim-race'))
+      .get()!;
+    // Simulate the operator's archive transaction winning after a worker read
+    // but before its conditional claim UPDATE.
+    state.db!
+      .update(agents)
+      .set({ archivedAt: Date.now() })
+      .where(eq(agents.id, queued.agentId))
+      .run();
+
+    const lostClaim = transitionRun({
+      id: queued.id,
+      fromStatuses: ['queued'],
+      additionalGuard: agentDispatchableClaimGuard(queued.agentId),
+      patch: { status: 'running', startedAt: Date.now() },
+    });
+    expect(lostClaim.applied).toBe(false);
+
+    await tick();
+    await flush();
+    expect(executeCalls).toBe(0);
+    expect(runRow('run-archive-claim-race').status).toBe('cancelled');
+    expect(state.eventPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'run:cancelled' }),
+    );
+  });
+
+  it('archive after claim but before prompt preparation settles cancels instead of reaching backend.execute', async () => {
+    let releasePrompt!: (prompt: string) => void;
+    state.promptImpl = () => new Promise<string>((resolve) => { releasePrompt = resolve; });
+    insertQueuedRun('run-archive-pre-execute');
+    let executeCalls = 0;
+    state.executeImpl = async () => {
+      executeCalls += 1;
+      return { finalText: 'must not execute', exitReason: 'completed' };
+    };
+
+    await tick();
+    await vi.waitFor(() => expect(state.promptCalls).toHaveBeenCalledOnce());
+    expect(runRow('run-archive-pre-execute').status).toBe('running');
+
+    state.db!
+      .update(agents)
+      .set({ archivedAt: Date.now() })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+    releasePrompt('test prompt');
+
+    await vi.waitFor(() => {
+      expect(runRow('run-archive-pre-execute').status).toBe('cancelled');
+    });
+    expect(executeCalls).toBe(0);
   });
 
   it('follow-up queued after running completes can be claimed', async () => {

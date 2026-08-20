@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, automationRules, automationRuns, issues } from '../db/schema.js';
+import { agentRuns, agents, automationRules, automationRuns, issues } from '../db/schema.js';
 
 const state = vi.hoisted(() => ({
   db: null as ReturnType<typeof createTestDb>['db'] | null,
@@ -184,6 +184,53 @@ describe('automation run_only (A5 / Multica)', () => {
       expect(state.db!.select().from(automationRuns).all()).toHaveLength(runsBefore);
       expect(state.db!.select().from(issues).all()).toHaveLength(issuesBefore);
       expect(state.db!.select().from(agentRuns).all()).toHaveLength(agentRunsBefore);
+      expect(wake).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['run_only', 'create_issue'] as const)(
+    'an archived target makes Automation %s a persisted domain skip without creating Issue or AgentRun',
+    async (executionMode) => {
+      const now = Date.now();
+      state.db!
+        .update(agents)
+        .set({ archivedAt: now })
+        .where(eq(agents.id, 'agt-test-1'))
+        .run();
+      state.db!.insert(automationRules).values({
+        id: `rule-target-archived-${executionMode}`,
+        name: 'target archived',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 15,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'must not create',
+        bodyTemplate: '',
+        executionMode,
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const beforeIssues = state.db!.select().from(issues).all().length;
+      const beforeAgentRuns = state.db!.select().from(agentRuns).all().length;
+      const auto = await dispatchAutomationRule(
+        `rule-target-archived-${executionMode}`,
+        now - 60_000,
+        'manual',
+      );
+
+      expect(auto).toMatchObject({
+        status: 'skipped',
+        issueId: null,
+        linkedRunId: null,
+      });
+      expect(auto.error).toContain('已归档');
+      expect(state.db!.select().from(issues).all()).toHaveLength(beforeIssues);
+      expect(state.db!.select().from(agentRuns).all()).toHaveLength(beforeAgentRuns);
       expect(wake).not.toHaveBeenCalled();
     },
   );

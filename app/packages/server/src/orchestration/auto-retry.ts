@@ -85,6 +85,17 @@ function insertRetryChild(
   // lineage reaches a terminal child.
   if (!issue) return null;
 
+  // Retry children are a direct INSERT, not a normal enqueue call. Honor the
+  // same archive lifecycle gate here so an Agent retired while its source was
+  // failing cannot receive a delayed queued retry (even under env readiness
+  // bypasses elsewhere).
+  const sourceAgent = executor
+    .select()
+    .from(agents)
+    .where(eq(agents.id, source.agentId))
+    .get();
+  if (!sourceAgent || sourceAgent.archivedAt != null) return null;
+
   const configuredMax = Math.max(1, Number(source.maxAttempts ?? 2));
   const maxAttempts = autoRetryMaxAttempts(reason, configuredMax);
   const attempt = Math.max(1, Number(source.attempt ?? 1));
@@ -205,7 +216,11 @@ export function insertEscalatedChild(
     .from(agents)
     .where(eq(agents.id, source.agentId))
     .get();
-  const fallbackId = sourceAgent?.fallbackAgentId;
+  // The fallback itself already has an archive guard below. Also stop this
+  // direct escalation when the source Agent was archived: retirement means no
+  // future work should be emitted from its retry lineage either.
+  if (!sourceAgent || sourceAgent.archivedAt != null) return null;
+  const fallbackId = sourceAgent.fallbackAgentId;
   if (!fallbackId || fallbackId === source.agentId) return null;
   const fallback = executor
     .select()

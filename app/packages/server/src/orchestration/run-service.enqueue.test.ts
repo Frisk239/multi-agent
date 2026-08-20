@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, issues, comments } from '../db/schema.js';
+import { agentRuns, agents, issues, comments } from '../db/schema.js';
 import { enqueueAgentRun } from './run-service.js';
 
 /** 与 run-service.ts MAX_RUNS_PER_ISSUE 保持一致（非 export const，测试用字面量钉边界） */
@@ -104,6 +104,7 @@ describe('G6-3 run-service enqueue 熔断边界', () => {
     mocks.publish.mockReset();
     mocks.wakeRunWorker.mockReset();
     mocks.notifyEnqueueSkipped.mockReset();
+    mocks.computeAgentReadiness.mockReset();
     delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
     readyMock();
   });
@@ -262,6 +263,62 @@ describe('G6-3 run-service enqueue 熔断边界', () => {
       reason: 'readiness_error',
     });
     expect(res.detail).toContain('安全预检未通过');
+    expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
+  });
+
+  it('archived Agent is skipped before MA_ENQUEUE_ALLOW_NOT_READY or any runtime probe', async () => {
+    process.env.MA_ENQUEUE_ALLOW_NOT_READY = '1';
+    testState.db!
+      .update(agents)
+      .set({ archivedAt: Date.now() })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+
+    const result = await enqueueAgentRun('iss-test-1', 'agt-test-1');
+
+    expect(result).toMatchObject({
+      run: null,
+      skipped: true,
+      reason: 'agent_archived',
+    });
+    expect(result.detail).toContain('已归档');
+    expect(mocks.computeAgentReadiness).not.toHaveBeenCalled();
+    expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
+    expect(issueRunsOf('queued')).toHaveLength(0);
+  });
+
+  it('rechecks archive after an awaited readiness probe before inserting a new run', async () => {
+    delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+    let resolveReadiness!: (value: unknown) => void;
+    mocks.computeAgentReadiness.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveReadiness = resolve; }),
+    );
+
+    const pending = enqueueAgentRun('iss-test-1', 'agt-test-1');
+    await vi.waitFor(() => expect(mocks.computeAgentReadiness).toHaveBeenCalledOnce());
+
+    testState.db!
+      .update(agents)
+      .set({ archivedAt: Date.now() })
+      .where(eq(agents.id, 'agt-test-1'))
+      .run();
+    resolveReadiness({
+      agentId: 'agt-test-1',
+      runtime: 'opencode',
+      runtimeInstalled: true,
+      runtimePath: '/bin/opencode',
+      runtimeVersion: '1.0',
+      concurrency: 2,
+      runningCount: 0,
+      slotsAvailable: 2,
+      cwdConfigured: true,
+      status: 'ready',
+      detail: '',
+    });
+
+    const result = await pending;
+    expect(result).toMatchObject({ run: null, skipped: true, reason: 'agent_archived' });
+    expect(issueRunsOf('queued')).toHaveLength(0);
     expect(mocks.wakeRunWorker).not.toHaveBeenCalled();
   });
 });

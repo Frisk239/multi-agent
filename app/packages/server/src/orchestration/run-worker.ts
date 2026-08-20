@@ -4,7 +4,6 @@ import {
   agentRuns,
   runMessages,
   comments,
-  agents,
   issues,
   projects,
   chatMessages,
@@ -70,6 +69,11 @@ import {
 } from './run-transitions.js';
 import { hasActiveAutoRetryChild, transitionAndScheduleAutoRetry } from './auto-retry.js';
 import { clearExecutionOwnership, recordExecutionOwnership } from './execution-ownership.js';
+import {
+  agentDispatchableClaimGuard,
+  checkAgentDispatchGate,
+} from './agent-dispatch-gate.js';
+import { cancelRunById } from './run-cancellation.js';
 
 // bu01：执行中 heartbeat 间隔（plan 锁定）
 const HEARTBEAT_INTERVAL_MS = 5_000;
@@ -86,6 +90,24 @@ const HEARTBEAT_INTERVAL_MS = 5_000;
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let stopped = false;
+
+function combinedClaimGuard(row: typeof agentRuns.$inferSelect) {
+  const serialGuard = sameIssueClaimGuard(row);
+  const archiveGuard = agentDispatchableClaimGuard(row.agentId);
+  return serialGuard ? and(serialGuard, archiveGuard) : archiveGuard;
+}
+
+/**
+ * A stale worker snapshot can observe a queued row after its Agent has been
+ * archived. Reuse normal cancellation so the record stays auditable and no
+ * later worker/sweeper path can pick it up again.
+ */
+function cancelIfArchived(runId: string, agentId: string): boolean {
+  const gate = checkAgentDispatchGate(agentId);
+  if (gate.ok || gate.reason !== 'agent_archived') return false;
+  cancelRunById(runId);
+  return true;
+}
 
 function tickSafe(): void {
   invokeWorkerTickSafely(
@@ -166,9 +188,15 @@ function runTickWork(): void {
   let claimedThisTick = 0;
 
   for (const queued of queuedRows) {
-    // per-agent 槽位检查
-    const agent = db.select().from(agents).where(eq(agents.id, queued.agentId)).get();
-    if (!agent) continue;
+    // Archive is a lifecycle hard stop. It is checked before any slot/path
+    // work and again in the claim UPDATE below; MA_ENQUEUE_ALLOW_NOT_READY is
+    // deliberately irrelevant in a worker.
+    const dispatchGate = checkAgentDispatchGate(queued.agentId);
+    if (!dispatchGate.ok) {
+      if (dispatchGate.reason === 'agent_archived') cancelRunById(queued.id);
+      continue;
+    }
+    const agent = dispatchGate.agent;
     const activeCount = db
       .select({ cnt: sql<number>`COUNT(*)` })
       .from(agentRuns)
@@ -196,7 +224,7 @@ function runTickWork(): void {
           fromStatuses: ['queued'],
           // 若另一个 tick 恰在 path 探测后 claim 了同 scope 的前一轮，
           // 保持 queued，让 serial wait 的读取投影如实说明原因。
-          additionalGuard: sameIssueClaimGuard(queued),
+          additionalGuard: combinedClaimGuard(queued),
           patch: {
             status: 'waiting_local_directory',
             lastHeartbeatAt: now,
@@ -242,7 +270,7 @@ function runTickWork(): void {
       fromStatuses: CLAIMABLE_RUN_STATUSES,
       // DB 行即锁：不依赖上述读检查或 Node 内存时序。不同 agent / Issue
       // 不会命中此谓词，只有同 agent + same issue + issue kind 才串行。
-      additionalGuard: sameIssueClaimGuard(queued),
+      additionalGuard: combinedClaimGuard(queued),
       patch: {
         status: 'running',
         startedAt: now,
@@ -256,6 +284,10 @@ function runTickWork(): void {
       },
     });
     if (!claimTr.applied || !claimTr.row || claimTr.row.status !== 'running') {
+      // Archive may have won the same DB race that made the claim guard fail.
+      // Best-effort close the old row now; if another transition won instead,
+      // cancelRunById is idempotently a no-op.
+      cancelIfArchived(queued.id, queued.agentId);
       continue; // 没抢到（被别的 tick 抢）
     }
     const runRow = claimTr.row;
@@ -409,7 +441,20 @@ function runTickWork(): void {
   // DS4：agent.thinkingLevel → backend --effort/--variant（能传则传）
   // G22 residual：把本 run 使用的 model/thinking 快照到 agent_run（agent 后改不影响历史）
   // G3-4b：agent.env_vars / custom_args → ExecutionInput（spawn env 合并 + CLI argv 注入）
-  const agentRow = db.select().from(agents).where(eq(agents.id, runRow.agentId)).get();
+  // A run can be claimed and then await prompt/cwd preparation while an
+  // operator archives its Agent. Re-read the lifecycle immediately before
+  // executor setup: archive turns the running row cancelled (and later aborts
+  // a registered controller), never into a CLI launch.
+  const executionGate = checkAgentDispatchGate(runRow.agentId);
+  if (!executionGate.ok) {
+    if (executionGate.reason === 'agent_archived') {
+      cancelRunById(runRow.id);
+      return;
+    }
+    await failRun(runRow.id, executionGate.detail);
+    return;
+  }
+  const agentRow = executionGate.agent;
   const mcpServers = agentRow?.mcpServers ?? null;
   const mcpValidation = validateMcpConfig(mcpServers);
   if (!mcpValidation.ok) {
@@ -487,6 +532,10 @@ function runTickWork(): void {
     if (!live || live.status !== 'running') {
       return;
     }
+    // Keep the lifecycle condition adjacent to the final pre-spawn state
+    // check. This covers an archive that lands after the first gate but before
+    // AbortController registration, where there is intentionally no CLI yet.
+    if (cancelIfArchived(runRow.id, runRow.agentId)) return;
   }
 
   if (runRow.issueId) {
@@ -663,6 +712,22 @@ function runTickWork(): void {
   } else {
     const issueWall = getIssueWallTimeoutMs();
     wallTimeoutMs = issueWall > 0 ? issueWall : null;
+  }
+
+  // `await import()` above is a real yield: an archive can win after the
+  // prepare check but before backend.execute. The AbortSignal check protects
+  // the already-registered controller; the DB + lifecycle re-read protects a
+  // controller-less/old snapshot. Either case must return before any CLI is
+  // started.
+  const beforeExecute = db.select().from(agentRuns).where(eq(agentRuns.id, runRow.id)).get();
+  if (
+    signal.aborted ||
+    !beforeExecute ||
+    beforeExecute.status !== 'running' ||
+    cancelIfArchived(runRow.id, runRow.agentId)
+  ) {
+    clearRunAbort(runRow.id);
+    return;
   }
 
   try {

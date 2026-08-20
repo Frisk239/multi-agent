@@ -181,6 +181,7 @@ export function useUnarchiveAgent() {
     onSuccess: (agent) => {
       qc.invalidateQueries({ queryKey: ['agents'] });
       qc.setQueryData(['agent', agent.id], agent);
+      qc.invalidateQueries({ queryKey: ['agent-readiness', agent.id] });
       toastSuccess('已恢复智能体');
     },
     onError: (err) => toastError(errMessage(err, '取消归档失败')),

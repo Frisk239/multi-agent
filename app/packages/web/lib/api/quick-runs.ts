@@ -48,6 +48,7 @@ export function useCreateQuickRun() {
         else if (err.reason === 'runtime_missing') { href = '/runtimes'; label = '运行时探测'; }
         else if (err.reason === 'readiness_error') { href = '/settings'; label = '环境诊断'; }
         else if (err.reason === 'no_leader') { href = '/squads'; label = '小队列表'; }
+        else if (err.reason === 'agent_archived') { href = '/agents?scope=archived'; label = '查看已归档智能体'; }
         toastError(err.message, { action: { label, href }, durationMs: 8000 });
       } else {
         toastError(errMessage(err, '快速派活失败'));
