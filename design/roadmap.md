@@ -221,6 +221,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 31 | **归档 Agent 派发硬闸与遗留收口** | G8 | ✅（2026-08-20，[closeout](app/.progress/archived-agent-dispatch-fence-impl-1.md)：统一归档 gate、历史取消、worker claim guard、真实 Playwright） |
 | 32 | **CmdK 项目上下文直达** | G3 | ✅（2026-08-20，[closeout](app/.progress/cmdk-project-context-impl-1.md)：标题/描述/目录搜索、空查询导航、真实 Playwright） |
 | 33 | **Squad 安全退役与派发闭环** | G2 | ✅（2026-08-20，[closeout](app/.progress/squad-retirement-dispatch-closure-impl-1.md)：DELETE=不可恢复归档+原子转交 leader+审计；loader 双语义；统一 squad_archived gate；rerun/auto-retry 无 squadId；归档详情只读 UI；隔离 E2E 23/23） |
+| 34 | **Memory 项目上下文闭环** | G4 | ✅（2026-08-20，[closeout](app/.progress/memory-project-context-impl-1.md)：queryKey 三态、?project= URL 真源 picker、ProjectBadge 名称回链/已删 fallback、创建默认归属、项目详情入口；隔离 E2E 15/15） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
