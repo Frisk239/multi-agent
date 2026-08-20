@@ -13,6 +13,10 @@ import {
   BulkUpdateIssueAssigneeInput,
   BulkDeleteIssuesInput,
   IssueImportInput,
+  type AssigneeType,
+  type EnqueueSkipReason,
+  type Issue,
+  type IssueEnqueueMeta,
   type IssueRunUsage,
   type IssueExportV1,
 } from '@ma/shared';
@@ -28,6 +32,7 @@ import {
   issueSubscribers,
   wikiIngestJobs,
   activityLogs,
+  agents,
 } from '../db/schema.js';
 import { recordActivityLog } from '../orchestration/activity-logger.js';
 import {
@@ -100,6 +105,140 @@ import { computeAgentReadiness } from '../orchestration/readiness.js';
 function allowNotReadyEnqueue(): boolean {
   const v = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
   return v === '1' || v === 'true';
+}
+
+type AssignmentTarget = { type: AssigneeType; id: string } | null;
+
+type AssignmentDispatchTarget =
+  | { kind: 'agent'; agentId: string }
+  | { kind: 'squad'; agentId: string; squadId: string };
+
+type AssignmentPreflightSuccess = {
+  ok: true;
+  target: AssignmentTarget;
+  dispatch: AssignmentDispatchTarget | null;
+};
+
+type AssignmentPreflightFailure = {
+  ok: false;
+  status: 400 | 404;
+  error: string;
+  code?: 'readiness_failed';
+  reason?: EnqueueSkipReason;
+};
+
+type AssignmentPreflight = AssignmentPreflightSuccess | AssignmentPreflightFailure;
+
+/**
+ * 单条与批量改指派的共同目标门禁。
+ *
+ * 这一步只校验目标，不写 Issue/activity/run：batch 可在自己的 SQLite
+ * transaction 前一次性失败，避免一半卡已改指派、一半才发现 target 无法开工。
+ */
+async function preflightAssignmentTarget(
+  target: AssignmentTarget,
+): Promise<AssignmentPreflight> {
+  // 未指派/本地成员不是 runtime dispatch 目标，但仍是合法的多态指派值。
+  if (!target || target.type === 'member') {
+    return { ok: true, target, dispatch: null };
+  }
+
+  let dispatch: AssignmentDispatchTarget;
+  if (target.type === 'agent') {
+    const agent = db.select().from(agents).where(eq(agents.id, target.id)).get();
+    if (!agent) {
+      return { ok: false, status: 404, error: 'agent 不存在' };
+    }
+    dispatch = { kind: 'agent', agentId: agent.id };
+  } else {
+    const squad = loadSquadDetail(target.id);
+    if (!squad) {
+      return { ok: false, status: 404, error: '小队不存在' };
+    }
+    if (!squad.leaderId) {
+      return {
+        ok: false,
+        status: 400,
+        error: `小队「${squad.name}」无 leader，无法开工`,
+        code: 'readiness_failed',
+        reason: 'no_leader',
+      };
+    }
+    const leader = db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, squad.leaderId))
+      .get();
+    if (!leader) {
+      return { ok: false, status: 404, error: 'agent 不存在' };
+    }
+    dispatch = { kind: 'squad', agentId: leader.id, squadId: squad.id };
+  }
+
+  // MA_ENQUEUE_ALLOW_NOT_READY 仅绕过环境 readiness，不能放过不存在的
+  // agent/squad 或无 leader 的坏目标（它们已在上面同步拒绝）。
+  if (!allowNotReadyEnqueue()) {
+    const readiness = await computeAgentReadiness(dispatch.agentId);
+    if (!readiness) {
+      return { ok: false, status: 404, error: 'agent 不存在' };
+    }
+    if (
+      readiness.status === 'cwd_missing' ||
+      readiness.status === 'runtime_missing' ||
+      readiness.status === 'error'
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error: readiness.detail ?? `agent 就绪探测失败 (${readiness.status})`,
+        code: 'readiness_failed',
+        reason:
+          readiness.status === 'error' ? 'readiness_error' : readiness.status,
+      };
+    }
+  }
+
+  return { ok: true, target, dispatch };
+}
+
+/**
+ * 单张实际改派的通知与排队决策。此 helper 自身从不取消旧 run：PUT 显式传入
+ * 自己已有的取消语义，batch 则不传，保证批量操作不能借道取消活跃工作。
+ */
+async function dispatchIssueAssignment(
+  issue: Issue,
+  preflight: AssignmentPreflightSuccess,
+  beforeEnqueue?: () => void,
+): Promise<EnqueueResult | null> {
+  if (preflight.target) {
+    notifyAssigned(issue);
+  } else {
+    ensureIssueSubscriber(issue.id, 'member', LOCAL_MEMBER.id, 'assignee_watch');
+  }
+
+  // PUT uses this hook to retain its historical cancel-before-new-enqueue
+  // behavior. POST /bulk-assign deliberately supplies no hook.
+  beforeEnqueue?.();
+
+  if (!preflight.dispatch) return null;
+
+  try {
+    if (preflight.dispatch.kind === 'agent') {
+      return await enqueueAgentRun(issue.id, preflight.dispatch.agentId);
+    }
+    return await enqueueLeaderRun(
+      issue.id,
+      preflight.dispatch.agentId,
+      preflight.dispatch.squadId,
+    );
+  } catch (error) {
+    return {
+      run: null,
+      skipped: true,
+      reason: 'readiness_error',
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 const WS_ID = 'ws-local';
@@ -692,38 +831,27 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const statusChanged = input.status !== undefined && input.status !== prev.status;
-    
-    // Slice9: pre-check readiness before updating assignee (to avoid false 200/201 with skipped queueing)
+
+    // Target validation is shared with bulk-assign. It runs before the Issue
+    // write so a rejected runtime/squad can never leave a false assignment.
+    let assignmentPreflight: AssignmentPreflightSuccess | null = null;
     if (input.assignee !== undefined) {
       const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
-      const nextType = input.assignee?.type ?? null;
-      const nextId = input.assignee?.id ?? null;
-      const nextKey = assigneeKey(nextType, nextId);
-      
-      if (prevKey !== nextKey && nextType && nextType !== 'member' && nextId && !allowNotReadyEnqueue()) {
-        let targetAgentId: string | null = null;
-        if (nextType === 'agent') {
-          targetAgentId = nextId;
-        } else if (nextType === 'squad') {
-          const squad = loadSquadDetail(nextId);
-          targetAgentId = squad?.leaderId ?? null;
-          if (!targetAgentId) {
-            return reply.status(400).send({ success: false, error: `小队「${squad?.name ?? nextId}」无 leader，无法开工`,
-              code: 'readiness_failed',
-              reason: 'no_leader'
-            });
-          }
+      const target: AssignmentTarget = input.assignee
+        ? { type: input.assignee.type, id: input.assignee.id }
+        : null;
+      const nextKey = assigneeKey(target?.type ?? null, target?.id ?? null);
+      if (prevKey !== nextKey) {
+        const preflight = await preflightAssignmentTarget(target);
+        if (!preflight.ok) {
+          return reply.status(preflight.status).send({
+            success: false,
+            error: preflight.error,
+            ...(preflight.code ? { code: preflight.code } : {}),
+            ...(preflight.reason ? { reason: preflight.reason } : {}),
+          });
         }
-        if (targetAgentId) {
-          const rd = await computeAgentReadiness(targetAgentId);
-          if (!rd) return reply.status(404).send({ success: false, error: 'agent 不存在'  });
-          if (rd.status === 'cwd_missing' || rd.status === 'runtime_missing' || rd.status === 'error') {
-            return reply.status(400).send({ success: false, error: rd.detail ?? `agent 就绪探测失败 (${rd.status })`,
-              code: 'readiness_failed',
-              reason: rd.status
-            });
-          }
-        }
+        assignmentPreflight = preflight;
       }
     }
 
@@ -785,33 +913,15 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       eventBus.publish({ type: 'comment:created', comment: toComment(cRow!) });
     }
 
-    // assignee 副作用（spec §6.1）：identity=(type,id) 变化才触发。
-    // 仅 label 变化不触发。→ cancelActiveRunsForIssue + 按 type 路由 enqueue。
-    // S04：squad 指派 → 解析 leader → enqueueLeaderRun（spec §5.1）
-    // Slice2：enqueue 结果回传 enqueue 元数据（硬闸/去重可解释）
+    // assignee identity 真的变化才派发。单条保留历史的「先取消旧
+    // active run，再派新目标」语义；bulk-assign 不会传该取消 hook。
     let enqResult: EnqueueResult | null = null;
-    if (input.assignee !== undefined) {
-      const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
-      const nextType = input.assignee?.type ?? null;
-      const nextId = input.assignee?.id ?? null;
-      const nextKey = assigneeKey(nextType, nextId);
-      if (prevKey !== nextKey) {
-        // bu01：指派变更 → subscriber + assigned inbox
-        if (nextType && nextId) {
-          notifyAssigned(issue);
-        } else {
-          ensureIssueSubscriber(id, 'member', LOCAL_MEMBER.id, 'assignee_watch');
-        }
-        cancelActiveRunsForIssue(id);
-        if (nextType === 'agent' && nextId) {
-          enqResult = await enqueueAgentRun(id, nextId);
-        } else if (nextType === 'squad' && nextId) {
-          const squad = loadSquadDetail(nextId);
-          if (squad?.leaderId) {
-            enqResult = await enqueueLeaderRun(id, squad.leaderId, squad.id);
-          }
-        }
-      }
+    if (assignmentPreflight) {
+      enqResult = await dispatchIssueAssignment(
+        issue,
+        assignmentPreflight,
+        () => cancelActiveRunsForIssue(id),
+      );
     }
 
     if (statusChanged && input.status) {
@@ -834,20 +944,20 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    if (input.assignee !== undefined) {
-      const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
-      const nextType = input.assignee?.type ?? null;
-      const nextId = input.assignee?.id ?? null;
-      const nextKey = assigneeKey(nextType, nextId);
-      if (prevKey !== nextKey) {
-        recordActivityLog({
-          issueId: id,
-          actorType: 'member',
-          actorName: '用户',
-          eventType: 'assignee_changed',
-          payload: { from: prevKey, to: nextKey },
-        });
-      }
+    if (assignmentPreflight) {
+      recordActivityLog({
+        issueId: id,
+        actorType: 'member',
+        actorName: '用户',
+        eventType: 'assignee_changed',
+        payload: {
+          from: assigneeKey(prev.assigneeType, prev.assigneeId),
+          to: assigneeKey(
+            assignmentPreflight.target?.type ?? null,
+            assignmentPreflight.target?.id ?? null,
+          ),
+        },
+      });
     }
 
     if (input.customFields !== undefined && JSON.stringify(input.customFields) !== JSON.stringify(prev.customFields)) {
@@ -1145,17 +1255,39 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
     const { issueIds, assigneeType, assigneeId } = parsed.data;
+    const target: AssignmentTarget =
+      assigneeType && assigneeId ? { type: assigneeType, id: assigneeId } : null;
+
+    // Entire target is checked before opening the write transaction. A bad
+    // agent, leader-less squad, or readiness hard gate therefore cannot leave
+    // even one Issue/activity row half-updated.
+    const preflight = await preflightAssignmentTarget(target);
+    if (!preflight.ok) {
+      return reply.status(preflight.status).send({
+        success: false,
+        error: preflight.error,
+        ...(preflight.code ? { code: preflight.code } : {}),
+        ...(preflight.reason ? { reason: preflight.reason } : {}),
+      });
+    }
+
     const now = Date.now();
-    let updatedCount = 0;
-    const nextKey = assigneeKey(assigneeType, assigneeId);
+    const nextKey = assigneeKey(target?.type ?? null, target?.id ?? null);
+    const changedRows: (typeof issues.$inferSelect)[] = [];
     sqlite.transaction(() => {
       for (const id of issueIds) {
         const prev = db.select().from(issues).where(eq(issues.id, id)).get();
         if (prev) {
           const prevKey = assigneeKey(prev.assigneeType, prev.assigneeId);
           if (prevKey !== nextKey) {
-            db.update(issues).set({ assigneeType, assigneeId, updatedAt: now }).where(eq(issues.id, id)).run();
-            updatedCount++;
+            db.update(issues)
+              .set({
+                assigneeType: target?.type ?? null,
+                assigneeId: target?.id ?? null,
+                updatedAt: now,
+              })
+              .where(eq(issues.id, id))
+              .run();
             recordActivityLog({
               issueId: id,
               actorType: 'member',
@@ -1163,11 +1295,61 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
               eventType: 'assignee_changed',
               payload: { from: prevKey, to: nextKey },
             });
+            const changed = db.select().from(issues).where(eq(issues.id, id)).get();
+            if (changed) changedRows.push(changed);
           }
         }
       }
     })();
-    return { success: true, updatedCount };
+
+    let enqueuedCount = 0;
+    let notApplicableCount = 0;
+    const results: Array<{ issueId: string; enqueue: IssueEnqueueMeta }> = [];
+    const skipped: Array<{
+      issueId: string;
+      reason: EnqueueSkipReason;
+      detail: string | null;
+    }> = [];
+
+    // The durable assignment/activity writes are complete. Each actual change
+    // now gets its observable issue event and its own dispatch decision. No
+    // cancellation hook is supplied here: pre-existing active runs survive
+    // bulk reassignment by design.
+    for (const row of changedRows) {
+      const issue = issueWithLabels(row);
+      eventBus.publish({
+        type: 'issue:updated',
+        issue,
+        statusChanged: false,
+        prevStatus: null,
+      });
+
+      const enqueue = toIssueEnqueueMeta(
+        await dispatchIssueAssignment(issue, preflight),
+      );
+      results.push({ issueId: issue.id, enqueue });
+      if (enqueue.status === 'queued') {
+        enqueuedCount += 1;
+      } else if (enqueue.status === 'skipped') {
+        skipped.push({
+          issueId: issue.id,
+          reason: enqueue.reason ?? 'readiness_error',
+          detail: enqueue.detail ?? null,
+        });
+      } else {
+        notApplicableCount += 1;
+      }
+    }
+
+    return {
+      success: true as const,
+      updatedCount: changedRows.length,
+      enqueuedCount,
+      skippedCount: skipped.length,
+      notApplicableCount,
+      results,
+      skipped,
+    };
   });
 
   // POST /api/issues/bulk-delete

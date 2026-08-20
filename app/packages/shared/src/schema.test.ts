@@ -14,6 +14,8 @@ import {
   AgentRunKind,
   RunMessageKind,
   CreateIssueInput,
+  BulkUpdateIssueAssigneeInput,
+  BulkUpdateIssueAssigneeResponse,
   CreateAgentInput,
   CreateCommentInput,
   AutomationScheduleKind,
@@ -443,6 +445,69 @@ describe('Shared Schema Validators', () => {
       });
       expect(result.title).toBe('Full');
       expect(result.priority).toBe('low');
+    });
+  });
+
+  describe('BulkUpdateIssueAssigneeInput / response', () => {
+    it('requires a complete polymorphic assignment pair or a full unassign', () => {
+      expect(
+        BulkUpdateIssueAssigneeInput.parse({
+          issueIds: ['iss-1'],
+          assigneeType: 'agent',
+          assigneeId: 'agt-1',
+        }),
+      ).toMatchObject({ assigneeType: 'agent', assigneeId: 'agt-1' });
+      expect(
+        BulkUpdateIssueAssigneeInput.parse({
+          issueIds: ['iss-1'],
+          assigneeType: null,
+          assigneeId: null,
+        }),
+      ).toMatchObject({ assigneeType: null, assigneeId: null });
+      expect(() =>
+        BulkUpdateIssueAssigneeInput.parse({
+          issueIds: ['iss-1'],
+          assigneeType: 'agent',
+          assigneeId: null,
+        }),
+      ).toThrow();
+      expect(() =>
+        BulkUpdateIssueAssigneeInput.parse({
+          issueIds: ['iss-1'],
+          assigneeType: null,
+          assigneeId: 'agt-1',
+        }),
+      ).toThrow();
+    });
+
+    it('keeps per-item dispatch evidence scoped to changed issues', () => {
+      const response = BulkUpdateIssueAssigneeResponse.parse({
+        success: true,
+        updatedCount: 2,
+        enqueuedCount: 1,
+        skippedCount: 1,
+        notApplicableCount: 0,
+        results: [
+          { issueId: 'iss-1', enqueue: { status: 'queued', runId: 'run-1' } },
+          {
+            issueId: 'iss-2',
+            enqueue: {
+              status: 'skipped',
+              reason: 'already_active',
+              detail: '已有进行中的 run',
+            },
+          },
+        ],
+        skipped: [
+          {
+            issueId: 'iss-2',
+            reason: 'already_active',
+            detail: '已有进行中的 run',
+          },
+        ],
+      });
+      expect(response.results).toHaveLength(response.updatedCount);
+      expect(response.skipped[0]?.issueId).toBe('iss-2');
     });
   });
 

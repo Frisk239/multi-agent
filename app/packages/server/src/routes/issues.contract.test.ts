@@ -7,9 +7,18 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { BulkUpdateIssueAssigneeResponse } from '@ma/shared';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
-import { agentRuns, comments, issues, issueLabels, issueToLabels } from '../db/schema.js';
+import {
+  activityLogs,
+  agentRuns,
+  comments,
+  issues,
+  issueLabels,
+  issueToLabels,
+  squads,
+} from '../db/schema.js';
 import { LOCAL_MEMBER } from '../local-member.js';
 import { resolveSearchTimeoutMs } from './issues.js';
 
@@ -53,6 +62,7 @@ vi.mock('../orchestration/inbox-writer.js', async (importOriginal) => {
 });
 
 import { buildApp } from '../app.js';
+import { eventBus } from '../orchestration/event-bus.js';
 
 function insertIssue(
   id: string,
@@ -410,6 +420,35 @@ describe('issues contract (W5)', () => {
       expect(res.statusCode).toBe(409);
       await app.close();
     });
+
+    it('retains the single-assign cancellation behavior while bulk stays non-cancelling', async () => {
+      insertRun('run-single-assign-cancel', {
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        status: 'running',
+        startedAt: Date.now(),
+      });
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/issues/iss-test-1',
+        payload: { assignee: { type: 'agent', id: 'agt-test-2' } },
+      });
+      expect(res.statusCode).toBe(200);
+      const oldRun = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.id, 'run-single-assign-cancel'))
+        .get();
+      expect(oldRun?.status).toBe('cancelled');
+      const newRun = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.agentId, 'agt-test-2'))
+        .get();
+      expect(newRun).toMatchObject({ issueId: 'iss-test-1', status: 'queued' });
+      await app.close();
+    });
   });
 
   describe('POST /api/issues/:id/rerun', () => {
@@ -503,19 +542,269 @@ describe('issues contract (W5)', () => {
   });
 
   describe('POST /api/issues/bulk-assign', () => {
-    it('200 reassigns issues and reports updatedCount', async () => {
+    it('preflights once, then persists, broadcasts, and enqueues every actual change', async () => {
       insertIssue('iss-b1');
+      (eventBus.publish as ReturnType<typeof vi.fn>).mockClear();
       const app = await buildApp();
       const res = await app.inject({
         method: 'POST',
         url: '/api/issues/bulk-assign',
-        payload: { issueIds: ['iss-test-1', 'iss-b1'], assigneeType: 'squad', assigneeId: 'sqd-test-1' },
+        payload: { issueIds: ['iss-test-1', 'iss-b1'], assigneeType: 'agent', assigneeId: 'agt-test-2' },
       });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ success: true, updatedCount: 2 });
+      const body = BulkUpdateIssueAssigneeResponse.parse(res.json());
+      expect(body).toMatchObject({
+        success: true,
+        updatedCount: 2,
+        enqueuedCount: 2,
+        skippedCount: 0,
+        notApplicableCount: 0,
+        skipped: [],
+      });
+      expect(body.results.map((item) => item.issueId).sort()).toEqual(['iss-b1', 'iss-test-1']);
+      expect(body.results.every((item) => item.enqueue.status === 'queued')).toBe(true);
       const row = state.db!.select().from(issues).where(eq(issues.id, 'iss-test-1')).get();
-      expect(row?.assigneeType).toBe('squad');
-      expect(row?.assigneeId).toBe('sqd-test-1');
+      expect(row?.assigneeType).toBe('agent');
+      expect(row?.assigneeId).toBe('agt-test-2');
+      const queued = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.agentId, 'agt-test-2'))
+        .all();
+      expect(queued).toHaveLength(2);
+      expect(queued.every((run) => run.status === 'queued')).toBe(true);
+      const assignmentEvents = (eventBus.publish as ReturnType<typeof vi.fn>).mock.calls
+        .map(([event]) => event)
+        .filter((event) => event?.type === 'issue:updated');
+      expect(assignmentEvents.map((event) => event.issue.id).sort()).toEqual([
+        'iss-b1',
+        'iss-test-1',
+      ]);
+      const activities = state.db!
+        .select()
+        .from(activityLogs)
+        .where(eq(activityLogs.eventType, 'assignee_changed'))
+        .all();
+      expect(activities.map((activity) => activity.issueId).sort()).toEqual([
+        'iss-b1',
+        'iss-test-1',
+      ]);
+      await app.close();
+    });
+
+    it('rejects an invalid target before every Issue/activity/run write', async () => {
+      insertIssue('iss-b1', { assigneeType: 'agent', assigneeId: 'agt-test-1' });
+      const before = state.db!
+        .select()
+        .from(issues)
+        .where(eq(issues.id, 'iss-test-1'))
+        .get();
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: {
+          issueIds: ['iss-test-1', 'iss-b1'],
+          assigneeType: 'agent',
+          assigneeId: 'agt-missing',
+        },
+      });
+      expect(res.statusCode).toBe(404);
+      expect((res.json() as { error?: string }).error).toBe('agent 不存在');
+      const after = state.db!
+        .select()
+        .from(issues)
+        .where(eq(issues.id, 'iss-test-1'))
+        .get();
+      expect(after?.assigneeType).toBe(before?.assigneeType);
+      expect(after?.assigneeId).toBe(before?.assigneeId);
+      expect(
+        state.db!.select().from(activityLogs).where(eq(activityLogs.eventType, 'assignee_changed')).all(),
+      ).toHaveLength(0);
+      expect(state.db!.select().from(agentRuns).all()).toHaveLength(0);
+      await app.close();
+    });
+
+    it('rejects a leader-less squad before any target card changes', async () => {
+      insertIssue('iss-b1');
+      state.db!.insert(squads).values({
+        id: 'sqd-no-leader',
+        name: 'No leader squad',
+        leaderId: null,
+        operatingProtocol: '',
+        missionDirective: '',
+        createdAt: Date.now(),
+      }).run();
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: {
+          issueIds: ['iss-test-1', 'iss-b1'],
+          assigneeType: 'squad',
+          assigneeId: 'sqd-no-leader',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject({ code: 'readiness_failed', reason: 'no_leader' });
+      expect(
+        state.db!.select().from(issues).where(eq(issues.id, 'iss-b1')).get()?.assigneeId,
+      ).toBeNull();
+      expect(
+        state.db!.select().from(activityLogs).where(eq(activityLogs.eventType, 'assignee_changed')).all(),
+      ).toHaveLength(0);
+      expect(state.db!.select().from(agentRuns).all()).toHaveLength(0);
+      await app.close();
+    });
+
+    it('rejects a readiness hard gate before any target card changes', async () => {
+      const oldAllowNotReady = process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+      const oldUseWorkspace = process.env.MA_ISSUE_USE_WORKSPACE_CWD;
+      const oldWorkspaceCwd = process.env.MA_WORKSPACE_CWD;
+      delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+      process.env.MA_ISSUE_USE_WORKSPACE_CWD = '1';
+      process.env.MA_WORKSPACE_CWD = `${process.cwd()}/__bulk-assignment-missing-cwd__`;
+      try {
+        const app = await buildApp();
+        const res = await app.inject({
+          method: 'POST',
+          url: '/api/issues/bulk-assign',
+          payload: {
+            issueIds: ['iss-test-1'],
+            assigneeType: 'agent',
+            assigneeId: 'agt-test-2',
+          },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(res.json()).toMatchObject({ code: 'readiness_failed' });
+        expect(
+          state.db!.select().from(issues).where(eq(issues.id, 'iss-test-1')).get()?.assigneeId,
+        ).toBe('agt-test-1');
+        expect(
+          state.db!.select().from(activityLogs).where(eq(activityLogs.eventType, 'assignee_changed')).all(),
+        ).toHaveLength(0);
+        expect(state.db!.select().from(agentRuns).all()).toHaveLength(0);
+        await app.close();
+      } finally {
+        if (oldAllowNotReady === undefined) delete process.env.MA_ENQUEUE_ALLOW_NOT_READY;
+        else process.env.MA_ENQUEUE_ALLOW_NOT_READY = oldAllowNotReady;
+        if (oldUseWorkspace === undefined) delete process.env.MA_ISSUE_USE_WORKSPACE_CWD;
+        else process.env.MA_ISSUE_USE_WORKSPACE_CWD = oldUseWorkspace;
+        if (oldWorkspaceCwd === undefined) delete process.env.MA_WORKSPACE_CWD;
+        else process.env.MA_WORKSPACE_CWD = oldWorkspaceCwd;
+      }
+    });
+
+    it('does not cancel an existing active run while bulk-assigning a new target', async () => {
+      insertRun('run-stays-active', {
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-1',
+        status: 'running',
+        startedAt: Date.now(),
+      });
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: {
+          issueIds: ['iss-test-1'],
+          assigneeType: 'agent',
+          assigneeId: 'agt-test-2',
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(BulkUpdateIssueAssigneeResponse.parse(res.json())).toMatchObject({
+        updatedCount: 1,
+        enqueuedCount: 1,
+        skippedCount: 0,
+      });
+      const oldRun = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.id, 'run-stays-active'))
+        .get();
+      expect(oldRun?.status).toBe('running');
+      const newRun = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.agentId, 'agt-test-2'))
+        .get();
+      expect(newRun).toMatchObject({ issueId: 'iss-test-1', status: 'queued' });
+      await app.close();
+    });
+
+    it('reports already_active for a changed card when the new target already has pending work', async () => {
+      insertRun('run-new-target-pending', {
+        issueId: 'iss-test-1',
+        agentId: 'agt-test-2',
+        status: 'queued',
+      });
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: {
+          issueIds: ['iss-test-1'],
+          assigneeType: 'agent',
+          assigneeId: 'agt-test-2',
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = BulkUpdateIssueAssigneeResponse.parse(res.json());
+      expect(body).toMatchObject({
+        updatedCount: 1,
+        enqueuedCount: 0,
+        skippedCount: 1,
+        notApplicableCount: 0,
+        results: [
+          {
+            issueId: 'iss-test-1',
+            enqueue: {
+              status: 'skipped',
+              runId: null,
+              reason: 'already_active',
+              detail: expect.stringContaining('该 agent 在此 issue 上已有进行中的 run'),
+            },
+          },
+        ],
+        skipped: [
+          {
+            issueId: 'iss-test-1',
+            reason: 'already_active',
+            detail: expect.stringContaining('该 agent 在此 issue 上已有进行中的 run'),
+          },
+        ],
+      });
+      const pendingRuns = state.db!
+        .select()
+        .from(agentRuns)
+        .where(eq(agentRuns.agentId, 'agt-test-2'))
+        .all();
+      expect(pendingRuns).toHaveLength(1);
+      expect(pendingRuns[0]).toMatchObject({
+        id: 'run-new-target-pending',
+        issueId: 'iss-test-1',
+        status: 'queued',
+      });
+      await app.close();
+    });
+
+    it('keeps unassign legal and records no dispatch as not applicable', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: { issueIds: ['iss-test-1'], assigneeType: null, assigneeId: null },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(BulkUpdateIssueAssigneeResponse.parse(res.json())).toMatchObject({
+        updatedCount: 1,
+        enqueuedCount: 0,
+        skippedCount: 0,
+        notApplicableCount: 1,
+        results: [{ issueId: 'iss-test-1', enqueue: { status: 'not_applicable' } }],
+      });
+      expect(state.db!.select().from(agentRuns).all()).toHaveLength(0);
       await app.close();
     });
 
@@ -525,6 +814,18 @@ describe('issues contract (W5)', () => {
         method: 'POST',
         url: '/api/issues/bulk-assign',
         payload: { issueIds: ['iss-test-1'], assigneeType: 'nope', assigneeId: 'x' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
+      await app.close();
+    });
+
+    it('400 VALIDATION_ERROR on a half-specified assignee pair', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues/bulk-assign',
+        payload: { issueIds: ['iss-test-1'], assigneeType: 'agent', assigneeId: null },
       });
       expect(res.statusCode).toBe(400);
       expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');

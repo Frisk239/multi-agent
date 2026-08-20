@@ -25,6 +25,7 @@ import type {
   IssueSubscription,
   IssueStatus,
   PaginatedResponse,
+  BulkUpdateIssueAssigneeResponse,
 } from '@ma/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, API, errMessage, apiError } from './http';
@@ -796,7 +797,7 @@ export function useBulkUpdateIssueAssignee() {
         body: JSON.stringify(input),
       });
       if (!res.ok) throw new Error(await apiError(res, '批量指派失败'));
-      return res.json() as Promise<{ success: boolean; updatedCount: number }>;
+      return res.json() as Promise<BulkUpdateIssueAssigneeResponse>;
     },
     // W2：乐观 patch 列表；指派只带 {type,id} + label 占位 ''（label 由 server 回填，
     // 与 useUpdateIssue 同口径 —— bulk-assign 响应不含 label）
@@ -818,7 +819,31 @@ export function useBulkUpdateIssueAssignee() {
       fallbackMessage: '批量指派失败',
     }),
     onSuccess: (r) => {
-      toastSuccess(`已更新 ${r.updatedCount} 项指派`);
+      if (r.updatedCount === 0) {
+        toastSuccess('没有需要更改的指派');
+      } else {
+        const parts = [`已更改 ${r.updatedCount} 项指派`];
+        if (r.enqueuedCount > 0) parts.push(`已入队 ${r.enqueuedCount} 项`);
+        if (r.notApplicableCount > 0) {
+          parts.push(`${r.notApplicableCount} 项未创建新 run（未指派或无需派发）`);
+        }
+        toastSuccess(parts.join('，'));
+      }
+
+      if (r.skippedCount > 0) {
+        const details = r.skipped
+          .slice(0, 2)
+          .map((skip) => skip.detail ?? skip.reason)
+          .join('；');
+        const more = r.skippedCount > 2 ? `；另有 ${r.skippedCount - 2} 项` : '';
+        const first = r.skipped[0];
+        toastError(`${r.skippedCount} 项未启动：${details}${more}`, {
+          action: first
+            ? { label: '查看 Issue', href: `/issues/${encodeURIComponent(first.issueId)}` }
+            : undefined,
+          durationMs: 8000,
+        });
+      }
     },
   });
 }

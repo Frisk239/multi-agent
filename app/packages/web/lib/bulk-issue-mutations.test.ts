@@ -85,10 +85,21 @@ describe('bulk issue mutations toast (Slice 55)', () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it('useBulkUpdateIssueAssignee toasts success', async () => {
+  it('useBulkUpdateIssueAssignee distinguishes assignment changes from queued work', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, updatedCount: 2 }),
+      json: async () => ({
+        success: true,
+        updatedCount: 2,
+        enqueuedCount: 2,
+        skippedCount: 0,
+        notApplicableCount: 0,
+        results: [
+          { issueId: 'a', enqueue: { status: 'queued', runId: 'run-a' } },
+          { issueId: 'b', enqueue: { status: 'queued', runId: 'run-b' } },
+        ],
+        skipped: [],
+      }),
     });
     const { result } = renderHook(() => useBulkUpdateIssueAssignee(), {
       wrapper: wrap(),
@@ -97,14 +108,98 @@ describe('bulk issue mutations toast (Slice 55)', () => {
     await act(async () => {
       result.current.mutate({
         issueIds: ['a', 'b'],
+        assigneeType: 'agent',
+        assigneeId: 'agt-1',
+      });
+    });
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('已更改 2 项指派，已入队 2 项');
+    });
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('useBulkUpdateIssueAssignee preserves a truthful skip reason in a separate toast', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        updatedCount: 2,
+        enqueuedCount: 1,
+        skippedCount: 1,
+        notApplicableCount: 0,
+        results: [
+          { issueId: 'a', enqueue: { status: 'queued', runId: 'run-a' } },
+          {
+            issueId: 'b',
+            enqueue: {
+              status: 'skipped',
+              reason: 'already_active',
+              detail: '已有进行中的 run',
+            },
+          },
+        ],
+        skipped: [
+          {
+            issueId: 'b',
+            reason: 'already_active',
+            detail: '已有进行中的 run',
+          },
+        ],
+      }),
+    });
+    const { result } = renderHook(() => useBulkUpdateIssueAssignee(), {
+      wrapper: wrap(),
+    });
+
+    await act(async () => {
+      result.current.mutate({
+        issueIds: ['a', 'b'],
+        assigneeType: 'agent',
+        assigneeId: 'agt-1',
+      });
+    });
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('已更改 2 项指派，已入队 1 项');
+      expect(toastError).toHaveBeenCalledWith(
+        '1 项未启动：已有进行中的 run',
+        expect.objectContaining({ action: { label: '查看 Issue', href: '/issues/b' } }),
+      );
+    });
+  });
+
+  it('useBulkUpdateIssueAssignee says unassign created no new run without implying cancellation', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        updatedCount: 1,
+        enqueuedCount: 0,
+        skippedCount: 0,
+        notApplicableCount: 1,
+        results: [{ issueId: 'a', enqueue: { status: 'not_applicable' } }],
+        skipped: [],
+      }),
+    });
+    const { result } = renderHook(() => useBulkUpdateIssueAssignee(), {
+      wrapper: wrap(),
+    });
+
+    await act(async () => {
+      result.current.mutate({
+        issueIds: ['a'],
         assigneeType: null,
         assigneeId: null,
       });
     });
 
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith('已更新 2 项指派');
+      expect(toastSuccess).toHaveBeenCalledWith(
+        '已更改 1 项指派，1 项未创建新 run（未指派或无需派发）',
+      );
     });
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it('useBulkDeleteIssues toasts success and error', async () => {

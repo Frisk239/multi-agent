@@ -1058,11 +1058,25 @@ export const BulkUpdateIssueStatusInput = z.object({
 });
 export type BulkUpdateIssueStatusInput = z.infer<typeof BulkUpdateIssueStatusInput>;
 
-export const BulkUpdateIssueAssigneeInput = z.object({
-  issueIds: z.array(BusinessId).min(1),
-  assigneeType: AssigneeType.nullable(),
-  assigneeId: BusinessId.nullable(),
-});
+export const BulkUpdateIssueAssigneeInput = z
+  .object({
+    issueIds: z.array(BusinessId).min(1),
+    assigneeType: AssigneeType.nullable(),
+    assigneeId: BusinessId.nullable(),
+  })
+  .superRefine((value, ctx) => {
+    // 批量指派与单条 `assignee: { type, id } | null` 一样，必须是完整的
+    // 多态指派对；只传其中一列会留下不可派发的半指派状态。
+    const hasType = value.assigneeType != null;
+    const hasId = value.assigneeId != null;
+    if (hasType !== hasId) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'assigneeType 与 assigneeId 须成对传入',
+        path: hasType ? ['assigneeId'] : ['assigneeType'],
+      });
+    }
+  });
 export type BulkUpdateIssueAssigneeInput = z.infer<typeof BulkUpdateIssueAssigneeInput>;
 
 export const BulkDeleteIssuesInput = z.object({
@@ -1306,6 +1320,42 @@ export const IssueEnqueueMeta = z.object({
   detail: z.string().nullable().optional(),
 });
 export type IssueEnqueueMeta = z.infer<typeof IssueEnqueueMeta>;
+
+/** 单张实际改派卡的派发结果；bulk 响应绝不为未变更卡伪造结果。 */
+export const BulkIssueAssigneeDispatchResult = z.object({
+  issueId: BusinessId,
+  enqueue: IssueEnqueueMeta,
+});
+export type BulkIssueAssigneeDispatchResult = z.infer<
+  typeof BulkIssueAssigneeDispatchResult
+>;
+
+/** 批量改指派中未入队的可行动原因汇总。 */
+export const BulkIssueAssigneeSkip = z.object({
+  issueId: BusinessId,
+  reason: EnqueueSkipReason,
+  detail: z.string().nullable(),
+});
+export type BulkIssueAssigneeSkip = z.infer<typeof BulkIssueAssigneeSkip>;
+
+/** POST /api/issues/bulk-assign 的真实派发回执。 */
+export const BulkUpdateIssueAssigneeResponse = z.object({
+  success: z.literal(true),
+  /** 实际写入 assignee identity 的 Issue 数。 */
+  updatedCount: z.number().int().nonnegative(),
+  /** 实际插入 queued run 的数目。 */
+  enqueuedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  /** 清空/成员指派等有意不派发的实际变更数。 */
+  notApplicableCount: z.number().int().nonnegative(),
+  /** 仅实际变更 Issue 的逐项派发结果。 */
+  results: z.array(BulkIssueAssigneeDispatchResult),
+  /** skipped 的可解释子集，供 UI 汇总提示。 */
+  skipped: z.array(BulkIssueAssigneeSkip),
+});
+export type BulkUpdateIssueAssigneeResponse = z.infer<
+  typeof BulkUpdateIssueAssigneeResponse
+>;
 
 /** GET /api/agents/:id/work-stats —— 近窗工作仪表（G12 agent-work-dashboard） */
 export const AgentWorkStats = z.object({
