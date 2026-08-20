@@ -1,7 +1,7 @@
 # Spec: automation-skipped-streak-drilldown
 
 日期：2026-08-20
-状态：实施中
+状态：已完成
 上一刀 Intake：`app/.progress/automation-rule-archive-preserves-history-intake.md`（通过）
 调研：`app/.progress/automation-next-gap-discovery-2026-08-19.md`
 
