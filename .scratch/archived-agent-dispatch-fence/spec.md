@@ -1,7 +1,8 @@
 # Spec: archived-agent-dispatch-fence
 
 日期：2026-08-20
-状态：实施中
+状态：已完成
+产品提交：`ce0f401 feat(agents): fence archived dispatch`
 上一刀 Closeout：`app/.progress/bulk-assignment-dispatch-parity-impl-1.md`
 调研：`app/.progress/archived-agent-dispatch-fence-discovery-2026-08-20.md`
 

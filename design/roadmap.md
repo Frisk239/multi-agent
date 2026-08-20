@@ -178,7 +178,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G8-4b | 无副作用 adapter probe | 中 | 中 | 一手证据 | ⬜ 禁开 |
 | G8-5a | transcript 写前密钥脱敏 | 高 | 中 | G8-3 | ✅（[closeout](app/.progress/g8-transcript-scrub-impl-1.md)） |
 | G8-6 | 看板 Sheet 最新尾窗 + beforeSeq + 就地再执行 | 高 | 中 | G6-5 | ✅（[closeout](app/.progress/g8-6-board-live-transcript-impl-1.md)） |
-| G8-7 | **归档 Agent 派发硬闸与遗留收口**（归档=未来不可派发；所有 queued/waiting/deferred/running run 诚实取消并保留历史；worker 防竞态 claim） | 高 | 中 | 既有 run ownership | 🔨（2026-08-20，[spec](.scratch/archived-agent-dispatch-fence/spec.md)；[discovery](app/.progress/archived-agent-dispatch-fence-discovery-2026-08-20.md)） |
+| G8-7 | **归档 Agent 派发硬闸与遗留收口**（归档=未来不可派发；所有 queued/waiting/deferred/running run 诚实取消并保留历史；worker 防竞态 claim） | 高 | 中 | 既有 run ownership | ✅（2026-08-20，[closeout](app/.progress/archived-agent-dispatch-fence-impl-1.md)） |
 | follow-up | running 再评排队 1 条 follow-up + 同 Agent × Issue claim 串行（concurrency>1 也不并发） | 高 | 中 | — | ✅（[enqueue closeout](app/.progress/comment-followup-queue-impl-1.md) · [serial claim closeout](app/.progress/followup-serial-claim-impl-1.md)） |
 
 ## §4 切片队列总表（建议迭代顺序）
@@ -216,7 +216,8 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 27 | **Agent 详情直达派活** | G3 | ✅（2026-08-19，[closeout](app/.progress/agent-direct-issue-create-impl-1.md)：URL 创建意图、有效 Agent 预填、既有 readiness/preflight+enqueue、真实 Playwright） |
 | 28 | **Automation Run Now 结果真实性** | G3 | ✅（2026-08-19，[closeout](app/.progress/automation-run-now-truth-impl-1.md)：严格领域结果分类、warning、非成功自动展开、真实 runtime-missing Playwright） |
 | 29 | **Automation schedule catch-up truth** | G2 | ✅（2026-08-19，[closeout](app/.progress/automation-schedule-catchup-truth-impl-1.md)：24h latest-only、5 分钟过窗 skipped 审计、真实 worker + Playwright） |
-| 30 | **Automation 规则归档保留历史** | G2 | 🔜（删除不再级联抹掉执行证据；已调研，下一刀） |
+| 30 | **Automation 规则归档保留历史** | G2 | ✅（2026-08-20，[closeout](app/.progress/automation-archive-history-impl-1.md)：删除变归档，执行证据保留） |
+| 31 | **归档 Agent 派发硬闸与遗留收口** | G8 | ✅（2026-08-20，[closeout](app/.progress/archived-agent-dispatch-fence-impl-1.md)：统一归档 gate、历史取消、worker claim guard、真实 Playwright） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
