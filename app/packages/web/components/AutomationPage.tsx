@@ -18,12 +18,15 @@ import {
   useAgentsReadinessMap,
   useAutomationRules,
   useAutomationRuns,
+  useAutomationWebhookDeliveries,
   useCreateAutomationRule,
   useArchiveAutomationRule,
+  useRotateAutomationWebhookToken,
   useRunAutomationNow,
   useReconcileAutomationRun,
   useSquads,
   useUpdateAutomationRule,
+  useUpdateAutomationWebhookEvents,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
 import { validateWith, type FieldErrors } from '@/lib/form-validation';
@@ -298,6 +301,201 @@ function RuleRuns({
   );
 }
 
+const WEBHOOK_DELIVERY_STATUS_LABEL: Record<string, string> = {
+  dispatched: '已触发',
+  filtered: '已过滤',
+  error: '错误',
+};
+
+/**
+ * automation webhook trigger：详情区块（学 multica autopilot webhook 面板）。
+ * 三态：未生成（生成按钮）/ 已生成（URL + 复制 + 轮换）/ 轮换需 danger 确认（旧 URL 立即失效）。
+ */
+function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
+  const rotate = useRotateAutomationWebhookToken();
+  const saveEvents = useUpdateAutomationWebhookEvents();
+  const { data: deliveries, isLoading: deliveriesLoading } = useAutomationWebhookDeliveries(
+    rule.id,
+    20,
+  );
+  const [eventsDraft, setEventsDraft] = useState(rule.webhookEvents?.join(', ') ?? '');
+  const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
+
+  useEffect(() => {
+    setEventsDraft(rule.webhookEvents?.join(', ') ?? '');
+  }, [rule.webhookEvents]);
+
+  const webhookUrl = rule.webhookToken ? `${API}/webhooks/${rule.webhookToken}` : null;
+
+  async function copyUrl() {
+    if (!webhookUrl) return;
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      setCopyState('ok');
+      window.setTimeout(() => setCopyState('idle'), 2000);
+    } catch {
+      setCopyState('err');
+      window.setTimeout(() => setCopyState('idle'), 2500);
+    }
+  }
+
+  function handleRotate() {
+    void (async () => {
+      const ok = await confirmDialog({
+        title: '轮换 Webhook token？',
+        description: '旧 URL 立即失效，使用旧 URL 的本地脚本 / git hook 将开始收到 404。',
+        confirmLabel: '轮换',
+        variant: 'danger',
+      });
+      if (ok) rotate.mutate(rule.id);
+    })();
+  }
+
+  function saveEventsDraft() {
+    const trimmed = eventsDraft.trim();
+    saveEvents.mutate({ id: rule.id, events: trimmed ? trimmed : null });
+  }
+
+  return (
+    <div
+      className="automation-webhook-section"
+      data-testid="automation-webhook-section"
+      data-rule-id={rule.id}
+    >
+      <div className="settings-section-title">Webhook 触发</div>
+      <p className="text-dim text-sm">
+        本地脚本 / git hook 向下方 URL POST{' '}
+        <code>{'{ "event": "push", "payload": {…} }'}</code> 即可触发本规则；{' '}
+        <code>event: &quot;ping&quot;</code> 仅测连通。
+      </p>
+
+      {rule.archivedAt ? (
+        <p className="text-dim text-sm">规则已归档，Webhook 不会再触发。</p>
+      ) : !rule.webhookToken ? (
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          data-testid="automation-webhook-generate"
+          disabled={rotate.isPending}
+          onClick={() => rotate.mutate(rule.id)}
+        >
+          {rotate.isPending ? '生成中…' : '生成 Webhook'}
+        </button>
+      ) : (
+        <div className="automation-webhook-url-row" data-testid="automation-webhook-url-row">
+          <code
+            className="automation-webhook-url"
+            data-testid="automation-webhook-url"
+            title={webhookUrl ?? undefined}
+          >
+            {webhookUrl}
+          </code>{' '}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            data-testid="automation-webhook-copy"
+            onClick={() => void copyUrl()}
+          >
+            {copyState === 'ok' ? '已复制' : copyState === 'err' ? '复制失败' : '复制 URL'}
+          </button>{' '}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            data-testid="automation-webhook-rotate"
+            disabled={rotate.isPending}
+            onClick={handleRotate}
+          >
+            {rotate.isPending ? '轮换中…' : '轮换 token'}
+          </button>
+        </div>
+      )}
+
+      {rule.webhookToken && rule.archivedAt == null ? (
+        <div className="automation-webhook-filter">
+          <label className="ops-field">
+            <span>事件过滤（逗号分隔；留空 = 全部放行）</span>
+            <input
+              value={eventsDraft}
+              onChange={(e) => setEventsDraft(e.target.value)}
+              placeholder="如 push, tag_push"
+              data-testid="automation-webhook-events-input"
+              maxLength={500}
+            />
+          </label>{' '}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="automation-webhook-events-save"
+            disabled={saveEvents.isPending}
+            onClick={saveEventsDraft}
+          >
+            {saveEvents.isPending ? '保存中…' : '保存过滤'}
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        className="automation-webhook-deliveries"
+        data-testid="automation-webhook-deliveries"
+      >
+        <div className="text-dim text-sm">
+          {deliveriesLoading ? '加载触发记录…' : '最近触发（event / 结果 / 时间 / run）'}
+        </div>
+        {!deliveriesLoading && (!deliveries || deliveries.length === 0) ? (
+          <div className="text-dim text-sm">暂无触发记录（ping 不记录）</div>
+        ) : null}
+        {deliveries && deliveries.length > 0 ? (
+          <table className="data-table automation-webhook-deliveries-table">
+            <thead>
+              <tr>
+                <th>事件</th>
+                <th>结果</th>
+                <th>时间</th>
+                <th>Run</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveries.map((d) => (
+                <tr key={d.id} data-testid={`automation-webhook-delivery-${d.id}`}>
+                  <td className="text-sm">{d.event}</td>
+                  <td className="text-sm">
+                    <span
+                      className={`run-status-pill run-status-pill--${
+                        d.status === 'dispatched' ? 'issue_created' : d.status === 'filtered' ? 'skipped' : 'failed'
+                      }`}
+                    >
+                      {WEBHOOK_DELIVERY_STATUS_LABEL[d.status] ?? d.status}
+                    </span>
+                    {d.error ? (
+                      <span className="text-dim text-sm" title={d.error}>
+                        {' '}
+                        {abbreviatedRunError(d.error)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="text-dim text-sm">{new Date(d.createdAt).toLocaleString()}</td>
+                  <td className="text-sm">
+                    {d.automationRunId ? (
+                      <Link
+                        href={automationRunHref(d.automationRunId)}
+                        data-testid={`automation-webhook-delivery-run-${d.id}`}
+                      >
+                        {d.automationRunId.slice(0, 8)}…
+                      </Link>
+                    ) : (
+                      <span className="text-dim">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 // bu05：/automation 列表 + 新建 + enabled 开关 + 立即执行 + URL 可分享筛选
 function AutomationPageInner() {
   const router = useRouter();
@@ -319,6 +517,7 @@ function AutomationPageInner() {
 
   const [open, setOpen] = useState(false);
   const [expandedRuns, setExpandedRuns] = useState<ExpandedRuns | null>(null);
+  const [webhookRuleId, setWebhookRuleId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
@@ -605,6 +804,10 @@ function AutomationPageInner() {
       focusSkipped: false,
       skippedFocusRequest: 0,
     });
+  }
+
+  function toggleWebhook(rule: AutomationRule) {
+    setWebhookRuleId((prev) => (prev === rule.id ? null : rule.id));
   }
 
   const rules = data ?? [];
@@ -1155,6 +1358,7 @@ function AutomationPageInner() {
             ) : null}
             {visible.map((rule) => {
               const expanded = expandedRuns?.ruleId === rule.id;
+              const webhookOpen = webhookRuleId === rule.id;
               const archivedTarget = archivedTargetLabel(rule);
               return (
                 <tbody key={rule.id} className="automation-rule-group">
@@ -1376,6 +1580,15 @@ function AutomationPageInner() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
+                        data-testid={`automation-webhook-toggle-${rule.id}`}
+                        aria-expanded={webhookOpen}
+                        onClick={() => toggleWebhook(rule)}
+                      >
+                        {webhookOpen ? '收起 Webhook' : 'Webhook'}
+                      </button>{' '}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
                         data-testid={`automation-archive-${rule.id}`}
                         disabled={archive.isPending}
                         onClick={() => handleArchive(rule)}
@@ -1462,6 +1675,13 @@ function AutomationPageInner() {
                           focusSkipped={expandedRuns?.focusSkipped ?? false}
                           skippedFocusRequest={expandedRuns?.skippedFocusRequest ?? 0}
                         />
+                      </td>
+                    </tr>
+                  ) : null}
+                  {webhookOpen ? (
+                    <tr className="automation-webhook-row">
+                      <td colSpan={8}>
+                        <RuleWebhookSection rule={rule} />
                       </td>
                     </tr>
                   ) : null}

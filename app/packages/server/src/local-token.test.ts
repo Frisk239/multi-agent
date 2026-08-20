@@ -164,6 +164,15 @@ describe('isLocalTokenProtectedPath', () => {
     expect(isLocalTokenProtectedPath('/ws?token=x')).toBe(true);
     expect(isLocalTokenProtectedPath('/')).toBe(false);
   });
+
+  it('skips /api/webhooks/* (webhook token in URL is the credential)', () => {
+    expect(isLocalTokenProtectedPath('/api/webhooks/abc123')).toBe(false);
+    expect(isLocalTokenProtectedPath('/api/webhooks/abc123?x=1')).toBe(false);
+    expect(isLocalTokenProtectedPath('/api/webhooks')).toBe(false);
+    // 仅该前缀放行；其它 /api 仍受保护
+    expect(isLocalTokenProtectedPath('/api/webhooks-other')).toBe(true);
+    expect(isLocalTokenProtectedPath('/api/automation/rules')).toBe(true);
+  });
 });
 
 describe('checkLocalTokenAccess', () => {
@@ -237,6 +246,16 @@ describe('checkLocalTokenAccess', () => {
       headers: { authorization: 'Bearer wrong' },
     });
     expect(r.ok).toBe(false);
+  });
+
+  it('allows /api/webhooks/* without X-MA-Token (token in URL is the credential)', () => {
+    const r = checkLocalTokenAccess({
+      env: envNonLoop,
+      listenHost: '0.0.0.0',
+      urlPath: '/api/webhooks/48-hex-token',
+      headers: {},
+    });
+    expect(r.ok).toBe(true);
   });
 
   it('does not force when token unset (compat)', () => {

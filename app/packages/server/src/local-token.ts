@@ -153,6 +153,9 @@ export function tokensEqual(a: string, b: string): boolean {
 export function isLocalTokenProtectedPath(urlPath: string): boolean {
   const path = (urlPath.split('?')[0] ?? '').trim() || '/';
   if (path === '/healthz') return false;
+  // automation webhook 端点放行：URL 中的随机 webhook token 本身即凭证
+  // （学 multica autopilot_webhook；无需 X-MA-Token，本地脚本/curl 直接可用）
+  if (path === '/api/webhooks' || path.startsWith('/api/webhooks/')) return false;
   if (path === '/ws' || path.startsWith('/ws/')) return true;
   if (path === '/api' || path.startsWith('/api/')) return true;
   return false;

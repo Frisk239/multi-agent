@@ -24,6 +24,11 @@ import {
   CreateCommentInput,
   AutomationScheduleKind,
   AutomationRule,
+  AutomationRunSource,
+  WebhookDelivery,
+  WebhookTriggerInput,
+  AutomationWebhookTokenResponse,
+  UpdateAutomationWebhookEventsInput,
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
@@ -686,6 +691,100 @@ describe('Shared Schema Validators', () => {
           archivedAt: '2026-08-19T01:00:00.000Z',
         }).archivedAt,
       ).toBe('2026-08-19T01:00:00.000Z');
+    });
+  });
+
+  describe('Automation webhook trigger contracts', () => {
+    const ruleBase = {
+      id: 'rule-1',
+      name: 'webhook rule',
+      enabled: true,
+      archivedAt: null,
+      scheduleKind: 'interval_minutes' as const,
+      intervalMinutes: 15,
+      dailyTime: null,
+      cronExpression: null,
+      assigneeType: 'agent' as const,
+      assigneeId: 'agt-1',
+      titleTemplate: 'check',
+      bodyTemplate: '',
+      executionMode: 'create_issue' as const,
+      lastPlannedAt: null,
+      nextPlannedAt: null,
+      failCount: 0,
+      skippedStreak: 0,
+      lastRunStatus: null,
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z',
+    };
+
+    const deliveryBase = {
+      id: 'dly-1',
+      ruleId: 'rule-1',
+      event: 'push',
+      status: 'dispatched' as const,
+      payloadJson: '{"a":1}',
+      automationRunId: 'auto-run-1',
+      error: null,
+      createdAt: '2026-08-20T00:00:00.000Z',
+    };
+
+    it('AutomationRunSource accepts webhook', () => {
+      expect(AutomationRunSource.parse('webhook')).toBe('webhook');
+      expect(AutomationRunSource.options).toEqual(['schedule', 'manual', 'webhook']);
+      expect(() => AutomationRunSource.parse('cron')).toThrow();
+    });
+
+    it('AutomationRule keeps webhook token/events optional for older servers', () => {
+      const parsed = AutomationRule.parse(ruleBase);
+      expect(parsed.webhookToken).toBeUndefined();
+      expect(parsed.webhookEvents).toBeUndefined();
+    });
+
+    it('AutomationRule carries a generated token and event filter list', () => {
+      const parsed = AutomationRule.parse({
+        ...ruleBase,
+        webhookToken: 'a'.repeat(48),
+        webhookEvents: ['push', 'tag_push'],
+      });
+      expect(parsed.webhookToken).toBe('a'.repeat(48));
+      expect(parsed.webhookEvents).toEqual(['push', 'tag_push']);
+      // null = 未生成 / 不过滤，均为合法态
+      expect(AutomationRule.parse({ ...ruleBase, webhookToken: null }).webhookToken).toBeNull();
+      expect(AutomationRule.parse({ ...ruleBase, webhookEvents: null }).webhookEvents).toBeNull();
+      expect(() =>
+        AutomationRule.parse({ ...ruleBase, webhookEvents: [''] }),
+      ).toThrow();
+    });
+
+    it('WebhookDelivery parses each audit status and rejects unknown ones', () => {
+      for (const status of ['dispatched', 'filtered', 'error'] as const) {
+        expect(WebhookDelivery.parse({ ...deliveryBase, status }).status).toBe(status);
+      }
+      expect(() =>
+        WebhookDelivery.parse({ ...deliveryBase, status: 'pong' }),
+      ).toThrow();
+      expect(
+        WebhookDelivery.parse({ ...deliveryBase, automationRunId: null }).automationRunId,
+      ).toBeNull();
+    });
+
+    it('WebhookTriggerInput requires a non-empty event', () => {
+      expect(WebhookTriggerInput.parse({ event: 'ping' }).event).toBe('ping');
+      expect(WebhookTriggerInput.parse({ event: 'push', payload: { k: 1 } }).payload).toEqual({
+        k: 1,
+      });
+      expect(() => WebhookTriggerInput.parse({ payload: {} })).toThrow();
+      expect(() => WebhookTriggerInput.parse({ event: '' })).toThrow();
+    });
+
+    it('AutomationWebhookTokenResponse and UpdateAutomationWebhookEventsInput shapes', () => {
+      expect(AutomationWebhookTokenResponse.parse({ token: 't'.repeat(48) }).token).toHaveLength(48);
+      expect(UpdateAutomationWebhookEventsInput.parse({ events: 'push, tag_push' }).events).toBe(
+        'push, tag_push',
+      );
+      expect(UpdateAutomationWebhookEventsInput.parse({ events: null }).events).toBeNull();
+      expect(() => UpdateAutomationWebhookEventsInput.parse({})).toThrow();
     });
   });
 

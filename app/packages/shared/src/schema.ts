@@ -2653,7 +2653,7 @@ export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileInput>;
 export const AutomationScheduleKind = z.enum(['interval_minutes', 'daily_at', 'cron']);
 export type AutomationScheduleKind = z.infer<typeof AutomationScheduleKind>;
 
-export const AutomationRunSource = z.enum(['schedule', 'manual']);
+export const AutomationRunSource = z.enum(['schedule', 'manual', 'webhook']);
 export type AutomationRunSource = z.infer<typeof AutomationRunSource>;
 
 export const AutomationRunStatus = z.enum([
@@ -2698,10 +2698,52 @@ export const AutomationRule = z.object({
   // automation-ops：最近一次触发起连续 skipped 的次数，用于发现规则长期没有实际产出
   skippedStreak: z.number().int().nonnegative().default(0),
   lastRunStatus: AutomationRunStatus.nullable().default(null),
+  // —— automation webhook trigger：token 即凭证（存 DB，非 LLM 密钥，不违 ADR 0003）——
+  // nullable：未生成过 webhook；optional：旧 server 响应可能不带
+  webhookToken: z.string().nullable().optional(),
+  // 事件名过滤（split/trim 后的事件名数组；null/undefined = 不过滤，全部放行）
+  webhookEvents: z.array(z.string().min(1)).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 export type AutomationRule = z.infer<typeof AutomationRule>;
+
+// —— automation webhook trigger：delivery 审计（学 multica autopilot_webhook）——
+export const WebhookDeliveryStatus = z.enum(['dispatched', 'filtered', 'error']);
+export type WebhookDeliveryStatus = z.infer<typeof WebhookDeliveryStatus>;
+
+export const WebhookDelivery = z.object({
+  id: z.string(),
+  ruleId: z.string(),
+  event: z.string(),
+  status: WebhookDeliveryStatus,
+  /** 原始 payload JSON 串（仅审计，不注入模板） */
+  payloadJson: z.string().nullable(),
+  /** dispatched 时关联的 automation run */
+  automationRunId: z.string().nullable(),
+  error: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+export type WebhookDelivery = z.infer<typeof WebhookDelivery>;
+
+/** POST /api/webhooks/:token 请求体（event='ping' 仅测连通） */
+export const WebhookTriggerInput = z.object({
+  event: z.string().min(1).max(200),
+  payload: z.unknown().optional(),
+});
+export type WebhookTriggerInput = z.infer<typeof WebhookTriggerInput>;
+
+/** POST /api/automation/rules/:id/webhook/token 响应（生成或轮换） */
+export const AutomationWebhookTokenResponse = z.object({
+  token: z.string(),
+});
+export type AutomationWebhookTokenResponse = z.infer<typeof AutomationWebhookTokenResponse>;
+
+/** PUT /api/automation/rules/:id/webhook/events 请求（逗号分隔事件名；空串/null = 全部放行） */
+export const UpdateAutomationWebhookEventsInput = z.object({
+  events: z.string().max(500).nullable(),
+});
+export type UpdateAutomationWebhookEventsInput = z.infer<typeof UpdateAutomationWebhookEventsInput>;
 
 const CreateAutomationRuleFields = z.object({
   name: z.string().min(1).max(80),

@@ -11,6 +11,7 @@ import type {
   AgentSummary,
   AutomationRule,
   AutomationRun,
+  WebhookDelivery,
 } from '@ma/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { inArray } from 'drizzle-orm';
@@ -25,6 +26,7 @@ import {
   agents,
   automationRules,
   automationRuns,
+  automationWebhookDeliveries,
   issueLabels,
   issueToLabels,
   projects,
@@ -544,8 +546,44 @@ export function toAutomationRule(
     failCount: stats?.failCount ?? 0,
     skippedStreak: stats?.skippedStreak ?? 0,
     lastRunStatus: stats?.lastRunStatus ?? null,
+    webhookToken: row.webhookToken ?? null,
+    webhookEvents: parseWebhookEvents(row.webhookEvents),
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+/** webhook_events 原始逗号串 → 契约数组（split/trim/去空；空 → null = 不过滤） */
+export function parseWebhookEvents(raw: string | null | undefined): string[] | null {
+  if (!raw) return null;
+  const events = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return events.length > 0 ? events : null;
+}
+
+/** webhook_events 契约输入（数组或逗号串）→ DB 原始逗号串；空 → null（全部放行） */
+export function normalizeWebhookEventsInput(events: string[] | string | null | undefined): string | null {
+  if (events == null) return null;
+  const list = Array.isArray(events) ? events : events.split(',');
+  const cleaned = list.map((item) => item.trim()).filter((item) => item.length > 0);
+  return cleaned.length > 0 ? cleaned.join(',') : null;
+}
+
+type WebhookDeliveryRow = typeof automationWebhookDeliveries.$inferSelect;
+
+// automation webhook trigger：DB automation_webhook_delivery → API WebhookDelivery
+export function toWebhookDelivery(row: WebhookDeliveryRow): WebhookDelivery {
+  return {
+    id: row.id,
+    ruleId: row.ruleId,
+    event: row.event,
+    status: row.status,
+    payloadJson: row.payloadJson ?? null,
+    automationRunId: row.automationRunId ?? null,
+    error: row.error ?? null,
+    createdAt: new Date(row.createdAt).toISOString(),
   };
 }
 

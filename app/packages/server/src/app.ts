@@ -14,6 +14,7 @@ import { inboxRoutes } from './routes/inbox.js';
 import { quickRunRoutes } from './routes/quick-runs.js';
 import { settingsRoutes } from './routes/settings.js';
 import { automationRoutes } from './routes/automation.js';
+import { automationWebhookRoutes } from './routes/automation-webhook.js';
 import { agentTemplateRoutes } from './routes/agent-templates.js';
 import { labelRoutes } from './routes/labels.js';
 import { chatRoutes } from './routes/chat.js';
@@ -122,6 +123,7 @@ export async function buildApp() {
   await app.register(inboxRoutes);
   await app.register(settingsRoutes);
   await app.register(automationRoutes);
+  await app.register(automationWebhookRoutes);
   await app.register(chatRoutes);
   await app.register(usageRoutes);
   await app.register(analyticsRoutes);

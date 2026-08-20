@@ -9,6 +9,8 @@ import type {
   AutomationRun,
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
+  AutomationWebhookTokenResponse,
+  WebhookDelivery,
 } from '@ma/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, API, errMessage, apiError } from './http';
@@ -240,6 +242,69 @@ export function useReconcileAutomationRun(ruleId: string) {
       else toastSuccess('已绑定现有运行');
     },
     onError: (err) => toastError(errMessage(err, '恢复派发失败')),
+  });
+}
+
+// —— automation webhook trigger ——
+
+/** POST /api/automation/rules/:id/webhook/token —— 生成或轮换（旧 URL 立即失效） */
+export function useRotateAutomationWebhookToken() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiFetch(
+        `${API}/automation/rules/${encodeURIComponent(id)}/webhook/token`,
+        { method: 'POST' },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '生成 Webhook 失败'));
+      return res.json() as Promise<AutomationWebhookTokenResponse>;
+    },
+    onSuccess: ({ token }) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      toastSuccess(`Webhook token 已更新 · ${token.slice(0, 8)}…（旧 URL 立即失效）`, {
+        durationMs: 6000,
+      });
+    },
+    onError: (err) => toastError(errMessage(err, '生成 Webhook 失败')),
+  });
+}
+
+/** PUT /api/automation/rules/:id/webhook/events —— 事件过滤（空串 = 全部放行） */
+export function useUpdateAutomationWebhookEvents() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, events }: { id: string; events: string | null }) => {
+      const res = await apiFetch(
+        `${API}/automation/rules/${encodeURIComponent(id)}/webhook/events`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events }),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '保存事件过滤失败'));
+      return res.json() as Promise<{ webhookEvents: string[] | null }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      toastSuccess('事件过滤已保存');
+    },
+    onError: (err) => toastError(errMessage(err, '保存事件过滤失败')),
+  });
+}
+
+/** GET /api/automation/rules/:id/webhook/deliveries?limit= */
+export function useAutomationWebhookDeliveries(ruleId: string | null | undefined, limit = 20) {
+  return useQuery<WebhookDelivery[]>({
+    queryKey: ['automation-webhook-deliveries', ruleId, limit],
+    queryFn: async () => {
+      const res = await apiFetch(
+        `${API}/automation/rules/${encodeURIComponent(ruleId!)}/webhook/deliveries?limit=${limit}`,
+      );
+      if (!res.ok) throw new Error(await apiError(res, '加载 Webhook 触发记录失败'));
+      return res.json();
+    },
+    enabled: !!ruleId,
   });
 }
 

@@ -2,16 +2,20 @@ import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { AutomationRule, AutomationRun } from '@ma/shared';
+import type { AutomationRule, AutomationRun, WebhookDelivery } from '@ma/shared';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   rules: [] as AutomationRule[],
   runsByRule: {} as Record<string, AutomationRun[]>,
+  deliveriesByRule: {} as Record<string, WebhookDelivery[]>,
   useAutomationRunsCalls: [] as Array<{ ruleId: string; limit: number | undefined }>,
   runNowMutate: vi.fn(),
   archiveMutate: vi.fn(),
+  webhookRotateMutate: vi.fn(),
+  webhookEventsMutate: vi.fn(),
   confirmDialog: vi.fn(),
+  clipboardWrite: vi.fn(),
   archivedAgentIds: new Set<string>(),
 }));
 
@@ -45,6 +49,22 @@ vi.mock('@/lib/api', () => ({
   useRunAutomationNow: () => ({ mutate: mocks.runNowMutate, isPending: false }),
   useReconcileAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateAutomationRule: () => ({ mutate: vi.fn(), isPending: false }),
+  useRotateAutomationWebhookToken: () => ({
+    mutate: mocks.webhookRotateMutate,
+    isPending: false,
+  }),
+  useUpdateAutomationWebhookEvents: () => ({
+    mutate: mocks.webhookEventsMutate,
+    isPending: false,
+  }),
+  useAutomationWebhookDeliveries: (ruleId: string, limit?: number) => {
+    void limit;
+    return {
+      data: mocks.deliveriesByRule[ruleId] ?? [],
+      isLoading: false,
+      isError: false,
+    };
+  },
   useAgents: (opts?: { archived?: '0' | '1' | 'all' }) => {
     const all = [
       {
@@ -388,5 +408,163 @@ describe('AutomationPage skipped streak drilldown', () => {
     expect(screen.getByTestId('automation-skipped-window-note-rule-1')).toHaveTextContent(
       '仅基于最近 20 条执行记录',
     );
+  });
+});
+
+describe('AutomationPage webhook section', () => {
+  const TOKEN = 'a'.repeat(48);
+
+  function delivery(overrides: Partial<WebhookDelivery> = {}): WebhookDelivery {
+    return {
+      id: 'dly-1',
+      ruleId: 'rule-1',
+      event: 'push',
+      status: 'dispatched',
+      payloadJson: null,
+      automationRunId: 'auto-run-9',
+      error: null,
+      createdAt: '2026-08-20T02:00:00.000Z',
+      ...overrides,
+    };
+  }
+
+  function openSection() {
+    fireEvent.click(screen.getByTestId('automation-webhook-toggle-rule-1'));
+    expect(screen.getByTestId('automation-webhook-section')).toBeInTheDocument();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.archivedAgentIds.clear();
+    mocks.rules = [rule()];
+    mocks.runsByRule = {};
+    mocks.deliveriesByRule = {};
+    mocks.confirmDialog.mockResolvedValue(true);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mocks.clipboardWrite },
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('without a token the section offers generation only (no URL, no filter input)', () => {
+    renderPage();
+    openSection();
+
+    expect(screen.getByTestId('automation-webhook-generate')).toBeInTheDocument();
+    expect(screen.queryByTestId('automation-webhook-url')).toBeNull();
+    expect(screen.queryByTestId('automation-webhook-events-input')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('automation-webhook-generate'));
+    expect(mocks.webhookRotateMutate).toHaveBeenCalledWith('rule-1');
+  });
+
+  it('with a token the section shows the full URL derived from the API base and copies it', async () => {
+    mocks.rules = [rule({ webhookToken: TOKEN, webhookEvents: ['push'] })];
+    renderPage();
+    openSection();
+
+    const url = screen.getByTestId('automation-webhook-url');
+    expect(url).toHaveTextContent(`http://localhost:3001/api/webhooks/${TOKEN}`);
+    expect(
+      (screen.getByTestId('automation-webhook-events-input') as HTMLInputElement).value,
+    ).toBe('push');
+
+    mocks.clipboardWrite.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByTestId('automation-webhook-copy'));
+    await waitFor(() =>
+      expect(mocks.clipboardWrite).toHaveBeenCalledWith(
+        `http://localhost:3001/api/webhooks/${TOKEN}`,
+      ),
+    );
+  });
+
+  it('rotation requires a danger confirm that warns the old URL dies immediately', async () => {
+    mocks.rules = [rule({ webhookToken: TOKEN })];
+    renderPage();
+    openSection();
+
+    fireEvent.click(screen.getByTestId('automation-webhook-rotate'));
+    await waitFor(() => {
+      expect(mocks.confirmDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '轮换 Webhook token？',
+          description: expect.stringContaining('旧 URL 立即失效'),
+          variant: 'danger',
+        }),
+      );
+      expect(mocks.webhookRotateMutate).toHaveBeenCalledWith('rule-1');
+    });
+  });
+
+  it('declining the rotation confirm keeps the current token untouched', async () => {
+    mocks.confirmDialog.mockResolvedValueOnce(false);
+    mocks.rules = [rule({ webhookToken: TOKEN })];
+    renderPage();
+    openSection();
+
+    fireEvent.click(screen.getByTestId('automation-webhook-rotate'));
+    await waitFor(() => expect(mocks.confirmDialog).toHaveBeenCalled());
+    expect(mocks.webhookRotateMutate).not.toHaveBeenCalled();
+  });
+
+  it('saves the event filter as a comma string and clears it with an empty draft', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN })];
+    renderPage();
+    openSection();
+
+    const input = screen.getByTestId('automation-webhook-events-input');
+    fireEvent.change(input, { target: { value: ' push , tag_push ' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-events-save'));
+    expect(mocks.webhookEventsMutate).toHaveBeenCalledWith({
+      id: 'rule-1',
+      events: 'push , tag_push',
+    });
+
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-events-save'));
+    expect(mocks.webhookEventsMutate).toHaveBeenLastCalledWith({ id: 'rule-1', events: null });
+  });
+
+  it('renders recent deliveries with status, time and an automation-run deep link', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN })];
+    mocks.deliveriesByRule = {
+      'rule-1': [
+        delivery(),
+        delivery({
+          id: 'dly-2',
+          event: 'issue_comment',
+          status: 'filtered',
+          automationRunId: null,
+          error: '事件 issue_comment 不在过滤列表（push）',
+        }),
+      ],
+    };
+    renderPage();
+    openSection();
+
+    const rows = screen.getByTestId('automation-webhook-deliveries');
+    expect(rows).toHaveTextContent('push');
+    expect(rows).toHaveTextContent('已触发');
+    expect(rows).toHaveTextContent('issue_comment');
+    expect(rows).toHaveTextContent('已过滤');
+
+    const runLink = screen.getByTestId('automation-webhook-delivery-run-dly-1');
+    expect(runLink).toHaveAttribute('href', '/runs?run=auto-run-9');
+    expect(screen.queryByTestId('automation-webhook-delivery-run-dly-2')).toBeNull();
+  });
+
+  it('an archived rule keeps the section readable but stops offering actions', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN, archivedAt: '2026-08-20T01:00:00.000Z' })];
+    renderPage();
+    openSection();
+
+    expect(screen.getByTestId('automation-webhook-section')).toHaveTextContent(
+      '规则已归档，Webhook 不会再触发',
+    );
+    expect(screen.queryByTestId('automation-webhook-rotate')).toBeNull();
+    expect(screen.queryByTestId('automation-webhook-events-save')).toBeNull();
   });
 });

@@ -590,9 +590,43 @@ export const automationRules = sqliteTable('automation_rule', {
     .notNull()
     .default('create_issue'),
   lastPlannedAt: integer('last_planned_at'),
+  // —— automation webhook trigger（学 multica autopilot_webhook：token 即凭证）——
+  // 随机 48-hex token；unique。nullable = 未生成 webhook。轮换 = 覆写（旧 URL 立即失效）。
+  webhookToken: text('webhook_token'),
+  // 事件名过滤（逗号分隔原始串；契约层 split/trim；null/空 = 全部放行）
+  webhookEvents: text('webhook_events'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-});
+},
+(t) => ({
+  webhookTokenUq: uniqueIndex('uq_automation_rule_webhook_token').on(t.webhookToken),
+}));
+
+// —— automation_webhook_delivery（webhook 触发审计：一次 POST 恰一条，ping 除外）——
+export const automationWebhookDeliveries = sqliteTable(
+  'automation_webhook_delivery',
+  {
+    id: text('id').primaryKey(),
+    ruleId: text('rule_id')
+      .notNull()
+      .references(() => automationRules.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    status: text('status', {
+      enum: ['dispatched', 'filtered', 'error'],
+    }).notNull(),
+    // 原始 payload JSON 串（仅审计，不注入模板）
+    payloadJson: text('payload_json'),
+    automationRunId: text('automation_run_id'),
+    error: text('error'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    ruleCreatedIdx: index('idx_automation_webhook_delivery_rule_created').on(
+      t.ruleId,
+      t.createdAt,
+    ),
+  }),
+);
 
 // —— automation_run（bu05：幂等 UNIQUE(rule_id, planned_at)）——
 export const automationRuns = sqliteTable(
@@ -603,7 +637,7 @@ export const automationRuns = sqliteTable(
       .notNull()
       .references(() => automationRules.id, { onDelete: 'cascade' }),
     plannedAt: integer('planned_at').notNull(),
-    source: text('source', { enum: ['schedule', 'manual'] }).notNull(),
+    source: text('source', { enum: ['schedule', 'manual', 'webhook'] }).notNull(),
     status: text('status', {
       enum: [
         // G6-2：两阶段派发占位态（副作用前先落行；UNIQUE 判定赢家）
