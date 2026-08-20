@@ -67,7 +67,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G2-5 | **全局并发配额**（现在仅 per-agent `concurrency`，无全局在途上限） | 低 | 小 | — | ✅（2026-08-03，[closeout](app/.progress/g2-5-global-concurrency-closeout-2026-08-03.md)：workspace max_concurrent_runs，拦 claim 不拦 enqueue，排队不算在途） |
 | G2-6 | **Automation schedule catch-up truth**（schedule source 锚点、24h latest-only、5 分钟过窗 skipped 审计；不回放旧任务） | 高 | 中 | G2-2、G6-2 | ✅（2026-08-19，[closeout](app/.progress/automation-schedule-catchup-truth-impl-1.md)） |
 | G2-7 | **Automation 规则归档保留历史**（DELETE 归档并停未来派发，保留 AutomationRun/Issue/Run 证据） | 高 | 中 | G2-6 | ✅（2026-08-20，[closeout](app/.progress/automation-rule-archive-preserves-history-impl-1.md)：migration 0054、历史保留、生命周期 409 与真实 Playwright） |
-| G2-8 | **批量改指派派活一致性**（看板批量指派复用单条目标校验与 enqueue 决策，回传每张卡真实入队/跳过结果；不隐式取消在途 run） | 高 | 中 | 既有单条 assign/enqueue | 🔨（2026-08-20，[spec](.scratch/bulk-assignment-dispatch-parity/spec.md)；[discovery](app/.progress/bulk-assignment-dispatch-parity-discovery-2026-08-20.md)） |
+| G2-8 | **批量改指派派活一致性**（看板批量指派复用单条目标校验与 enqueue 决策，回传每张卡真实入队/跳过结果；不隐式取消在途 run） | 高 | 中 | 既有单条 assign/enqueue | ✅（2026-08-20，[closeout](app/.progress/bulk-assignment-dispatch-parity-impl-1.md)） |
 
 ### G3 前端体验 — 少摩擦、可发现
 
@@ -178,6 +178,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | G8-4b | 无副作用 adapter probe | 中 | 中 | 一手证据 | ⬜ 禁开 |
 | G8-5a | transcript 写前密钥脱敏 | 高 | 中 | G8-3 | ✅（[closeout](app/.progress/g8-transcript-scrub-impl-1.md)） |
 | G8-6 | 看板 Sheet 最新尾窗 + beforeSeq + 就地再执行 | 高 | 中 | G6-5 | ✅（[closeout](app/.progress/g8-6-board-live-transcript-impl-1.md)） |
+| G8-7 | **归档 Agent 派发硬闸与遗留收口**（归档=未来不可派发；所有 queued/waiting/deferred/running run 诚实取消并保留历史；worker 防竞态 claim） | 高 | 中 | 既有 run ownership | 🔨（2026-08-20，[spec](.scratch/archived-agent-dispatch-fence/spec.md)；[discovery](app/.progress/archived-agent-dispatch-fence-discovery-2026-08-20.md)） |
 | follow-up | running 再评排队 1 条 follow-up + 同 Agent × Issue claim 串行（concurrency>1 也不并发） | 高 | 中 | — | ✅（[enqueue closeout](app/.progress/comment-followup-queue-impl-1.md) · [serial claim closeout](app/.progress/followup-serial-claim-impl-1.md)） |
 
 ## §4 切片队列总表（建议迭代顺序）

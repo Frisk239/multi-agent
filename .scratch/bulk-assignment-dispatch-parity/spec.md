@@ -1,7 +1,7 @@
 # Spec: bulk-assignment-dispatch-parity
 
 日期：2026-08-20
-状态：实施中
+状态：已完成
 上一刀 Closeout：`app/.progress/automation-skipped-streak-drilldown-impl-1.md`
 调研：`app/.progress/bulk-assignment-dispatch-parity-discovery-2026-08-20.md`
 
