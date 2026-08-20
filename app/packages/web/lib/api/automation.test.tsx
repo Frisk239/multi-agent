@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AutomationRun } from '@ma/shared';
 import React from 'react';
@@ -14,7 +14,7 @@ vi.mock('../toast', () => ({
   toastError: (...args: unknown[]) => toastError(...args),
 }));
 
-import { useArchiveAutomationRule, useRunAutomationNow } from './automation';
+import { useArchiveAutomationRule, useAutomationRuns, useRunAutomationNow } from './automation';
 
 function automationRun(
   status: string | null | undefined,
@@ -196,6 +196,36 @@ describe('useArchiveAutomationRule', () => {
     });
     expect(toastSuccess).toHaveBeenCalledWith(
       '规则已归档：已停止后续计划，执行记录已保留',
+    );
+  });
+});
+
+describe('useAutomationRuns', () => {
+  const fetchMock = vi.fn();
+  let qc: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    qc = newClient();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the requested 20-record window for skipped-streak drilldowns', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const hook = renderHook(() => useAutomationRuns('rule-1', 20), { wrapper });
+
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/automation/rules/rule-1/runs?limit=20'),
+      expect.objectContaining({ headers: expect.any(Object) }),
     );
   });
 });

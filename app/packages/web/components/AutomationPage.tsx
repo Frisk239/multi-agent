@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -35,11 +35,27 @@ import { Select } from './Select';
 import { AssigneeCombobox } from './AssigneeSelect';
 import { automationRunHref } from '@/lib/automation-run-link';
 import { classifyAutomationRunNowOutcome } from '@/lib/automation-run-now-outcome';
+import {
+  groupAutomationRunsForSkippedDrilldown,
+  SKIPPED_STREAK_WINDOW,
+  skippedStreakLabel,
+  skippedStreakWindowNote,
+} from '@/lib/automation-skipped-streak';
 
 const INTERVAL_OPTIONS = [5, 15, 30, 60] as const;
 
 type EnabledFilter = '' | 'on' | 'off';
 type ScheduleFilter = '' | 'interval_minutes' | 'daily_at' | 'cron';
+
+type ExpandedRuns = {
+  ruleId: string;
+  limit: number;
+  focusSkipped: boolean;
+  /** Re-focusing the same warning should return the operator to its summary. */
+  skippedFocusRequest: number;
+};
+
+const RECENT_RUNS_LIMIT = 8;
 
 function parseEnabled(raw: string | null): EnabledFilter {
   if (raw === 'on' || raw === 'off') return raw;
@@ -87,34 +103,84 @@ function nextPlanTitle(rule: AutomationRule): string {
   return `下次计划 ${formatPlanned(rule.nextPlannedAt)}`;
 }
 
-function RuleRuns({ ruleId }: { ruleId: string }) {
-  const { data: runs, isLoading, isError } = useAutomationRuns(ruleId, 8);
+function abbreviatedRunError(error: string | null): string {
+  return error ? (error.length > 48 ? `${error.slice(0, 48)}…` : error) : '—';
+}
+
+function RuleRuns({
+  ruleId,
+  limit = RECENT_RUNS_LIMIT,
+  focusSkipped = false,
+  skippedFocusRequest = 0,
+}: {
+  ruleId: string;
+  limit?: number;
+  focusSkipped?: boolean;
+  skippedFocusRequest?: number;
+}) {
+  const { data: runs, isLoading, isError } = useAutomationRuns(ruleId, limit);
   const reconcile = useReconcileAutomationRun(ruleId);
+  const [skippedDetailsOpen, setSkippedDetailsOpen] = useState(false);
+  const skippedGroupButton = useRef<HTMLButtonElement>(null);
+  const { skippedRuns, nonSkippedRuns, latestSkippedRun } = groupAutomationRunsForSkippedDrilldown(
+    runs ?? [],
+  );
+
+  // Opening the warning always starts with its compact, countable summary.
+  useEffect(() => {
+    setSkippedDetailsOpen(false);
+  }, [ruleId, limit, skippedFocusRequest]);
+
+  // The warning launches an already-expanded region. Move the keyboard context
+  // to the grouped audit summary only after its fetched records are available.
+  useEffect(() => {
+    if (focusSkipped && latestSkippedRun) skippedGroupButton.current?.focus();
+  }, [focusSkipped, latestSkippedRun, skippedFocusRequest]);
 
   if (isLoading) {
     return (
-      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+      <div
+        className="automation-runs text-dim text-sm"
+        id={`automation-rule-runs-${ruleId}`}
+        data-testid={`automation-rule-runs-${ruleId}`}
+        data-limit={String(limit)}
+      >
         加载执行记录…
       </div>
     );
   }
   if (isError) {
     return (
-      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+      <div
+        className="automation-runs text-dim text-sm"
+        id={`automation-rule-runs-${ruleId}`}
+        data-testid={`automation-rule-runs-${ruleId}`}
+        data-limit={String(limit)}
+      >
         加载执行记录失败
       </div>
     );
   }
   if (!runs || runs.length === 0) {
     return (
-      <div className="automation-runs text-dim text-sm" data-testid={`automation-rule-runs-${ruleId}`}>
+      <div
+        className="automation-runs text-dim text-sm"
+        id={`automation-rule-runs-${ruleId}`}
+        data-testid={`automation-rule-runs-${ruleId}`}
+        data-limit={String(limit)}
+      >
         暂无执行记录
       </div>
     );
   }
 
   return (
-    <div className="automation-runs" data-testid={`automation-rule-runs-${ruleId}`}>
+    <div
+      className="automation-runs"
+      id={`automation-rule-runs-${ruleId}`}
+      data-testid={`automation-rule-runs-${ruleId}`}
+      data-limit={String(limit)}
+    >
       <table className="data-table automation-runs-table">
         <thead>
           <tr>
@@ -127,7 +193,57 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
           </tr>
         </thead>
         <tbody>
-          {runs.map((r) => (
+          {skippedRuns.length > 0 && latestSkippedRun ? (
+            <tr className="automation-skipped-group-row">
+              <td colSpan={6}>
+                <div className="automation-skipped-group">
+                  <button
+                    ref={skippedGroupButton}
+                    type="button"
+                    className="automation-skipped-group-toggle"
+                    data-testid={`automation-skipped-group-${ruleId}`}
+                    aria-expanded={skippedDetailsOpen}
+                    aria-controls={`automation-skipped-details-${ruleId}`}
+                    onClick={() => setSkippedDetailsOpen((open) => !open)}
+                  >
+                    {skippedDetailsOpen ? '收起' : '查看'}已跳过 {skippedRuns.length} 次
+                  </button>
+                  <span
+                    className="text-dim text-sm"
+                    data-testid={`automation-skipped-summary-${ruleId}`}
+                  >
+                    最近计划：{formatPlanned(latestSkippedRun.plannedAt)} · 原因：
+                    {abbreviatedRunError(latestSkippedRun.error)}
+                  </span>
+                  {skippedDetailsOpen ? (
+                    <div
+                      id={`automation-skipped-details-${ruleId}`}
+                      className="automation-skipped-details"
+                      role="region"
+                      aria-label={`已跳过 ${skippedRuns.length} 次的执行记录`}
+                      data-testid={`automation-skipped-details-${ruleId}`}
+                    >
+                      <ul>
+                        {skippedRuns.map((run) => (
+                          <li
+                            key={run.id}
+                            data-testid={`automation-skipped-detail-${run.id}`}
+                          >
+                            <span>来源：{run.source}</span>
+                            <span>计划时刻：{formatPlanned(run.plannedAt)}</span>
+                            <span title={run.error ?? undefined}>
+                              原因：{run.error || '—'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </td>
+            </tr>
+          ) : null}
+          {nonSkippedRuns.map((r) => (
             <tr key={r.id}>
               <td>
                 <span className={`run-status-pill run-status-pill--${r.status}`}>
@@ -140,7 +256,10 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
               </td>
               <td className="text-sm">
                 {r.issueId ? (
-                  <Link href={`/issues/${r.issueId}`}>
+                  <Link
+                    href={`/issues/${r.issueId}`}
+                    data-testid={`automation-linked-issue-${r.id}`}
+                  >
                     {r.issueId.slice(0, 8)}…
                   </Link>
                 ) : (
@@ -157,7 +276,7 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
                 )}
               </td>
               <td className="text-dim text-sm" title={r.error ?? undefined}>
-                {r.error ? (r.error.length > 48 ? `${r.error.slice(0, 48)}…` : r.error) : '—'}
+                {abbreviatedRunError(r.error)}
                 {r.status === 'pending_dispatch' ? (
                   <button
                     type="button"
@@ -195,7 +314,7 @@ function AutomationPageInner() {
   const runNow = useRunAutomationNow();
 
   const [open, setOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedRuns, setExpandedRuns] = useState<ExpandedRuns | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editBody, setEditBody] = useState('');
@@ -386,7 +505,7 @@ function AutomationPageInner() {
     setEditingId(rule.id);
     setEditTitle(rule.titleTemplate);
     setEditBody(rule.bodyTemplate ?? '');
-    setExpandedId(null);
+    setExpandedRuns(null);
   }
 
   function cancelEdit() {
@@ -422,7 +541,7 @@ function AutomationPageInner() {
       if (!ok) return;
       archive.mutate(rule.id, {
         onSuccess: () => {
-          if (expandedId === rule.id) setExpandedId(null);
+          if (expandedRuns?.ruleId === rule.id) setExpandedRuns(null);
         },
       });
     })();
@@ -435,9 +554,38 @@ function AutomationPageInner() {
         // A non-success result belongs next to this rule's existing recent-run repair UI.
         if (classifyAutomationRunNowOutcome(run.status) !== 'success') {
           setEditingId(null);
-          setExpandedId(rule.id);
+          setExpandedRuns({
+            ruleId: rule.id,
+            limit: RECENT_RUNS_LIMIT,
+            focusSkipped: false,
+            skippedFocusRequest: 0,
+          });
         }
       },
+    });
+  }
+
+  function showSkippedDrilldown(rule: AutomationRule) {
+    setEditingId(null);
+    setExpandedRuns((previous) => ({
+      ruleId: rule.id,
+      limit: SKIPPED_STREAK_WINDOW,
+      focusSkipped: true,
+      skippedFocusRequest: (previous?.skippedFocusRequest ?? 0) + 1,
+    }));
+  }
+
+  function toggleRecentRuns(rule: AutomationRule) {
+    if (expandedRuns?.ruleId === rule.id) {
+      setExpandedRuns(null);
+      return;
+    }
+    setEditingId(null);
+    setExpandedRuns({
+      ruleId: rule.id,
+      limit: RECENT_RUNS_LIMIT,
+      focusSkipped: false,
+      skippedFocusRequest: 0,
     });
   }
 
@@ -988,7 +1136,7 @@ function AutomationPageInner() {
               </tbody>
             ) : null}
             {visible.map((rule) => {
-              const expanded = expandedId === rule.id;
+              const expanded = expandedRuns?.ruleId === rule.id;
               return (
                 <tbody key={rule.id} className="automation-rule-group">
                   <tr data-testid={`automation-rule-row-${rule.id}`} data-rule-id={rule.id}>
@@ -1096,14 +1244,38 @@ function AutomationPageInner() {
                     </td>
                     <td className="text-sm" data-testid="automation-run-stats">
                       {(rule.skippedStreak ?? 0) >= 3 ? (
-                        <span
-                          className="automation-skip-warning"
-                          data-testid="automation-skipped-streak"
-                          data-count={String(rule.skippedStreak)}
-                          title="连续跳过通常表示没有匹配到可执行目标，或规则配置已失效"
-                        >
-                          ⚠ 连续跳过 {rule.skippedStreak} 次
-                        </span>
+                        <>
+                          <button
+                            type="button"
+                            className="automation-skip-warning"
+                            data-testid={`automation-skipped-streak-${rule.id}`}
+                            data-count={String(rule.skippedStreak)}
+                            aria-expanded={expanded}
+                            aria-controls={`automation-rule-runs-${rule.id}`}
+                            aria-describedby={
+                              (rule.skippedStreak ?? 0) >= SKIPPED_STREAK_WINDOW
+                                ? `automation-skipped-window-note-${rule.id}`
+                                : undefined
+                            }
+                            title={
+                              (rule.skippedStreak ?? 0) >= SKIPPED_STREAK_WINDOW
+                                ? '连续跳过通常表示没有匹配到可执行目标，或规则配置已失效；仅基于最近 20 条执行记录'
+                                : '连续跳过通常表示没有匹配到可执行目标，或规则配置已失效'
+                            }
+                            onClick={() => showSkippedDrilldown(rule)}
+                          >
+                            ⚠ {skippedStreakLabel(rule.skippedStreak ?? 0)}
+                          </button>
+                          {skippedStreakWindowNote(rule.skippedStreak ?? 0) ? (
+                            <span
+                              id={`automation-skipped-window-note-${rule.id}`}
+                              className="automation-skipped-window-note text-dim text-sm"
+                              data-testid={`automation-skipped-window-note-${rule.id}`}
+                            >
+                              {skippedStreakWindowNote(rule.skippedStreak ?? 0)}
+                            </span>
+                          ) : null}
+                        </>
                       ) : (rule.failCount ?? 0) > 0 ? (
                         <Link
                           href="/automation?failed=1"
@@ -1168,8 +1340,7 @@ function AutomationPageInner() {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         onClick={() => {
-                          setEditingId(null);
-                          setExpandedId(expanded ? null : rule.id);
+                          toggleRecentRuns(rule);
                         }}
                       >
                         {expanded ? '收起记录' : '最近执行'}
@@ -1257,7 +1428,12 @@ function AutomationPageInner() {
                   {expanded ? (
                     <tr className="automation-runs-row">
                       <td colSpan={8}>
-                        <RuleRuns ruleId={rule.id} />
+                        <RuleRuns
+                          ruleId={rule.id}
+                          limit={expandedRuns?.limit ?? RECENT_RUNS_LIMIT}
+                          focusSkipped={expandedRuns?.focusSkipped ?? false}
+                          skippedFocusRequest={expandedRuns?.skippedFocusRequest ?? 0}
+                        />
                       </td>
                     </tr>
                   ) : null}

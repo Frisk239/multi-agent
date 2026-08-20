@@ -7631,6 +7631,61 @@ button.memory-kind-chip.is-active {
   border-top: 0;
 }
 
+.automation-skip-warning,
+.automation-skipped-group-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-yellow, var(--text-primary));
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.automation-skip-warning:focus-visible,
+.automation-skipped-group-toggle:focus-visible {
+  outline: 2px solid var(--color-yellow, var(--accent));
+  outline-offset: 3px;
+}
+
+.automation-skipped-window-note {
+  display: block;
+  margin-top: 3px;
+}
+
+.automation-skipped-group-row td {
+  background: color-mix(in srgb, var(--color-yellow, var(--bg-elevated)) 9%, transparent);
+}
+
+.automation-skipped-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.automation-skipped-details {
+  flex-basis: 100%;
+}
+
+.automation-skipped-details ul {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+
+.automation-skipped-details li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
 .run-status-pill {
   display: inline-block;
   padding: 1px 8px;
