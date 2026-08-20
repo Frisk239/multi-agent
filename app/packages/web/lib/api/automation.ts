@@ -78,8 +78,9 @@ export function useUpdateAutomationRule() {
   });
 }
 
-// DELETE /api/automation/rules/:id
-export function useDeleteAutomationRule() {
+// DELETE /api/automation/rules/:id — HTTP DELETE keeps compatibility; domain
+// semantics are an archive that preserves execution evidence.
+export function useArchiveAutomationRule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
@@ -87,16 +88,16 @@ export function useDeleteAutomationRule() {
         method: 'DELETE',
       });
       if (!res.ok && res.status !== 204) {
-        throw new Error(await apiError(res, '删除规则失败'));
+        throw new Error(await apiError(res, '归档规则失败'));
       }
       return id;
     },
     onSuccess: (id) => {
       qc.invalidateQueries({ queryKey: ['automation-rules'] });
       qc.invalidateQueries({ queryKey: ['automation-runs', id] });
-      toastSuccess('规则已删除');
+      toastSuccess('规则已归档：已停止后续计划，执行记录已保留');
     },
-    onError: (err) => toastError(errMessage(err, '删除规则失败')),
+    onError: (err) => toastError(errMessage(err, '归档规则失败')),
   });
 }
 

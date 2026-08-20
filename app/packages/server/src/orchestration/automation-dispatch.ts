@@ -18,6 +18,25 @@ import { wakeRunWorker } from './run-worker.js';
 
 type RuleRow = typeof automationRules.$inferSelect;
 
+/**
+ * Dispatch has a second lifecycle gate in addition to the HTTP route guard:
+ * a worker can hold an enabled-rule snapshot while an operator archives it.
+ * Callers that expose the error to an operator can retain the archive 409
+ * contract instead of turning that narrow race into a 500.
+ */
+export class AutomationRuleArchivedError extends Error {
+  constructor(ruleId: string) {
+    super(`automation rule 已归档，不能派发: ${ruleId}`);
+    this.name = 'AutomationRuleArchivedError';
+  }
+}
+
+export function isAutomationRuleArchivedError(
+  error: unknown,
+): error is AutomationRuleArchivedError {
+  return error instanceof AutomationRuleArchivedError;
+}
+
 export type AutomationScheduleShape = {
   scheduleKind: AutomationScheduleKind;
   intervalMinutes: number | null;
@@ -543,6 +562,12 @@ export async function dispatchAutomationRule(
   if (!rule) {
     // 规则不存在：不落 run（无 FK）；由路由层 404
     throw new Error(`automation rule not found: ${ruleId}`);
+  }
+  // Worker selection is necessarily a snapshot. Re-read lifecycle at the
+  // dispatch boundary so a rule archived after that snapshot cannot claim a
+  // placeholder or create an Issue / AgentRun.
+  if (rule.archivedAt != null) {
+    throw new AutomationRuleArchivedError(ruleId);
   }
 
   // 预检：已有行（含占位）→ 直接返回不干活；超龄占位升级 failed

@@ -379,6 +379,13 @@
       "when": 1788866400000,
       "tag": "0053_run_execution_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1787130157741,
+      "tag": "0054_automation_rule_archived",
+      "breakpoints": true
     }
   ]
 }

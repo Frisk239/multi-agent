@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { AutomationRule, AutomationRun } from '@ma/shared';
@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   rules: [] as AutomationRule[],
   runsByRule: {} as Record<string, AutomationRun[]>,
   runNowMutate: vi.fn(),
+  archiveMutate: vi.fn(),
+  confirmDialog: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -33,7 +35,7 @@ vi.mock('@/lib/api', () => ({
     isError: false,
   }),
   useCreateAutomationRule: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteAutomationRule: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiveAutomationRule: () => ({ mutate: mocks.archiveMutate, isPending: false }),
   useRunAutomationNow: () => ({ mutate: mocks.runNowMutate, isPending: false }),
   useReconcileAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateAutomationRule: () => ({ mutate: vi.fn(), isPending: false }),
@@ -52,6 +54,10 @@ vi.mock('@/lib/api', () => ({
   }),
 }));
 
+vi.mock('@/lib/confirm-store', () => ({
+  confirmDialog: mocks.confirmDialog,
+}));
+
 import { AutomationPage } from './AutomationPage';
 
 function rule(overrides: Partial<AutomationRule> = {}): AutomationRule {
@@ -59,6 +65,7 @@ function rule(overrides: Partial<AutomationRule> = {}): AutomationRule {
     id: 'rule-1',
     name: '夜间巡检',
     enabled: true,
+    archivedAt: null,
     scheduleKind: 'interval_minutes',
     intervalMinutes: 15,
     dailyTime: null,
@@ -123,6 +130,7 @@ describe('AutomationPage assignee search', () => {
     vi.clearAllMocks();
     mocks.rules = [];
     mocks.runsByRule = {};
+    mocks.confirmDialog.mockResolvedValue(true);
   });
   afterEach(() => {
     cleanup();
@@ -141,6 +149,27 @@ describe('AutomationPage assignee search', () => {
     });
     expect(select.querySelector('option[value="agent:agt-beta"]')).toBeTruthy();
     expect(select.querySelector('option[value="agent:agt-alpha"]')).toBeNull();
+  });
+
+  it('uses archive language and promises to preserve execution history', async () => {
+    mocks.rules = [rule()];
+    renderPage();
+
+    fireEvent.click(screen.getByTestId('automation-archive-rule-1'));
+
+    await waitFor(() => {
+      expect(mocks.confirmDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '归档自动化规则？',
+          description: expect.stringContaining('停止后续计划，保留已有执行记录'),
+          confirmLabel: '归档',
+        }),
+      );
+      expect(mocks.archiveMutate).toHaveBeenCalledWith(
+        'rule-1',
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+    });
   });
 });
 

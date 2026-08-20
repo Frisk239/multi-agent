@@ -3,6 +3,7 @@ import type { AgentRun } from '@ma/shared';
 import { db } from '../db/client.js';
 import {
   agentRuns,
+  automationRules,
   automationRuns,
   issues,
 } from '../db/schema.js';
@@ -160,6 +161,15 @@ export async function reconcileAutomationRun(
     .where(eq(automationRuns.id, automationRunId))
     .get();
   if (!automation) return { ok: false, status: 404, error: 'automation run 不存在' };
+  const rule = db
+    .select({ id: automationRules.id, archivedAt: automationRules.archivedAt })
+    .from(automationRules)
+    .where(eq(automationRules.id, automation.ruleId))
+    .get();
+  if (!rule) return { ok: false, status: 404, error: 'automation rule 不存在' };
+  if (rule.archivedAt != null) {
+    return { ok: false, status: 409, error: 'automation rule 已归档，不能重新派发' };
+  }
   if (!automation.issueId) {
     return { ok: false, status: 409, error: 'automation run 没有 linked Issue' };
   }

@@ -155,6 +155,25 @@ describe('automation schedule catch-up worker', () => {
     vi.useRealTimers();
   });
 
+  it('does not schedule an archived rule even if a stale enabled snapshot exists', async () => {
+    const ruleId = 'rule-archived-worker-snapshot';
+    seedRule(ruleId, {
+      // DELETE writes both fields atomically. Keeping enabled=1 here models a
+      // stale worker candidate and proves archivedAt is an independent gate.
+      enabled: 1,
+      archivedAt: BASE_NOW - 1,
+      executionMode: 'create_issue',
+    });
+
+    await tickAutomationWorker(BASE_NOW);
+
+    expect(scheduleRuns(ruleId)).toHaveLength(0);
+    expect(
+      state.db!.select().from(issues).where(eq(issues.originRuleId, ruleId)).all(),
+    ).toHaveLength(0);
+    expect(state.db!.select().from(agentRuns).all()).toHaveLength(0);
+  });
+
   it('writes one late schedule skipped audit with zero side effects, then dispatches the next slot', async () => {
     const ruleId = 'rule-late-interval';
     const staleSlot = Date.UTC(2026, 7, 19, 10, 0, 0);

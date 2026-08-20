@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { CronExpressionParser } from 'cron-parser';
 import type { AutomationRun } from '@ma/shared';
 import {
@@ -9,7 +9,10 @@ import {
 import { db } from '../db/client.js';
 import { automationRules, automationRuns } from '../db/schema.js';
 import { toAutomationRule, toAutomationRun } from '../db/reshape.js';
-import { dispatchAutomationRule } from '../orchestration/automation-dispatch.js';
+import {
+  dispatchAutomationRule,
+  isAutomationRuleArchivedError,
+} from '../orchestration/automation-dispatch.js';
 import { reconcileAutomationRun } from '../orchestration/automation-execution.js';
 
 function normalizeScheduleFields(input: {
@@ -88,6 +91,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
     const rows = db
       .select()
       .from(automationRules)
+      .where(isNull(automationRules.archivedAt))
       .orderBy(desc(automationRules.createdAt))
       .all();
     return rows.map(ruleWithStats);
@@ -135,6 +139,7 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
         bodyTemplate: input.bodyTemplate ?? '',
         executionMode: input.executionMode === 'run_only' ? 'run_only' : 'create_issue',
         lastPlannedAt: null,
+        archivedAt: null,
         createdAt: now,
         updatedAt: now,
       })
@@ -155,12 +160,18 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   // PATCH /api/automation/rules/:id
   app.patch('/api/automation/rules/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
+    const prev = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
+    if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
+    if (prev.archivedAt != null) {
+      return reply.status(409).send({
+        success: false,
+        error: 'automation rule 已归档，不能编辑',
+      });
+    }
     const parsed = UpdateAutomationRuleInput.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ success: false, error: 'Validation failed', code: 'VALIDATION_ERROR', details: parsed.error.flatten() });
     }
-    const prev = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
 
     const patch = parsed.data;
     // 合并后校验 schedule 完整性
@@ -232,23 +243,47 @@ export async function automationRoutes(app: FastifyInstance): Promise<void> {
   // DELETE /api/automation/rules/:id
   app.delete('/api/automation/rules/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
-    const prev = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
-    if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
-    db.delete(automationRules).where(eq(automationRules.id, id)).run();
+    const now = Date.now();
+    // Keep DELETE as the HTTP surface, but make its domain meaning an atomic,
+    // idempotent archive. Avoiding a physical delete preserves the FK-backed
+    // automation_run → Issue / AgentRun evidence chain.
+    const archived = db
+      .update(automationRules)
+      .set({ enabled: 0, archivedAt: now, updatedAt: now })
+      .where(and(eq(automationRules.id, id), isNull(automationRules.archivedAt)))
+      .run();
+    if (archived.changes === 0) {
+      const prev = db.select({ id: automationRules.id }).from(automationRules).where(eq(automationRules.id, id)).get();
+      if (!prev) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
+    }
     return reply.status(204).send();
   });
 
-  // POST /api/automation/rules/:id/run-now —— disabled 也可；201 + AutomationRun
+  // POST /api/automation/rules/:id/run-now —— disabled 也可；归档后不可新建工作。
   app.post('/api/automation/rules/:id/run-now', async (req, reply) => {
     const { id } = req.params as { id: string };
     const rule = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
     if (!rule) return reply.status(404).send({ success: false, error: 'automation rule 不存在'  });
+    if (rule.archivedAt != null) {
+      return reply.status(409).send({
+        success: false,
+        error: 'automation rule 已归档，不能立即执行',
+      });
+    }
 
     const plannedAt = Date.now();
     try {
       const run = await dispatchAutomationRule(id, plannedAt, 'manual');
       return reply.status(201).send(run);
     } catch (e) {
+      // A DELETE may win between the route's first lookup and the dispatch
+      // boundary re-read. Keep archive's public conflict contract intact.
+      if (isAutomationRuleArchivedError(e)) {
+        return reply.status(409).send({
+          success: false,
+          error: 'automation rule 已归档，不能立即执行',
+        });
+      }
       const msg = e instanceof Error ? e.message : String(e);
       return reply.status(500).send({ success: false, error: msg  });
     }

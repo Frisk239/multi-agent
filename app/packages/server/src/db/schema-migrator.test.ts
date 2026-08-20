@@ -64,6 +64,7 @@ describe('schema migrator drift gate (Slice 41)', () => {
 
     const automationRule = colNames(sqlite, 'automation_rule');
     expect(automationRule.has('cron_expression')).toBe(true);
+    expect(automationRule.has('archived_at')).toBe(true);
     const automationRun = colNames(sqlite, 'automation_run');
     expect(automationRun.has('linked_run_id')).toBe(true);
     expect(automationRun.has('updated_at')).toBe(true);
@@ -218,6 +219,7 @@ describe('schema migrator drift gate (Slice 41)', () => {
 
     const rule = db.select().from(automationRules).where(eq(automationRules.id, 'rule-gap-1')).get();
     expect(rule?.cronExpression).toBe('*/5 * * * *');
+    expect(rule?.archivedAt).toBeNull();
 
     const mem = db.select().from(memoryItems).where(eq(memoryItems.id, 'mem-gap-1')).get();
     expect(mem?.validAt).toBe(now);

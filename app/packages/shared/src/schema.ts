@@ -2602,6 +2602,9 @@ export const AutomationRule = z.object({
   id: BusinessId,
   name: z.string(),
   enabled: z.boolean(),
+  // Archived rules stay addressable for execution-history audit, but are not
+  // returned from the default active-rule collection.
+  archivedAt: z.string().datetime().nullable(),
   scheduleKind: AutomationScheduleKind,
   intervalMinutes: z.number().int().nullable(),
   dailyTime: z.string().nullable(), // "HH:mm"

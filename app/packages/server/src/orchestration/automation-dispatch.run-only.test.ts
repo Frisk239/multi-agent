@@ -144,6 +144,50 @@ describe('automation run_only (A5 / Multica)', () => {
     expect(published.run.terminalReason).toBeNull();
   });
 
+  it.each([
+    ['schedule', 'create_issue'],
+    ['manual', 'run_only'],
+  ] as const)(
+    'archived rule rejects %s dispatch before it can create Issue or AgentRun (%s)',
+    async (source, executionMode) => {
+      const now = Date.now();
+      const ruleId = `rule-archived-${source}`;
+      state.db!.insert(automationRules).values({
+        id: ruleId,
+        name: `archived ${source}`,
+        enabled: 0,
+        archivedAt: now,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 15,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: 'must not dispatch',
+        bodyTemplate: '',
+        executionMode,
+        lastPlannedAt: null,
+        createdAt: now - 1,
+        updatedAt: now,
+      }).run();
+
+      const runsBefore = state.db!.select().from(automationRuns).all().length;
+      const issuesBefore = state.db!.select().from(issues).all().length;
+      const agentRunsBefore = state.db!.select().from(agentRuns).all().length;
+
+      await expect(
+        dispatchAutomationRule(ruleId, now - 60_000, source),
+      ).rejects.toThrow('automation rule 已归档');
+
+      // Archive is a lifecycle boundary, not a deletion: it creates no new
+      // audit placeholder, Issue, or queued CLI run for either entry point.
+      expect(state.db!.select().from(automationRuns).all()).toHaveLength(runsBefore);
+      expect(state.db!.select().from(issues).all()).toHaveLength(issuesBefore);
+      expect(state.db!.select().from(agentRuns).all()).toHaveLength(agentRunsBefore);
+      expect(wake).not.toHaveBeenCalled();
+    },
+  );
+
   it('syncAutomationRunFromAgentRun follows linkedRunId for run_only', async () => {
     const now = Date.now();
     state.db!.insert(automationRules).values({

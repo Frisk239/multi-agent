@@ -567,6 +567,8 @@ export const automationRules = sqliteTable('automation_rule', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   enabled: integer('enabled').notNull().default(1),
+  // 归档不是删除：保留 automation_run / Issue / AgentRun 审计链。
+  archivedAt: integer('archived_at'),
   scheduleKind: text('schedule_kind', {
     enum: ['interval_minutes', 'daily_at', 'cron'],
   }).notNull(),

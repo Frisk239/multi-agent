@@ -19,7 +19,7 @@ import {
   useAutomationRules,
   useAutomationRuns,
   useCreateAutomationRule,
-  useDeleteAutomationRule,
+  useArchiveAutomationRule,
   useRunAutomationNow,
   useReconcileAutomationRun,
   useSquads,
@@ -191,7 +191,7 @@ function AutomationPageInner() {
   const { data: readinessMap = {} } = useAgentsReadinessMap(agentIds);
   const create = useCreateAutomationRule();
   const update = useUpdateAutomationRule();
-  const del = useDeleteAutomationRule();
+  const archive = useArchiveAutomationRule();
   const runNow = useRunAutomationNow();
 
   const [open, setOpen] = useState(false);
@@ -411,16 +411,16 @@ function AutomationPageInner() {
     );
   }
 
-  function handleDelete(rule: AutomationRule) {
+  function handleArchive(rule: AutomationRule) {
     void (async () => {
       const ok = await confirmDialog({
-        title: '删除自动化规则？',
-        description: `确定删除规则「${rule.name}」？相关执行记录会一并删除。`,
-        confirmLabel: '删除',
+        title: '归档自动化规则？',
+        description: `确定归档规则「${rule.name}」？将停止后续计划，保留已有执行记录。`,
+        confirmLabel: '归档',
         variant: 'danger',
       });
       if (!ok) return;
-      del.mutate(rule.id, {
+      archive.mutate(rule.id, {
         onSuccess: () => {
           if (expandedId === rule.id) setExpandedId(null);
         },
@@ -1177,10 +1177,11 @@ function AutomationPageInner() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
-                        disabled={del.isPending}
-                        onClick={() => handleDelete(rule)}
+                        data-testid={`automation-archive-${rule.id}`}
+                        disabled={archive.isPending}
+                        onClick={() => handleArchive(rule)}
                       >
-                        删除
+                        归档
                       </button>
                     </td>
                   </tr>

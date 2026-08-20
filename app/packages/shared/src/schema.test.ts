@@ -17,6 +17,7 @@ import {
   CreateAgentInput,
   CreateCommentInput,
   AutomationScheduleKind,
+  AutomationRule,
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
@@ -522,6 +523,41 @@ describe('Shared Schema Validators', () => {
       expect(AgentRun.parse(base).escalatedFromRunId).toBeUndefined();
       const withLineage = AgentRun.parse({ ...base, escalatedFromRunId: 'run-0' });
       expect(withLineage.escalatedFromRunId).toBe('run-0');
+    });
+  });
+
+  describe('AutomationRule archive lifecycle shape', () => {
+    const base = {
+      id: 'rule-1',
+      name: 'daily check',
+      enabled: false,
+      archivedAt: null,
+      scheduleKind: 'daily_at' as const,
+      intervalMinutes: null,
+      dailyTime: '09:00',
+      cronExpression: null,
+      assigneeType: 'agent' as const,
+      assigneeId: 'agt-1',
+      titleTemplate: 'check',
+      bodyTemplate: '',
+      executionMode: 'create_issue' as const,
+      lastPlannedAt: null,
+      nextPlannedAt: null,
+      failCount: 0,
+      skippedStreak: 0,
+      lastRunStatus: null,
+      createdAt: '2026-08-19T00:00:00.000Z',
+      updatedAt: '2026-08-19T00:00:00.000Z',
+    };
+
+    it('preserves a nullable archive timestamp in the shared rule contract', () => {
+      expect(AutomationRule.parse(base).archivedAt).toBeNull();
+      expect(
+        AutomationRule.parse({
+          ...base,
+          archivedAt: '2026-08-19T01:00:00.000Z',
+        }).archivedAt,
+      ).toBe('2026-08-19T01:00:00.000Z');
     });
   });
 

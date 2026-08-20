@@ -14,7 +14,7 @@ vi.mock('../toast', () => ({
   toastError: (...args: unknown[]) => toastError(...args),
 }));
 
-import { useRunAutomationNow } from './automation';
+import { useArchiveAutomationRule, useRunAutomationNow } from './automation';
 
 function automationRun(
   status: string | null | undefined,
@@ -156,6 +156,46 @@ describe('useRunAutomationNow', () => {
       expect.objectContaining({
         action: { label: '环境诊断', href: '/settings' },
       }),
+    );
+  });
+});
+
+describe('useArchiveAutomationRule', () => {
+  const fetchMock = vi.fn();
+  let qc: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    qc = newClient();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the DELETE transport but announces archive history preservation', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const hook = renderHook(() => useArchiveAutomationRule(), { wrapper });
+
+    await act(async () => {
+      await hook.result.current.mutateAsync('rule-archive-1');
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/automation/rules/rule-archive-1'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['automation-rules'] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['automation-runs', 'rule-archive-1'],
+    });
+    expect(toastSuccess).toHaveBeenCalledWith(
+      '规则已归档：已停止后续计划，执行记录已保留',
     );
   });
 });

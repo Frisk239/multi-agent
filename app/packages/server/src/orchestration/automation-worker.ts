@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { automationRules } from '../db/schema.js';
 import { logger } from '../logger.js';
@@ -17,7 +17,7 @@ export async function tickAutomationWorker(now: number = Date.now()): Promise<vo
   const rules = db
     .select()
     .from(automationRules)
-    .where(eq(automationRules.enabled, 1))
+    .where(and(eq(automationRules.enabled, 1), isNull(automationRules.archivedAt)))
     .all();
   for (const rule of rules) {
     try {

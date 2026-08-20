@@ -524,6 +524,7 @@ export function toAutomationRule(
     id: row.id,
     name: row.name,
     enabled: row.enabled === 1,
+    archivedAt: row.archivedAt == null ? null : new Date(row.archivedAt).toISOString(),
     scheduleKind: row.scheduleKind,
     intervalMinutes: row.intervalMinutes ?? null,
     dailyTime: row.dailyTime ?? null,
