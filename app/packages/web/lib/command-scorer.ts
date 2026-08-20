@@ -206,7 +206,45 @@ export function toHighlightRanges(indices: readonly number[]): HighlightRange[] 
   return ranges;
 }
 
-export type Scorable = { id: string; label: string; identifier?: string | null };
+export type Scorable = {
+  id: string;
+  label: string;
+  identifier?: string | null;
+  /**
+   * 不改变主标签的额外可检索文本（例如项目描述、本机目录）。
+   * 仍沿用与 label 完全相同的打分档位；fieldIndex 越小越优先。
+   */
+  searchFields?: readonly string[];
+};
+
+/** rankCandidates 产出的分数；fieldIndex=0 代表主 label。 */
+export type RankedScoreResult = ScoreResult & { fieldIndex: number };
+
+function compareScores(a: RankedScoreResult, b: RankedScoreResult): number {
+  return (
+    a.tier - b.tier ||
+    a.index - b.index ||
+    a.fieldIndex - b.fieldIndex
+  );
+}
+
+function scoreScorable(item: Scorable, query: string): RankedScoreResult | null {
+  const fields = [item.label, ...(item.searchFields ?? [])];
+  const scores = fields
+    .map((field, fieldIndex) => ({
+      ...scoreCandidate(
+        field,
+        query,
+        fieldIndex === 0 ? (item.identifier ?? item.id) : undefined,
+      ),
+      fieldIndex,
+    }))
+    .filter((score) => score.tier !== MatchTier.None);
+
+  if (scores.length === 0) return null;
+  scores.sort(compareScores);
+  return scores[0]!;
+}
 
 /**
  * 排序候选集：先按档位，再按命中位置、label 长度、label 字典序。
@@ -215,21 +253,21 @@ export type Scorable = { id: string; label: string; identifier?: string | null }
 export function rankCandidates<T extends Scorable>(
   items: readonly T[],
   query: string,
-): Array<T & { score: ScoreResult }> {
+): Array<T & { score: RankedScoreResult }> {
   const q = (query ?? '').trim();
   const scored = items
-    .map((it) => ({
-      ...it,
-      score: scoreCandidate(it.label, q, it.identifier ?? it.id),
-    }))
-    .filter((it) => it.score.tier !== MatchTier.None);
+    .map((it) => {
+      const score = scoreScorable(it, q);
+      return score ? { ...it, score } : null;
+    })
+    .filter((it): it is T & { score: RankedScoreResult } => it !== null);
 
   scored.sort(
     (a, b) =>
-      a.score.tier - b.score.tier ||
-      a.score.index - b.score.index ||
+      compareScores(a.score, b.score) ||
       a.label.length - b.label.length ||
-      a.label.localeCompare(b.label),
+      a.label.localeCompare(b.label) ||
+      a.id.localeCompare(b.id),
   );
   return scored;
 }

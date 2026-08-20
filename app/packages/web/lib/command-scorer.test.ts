@@ -156,6 +156,39 @@ describe('rankCandidates 确定性', () => {
     expect(r[0]!.identifier).toBe('FRI-20');
   });
 
+  it('可从辅助字段匹配，同时保留主 label 作为展示文本', () => {
+    const r = rankCandidates(
+      [
+        {
+          id: 'project-title',
+          label: '控制台体验',
+          searchFields: ['命令面板项目直达', 'D:\\code\\console'],
+        },
+        {
+          id: 'project-path',
+          label: '运行时适配',
+          searchFields: ['后端 adapter', 'D:\\code\\cmdk-project-context'],
+        },
+      ],
+      'cmdk-project-context',
+    );
+
+    expect(r).toHaveLength(1);
+    expect(r[0]!.label).toBe('运行时适配');
+    expect(r[0]!.score.fieldIndex).toBe(2);
+  });
+
+  it('同名候选以 id 收束为确定顺序，不依赖接口返回顺序', () => {
+    const itemsWithSameLabel = [
+      { id: 'project-b', label: '同名项目' },
+      { id: 'project-a', label: '同名项目' },
+    ];
+    const expected = ['project-a', 'project-b'];
+
+    expect(rankCandidates(itemsWithSameLabel, '同名项目').map((item) => item.id)).toEqual(expected);
+    expect(rankCandidates([...itemsWithSameLabel].reverse(), '同名项目').map((item) => item.id)).toEqual(expected);
+  });
+
   it('空查询返回空（不把全部项当命中）', () => {
     expect(rankCandidates(items, '')).toHaveLength(0);
   });

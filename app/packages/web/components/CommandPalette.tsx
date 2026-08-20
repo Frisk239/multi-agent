@@ -6,6 +6,7 @@ import {
   useAgents,
   useAgentsReadinessMap,
   useIssueSearch,
+  useProjects,
   useRunsActiveCount,
   useSquads,
   useWikiPages,
@@ -30,10 +31,38 @@ type Command = {
   label: string;
   hint?: string;
   group?: string;
+  /** 只展示状态，不可被键盘或鼠标执行。 */
+  disabled?: boolean;
   /** G3-7：匹配字符索引（command-scorer 打分产出），渲染高亮用 */
   highlight?: number[];
-  run: () => void;
+  run?: () => void;
 };
+
+const PROJECT_STATUS_LABEL: Record<string, string> = {
+  planned: '规划中',
+  active: '进行中',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+/**
+ * 命令面板只把可执行行放进键盘循环。这样加载/空结果说明不会抢走 Enter，
+ * 同时保留从首尾循环选择的既有 CmdK 手感。
+ */
+export function nextEnabledCommandIndex(
+  commands: readonly Pick<Command, 'disabled'>[],
+  current: number,
+  delta: 1 | -1,
+): number {
+  if (commands.length === 0 || !commands.some((command) => !command.disabled)) return -1;
+
+  let index = current >= 0 && current < commands.length ? current : delta > 0 ? -1 : 0;
+  for (let offset = 0; offset < commands.length; offset += 1) {
+    index = (index + delta + commands.length) % commands.length;
+    if (!commands[index]?.disabled) return index;
+  }
+  return -1;
+}
 
 /** G3-7：按索引数组把匹配字符包 <mark> 高亮（导出供测试） */
 export function Highlighted({ text, indices }: { text: string; indices: number[] }) {
@@ -66,6 +95,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const { data: agents = [] } = useAgents();
   const { data: squads = [] } = useSquads();
+  const { data: projects = [], isLoading: projectsLoading } = useProjects();
   const { data: wikiPages = [] } = useWikiPages();
   const { data: activeRuns } = useRunsActiveCount();
 
@@ -169,6 +199,13 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         hint: '/squads',
         group: '导航',
         run: () => router.push('/squads'),
+      },
+      {
+        id: 'nav-projects',
+        label: '项目',
+        hint: '/projects',
+        group: '导航',
+        run: () => router.push('/projects'),
       },
       {
         id: 'nav-agents',
@@ -314,6 +351,66 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             ),
         }))
       : [];
+
+    // G3-16：项目沿用 useProjects 的缓存数据，不另加搜索 API。title 是主识别；
+    // 描述和本机目录只是辅助匹配字段，因此不会把 UUID 暴露给操作者。
+    const projectCmds: Command[] = !q
+      ? []
+      : projectsLoading
+        ? [
+            {
+              id: 'projects-loading',
+              label: '正在加载项目…',
+              group: '项目',
+              disabled: true,
+            },
+          ]
+        : projects.length === 0
+          ? [
+              {
+                id: 'projects-empty',
+                label: '还没有项目',
+                hint: '前往项目列表创建',
+                group: '项目',
+                run: () => router.push('/projects'),
+              },
+            ]
+          : (() => {
+              const matches = rankCandidates(
+                projects.map((project) => ({
+                  id: project.id,
+                  label: project.title,
+                  searchFields: [project.description ?? '', project.localPath ?? ''],
+                  project,
+                })),
+                debouncedQ,
+              );
+              if (matches.length === 0) {
+                return [
+                  {
+                    id: 'projects-no-match',
+                    label: '没有匹配的项目',
+                    group: '项目',
+                    disabled: true,
+                  },
+                ];
+              }
+              return matches.slice(0, 8).map(({ project, score }) => {
+                const status = PROJECT_STATUS_LABEL[project.status] ?? project.status;
+                const directory = project.localPath
+                  ? `目录：${project.localPath}`
+                  : '未绑定目录';
+                return {
+                  id: `project-${project.id}`,
+                  label: project.title,
+                  hint: `${status} · ${directory}`,
+                  group: '项目',
+                  // 描述/目录命中时不能把其字符索引错画到标题上。
+                  highlight: score.fieldIndex === 0 ? score.highlight : [],
+                  run: () => router.push(`/projects/${project.id}`),
+                };
+              });
+            })();
 
     const readinessLabel = (status?: string | null) => {
       if (!status) return '…';
@@ -922,7 +1019,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         : []),
     ];
 
-    // 有查询：活跃/失败/自动化 → Issues → 小队 → Wiki → 诊断 → Memory → Agents → 导航
+    // 有查询：活跃/失败/自动化 → Issues/项目 → 小队 → Wiki → 诊断 → Memory → Agents → 导航
     if (q) {
       return [
         ...activeCmds,
@@ -933,6 +1030,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
         ...automationCmds,
         ...skillsCmds,
         ...issueCmds,
+        ...projectCmds,
         ...squadOpsCmds,
         ...squadCmds,
         ...wikiOpsCmds,
@@ -950,6 +1048,8 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
   }, [
     agents,
     activeRuns?.count,
+    projects,
+    projectsLoading,
     squads,
     debouncedQ,
     searchHits,
@@ -960,15 +1060,45 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
     wikiPages,
   ]);
 
+  const commandSelectionKey = useMemo(
+    () =>
+      commands
+        .map((command) => `${command.id}:${command.disabled ? 'disabled' : 'enabled'}`)
+        .join('|'),
+    [commands],
+  );
+
   useEffect(() => {
-    setActive(0);
-  }, [debouncedQ, commands.length]);
+    setActive(nextEnabledCommandIndex(commands, -1, 1));
+  }, [debouncedQ, commandSelectionKey]);
 
   if (!open && !quickDispatchOpen) return null;
 
   function runCommand(cmd: Command) {
+    if (cmd.disabled || !cmd.run) return;
     setOpen(false);
     cmd.run();
+  }
+
+  function onInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      setActive((current) => nextEnabledCommandIndex(commands, current, delta));
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const activeCommand = commands[active];
+      const command =
+        activeCommand && !activeCommand.disabled
+          ? activeCommand
+          : commands[nextEnabledCommandIndex(commands, -1, 1)];
+      if (command) runCommand(command);
+    }
   }
 
   return (
@@ -992,7 +1122,8 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
               className="cmdk-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索命令、Issue、Wiki、记忆或智能体…"
+              onKeyDown={onInputKeyDown}
+              placeholder="搜索命令、Issue、项目、Wiki、记忆或智能体…"
               autoFocus
               data-autofocus
               data-testid="cmdk-input"
@@ -1002,7 +1133,7 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
             <ul
               id="cmdk-list"
               role="listbox"
-              aria-activedescendant={`cmd-item-${active}`}
+              aria-activedescendant={active >= 0 ? `cmd-item-${active}` : undefined}
               className="cmdk-list"
             >
               {commands.length === 0 ? (
@@ -1016,11 +1147,16 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
                     key={cmd.id}
                     role="option"
                     aria-selected={idx === active}
+                    aria-disabled={cmd.disabled || undefined}
                   >
                     <button
                       type="button"
                       className={`cmdk-item${idx === active ? ' is-active' : ''}`}
-                      onMouseEnter={() => setActive(idx)}
+                      data-testid={`cmdk-item-${cmd.id}`}
+                      disabled={cmd.disabled}
+                      onMouseEnter={() => {
+                        if (!cmd.disabled) setActive(idx);
+                      }}
                       onClick={() => runCommand(cmd)}
                     >
                       <span className="cmdk-item-main">
@@ -1029,7 +1165,11 @@ export function CommandPalette({ open, setOpen }: CommandPaletteOpenRequest) {
                         ) : null}
                         <span>{<Highlighted text={cmd.label} indices={cmd.highlight ?? []} />}</span>
                       </span>
-                      {cmd.hint ? <span className="cmdk-hint">{cmd.hint}</span> : null}
+                      {cmd.hint ? (
+                        <span className="cmdk-hint" title={cmd.hint}>
+                          {cmd.hint}
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 ))

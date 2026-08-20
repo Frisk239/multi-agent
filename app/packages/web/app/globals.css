@@ -5143,6 +5143,11 @@ button.memory-kind-chip.is-active {
   outline: none;
 }
 
+.cmdk-item:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
 .cmdk-item-main {
   display: inline-flex;
   align-items: center;
@@ -5163,6 +5168,10 @@ button.memory-kind-chip.is-active {
   color: var(--text-dim);
   font-size: var(--text-xs);
   flex-shrink: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cmdk-empty {
