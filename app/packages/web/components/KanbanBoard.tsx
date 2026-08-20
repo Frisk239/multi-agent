@@ -99,7 +99,7 @@ function KanbanBoardInner({
   // W3：列表列排序（客户端）→ ?sort=<col>:<dir>，与 sort=updated 服务端模式互斥
   const columnSortFromUrl = useMemo(() => {
     const raw = searchParams.get('sort') ?? '';
-    const m = raw.match(/^(identifier|title|status|priority|assignee|updatedAt):(asc|desc)$/);
+    const m = raw.match(/^(identifier|title|status|priority|assignee|updatedAt|dueDate):(asc|desc)$/);
     if (!m) return null;
     return { col: m[1] as IssueListSortCol, dir: m[2] as 'asc' | 'desc' };
   }, [searchParams]);
@@ -640,6 +640,15 @@ function KanbanBoardInner({
       return visible;
     }
     return [...visible].sort((a, b) => {
+      // issue-due-date：null 排尾（asc/desc 都最后；YYYY-MM-DD 字典序即时间序）
+      if (sortCol === 'dueDate') {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        if (a.dueDate < b.dueDate) return sortDir === 'asc' ? -1 : 1;
+        if (a.dueDate > b.dueDate) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      }
       let valA: any = a[sortCol as keyof typeof a] ?? '';
       let valB: any = b[sortCol as keyof typeof b] ?? '';
       if (sortCol === 'assignee') {

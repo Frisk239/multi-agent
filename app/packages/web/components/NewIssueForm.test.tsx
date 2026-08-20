@@ -273,6 +273,37 @@ describe('NewIssueForm', () => {
     expect(input.labels).toEqual(['lab-1']);
   });
 
+  // —— issue-due-date：date-only 输入 ——
+
+  it('渲染原生 date 输入；填日期提交携带 dueDate，留空不传', () => {
+    renderForm();
+    openForm();
+    const due = screen.getByTestId('issue-form-due-date') as HTMLInputElement;
+    expect(due.type).toBe('date');
+
+    fireEvent.change(screen.getByTestId('new-issue-title'), {
+      target: { value: '带截止建卡' },
+    });
+    fireEvent.change(due, { target: { value: '2026-08-21' } });
+    fireEvent.submit(screen.getByTestId('new-issue-title').closest('form')!);
+
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    expect(createMutate.mock.calls[0][0].dueDate).toBe('2026-08-21');
+  });
+
+  it('未填截止时提交体不含 dueDate 字段', () => {
+    renderForm();
+    openForm();
+    fireEvent.change(screen.getByTestId('new-issue-title'), {
+      target: { value: '无截止建卡' },
+    });
+    fireEvent.submit(screen.getByTestId('new-issue-title').closest('form')!);
+
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    // 与 projectId 同惯例：未填 = undefined（不产生 YYYY-MM-DD 值）
+    expect(createMutate.mock.calls[0][0].dueDate).toBeUndefined();
+  });
+
   it('quickCreate 打开表单并预填该列 status', () => {
     mockLabels = [];
     const queryClient = new QueryClient({

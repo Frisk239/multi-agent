@@ -194,6 +194,8 @@ export function toIssue(
     projectId,
     projectTitle: projectId ? (extras?.projectTitle ?? null) : null,
     prUrl: row.prUrl ?? null,
+    // issue-due-date：date-only 直通（null=未设置）
+    dueDate: row.dueDate ?? null,
     labels,
     customFields: (() => {
       const raw = (row as any).customFields;

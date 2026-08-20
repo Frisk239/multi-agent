@@ -14,6 +14,10 @@ import {
   AgentRunKind,
   RunMessageKind,
   CreateIssueInput,
+  UpdateIssueInput,
+  Issue,
+  IssueExportItem,
+  validateUpdateIssue,
   BulkUpdateIssueAssigneeInput,
   BulkUpdateIssueAssigneeResponse,
   CreateAgentInput,
@@ -329,6 +333,65 @@ describe('Shared Schema Validators', () => {
       expect(CreateIssueInput.parse({ title: 'T', labels: [] }).labels).toEqual([]);
       expect(() => CreateIssueInput.parse({ title: 'T', status: 'bogus' })).toThrow();
       expect(() => CreateIssueInput.parse({ title: 'T', labels: [''] })).toThrow();
+    });
+
+    // issue-due-date：date-only 契约
+    it('accepts valid YYYY-MM-DD dueDate and defaults to undefined', () => {
+      expect(CreateIssueInput.parse({ title: 'T' }).dueDate).toBeUndefined();
+      expect(
+        CreateIssueInput.parse({ title: 'T', dueDate: '2026-08-20' }).dueDate,
+      ).toBe('2026-08-20');
+    });
+
+    it('rejects malformed dueDate formats', () => {
+      expect(() => CreateIssueInput.parse({ title: 'T', dueDate: '2026-8-20' })).toThrow();
+      expect(() => CreateIssueInput.parse({ title: 'T', dueDate: '2026/08/20' })).toThrow();
+      expect(() => CreateIssueInput.parse({ title: 'T', dueDate: 'not-a-date' })).toThrow();
+    });
+  });
+
+  describe('UpdateIssueInput.dueDate (issue-due-date)', () => {
+    it('accepts date-only string and explicit null (clear)', () => {
+      expect(UpdateIssueInput.parse({ dueDate: '2026-09-01' }).dueDate).toBe('2026-09-01');
+      expect(UpdateIssueInput.parse({ dueDate: null }).dueDate).toBeNull();
+    });
+
+    it('undefined means untouched; malformed format rejected', () => {
+      expect(UpdateIssueInput.parse({ title: 'x' }).dueDate).toBeUndefined();
+      expect(() => UpdateIssueInput.parse({ dueDate: '09/01/2026' })).toThrow();
+      expect(validateUpdateIssue({ dueDate: null } as UpdateIssueInput)).toBe(true);
+      expect(validateUpdateIssue({} as UpdateIssueInput)).toBe(false);
+    });
+
+    it('Issue contract carries nullable dueDate', () => {
+      const base = {
+        id: 'iss-1',
+        workspaceId: 'ws-1',
+        identifier: 'FRI-1',
+        title: 'T',
+        description: null,
+        status: 'todo',
+        priority: 'none',
+        assignee: null,
+        creatorType: 'member',
+        creatorId: 'u-1',
+        position: 0,
+        labels: [],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      };
+      expect(Issue.parse({ ...base, dueDate: '2026-08-20' }).dueDate).toBe('2026-08-20');
+      expect(Issue.parse({ ...base, dueDate: null }).dueDate).toBeNull();
+      expect(Issue.parse(base).dueDate).toBeUndefined();
+      expect(() => Issue.parse({ ...base, dueDate: '2026-8-20' })).toThrow();
+    });
+
+    it('IssueExportItem tolerates missing dueDate (import 兼容)', () => {
+      expect(IssueExportItem.parse({ title: 'T' }).dueDate).toBeUndefined();
+      expect(IssueExportItem.parse({ title: 'T', dueDate: null }).dueDate).toBeNull();
+      expect(IssueExportItem.parse({ title: 'T', dueDate: '2026-08-20' }).dueDate).toBe(
+        '2026-08-20',
+      );
     });
   });
 

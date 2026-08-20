@@ -750,6 +750,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
       stage: input.stage ?? null,
       projectId: input.projectId ?? null,
       customFields: input.customFields ?? null,
+      // issue-due-date：date-only 直通
+      dueDate: input.dueDate ?? null,
       enqueue: true,
     });
     if (!result.ok) {
@@ -876,6 +878,10 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           updates.prUrl = trimmed;
         }
       }
+    }
+    // issue-due-date：null 显式清除；undefined 不动（Zod 已保证 YYYY-MM-DD）
+    if (input.dueDate !== undefined) {
+      updates.dueDate = input.dueDate;
     }
     if (input.customFields !== undefined) {
       updates.customFields = input.customFields;
@@ -1452,6 +1458,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
         projectId: r.projectId ?? null,
         customFields: r.customFields ?? null,
         stage: r.stage ?? undefined,
+        // issue-due-date：快照携带；null=未设置
+        dueDate: r.dueDate ?? null,
       };
     });
     const snapshot: IssueExportV1 = {
@@ -1499,6 +1507,8 @@ export async function issueRoutes(app: FastifyInstance): Promise<void> {
           projectId: item.projectId ?? null,
           customFields: item.customFields ?? null,
           stage: item.stage ?? null,
+          // issue-due-date：旧快照缺失容错为 null
+          dueDate: item.dueDate ?? null,
           enqueue: false, // 迁移场景静默建卡，不触发 run
         });
         if (!result.ok) {

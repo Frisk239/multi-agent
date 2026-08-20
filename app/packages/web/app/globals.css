@@ -1578,6 +1578,44 @@ a.issue-status-board-link:hover {
   }
 }
 
+/* issue-due-date：截止日期 chip（学 multica board-card showDueDate） */
+.issue-card-due {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted, #64748b) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted, #64748b) 25%, transparent);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* 三态颜色（独立于 pill 基类，列表行内可单独复用为「文本+颜色」） */
+.issue-card-due--overdue {
+  color: var(--color-red, #dc2626);
+  font-weight: 700;
+}
+
+.issue-card-due--soon {
+  color: var(--color-yellow, #ca8a04);
+  font-weight: 600;
+}
+
+/* 卡片 chip 态：红/黄底色 */
+.issue-card-due.issue-card-due--overdue {
+  background: color-mix(in srgb, var(--color-red, #dc2626) 12%, transparent);
+  border-color: color-mix(in srgb, var(--color-red, #dc2626) 40%, transparent);
+}
+
+.issue-card-due.issue-card-due--soon {
+  background: color-mix(in srgb, var(--color-yellow, #ca8a04) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-yellow, #ca8a04) 40%, transparent);
+}
+
 .issue-card--run-failed {
   border-color: color-mix(in srgb, var(--color-red) 40%, var(--border));
 }

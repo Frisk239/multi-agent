@@ -216,6 +216,25 @@ function IssueSheetMeta({ issue }: { issue: Issue }) {
         <span className="issue-meta-k">负责人</span>
         <AssigneeSelect issueId={issue.id} currentAssignee={issue.assignee} />
       </div>
+      {/* issue-due-date：date-only 编辑（清空 = 清除截止） */}
+      <label className="issue-due-field" data-testid="issue-sheet-due-field">
+        <span className="issue-meta-k">截止</span>
+        <input
+          type="date"
+          className="priority-select"
+          style={{ width: '100%' }}
+          value={issue.dueDate ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            update.mutate({
+              id: issue.id,
+              input: { dueDate: v ? v : null },
+            });
+          }}
+          aria-label="截止日期"
+          data-testid="issue-sheet-due-date"
+        />
+      </label>
       <div className="issue-sheet-labels" data-testid="issue-sheet-labels">
         <IssueLabelsEditor issue={issue} />
       </div>

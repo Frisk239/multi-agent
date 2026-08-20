@@ -161,6 +161,8 @@ export const squads = sqliteTable('squad', {
       projectId: text('project_id'),
       // issue-pr-link：本地 PR/分支引用 URL（非 GitHub 集成）
       prUrl: text('pr_url'),
+      // issue-due-date：date-only 截止日期（YYYY-MM-DD；null=未设置，服务端只存取不解释）
+      dueDate: text('due_date'),
       customFields: text('custom_fields', { mode: 'json' }).$type<Record<string, string>>(),
       createdAt: integer('created_at').notNull(),
       updatedAt: integer('updated_at').notNull(),

@@ -83,6 +83,8 @@ export function NewIssueForm({
   const [labelIds, setLabelIds] = useState<string[]>([]);
   const [assigneeValue, setAssigneeValue] = useState('');
   const [projectId, setProjectId] = useState('');
+  // issue-due-date：date-only 截止（原生 input type=date，YYYY-MM-DD）
+  const [dueDate, setDueDate] = useState('');
   const [customFields, setCustomFields] = useState<{k: string; v: string}[]>([]);
   // W3：提交前 Zod 校验（CreateIssueInput）产生的字段级错误
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -348,6 +350,7 @@ export function NewIssueForm({
     setStatus('todo');
     setLabelIds([]);
     setAssigneeValue('');
+    setDueDate('');
     setCustomFields([]);
     setFieldErrors({});
     if (!projectFromUrl) setProjectId('');
@@ -382,6 +385,8 @@ export function NewIssueForm({
       labels: labelIds.length > 0 ? labelIds : undefined,
       assignee,
       projectId: projectId || undefined,
+      // issue-due-date：空串 = 未设置（不传）
+      dueDate: dueDate || undefined,
       customFields:
         Object.keys(parsedCustomFields).length > 0 ? parsedCustomFields : undefined,
     });
@@ -566,6 +571,15 @@ export function NewIssueForm({
           </option>
         ))}
       </Select>
+      {/* issue-due-date：原生 date-only 输入；空 = 不设置 */}
+      <input
+        type="date"
+        className="new-issue-input new-issue-due-date"
+        value={dueDate}
+        onChange={(e) => setDueDate(e.target.value)}
+        aria-label="截止日期"
+        data-testid="issue-form-due-date"
+      />
       <div className="new-issue-labels mb-2" data-testid="new-issue-labels">
         <div className="text-xs font-medium text-slate-600 mb-1">标签</div>
         {labelCatalog.length === 0 ? (

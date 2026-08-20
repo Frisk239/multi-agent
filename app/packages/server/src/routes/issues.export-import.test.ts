@@ -133,4 +133,56 @@ describe('G5-7 issue export/import contract', () => {
     const runsForImported = db.select().from(agentRuns).where(eq(agentRuns.issueId, imported!.id)).all();
     expect(runsForImported).toHaveLength(0);
   });
+
+  // issue-due-date：导出携带 dueDate；导入带 dueDate 建卡、缺失容错为 null
+  it('导出含 dueDate；导入带日期/缺失日期均可建卡', async () => {
+    const db = state.db!;
+    const app = await buildApp();
+
+    // 1) 建两张卡：带 dueDate / 不带
+    const withDue = await app.inject({
+      method: 'POST',
+      url: '/api/issues',
+      payload: { title: '导出-带截止', dueDate: '2026-08-30' },
+    });
+    expect(withDue.statusCode).toBe(201);
+    const withoutDue = await app.inject({
+      method: 'POST',
+      url: '/api/issues',
+      payload: { title: '导出-无截止' },
+    });
+    expect(withoutDue.statusCode).toBe(201);
+
+    // 2) 导出：带日期携带值，无日期为 null
+    const exp = await app.inject({ method: 'GET', url: '/api/issues/export' });
+    expect(exp.statusCode).toBe(200);
+    const snapshot = exp.json();
+    const itemWith = snapshot.issues.find((i: { title: string }) => i.title === '导出-带截止');
+    const itemWithout = snapshot.issues.find((i: { title: string }) => i.title === '导出-无截止');
+    expect(itemWith.dueDate).toBe('2026-08-30');
+    expect(itemWithout.dueDate).toBeNull();
+
+    // 3) 导入：带日期 + 缺失字段（旧快照容错）
+    const imp = await app.inject({
+      method: 'POST',
+      url: '/api/issues/import',
+      payload: {
+        issues: [
+          { title: '导入-带截止', dueDate: '2026-09-15' },
+          { title: '导入-旧快照无截止' },
+        ],
+      },
+    });
+    expect(imp.statusCode).toBe(200);
+    const impBody = imp.json();
+    expect(impBody.ok).toBe(true);
+    expect(impBody.created).toBe(2);
+    expect(impBody.failed).toEqual([]);
+
+    const a = db.select().from(issues).where(eq(issues.title, '导入-带截止')).get();
+    const b = db.select().from(issues).where(eq(issues.title, '导入-旧快照无截止')).get();
+    expect(a?.dueDate).toBe('2026-09-15');
+    expect(b?.dueDate).toBeNull();
+    await app.close();
+  });
 });

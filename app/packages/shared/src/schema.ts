@@ -928,6 +928,10 @@ export const IssueChildProgress = z.object({
 });
 export type IssueChildProgress = z.infer<typeof IssueChildProgress>;
 
+// issue-due-date：date-only 截止日期（学 multica date-only 语义，服务端只存取不解释）
+export const DueDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'dueDate 必须是 YYYY-MM-DD');
+export type DueDate = z.infer<typeof DueDate>;
+
 export const Issue = z.object({
   id: BusinessId,
   workspaceId: BusinessId,
@@ -953,6 +957,8 @@ export const Issue = z.object({
   projectTitle: z.string().nullable().optional(),
   // issue-pr-link：PR/分支 URL（本地引用，非 OAuth）
   prUrl: z.string().nullable().optional(),
+  // issue-due-date：截止日期（YYYY-MM-DD；null=未设置）
+  dueDate: DueDate.nullable().optional(),
   // issue-labels：list/detail 始终带数组（可空）
   labels: z.array(IssueLabel).default([]),
   customFields: z.record(z.string()).nullable().optional(),
@@ -991,6 +997,8 @@ export const CreateIssueInput = z
     // projects-mvp：创建时归属
     projectId: BusinessId.optional(),
     customFields: z.record(z.string()).nullable().optional(),
+    // issue-due-date：创建时可选截止日期（YYYY-MM-DD）
+    dueDate: DueDate.optional(),
   })
   .superRefine((o, ctx) => {
     if (o.originType === 'quick_create') {
@@ -1034,6 +1042,8 @@ export const UpdateIssueInput = z.object({
   projectId: BusinessId.nullable().optional(),
   // issue-pr-link：设/清 PR URL
   prUrl: z.string().nullable().optional(),
+  // issue-due-date：设/清截止日期（null=清除；undefined=不动）
+  dueDate: DueDate.nullable().optional(),
   customFields: z.record(z.string()).nullable().optional(),
 });
 export type UpdateIssueInput = z.infer<typeof UpdateIssueInput>;
@@ -1048,6 +1058,7 @@ export function validateUpdateIssue(d: UpdateIssueInput): boolean {
     d.assignee !== undefined ||
     d.projectId !== undefined ||
     d.prUrl !== undefined ||
+    d.dueDate !== undefined ||
     d.customFields !== undefined
   );
 }
@@ -2900,6 +2911,8 @@ export const IssueExportItem = z.object({
   customFields: z.record(z.string()).nullable().optional(),
   /** 阶段号（子任务屏障）；不导出父引用（跨库迁移父 id 无意义） */
   stage: z.number().int().nonnegative().optional(),
+  /** issue-due-date：截止日期；旧快照缺失时容错为 null */
+  dueDate: DueDate.nullable().optional(),
 });
 export type IssueExportItem = z.infer<typeof IssueExportItem>;
 

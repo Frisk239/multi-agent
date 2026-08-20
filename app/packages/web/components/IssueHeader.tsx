@@ -184,6 +184,25 @@ export function IssueHeader({
           ))}
         </Select>
       </label>
+      {/* issue-due-date：date-only 编辑（清空 = 清除截止） */}
+      <label className="issue-due-field" data-testid="issue-due-field">
+        <span className="issue-meta-k">截止</span>
+        <input
+          type="date"
+          className="priority-select"
+          style={{ width: '100%' }}
+          value={issue.dueDate ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            update.mutate({
+              id: issue.id,
+              input: { dueDate: v ? v : null },
+            });
+          }}
+          aria-label="截止日期"
+          data-testid="issue-props-due-date"
+        />
+      </label>
       {issue.parentIssueId ? (
         <div className="issue-props-parent" data-testid="issue-props-parent">
           <span className="issue-meta-k">父 issue</span>

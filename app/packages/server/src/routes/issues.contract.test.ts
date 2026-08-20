@@ -944,5 +944,86 @@ describe('issues contract (W5)', () => {
       expect((res.json() as { error?: string }).error).toContain('已归档');
       await app.close();
     });
+
+    // issue-due-date：创建写入 + 投影回显 + 非法格式拒绝
+    it('creates with dueDate echoed in response and persisted to the row', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'due-date create', dueDate: '2026-08-20' },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as { id: string; dueDate: string | null };
+      expect(body.dueDate).toBe('2026-08-20');
+      const row = state.db!.select().from(issues).where(eq(issues.id, body.id)).get();
+      expect(row?.dueDate).toBe('2026-08-20');
+      await app.close();
+    });
+
+    it('defaults to null dueDate when omitted', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'due-date default null' },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json() as { id: string; dueDate: string | null };
+      expect(body.dueDate).toBeNull();
+      const row = state.db!.select().from(issues).where(eq(issues.id, body.id)).get();
+      expect(row?.dueDate).toBeNull();
+      await app.close();
+    });
+
+    it('400 VALIDATION_ERROR on malformed dueDate', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/issues',
+        payload: { title: 'due-date bad format', dueDate: '2026/08/20' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { code?: string }).code).toBe('VALIDATION_ERROR');
+      await app.close();
+    });
+  });
+
+  describe('PUT /api/issues/:id dueDate (issue-due-date)', () => {
+    it('sets and then clears dueDate (null semantics, undefined untouched)', async () => {
+      const app = await buildApp();
+      const set = await app.inject({
+        method: 'PUT',
+        url: '/api/issues/iss-test-1',
+        payload: { dueDate: '2026-09-01' },
+      });
+      expect(set.statusCode).toBe(200);
+      expect((set.json() as { dueDate: string | null }).dueDate).toBe('2026-09-01');
+      let row = state.db!.select().from(issues).where(eq(issues.id, 'iss-test-1')).get();
+      expect(row?.dueDate).toBe('2026-09-01');
+
+      // null = 显式清除
+      const clear = await app.inject({
+        method: 'PUT',
+        url: '/api/issues/iss-test-1',
+        payload: { dueDate: null },
+      });
+      expect(clear.statusCode).toBe(200);
+      expect((clear.json() as { dueDate: string | null }).dueDate).toBeNull();
+      row = state.db!.select().from(issues).where(eq(issues.id, 'iss-test-1')).get();
+      expect(row?.dueDate).toBeNull();
+      await app.close();
+    });
+
+    it('400 on malformed dueDate', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/issues/iss-test-1',
+        payload: { dueDate: 'tomorrow' },
+      });
+      expect(res.statusCode).toBe(400);
+      await app.close();
+    });
   });
 });

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Issue, IssueStatus, Priority } from '@ma/shared';
 import type { Density } from '@/lib/density';
+import { dueModifierClass, dueState } from '@/lib/due';
 import {
   ISSUE_LIST_OVERSCAN,
   ISSUE_LIST_VIEWPORT_MAX_HEIGHT,
@@ -32,7 +33,7 @@ const STATUS_COLUMNS: { title: string; status: IssueStatus }[] = [
   { title: '已取消', status: 'cancelled' },
 ];
 
-const COL_COUNT = 9;
+const COL_COUNT = 10;
 
 export type IssueListSortCol =
   | 'identifier'
@@ -40,9 +41,10 @@ export type IssueListSortCol =
   | 'status'
   | 'priority'
   | 'assignee'
-  | 'updatedAt';
+  | 'updatedAt'
+  | 'dueDate';
 
-/** W3：可排序表头元数据（6 列）——统一 aria-sort / 键盘 / aria-label */
+/** W3：可排序表头元数据（7 列）——统一 aria-sort / 键盘 / aria-label */
 const SORTABLE_COLUMNS: {
   col: IssueListSortCol;
   label: string;
@@ -55,6 +57,7 @@ const SORTABLE_COLUMNS: {
   { col: 'priority', label: '优先级', sortLabel: '按优先级排序', testId: 'issue-list-sort-header-priority' },
   { col: 'assignee', label: '指派', sortLabel: '按指派排序', testId: 'issue-list-sort-header-assignee' },
   { col: 'updatedAt', label: '更新时间', sortLabel: '按更新时间排序', testId: 'issue-list-sort-header-updatedAt' },
+  { col: 'dueDate', label: '截止', sortLabel: '按截止日期排序', testId: 'issue-list-sort-header-dueDate' },
 ];
 
 /** W3：可排序表头——aria-sort + tabIndex=0 + Enter/Space 与点击同逻辑 */
@@ -344,7 +347,6 @@ export function IssueListView({
                   </span>
                 </td>
                 <td className="text-sm text-dim">{assignee}</td>
-                <td className="text-dim text-sm">{proj}</td>
                 <td className="text-dim text-sm" style={{ whiteSpace: 'nowrap' }}>
                   {iss.updatedAt
                     ? new Date(iss.updatedAt).toLocaleTimeString([], {
@@ -353,6 +355,21 @@ export function IssueListView({
                       })
                     : '—'}
                 </td>
+                {/* issue-due-date：截止列（三态文本+颜色；无日期 —） */}
+                <td className="text-sm" style={{ whiteSpace: 'nowrap' }}>
+                  {iss.dueDate ? (
+                    <span
+                      className={dueModifierClass(dueState(iss.dueDate))}
+                      data-testid="issue-list-due"
+                      data-due-state={dueState(iss.dueDate) ?? 'normal'}
+                    >
+                      {iss.dueDate}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="text-dim text-sm">{proj}</td>
                 <td>
                   <Link
                     href={getDetailHref?.(iss) ?? `/issues/${iss.id}`}

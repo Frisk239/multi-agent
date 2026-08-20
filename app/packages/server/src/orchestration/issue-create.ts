@@ -35,6 +35,8 @@ export type CreateIssueCoreInput = {
   projectId?: string | null;
   /** 自定义字段 */
   customFields?: Record<string, string> | null;
+  /** issue-due-date：date-only 截止日期（YYYY-MM-DD；null=未设置） */
+  dueDate?: string | null;
   /** 默认 true：有 assignee 则 enqueue */
   enqueue?: boolean;
 };
@@ -197,6 +199,7 @@ export async function createIssueCore(
       stage: input.stage ?? null,
       projectId,
       customFields: input.customFields ?? null,
+      dueDate: input.dueDate ?? null,
       createdAt: now,
       updatedAt: now,
     })

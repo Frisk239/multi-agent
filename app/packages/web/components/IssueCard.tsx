@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import type { AgentReadiness, Issue, IssueStatus } from '@ma/shared';
 import { deriveIssueCardLive } from '@/lib/issue-card-live';
+import { dueModifierClass, dueState } from '@/lib/due';
 import { useRerunIssue } from '@/lib/api';
 import { IssueCardMenu } from './IssueCardMenu';
 import { useSortable } from '@dnd-kit/sortable';
@@ -153,6 +154,9 @@ export const IssueCard = React.memo(function IssueCard({
       : '运行中 / 排队中';
   const desc = descriptionPreview(issue.description);
   const updated = updatedAgo(issue.updatedAt);
+  // issue-due-date：三态（overdue/soon/normal）；null = 不渲染
+  const dueSt = dueState(issue.dueDate);
+  const dueMod = dueModifierClass(dueSt);
   const fullPageHref = showLive
     ? `/issues/${issue.id}#run-trace`
     : `/issues/${issue.id}`;
@@ -243,6 +247,17 @@ export const IssueCard = React.memo(function IssueCard({
                 data-testid="issue-card-children"
               >
                 {issue.childProgress.done}/{issue.childProgress.total}
+              </span>
+            ) : null}
+            {issue.dueDate ? (
+              // issue-due-date：纯展示 chip（不参与点击筛选）；三态高亮 overdue 红 / soon 黄
+              <span
+                className={`issue-card-due${dueMod ? ` ${dueMod}` : ''}`}
+                title={`截止：${issue.dueDate}`}
+                data-testid="issue-card-due"
+                data-due-state={dueSt ?? 'normal'}
+              >
+                {issue.dueDate}
               </span>
             ) : null}
             {showLive ? (
@@ -472,6 +487,7 @@ export const IssueCard = React.memo(function IssueCard({
 }, (prev, next) => {
   return prev.issue.id === next.issue.id &&
          prev.issue.updatedAt === next.issue.updatedAt &&
+         prev.issue.dueDate === next.issue.dueDate &&
          prev.selected === next.selected &&
          prev.runActive === next.runActive &&
          prev.runWaiting === next.runWaiting &&
