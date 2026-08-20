@@ -474,9 +474,20 @@ export function useSetWorkspaceCwd() {
 }
 
 // GET /api/memory?q=&scope= — 空 q 为最近 N 条；G4-4：可选 scope 过滤
+// projectId 三态：undefined=全量、null=仅全局、ID=该项目+全局（服务端同语义）。
+// queryKey 必须区分三态——若 undefined/null 都折为 '' 会串缓存（项目筛选切档读到脏数据）。
+const PROJECT_FILTER_ALL = '__all__';
+const PROJECT_FILTER_GLOBAL_ONLY = '__global__';
+
+export function memoryProjectFilterKey(projectId: string | null | undefined): string {
+  if (projectId === undefined) return PROJECT_FILTER_ALL;
+  if (projectId === null) return PROJECT_FILTER_GLOBAL_ONLY;
+  return projectId;
+}
+
 export function useMemoryList(q: string, scope?: string, projectId?: string | null) {
   return useQuery({
-    queryKey: ['memory', q, scope ?? '', projectId ?? ''],
+    queryKey: ['memory', q, scope ?? '', memoryProjectFilterKey(projectId)],
     queryFn: async () => {
       const params = new URLSearchParams({ includeInvalid: '1' });
       if (q.trim()) params.set('q', q.trim());

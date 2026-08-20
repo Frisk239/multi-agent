@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import type { Project } from '@ma/shared';
 import {
   useMemoryStatus,
   useMemoryList,
@@ -11,6 +12,7 @@ import {
   useDeleteMemory,
   useDeleteMemoryMany,
   useSettingsStatus,
+  useProjects,
   type MemoryItem,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
@@ -38,6 +40,43 @@ const SCOPE_ZH: Record<string, string> = {
   run: 'Run',
 };
 
+// 项目筛选下拉的「仅全局」哨兵值（URL 侧用空值参数 project= 表达）
+const PROJECT_FILTER_GLOBAL_ONLY = '__global__';
+
+/**
+ * 「项目边界」单元格/详情显示（Memory 项目上下文闭环）：
+ * - 项目存在 → 项目名 + 回链 /projects/:id
+ * - 项目已删（useProjects 查不到）→ 不可点击的历史 ID fallback（记忆不迁移不消失）
+ * - 无项目 → 全局
+ */
+function ProjectBadge({
+  projectId,
+  projectsById,
+}: {
+  projectId?: string | null;
+  projectsById: Map<string, Project>;
+}) {
+  if (!projectId) return <span>全局</span>;
+  const project = projectsById.get(projectId);
+  if (project) {
+    return (
+      <Link
+        href={`/projects/${project.id}`}
+        className="table-link"
+        data-testid="memory-project-link"
+        title={project.id}
+      >
+        {project.title}
+      </Link>
+    );
+  }
+  return (
+    <span className="text-dim" data-testid="memory-project-deleted" title={projectId}>
+      已删项目 <code>{projectId.slice(0, 8)}…</code>
+    </span>
+  );
+}
+
 function MemoryPageInner() {
   const router = useRouter();
   const pathname = usePathname();
@@ -45,13 +84,19 @@ function MemoryPageInner() {
   const qFromUrl = searchParams.get('q') ?? '';
   const kindFromUrl = searchParams.get('kind') ?? '';
   const scopeFromUrl = searchParams.get('scope') ?? '';
+  // ?project= 三态（URL 是唯一真源）：参数缺失=undefined（全部项目）、空值=null（仅全局）、有值=项目 ID
+  const projectParamRaw = searchParams.get('project');
+  const projectFilter: string | null | undefined =
+    projectParamRaw === null ? undefined : projectParamRaw === '' ? null : projectParamRaw;
 
   const { data: status } = useMemoryStatus();
   const { data: settings } = useSettingsStatus();
+  const { data: projects } = useProjects();
   const [qDraft, setQDraft] = useState(qFromUrl);
   const { data, isFetching, isError, error, refetch } = useMemoryList(
     qFromUrl,
     scopeFromUrl || undefined,
+    projectFilter,
   );
   const create = useCreateMemory();
   const del = useDeleteMemory();
@@ -141,6 +186,18 @@ function MemoryPageInner() {
     return c;
   }, [data]);
 
+  const projectsById = useMemo(() => {
+    const map = new Map<string, Project>();
+    for (const p of projects ?? []) map.set(p.id, p);
+    return map;
+  }, [projects]);
+
+  // 选中的有效项目（URL project=ID 且该项目仍存在）→ 创建默认归属 + 可见提示；已删/仅全局/未选 → null（不强塞）
+  const activeProject =
+    projectFilter != null && projectsById.has(projectFilter)
+      ? projectsById.get(projectFilter)!
+      : null;
+
   function clearSearch() {
     setQDraft('');
     const sp = new URLSearchParams(searchParams.toString());
@@ -195,7 +252,11 @@ function MemoryPageInner() {
     }
     setFormError(null);
     try {
-      await create.mutateAsync({ text, scope: createScope });
+      await create.mutateAsync({
+        text,
+        scope: createScope,
+        ...(activeProject ? { projectId: activeProject.id } : {}),
+      });
       setDraft('');
     } catch (e) {
       setFormError(e instanceof Error ? e.message : '创建失败');
@@ -352,6 +413,11 @@ function MemoryPageInner() {
             <option value="issue">Issue</option>
             <option value="run">Run</option>
           </select>
+          {activeProject ? (
+            <span className="text-dim text-sm" data-testid="memory-create-project-hint">
+              归属：{activeProject.title}
+            </span>
+          ) : null}
           {formError && (
             <span className="text-sm" style={{ color: 'var(--color-red)' }}>
               {formError}
@@ -401,6 +467,41 @@ function MemoryPageInner() {
             <option value="agent">Agent</option>
             <option value="issue">Issue</option>
             <option value="run">Run</option>
+          </select>
+          <select
+            className="memory-scope-select"
+            value={
+              projectFilter === undefined
+                ? ''
+                : projectFilter === null
+                  ? PROJECT_FILTER_GLOBAL_ONLY
+                  : projectFilter
+            }
+            onChange={(e) => {
+              const v = e.target.value;
+              const sp = new URLSearchParams(searchParams.toString());
+              // URL 是唯一真源：全部项目=移除参数、仅全局=空值参数 project=、项目=set 值
+              if (v === '') sp.delete('project');
+              else sp.set('project', v === PROJECT_FILTER_GLOBAL_ONLY ? '' : v);
+              const qs = sp.toString();
+              router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+            }}
+            aria-label="按项目筛选"
+            data-testid="memory-project-filter"
+            disabled={showUnavailable}
+          >
+            <option value="">全部项目</option>
+            <option value={PROJECT_FILTER_GLOBAL_ONLY}>仅全局</option>
+            {(projects ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+            {projectFilter != null &&
+            projectFilter !== PROJECT_FILTER_GLOBAL_ONLY &&
+            !projectsById.has(projectFilter) ? (
+              <option value={projectFilter}>已删项目 {projectFilter.slice(0, 8)}…</option>
+            ) : null}
           </select>
           {hasQuery || qDraft.trim() ? (
             <button
@@ -456,7 +557,7 @@ function MemoryPageInner() {
         ) : null}
       </div>
 
-      {(hasQuery || kindFilter) ? (
+      {hasQuery || kindFilter || scopeFromUrl || projectFilter !== undefined ? (
         <div
           className="memory-active-filters"
           data-testid="memory-active-filters"
@@ -495,6 +596,26 @@ function MemoryPageInner() {
               }}
             >
               scope · {SCOPE_ZH[scopeFromUrl] ?? scopeFromUrl} ×
+            </button>
+          ) : null}
+          {projectFilter !== undefined ? (
+            <button
+              type="button"
+              className="kanban-active-chip"
+              data-testid="memory-chip-project"
+              onClick={() => {
+                const sp = new URLSearchParams(searchParams.toString());
+                sp.delete('project');
+                const qs = sp.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+              }}
+            >
+              项目 ·{' '}
+              {projectFilter === null
+                ? '仅全局'
+                : (projectsById.get(projectFilter)?.title ??
+                  `已删 ${projectFilter.slice(0, 8)}…`)}{' '}
+              ×
             </button>
           ) : null}
           <button
@@ -660,7 +781,7 @@ function MemoryPageInner() {
                       )}
                     </td>
                     <td className="text-dim text-sm">
-                      {m.projectId ? <code title={m.projectId}>{m.projectId.slice(0, 8)}…</code> : '全局'}
+                      <ProjectBadge projectId={m.projectId} projectsById={projectsById} />
                     </td>
                     <td>
                       {m.invalidAt && clientNow !== null && new Date(m.invalidAt).getTime() <= clientNow ? (
@@ -733,7 +854,7 @@ function MemoryPageInner() {
                       title="记忆不可用"
                       description="无法列出条目，请检查环境配置"
                     />
-                  ) : hasQuery || kindFilter ? (
+                  ) : hasQuery || kindFilter || projectFilter !== undefined ? (
                     <div data-testid="memory-empty-filter">
                       <EmptyState
                         icon="🔍"
@@ -892,7 +1013,7 @@ function MemoryPageInner() {
                   <div>
                     <dt>项目边界</dt>
                     <dd>
-                      {detail.projectId ? <code>{detail.projectId}</code> : '全局'}
+                      <ProjectBadge projectId={detail.projectId} projectsById={projectsById} />
                     </dd>
                   </div>
                   <div>

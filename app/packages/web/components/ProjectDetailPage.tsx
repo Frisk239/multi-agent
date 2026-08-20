@@ -244,6 +244,13 @@ export function ProjectDetailPage({ id }: { id: string }) {
           >
             看板
           </Link>
+          <Link
+            href={`/memory?project=${encodeURIComponent(project.id)}`}
+            className="btn btn-secondary btn-sm"
+            data-testid="project-to-memory"
+          >
+            项目记忆
+          </Link>
           <PageHeaderMore testId="project-header-more">
             <button
               type="button"
