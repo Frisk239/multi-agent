@@ -1,7 +1,7 @@
 # Spec: automation-rule-archive-preserves-history
 
 日期：2026-08-19
-状态：实施中
+状态：已完成（`06f5185 feat(automation): archive rules with history`）
 上一刀 Intake：`app/.progress/automation-schedule-catchup-truth-intake.md`（通过）
 调研：`app/.progress/automation-next-gap-discovery-2026-08-19.md`
 
