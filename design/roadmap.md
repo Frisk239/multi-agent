@@ -229,6 +229,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 39 | **看板泳道视图（薄版）** | G3 | ✅（2026-08-20，[closeout](app/.progress/kanban-swimlane-view-impl-1.md)：?view=swimlane 三态视图、agent/squad/未指派分道、readiness chip+计数、复用 KanbanColumn 空列隐藏；隔离 E2E 7/7） |
 | 40 | **列表表格二阶（列选择+分组行）** | G3 | ✅（2026-08-21，[closeout](app/.progress/list-table-upgrade-impl-1.md)：6 列可隐藏 localStorage 持久化、?group= 三维分组头行+计数、分组禁虚拟化；隔离 E2E 9/9；实现子代理中途模型失败由 Owner 接手收尾） |
 | 41 | **Webhook 触发频率限制** | G5 | ✅（2026-08-21，[closeout](app/.progress/webhook-rate-limit-impl-1.md)：60s 滑窗默认 10/分钟可配置、429 rate_limited+delivery 审计不建 run、ping/filtered 豁免、UI 上限配置+已限流文案；隔离 E2E 9/9） |
+| 42 | **泳道跨道拖拽改派** | G3 | ✅（2026-08-21，[closeout](app/.progress/swimlane-drag-reassign-impl-1.md)：单层 DndContext+resolveSwimlaneDrop 纯函数、bulk-assign preflight 复用、空道 drop zone（swimlane-empty: 前缀消歧+MeasuringStrategy.Always）、空 agent/squad 恒有道；两条 drop 路径真实浏览器各自 PASS；headless 长距离列路径拖拽抖动记为债务） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
