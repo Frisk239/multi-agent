@@ -147,3 +147,13 @@ export function parseViewMode(raw: string | null): KanbanViewMode {
   if (raw === 'swimlane') return 'swimlane';
   return 'board';
 }
+
+/** 列表表格二阶：分组维度（URL `?group=` 唯一真源；缺省=不分组） */
+export type IssueListGroupMode = 'none' | 'status' | 'assignee' | 'project';
+
+export function parseIssueListGroup(raw: string | null): IssueListGroupMode {
+  if (raw === 'status') return 'status';
+  if (raw === 'assignee') return 'assignee';
+  if (raw === 'project') return 'project';
+  return 'none';
+}

@@ -68,8 +68,10 @@ import {
   kanbanKeyboardCoordinates,
   parseAssigneeParam,
   parseViewMode,
+  parseIssueListGroup,
   type KanbanScopeFilter,
   type KanbanViewMode,
+  type IssueListGroupMode,
 } from './KanbanBoard.shared';
 import { computeDragReorder } from './KanbanBoard.dnd';
 import { KanbanToolbar } from './KanbanBoard.toolbar';
@@ -96,6 +98,10 @@ function KanbanBoardInner({
   const statusFromUrl = searchParams.get('status') ?? '';
   // P2-A：?view=list|board（默认看板）；泳道刀：+swimlane 三态
   const viewMode: KanbanViewMode = parseViewMode(searchParams.get('view'));
+  // 列表表格二阶：?group=none|status|assignee|project（默认 none，URL 唯一真源）
+  const issueListGroup: IssueListGroupMode = parseIssueListGroup(
+    searchParams.get('group'),
+  );
   // DS2：列表 sort=manual|updated（默认 manual 与看板一致）
   const sortMode =
     searchParams.get('sort') === 'updated' ? 'updated' : 'manual';
@@ -245,6 +251,20 @@ function KanbanBoardInner({
         // 泳道无排序语义：不带 list 的 sort 参数
         if (mode === 'swimlane') sp.delete('sort');
       }
+      // 分组参数仅列表视图有语义：离开列表时清掉
+      if (mode !== 'list') sp.delete('group');
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  // 列表表格二阶：分组写回 URL（?group=；none = 删参回到缺省）
+  const setIssueListGroup = useCallback(
+    (mode: IssueListGroupMode) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (mode === 'none') sp.delete('group');
+      else sp.set('group', mode);
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
@@ -861,6 +881,8 @@ function KanbanBoardInner({
             onStatusChange={handleListStatusChange}
             getDetailHref={getIssueSheetHref}
             onOpenDetail={handleOpenIssueDetail}
+            groupBy={issueListGroup}
+            onGroupChange={setIssueListGroup}
           />
         )
       ) : viewMode === 'swimlane' ? (

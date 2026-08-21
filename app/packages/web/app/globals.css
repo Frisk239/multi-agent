@@ -9710,6 +9710,86 @@ a.issue-card-run-fail--link:hover {
   background: color-mix(in srgb, var(--accent, #7aa2f7) 8%, transparent);
 }
 
+/* —— 列表表格二阶：工具行（分组下拉 + 列选择） —— */
+.issue-list-shell {
+  display: block;
+}
+
+.issue-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  margin-top: var(--space-2, 8px);
+}
+
+.issue-list-toolbar .issue-list-group-select {
+  font-size: var(--text-sm, 13px);
+}
+
+.issue-list-column-picker-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.issue-list-column-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30; /* 需盖过 sticky 表头（thead z-index: 1） */
+  min-width: 148px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-elevated, var(--surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--floating-shadow, 0 8px 24px rgba(0, 0, 0, 0.18));
+  animation: dropdown-pop 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.issue-list-column-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm, 13px);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.issue-list-column-option:hover {
+  background: color-mix(in srgb, var(--accent, #7aa2f7) 8%, transparent);
+}
+
+/* —— 列表表格二阶：分组头行（随内容滚动，避免与 sticky 表头叠压） —— */
+.issue-list-group-row th {
+  background: var(--bg-elevated, var(--surface));
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.issue-list-group-label {
+  margin-right: 8px;
+}
+
+.issue-list-group-count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
 .kanban-toolbar-more {
   display: flex;
   flex-wrap: wrap;
