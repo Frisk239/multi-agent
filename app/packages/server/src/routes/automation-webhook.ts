@@ -147,9 +147,13 @@ export async function automationWebhookRoutes(app: FastifyInstance): Promise<voi
         .send({ status: 'filtered', deliveryId, error: `事件 ${event} 未命中过滤列表` });
     }
 
-    // 通过 → 复用 dispatch 核心（与 run-now 同一入口，source='webhook' 可观测）
+    // 通过 → 复用 dispatch 核心（与 run-now 同一入口，source='webhook' 可观测）；
+    // 事件上下文透传给模板渲染（{{webhook.*}} 占位符），schedule/manual 调用点不传即渲染空串
     try {
-      const run = await dispatchAutomationRule(rule.id, Date.now(), 'webhook');
+      const run = await dispatchAutomationRule(rule.id, Date.now(), 'webhook', {
+        event,
+        payload,
+      });
       const auditError = runAuditError(run);
       const deliveryId = insertWebhookDelivery(rule.id, {
         event,

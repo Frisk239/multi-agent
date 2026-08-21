@@ -466,4 +466,59 @@ describe('automation run_only (A5 / Multica)', () => {
     expect(issue).toBeTruthy();
     expect(issue!.title).toContain('巡检');
   });
+
+  it.each([
+    ['schedule', 'create_issue'],
+    ['manual', 'run_only'],
+  ] as const)(
+    '%s dispatch（无 webhook ctx）把模板 {{webhook.*}} 占位符渲染为空串（%s 共用模板不炸）',
+    async (source, executionMode) => {
+      const now = Date.now();
+      const ruleId = `rule-no-webhook-${source}-${executionMode}`;
+      state.db!.insert(automationRules).values({
+        id: ruleId,
+        name: 'shared-tpl',
+        enabled: 1,
+        scheduleKind: 'interval_minutes',
+        intervalMinutes: 15,
+        dailyTime: null,
+        cronExpression: null,
+        assigneeType: 'agent',
+        assigneeId: 'agt-test-1',
+        titleTemplate: '巡检 {{webhook.event}} {{webhook.payload.ref}}',
+        bodyTemplate:
+          '事件 {{webhook.event}}\npayload {{webhook.payload}}\n深层 {{webhook.payload.a.b}}',
+        executionMode,
+        lastPlannedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }).run();
+
+      const plannedAt = 1_700_000_200_000;
+      const auto = await dispatchAutomationRule(ruleId, plannedAt, source);
+
+      if (executionMode === 'create_issue') {
+        expect(auto.issueId).toBeTruthy();
+        const issue = state.db!
+          .select()
+          .from(issues)
+          .where(eq(issues.id, auto.issueId!))
+          .get();
+        expect(issue!.title).toBe('巡检  ');
+        expect(issue!.description).toContain('事件 \npayload \n深层 ');
+        expect(issue!.description).not.toContain('{{webhook.');
+      } else {
+        expect(auto.linkedRunId).toBeTruthy();
+        const linked = state.db!
+          .select()
+          .from(agentRuns)
+          .where(eq(agentRuns.id, auto.linkedRunId!))
+          .get();
+        expect(linked!.quickPrompt).toContain('巡检  ');
+        // buildAutomationRunOnlyPrompt 对 body 做 trim：深层行尾的占位符空串被一并剪掉
+        expect(linked!.quickPrompt).toContain('事件 \npayload \n深层');
+        expect(linked!.quickPrompt).not.toContain('{{webhook.');
+      }
+    },
+  );
 });

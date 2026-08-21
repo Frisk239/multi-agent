@@ -368,6 +368,12 @@ function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
         <code>{'{ "event": "push", "payload": {…} }'}</code> 即可触发本规则；{' '}
         <code>event: &quot;ping&quot;</code> 仅测连通。
       </p>
+      <p className="text-dim text-sm">
+        模板可用 webhook 变量：
+        <code>{'{{webhook.event}}'}</code> <code>{'{{webhook.payload}}'}</code>{' '}
+        <code>{'{{webhook.payload.<字段>}}'}</code>
+        （触发时渲染进标题/描述；定时/手动触发渲染为空）
+      </p>
 
       {rule.archivedAt ? (
         <p className="text-dim text-sm">规则已归档，Webhook 不会再触发。</p>
@@ -1123,14 +1129,16 @@ function AutomationPageInner() {
               rows={3}
               value={bodyTemplate}
               onChange={(e) => setBodyTemplate(e.target.value)}
-              placeholder="支持 {{date}} {{time}} {{iso_time}} {{rule_name}}"
+              placeholder="支持 {{date}} {{time}} {{iso_time}} {{rule_name}} {{webhook.event}}"
             />
           </label>
           <p className="automation-template-hint text-dim text-sm">
             占位符：
             <code>{'{{date}}'}</code> <code>{'{{time}}'}</code>{' '}
-            <code>{'{{iso_time}}'}</code> <code>{'{{rule_name}}'}</code>
-            （大小写敏感）
+            <code>{'{{iso_time}}'}</code> <code>{'{{rule_name}}'}</code>{' '}
+            <code>{'{{webhook.event}}'}</code> <code>{'{{webhook.payload}}'}</code>{' '}
+            <code>{'{{webhook.payload.<字段>}}'}</code>
+            （大小写敏感；webhook 变量仅在 Webhook 触发时有值，定时/手动触发渲染为空）
           </p>
           <div
             className="automation-template-preview"

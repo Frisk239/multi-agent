@@ -10,9 +10,11 @@ import { eq } from 'drizzle-orm';
 import { createTestDb } from '../__test-helpers__/test-db.js';
 import { seedTestFixtures } from '../__test-helpers__/seed-fixtures.js';
 import {
+  agentRuns,
   automationRules,
   automationRuns,
   automationWebhookDeliveries,
+  issues,
 } from '../db/schema.js';
 
 const state = vi.hoisted(() => ({
@@ -347,6 +349,66 @@ describe('automation webhook trigger', () => {
       webhookToken: 't'.repeat(48),
       webhookEvents: ['push', 'tag_push'],
     });
+
+    await app.close();
+  });
+
+  it('webhook trigger renders {{webhook.*}} placeholders into the created issue (create_issue)', async () => {
+    const ruleId = seedRule({
+      titleTemplate: '事件 {{webhook.event}} @ {{webhook.payload.ref}}',
+      bodyTemplate: '提交人 {{webhook.payload.author}}\n完整 payload：\n{{webhook.payload}}',
+    });
+    const app = await buildApp();
+
+    const res = await postWebhook(app, 't'.repeat(48), {
+      event: 'push',
+      payload: { ref: 'refs/heads/main', author: 'octo' },
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().status).toBe('dispatched');
+
+    const runs = runsFor(ruleId);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.issueId).toBeTruthy();
+    const issue = state.db!
+      .select()
+      .from(issues)
+      .where(eq(issues.id, runs[0]!.issueId!))
+      .get();
+    expect(issue!.title).toBe('事件 push @ refs/heads/main');
+    expect(issue!.description).toContain('提交人 octo');
+    expect(issue!.description).toContain('"ref": "refs/heads/main"');
+    expect(issue!.description).not.toContain('{{webhook.');
+
+    await app.close();
+  });
+
+  it('webhook trigger renders {{webhook.*}} placeholders into the run_only prompt', async () => {
+    const ruleId = seedRule({
+      executionMode: 'run_only',
+      titleTemplate: '{{webhook.event}} 巡检',
+      bodyTemplate: 'ref={{webhook.payload.ref}}',
+    });
+    const app = await buildApp();
+
+    const res = await postWebhook(app, 't'.repeat(48), {
+      event: 'push',
+      payload: { ref: 'refs/heads/main' },
+    });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().status).toBe('dispatched');
+
+    const runs = runsFor(ruleId);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.linkedRunId).toBeTruthy();
+    const linked = state.db!
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.id, runs[0]!.linkedRunId!))
+      .get();
+    expect(linked!.quickPrompt).toContain('push 巡检');
+    expect(linked!.quickPrompt).toContain('ref=refs/heads/main');
+    expect(linked!.quickPrompt).not.toContain('{{webhook.');
 
     await app.close();
   });

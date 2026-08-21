@@ -5,6 +5,8 @@ import {
   type AutomationRun,
   type AutomationRunSource,
   type AutomationScheduleKind,
+  type AutomationTemplateContext,
+  type AutomationTemplateWebhookContext,
 } from '@ma/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { db } from '../db/client.js';
@@ -87,10 +89,7 @@ function allowNotReadyEnqueue(): boolean {
 }
 
 /** @deprecated 请用 @ma/shared renderAutomationTemplate；保留 re-export 兼容 */
-export function renderTemplate(
-  tpl: string,
-  ctx: { plannedAt: number; ruleName: string },
-): string {
+export function renderTemplate(tpl: string, ctx: AutomationTemplateContext): string {
   return renderAutomationTemplate(tpl, ctx);
 }
 
@@ -456,14 +455,17 @@ async function dispatchRunOnly(
   source: AutomationRunSource,
   placeholderId: string,
   resolved: Extract<ReturnType<typeof resolveDispatchAgent>, { ok: true }>,
+  webhook?: AutomationTemplateWebhookContext,
 ): Promise<AutomationRun> {
   const title = renderAutomationTemplate(rule.titleTemplate, {
     plannedAt,
     ruleName: rule.name,
+    webhook,
   });
   const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
     plannedAt,
     ruleName: rule.name,
+    webhook,
   });
   const prompt = buildAutomationRunOnlyPrompt({
     title,
@@ -587,6 +589,7 @@ export async function dispatchAutomationRule(
   ruleId: string,
   plannedAt: number,
   source: AutomationRunSource,
+  webhook?: AutomationTemplateWebhookContext,
 ): Promise<AutomationRun> {
   const rule = db
     .select()
@@ -640,16 +643,18 @@ export async function dispatchAutomationRule(
       (rule as { executionMode?: string }).executionMode,
     );
     if (mode === 'run_only') {
-      return dispatchRunOnly(rule, plannedAt, source, placeholder.id, resolved);
+      return dispatchRunOnly(rule, plannedAt, source, placeholder.id, resolved, webhook);
     }
 
     const title = renderAutomationTemplate(rule.titleTemplate, {
       plannedAt,
       ruleName: rule.name,
+      webhook,
     });
     const bodyBase = renderAutomationTemplate(rule.bodyTemplate ?? '', {
       plannedAt,
       ruleName: rule.name,
+      webhook,
     });
     const footer = `\n\n---\n由自动化规则「${rule.name}」创建（source=${source}, planned_at=${new Date(plannedAt).toISOString()}）`;
     const description = `${bodyBase}${footer}`;
