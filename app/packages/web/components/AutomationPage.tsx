@@ -27,8 +27,10 @@ import {
   useSquads,
   useUpdateAutomationRule,
   useUpdateAutomationWebhookEvents,
+  useUpdateAutomationWebhookRate,
 } from '@/lib/api';
 import { confirmDialog } from '@/lib/confirm-store';
+import { toastWarning } from '@/lib/toast';
 import { validateWith, type FieldErrors } from '@/lib/form-validation';
 import { EmptyState } from './EmptyState';
 import { FieldError } from './FieldError';
@@ -305,6 +307,15 @@ const WEBHOOK_DELIVERY_STATUS_LABEL: Record<string, string> = {
   dispatched: '已触发',
   filtered: '已过滤',
   error: '错误',
+  rate_limited: '已限流',
+};
+
+// 限流与过滤同为「未触发」而非错误，用 skipped 色避免告警疲劳
+const WEBHOOK_DELIVERY_PILL_STATUS: Record<string, string> = {
+  dispatched: 'issue_created',
+  filtered: 'skipped',
+  rate_limited: 'skipped',
+  error: 'failed',
 };
 
 /**
@@ -314,16 +325,22 @@ const WEBHOOK_DELIVERY_STATUS_LABEL: Record<string, string> = {
 function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
   const rotate = useRotateAutomationWebhookToken();
   const saveEvents = useUpdateAutomationWebhookEvents();
+  const saveRate = useUpdateAutomationWebhookRate();
   const { data: deliveries, isLoading: deliveriesLoading } = useAutomationWebhookDeliveries(
     rule.id,
     20,
   );
   const [eventsDraft, setEventsDraft] = useState(rule.webhookEvents?.join(', ') ?? '');
+  const [rateDraft, setRateDraft] = useState(rule.webhookRatePerMin?.toString() ?? '');
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
 
   useEffect(() => {
     setEventsDraft(rule.webhookEvents?.join(', ') ?? '');
   }, [rule.webhookEvents]);
+
+  useEffect(() => {
+    setRateDraft(rule.webhookRatePerMin?.toString() ?? '');
+  }, [rule.webhookRatePerMin]);
 
   const webhookUrl = rule.webhookToken ? `${API}/webhooks/${rule.webhookToken}` : null;
 
@@ -354,6 +371,21 @@ function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
   function saveEventsDraft() {
     const trimmed = eventsDraft.trim();
     saveEvents.mutate({ id: rule.id, events: trimmed ? trimmed : null });
+  }
+
+  // webhook-rate-limit：空 = 恢复默认上限；非法输入本地拦截（不静默归零）
+  function saveRateDraft() {
+    const trimmed = rateDraft.trim();
+    if (!trimmed) {
+      saveRate.mutate({ id: rule.id, perMinute: null });
+      return;
+    }
+    const perMinute = Number(trimmed);
+    if (!Number.isInteger(perMinute) || perMinute < 1 || perMinute > 1000) {
+      toastWarning('每分钟上限需为 1-1000 的整数；留空恢复默认');
+      return;
+    }
+    saveRate.mutate({ id: rule.id, perMinute });
   }
 
   return (
@@ -436,6 +468,28 @@ function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
             onClick={saveEventsDraft}
           >
             {saveEvents.isPending ? '保存中…' : '保存过滤'}
+          </button>{' '}
+          <label className="ops-field">
+            <span>每分钟上限（滑动窗口；留空 = 默认 10）</span>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              step={1}
+              value={rateDraft}
+              onChange={(e) => setRateDraft(e.target.value)}
+              placeholder="默认 10/分钟"
+              data-testid="automation-webhook-rate-input"
+            />
+          </label>{' '}
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            data-testid="automation-webhook-rate-save"
+            disabled={saveRate.isPending}
+            onClick={saveRateDraft}
+          >
+            {saveRate.isPending ? '保存中…' : '保存上限'}
           </button>
         </div>
       ) : null}
@@ -467,7 +521,7 @@ function RuleWebhookSection({ rule }: { rule: AutomationRule }) {
                   <td className="text-sm">
                     <span
                       className={`run-status-pill run-status-pill--${
-                        d.status === 'dispatched' ? 'issue_created' : d.status === 'filtered' ? 'skipped' : 'failed'
+                        WEBHOOK_DELIVERY_PILL_STATUS[d.status] ?? 'failed'
                       }`}
                     >
                       {WEBHOOK_DELIVERY_STATUS_LABEL[d.status] ?? d.status}

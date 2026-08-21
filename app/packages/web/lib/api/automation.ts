@@ -293,6 +293,34 @@ export function useUpdateAutomationWebhookEvents() {
   });
 }
 
+/** PUT /api/automation/rules/:id/webhook/rate —— 每分钟触发上限（null = 恢复默认） */
+export function useUpdateAutomationWebhookRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, perMinute }: { id: string; perMinute: number | null }) => {
+      const res = await apiFetch(
+        `${API}/automation/rules/${encodeURIComponent(id)}/webhook/rate`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ perMinute }),
+        },
+      );
+      if (!res.ok) throw new Error(await apiError(res, '保存频率上限失败'));
+      return res.json() as Promise<{ webhookRatePerMin: number | null }>;
+    },
+    onSuccess: ({ webhookRatePerMin }) => {
+      qc.invalidateQueries({ queryKey: ['automation-rules'] });
+      toastSuccess(
+        webhookRatePerMin == null
+          ? '频率上限已恢复默认（10/分钟）'
+          : `频率上限已保存：${webhookRatePerMin}/分钟`,
+      );
+    },
+    onError: (err) => toastError(errMessage(err, '保存频率上限失败')),
+  });
+}
+
 /** GET /api/automation/rules/:id/webhook/deliveries?limit= */
 export function useAutomationWebhookDeliveries(ruleId: string | null | undefined, limit = 20) {
   return useQuery<WebhookDelivery[]>({

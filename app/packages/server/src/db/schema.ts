@@ -595,6 +595,8 @@ export const automationRules = sqliteTable('automation_rule', {
   webhookToken: text('webhook_token'),
   // 事件名过滤（逗号分隔原始串；契约层 split/trim；null/空 = 全部放行）
   webhookEvents: text('webhook_events'),
+  // webhook-rate-limit：每分钟触发上限（滑动窗口 60s）；null = 默认 10
+  webhookRatePerMin: integer('webhook_rate_per_min'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 },
@@ -612,7 +614,7 @@ export const automationWebhookDeliveries = sqliteTable(
       .references(() => automationRules.id, { onDelete: 'cascade' }),
     event: text('event').notNull(),
     status: text('status', {
-      enum: ['dispatched', 'filtered', 'error'],
+      enum: ['dispatched', 'filtered', 'error', 'rate_limited'],
     }).notNull(),
     // 原始 payload JSON 串（仅审计，不注入模板）
     payloadJson: text('payload_json'),

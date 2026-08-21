@@ -8,9 +8,11 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import {
+  DEFAULT_WEBHOOK_RATE_PER_MIN,
   UpdateAutomationWebhookEventsInput,
+  UpdateAutomationWebhookRateInput,
   WebhookTriggerInput,
   type AutomationRun,
 } from '@ma/shared';
@@ -31,7 +33,7 @@ export function generateWebhookToken(): string {
   return randomBytes(24).toString('hex');
 }
 
-type DeliveryStatus = 'dispatched' | 'filtered' | 'error';
+type DeliveryStatus = 'dispatched' | 'filtered' | 'error' | 'rate_limited';
 
 /**
  * 一次 POST 恰一条 delivery（ping 除外）：dispatch 完成后一次写入（含结果），
@@ -75,6 +77,25 @@ function serializePayload(payload: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * webhook-rate-limit：滑动窗口（60s）内该规则 `dispatched` delivery 计数。
+ * 只有真实触发占额：filtered / rate_limited / error 均不占，避免审计行自我挤压。
+ */
+function countDispatchedInWindow(ruleId: string, now: number): number {
+  const row = db
+    .select({ n: sql<number>`count(*)` })
+    .from(automationWebhookDeliveries)
+    .where(
+      and(
+        eq(automationWebhookDeliveries.ruleId, ruleId),
+        eq(automationWebhookDeliveries.status, 'dispatched'),
+        gte(automationWebhookDeliveries.createdAt, now - 60_000),
+      ),
+    )
+    .get();
+  return row?.n ?? 0;
 }
 
 export async function automationWebhookRoutes(app: FastifyInstance): Promise<void> {
@@ -130,6 +151,24 @@ export async function automationWebhookRoutes(app: FastifyInstance): Promise<voi
       return reply
         .status(202)
         .send({ status: 'error', deliveryId, error: '规则已停用，不能触发' });
+    }
+
+    // webhook-rate-limit：事件过滤之前检查滑动窗口（disabled/archived 不会跑飞，不限流）
+    const now = Date.now();
+    const ratePerMin = rule.webhookRatePerMin ?? DEFAULT_WEBHOOK_RATE_PER_MIN;
+    if (countDispatchedInWindow(rule.id, now) >= ratePerMin) {
+      insertWebhookDelivery(rule.id, {
+        event,
+        status: 'rate_limited',
+        payloadJson,
+        automationRunId: null,
+        error: `触发频率超限：滑动窗口 60s 内已 dispatched ${ratePerMin} 次（上限 ${ratePerMin}/分钟）`,
+      });
+      // 固定 hint（精确计算属 Out）：窗口 60s，等满即可
+      return reply
+        .status(429)
+        .header('retry-after', 60)
+        .send({ success: false, status: 'rate_limited', error: '触发频率超限' });
     }
 
     // 事件过滤：配置非空且 event 不在列表 → filtered，不触发
@@ -227,6 +266,30 @@ export async function automationWebhookRoutes(app: FastifyInstance): Promise<voi
       .run();
     const row = db.select().from(automationRules).where(eq(automationRules.id, id)).get()!;
     return { webhookEvents: parseWebhookEvents(row.webhookEvents) };
+  });
+
+  // PUT /api/automation/rules/:id/webhook/rate —— 每分钟触发上限（null = 恢复默认）
+  app.put('/api/automation/rules/:id/webhook/rate', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const rule = db.select().from(automationRules).where(eq(automationRules.id, id)).get();
+    if (!rule) return reply.status(404).send({ success: false, error: 'automation rule 不存在' });
+    if (rule.archivedAt != null) {
+      return reply.status(409).send({ success: false, error: 'automation rule 已归档，不能编辑 webhook' });
+    }
+    const parsed = UpdateAutomationWebhookRateInput.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        details: parsed.error.flatten(),
+      });
+    }
+    db.update(automationRules)
+      .set({ webhookRatePerMin: parsed.data.perMinute, updatedAt: Date.now() })
+      .where(eq(automationRules.id, id))
+      .run();
+    return { webhookRatePerMin: parsed.data.perMinute };
   });
 
   // GET /api/automation/rules/:id/webhook/deliveries?limit=20

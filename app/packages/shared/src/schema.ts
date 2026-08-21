@@ -2703,13 +2703,15 @@ export const AutomationRule = z.object({
   webhookToken: z.string().nullable().optional(),
   // 事件名过滤（split/trim 后的事件名数组；null/undefined = 不过滤，全部放行）
   webhookEvents: z.array(z.string().min(1)).nullable().optional(),
+  // webhook-rate-limit：每分钟触发上限（滑动窗口）；null/undefined = 默认上限
+  webhookRatePerMin: z.number().int().min(1).max(1000).nullable().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 export type AutomationRule = z.infer<typeof AutomationRule>;
 
 // —— automation webhook trigger：delivery 审计（学 multica autopilot_webhook）——
-export const WebhookDeliveryStatus = z.enum(['dispatched', 'filtered', 'error']);
+export const WebhookDeliveryStatus = z.enum(['dispatched', 'filtered', 'error', 'rate_limited']);
 export type WebhookDeliveryStatus = z.infer<typeof WebhookDeliveryStatus>;
 
 export const WebhookDelivery = z.object({
@@ -2744,6 +2746,21 @@ export const UpdateAutomationWebhookEventsInput = z.object({
   events: z.string().max(500).nullable(),
 });
 export type UpdateAutomationWebhookEventsInput = z.infer<typeof UpdateAutomationWebhookEventsInput>;
+
+// —— webhook-rate-limit：每分钟触发上限（滑动窗口 60s，按 dispatched delivery 计数）——
+export const DEFAULT_WEBHOOK_RATE_PER_MIN = 10;
+export const MAX_WEBHOOK_RATE_PER_MIN = 1000;
+
+/** PUT /api/automation/rules/:id/webhook/rate 请求（null = 恢复默认上限） */
+export const UpdateAutomationWebhookRateInput = z.object({
+  perMinute: z
+    .number()
+    .int(`每分钟上限必须是整数`)
+    .min(1)
+    .max(MAX_WEBHOOK_RATE_PER_MIN)
+    .nullable(),
+});
+export type UpdateAutomationWebhookRateInput = z.infer<typeof UpdateAutomationWebhookRateInput>;
 
 const CreateAutomationRuleFields = z.object({
   name: z.string().min(1).max(80),

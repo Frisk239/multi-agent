@@ -2,8 +2,9 @@
  * Automation webhook trigger contract（学 multica autopilot_webhook）。
  *
  * Drives the real Fastify routes over a migrator-created in-memory SQLite DB:
- * token 即凭证 → 事件过滤 → delivery 审计（一次 POST 恰一条）→ 复用 dispatch 核心
- * （source='webhook'）。错 token 404 不泄漏存在性；disabled/archived 不产生 run。
+ * token 即凭证 → 频率限流（60s 滑窗，dispatched 才占额）→ 事件过滤 → delivery 审计
+ * （一次 POST 恰一条）→ 复用 dispatch 核心（source='webhook'）。
+ * 错 token 404 不泄漏存在性；disabled/archived 不产生 run；ping 不记 delivery。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -91,6 +92,25 @@ function runsFor(ruleId: string) {
     .from(automationRuns)
     .where(eq(automationRuns.ruleId, ruleId))
     .all();
+}
+
+/** 直接落库 n 条 dispatched delivery（绕开 dispatch，专测滑窗计数） */
+function seedDispatchedDeliveries(ruleId: string, count: number, createdAt = Date.now()) {
+  for (let i = 0; i < count; i++) {
+    state.db!
+      .insert(automationWebhookDeliveries)
+      .values({
+        id: `dly-${ruleId}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+        ruleId,
+        event: 'push',
+        status: 'dispatched',
+        payloadJson: null,
+        automationRunId: null,
+        error: null,
+        createdAt,
+      })
+      .run();
+  }
 }
 
 async function postWebhook(app: App, token: string, body: unknown) {
@@ -433,6 +453,173 @@ describe('automation webhook trigger', () => {
       error: expect.any(String),
     });
     expect(runsFor(ruleId)).toHaveLength(1);
+
+    await app.close();
+  });
+
+  // —— webhook-rate-limit：60s 滑窗，dispatched 才占额 ——
+
+  it('exceeding the default cap of 10/min answers 429 rate_limited with an audited delivery and no run', async () => {
+    const ruleId = seedRule(); // webhookRatePerMin = null → 默认 10
+    seedDispatchedDeliveries(ruleId, 10);
+    const app = await buildApp();
+
+    const res = await postWebhook(app, 't'.repeat(48), {
+      event: 'push',
+      payload: { ref: 'refs/heads/main' },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({
+      success: false,
+      status: 'rate_limited',
+      error: '触发频率超限',
+    });
+    expect(res.headers['retry-after']).toBe('60');
+
+    const deliveries = deliveriesFor(ruleId);
+    expect(deliveries).toHaveLength(11);
+    const limited = deliveries.find((d) => d.status === 'rate_limited')!;
+    expect(limited).toMatchObject({ ruleId, event: 'push', automationRunId: null });
+    // 审计保留原始 payload，供事后排查误打脚本
+    expect(limited.payloadJson).toContain('refs/heads/main');
+    expect(limited.error).toContain('触发频率超限');
+    expect(runsFor(ruleId)).toHaveLength(0);
+
+    await app.close();
+  });
+
+  it('the window slides: dispatched deliveries older than 60s no longer consume the quota', async () => {
+    const ruleId = seedRule({ webhookRatePerMin: 1 });
+    seedDispatchedDeliveries(ruleId, 1, Date.now() - 61_000);
+    const app = await buildApp();
+
+    const res = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    expect(res.statusCode).toBe(202);
+    expect(res.json().status).toBe('dispatched');
+    expect(runsFor(ruleId)).toHaveLength(1);
+
+    await app.close();
+  });
+
+  it('a custom cap takes effect: N dispatches pass, the next one is rate limited', async () => {
+    const ruleId = seedRule({ webhookRatePerMin: 2 });
+    const app = await buildApp();
+
+    const first = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    const second = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    const third = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    expect(first.statusCode).toBe(202);
+    expect(first.json().status).toBe('dispatched');
+    expect(second.statusCode).toBe(202);
+    expect(second.json().status).toBe('dispatched');
+    expect(third.statusCode).toBe(429);
+    expect(third.json().status).toBe('rate_limited');
+
+    const statuses = deliveriesFor(ruleId).map((d) => d.status).sort();
+    expect(statuses).toEqual(['dispatched', 'dispatched', 'rate_limited']);
+    expect(runsFor(ruleId)).toHaveLength(2);
+
+    await app.close();
+  });
+
+  it('filtered and rate_limited deliveries do not consume the quota (only dispatched counts)', async () => {
+    const ruleId = seedRule({ webhookRatePerMin: 1, webhookEvents: 'push' });
+    const app = await buildApp();
+
+    const filtered = await postWebhook(app, 't'.repeat(48), { event: 'issue_comment' });
+    expect(filtered.statusCode).toBe(202);
+    expect(filtered.json().status).toBe('filtered');
+
+    // 窗口内只有 filtered 审计，未占额 → push 仍可触发
+    const allowed = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    expect(allowed.statusCode).toBe(202);
+    expect(allowed.json().status).toBe('dispatched');
+
+    // 这次 dispatched 占满额度 → 下一条才限流
+    const blocked = await postWebhook(app, 't'.repeat(48), { event: 'push' });
+    expect(blocked.statusCode).toBe(429);
+
+    await app.close();
+  });
+
+  it('ping stays exempt from rate limiting and records no delivery', async () => {
+    const ruleId = seedRule({ webhookRatePerMin: 1 });
+    seedDispatchedDeliveries(ruleId, 1);
+    const app = await buildApp();
+
+    const ping = await postWebhook(app, 't'.repeat(48), { event: 'ping' });
+    expect(ping.statusCode).toBe(200);
+    expect(ping.json()).toEqual({ ok: true });
+    expect(deliveriesFor(ruleId)).toHaveLength(1); // 只有预置那条
+
+    await app.close();
+  });
+
+  it('PUT rate saves a custom cap, null restores the default, invalid values are 400', async () => {
+    const ruleId = seedRule();
+    const app = await buildApp();
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/api/automation/rules/${ruleId}/webhook/rate`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ perMinute: 30 }),
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ webhookRatePerMin: 30 });
+    const stored = state.db!
+      .select({ rate: automationRules.webhookRatePerMin })
+      .from(automationRules)
+      .where(eq(automationRules.id, ruleId))
+      .get();
+    expect(stored?.rate).toBe(30);
+
+    const reset = await app.inject({
+      method: 'PUT',
+      url: `/api/automation/rules/${ruleId}/webhook/rate`,
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ perMinute: null }),
+    });
+    expect(reset.statusCode).toBe(200);
+    expect(reset.json()).toEqual({ webhookRatePerMin: null });
+
+    for (const bad of [0, -5, 1001, 1.5, '10']) {
+      const rejected = await app.inject({
+        method: 'PUT',
+        url: `/api/automation/rules/${ruleId}/webhook/rate`,
+        headers: { 'content-type': 'application/json' },
+        payload: JSON.stringify({ perMinute: bad }),
+      });
+      expect(rejected.statusCode).toBe(400);
+      expect(rejected.json().code).toBe('VALIDATION_ERROR');
+    }
+
+    const missing = await app.inject({
+      method: 'PUT',
+      url: '/api/automation/rules/rule-nope/webhook/rate',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ perMinute: 30 }),
+    });
+    expect(missing.statusCode).toBe(404);
+
+    await app.close();
+  });
+
+  it('detail contract exposes webhookRatePerMin (custom and default null)', async () => {
+    const ruleId = seedRule({ webhookRatePerMin: 25 });
+    const defaultId = seedRule({ id: 'rule-default-rate', webhookToken: 'd'.repeat(48) });
+    const app = await buildApp();
+
+    const detail = await app.inject({ method: 'GET', url: `/api/automation/rules/${ruleId}` });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({ webhookRatePerMin: 25 });
+
+    const fallback = await app.inject({
+      method: 'GET',
+      url: `/api/automation/rules/${defaultId}`,
+    });
+    expect(fallback.statusCode).toBe(200);
+    expect(fallback.json()).toMatchObject({ webhookRatePerMin: null });
 
     await app.close();
   });

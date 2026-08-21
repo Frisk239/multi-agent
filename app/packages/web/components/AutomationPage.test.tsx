@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   archiveMutate: vi.fn(),
   webhookRotateMutate: vi.fn(),
   webhookEventsMutate: vi.fn(),
+  webhookRateMutate: vi.fn(),
   confirmDialog: vi.fn(),
   clipboardWrite: vi.fn(),
   archivedAgentIds: new Set<string>(),
@@ -55,6 +56,10 @@ vi.mock('@/lib/api', () => ({
   }),
   useUpdateAutomationWebhookEvents: () => ({
     mutate: mocks.webhookEventsMutate,
+    isPending: false,
+  }),
+  useUpdateAutomationWebhookRate: () => ({
+    mutate: mocks.webhookRateMutate,
     isPending: false,
   }),
   useAutomationWebhookDeliveries: (ruleId: string, limit?: number) => {
@@ -117,6 +122,7 @@ function rule(overrides: Partial<AutomationRule> = {}): AutomationRule {
     failCount: 0,
     skippedStreak: 0,
     lastRunStatus: null,
+    webhookRatePerMin: null,
     createdAt: '2026-08-19T00:00:00.000Z',
     updatedAt: '2026-08-19T00:00:00.000Z',
     ...overrides,
@@ -528,6 +534,48 @@ describe('AutomationPage webhook section', () => {
     expect(mocks.webhookEventsMutate).toHaveBeenLastCalledWith({ id: 'rule-1', events: null });
   });
 
+  it('rate input shows the configured cap or the default placeholder and saves a number', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN, webhookRatePerMin: 30 })];
+    renderPage();
+    openSection();
+
+    const input = screen.getByTestId('automation-webhook-rate-input') as HTMLInputElement;
+    expect(input.value).toBe('30');
+
+    fireEvent.change(input, { target: { value: '5' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-rate-save'));
+    expect(mocks.webhookRateMutate).toHaveBeenCalledWith({ id: 'rule-1', perMinute: 5 });
+  });
+
+  it('an empty rate draft restores the default (null) and invalid input is blocked locally', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN, webhookRatePerMin: 30 })];
+    renderPage();
+    openSection();
+
+    const input = screen.getByTestId('automation-webhook-rate-input');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-rate-save'));
+    expect(mocks.webhookRateMutate).toHaveBeenLastCalledWith({ id: 'rule-1', perMinute: null });
+
+    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-rate-save'));
+    expect(mocks.webhookRateMutate).toHaveBeenLastCalledWith({ id: 'rule-1', perMinute: null });
+
+    fireEvent.change(input, { target: { value: '2.5' } });
+    fireEvent.click(screen.getByTestId('automation-webhook-rate-save'));
+    expect(mocks.webhookRateMutate).toHaveBeenLastCalledWith({ id: 'rule-1', perMinute: null });
+  });
+
+  it('a rule without a custom cap renders the default placeholder in the rate input', () => {
+    mocks.rules = [rule({ webhookToken: TOKEN })];
+    renderPage();
+    openSection();
+
+    const input = screen.getByTestId('automation-webhook-rate-input') as HTMLInputElement;
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('默认 10/分钟');
+  });
+
   it('renders recent deliveries with status, time and an automation-run deep link', () => {
     mocks.rules = [rule({ webhookToken: TOKEN })];
     mocks.deliveriesByRule = {
@@ -540,6 +588,13 @@ describe('AutomationPage webhook section', () => {
           automationRunId: null,
           error: '事件 issue_comment 不在过滤列表（push）',
         }),
+        delivery({
+          id: 'dly-3',
+          event: 'push',
+          status: 'rate_limited',
+          automationRunId: null,
+          error: '触发频率超限：滑动窗口 60s 内已 dispatched 10 次（上限 10/分钟）',
+        }),
       ],
     };
     renderPage();
@@ -550,6 +605,7 @@ describe('AutomationPage webhook section', () => {
     expect(rows).toHaveTextContent('已触发');
     expect(rows).toHaveTextContent('issue_comment');
     expect(rows).toHaveTextContent('已过滤');
+    expect(rows).toHaveTextContent('已限流');
 
     const runLink = screen.getByTestId('automation-webhook-delivery-run-dly-1');
     expect(runLink).toHaveAttribute('href', '/runs?run=auto-run-9');

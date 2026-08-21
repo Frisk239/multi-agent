@@ -29,6 +29,9 @@ import {
   WebhookTriggerInput,
   AutomationWebhookTokenResponse,
   UpdateAutomationWebhookEventsInput,
+  UpdateAutomationWebhookRateInput,
+  DEFAULT_WEBHOOK_RATE_PER_MIN,
+  MAX_WEBHOOK_RATE_PER_MIN,
   RerunIssueInput,
   RetryRunInput,
   AgentRun,
@@ -758,7 +761,7 @@ describe('Shared Schema Validators', () => {
     });
 
     it('WebhookDelivery parses each audit status and rejects unknown ones', () => {
-      for (const status of ['dispatched', 'filtered', 'error'] as const) {
+      for (const status of ['dispatched', 'filtered', 'error', 'rate_limited'] as const) {
         expect(WebhookDelivery.parse({ ...deliveryBase, status }).status).toBe(status);
       }
       expect(() =>
@@ -785,6 +788,26 @@ describe('Shared Schema Validators', () => {
       );
       expect(UpdateAutomationWebhookEventsInput.parse({ events: null }).events).toBeNull();
       expect(() => UpdateAutomationWebhookEventsInput.parse({})).toThrow();
+    });
+
+    it('webhook rate limit contracts: rule field, delivery status, PUT input bounds', () => {
+      // AutomationRule.webhookRatePerMin：null/缺省 = 默认上限；越界拒绝
+      expect(DEFAULT_WEBHOOK_RATE_PER_MIN).toBe(10);
+      expect(MAX_WEBHOOK_RATE_PER_MIN).toBe(1000);
+      expect(AutomationRule.parse(ruleBase).webhookRatePerMin).toBeUndefined();
+      expect(AutomationRule.parse({ ...ruleBase, webhookRatePerMin: null }).webhookRatePerMin).toBeNull();
+      expect(AutomationRule.parse({ ...ruleBase, webhookRatePerMin: 30 }).webhookRatePerMin).toBe(30);
+      expect(() => AutomationRule.parse({ ...ruleBase, webhookRatePerMin: 0 })).toThrow();
+      expect(() => AutomationRule.parse({ ...ruleBase, webhookRatePerMin: 1001 })).toThrow();
+      expect(() => AutomationRule.parse({ ...ruleBase, webhookRatePerMin: 2.5 })).toThrow();
+
+      // PUT 输入：1-1000 整数或 null
+      expect(UpdateAutomationWebhookRateInput.parse({ perMinute: 1 }).perMinute).toBe(1);
+      expect(UpdateAutomationWebhookRateInput.parse({ perMinute: 1000 }).perMinute).toBe(1000);
+      expect(UpdateAutomationWebhookRateInput.parse({ perMinute: null }).perMinute).toBeNull();
+      for (const bad of [0, -5, 1001, 1.5, '10', undefined]) {
+        expect(() => UpdateAutomationWebhookRateInput.parse({ perMinute: bad })).toThrow();
+      }
     });
   });
 

@@ -548,6 +548,7 @@ export function toAutomationRule(
     lastRunStatus: stats?.lastRunStatus ?? null,
     webhookToken: row.webhookToken ?? null,
     webhookEvents: parseWebhookEvents(row.webhookEvents),
+    webhookRatePerMin: row.webhookRatePerMin ?? null,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
