@@ -22,6 +22,12 @@ interface Props {
   color: string;
   issues: Issue[];
   onDragStart?: (id: string) => void;
+  /**
+   * droppable id 前缀：泳道复用本组件时传 `swimlane:<laneKey>`，使 droppable id
+   * 变为 `<prefix>:<status>`，避免单层 DndContext 内跨道同 status id 冲突；
+   * 看板不传 → id 仍为 status（零回归）。
+   */
+  droppableIdPrefix?: string;
   /** DS2：落到列（可带 beforeId 表示插到该卡之前；null=列末） */
   onDrop?: (status: IssueStatus, beforeId: string | null) => void;
   readinessByAgentId?: Record<string, AgentReadiness | null>;
@@ -87,6 +93,7 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   onDragStart,
   onDrop: _onDrop,
   status,
+  droppableIdPrefix,
   readinessByAgentId,
   failedIssueIds,
   activeIssueIds,
@@ -98,8 +105,9 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   onOpenDetail,
   onQuickCreate,
 }: Props) {
-  const { setNodeRef } = useDroppable({
-    id: status,
+  const droppableId = droppableIdPrefix ? `${droppableIdPrefix}:${status}` : status;
+  const { setNodeRef, isOver } = useDroppable({
+    id: droppableId,
     data: { type: 'Column', status },
   });
   const { density } = useDensity();
@@ -135,8 +143,9 @@ export const KanbanColumn = React.memo(function KanbanColumn({
   return (
     <section
       ref={setNodeRef}
-      className="kanban-column"
+      className={`kanban-column${isOver ? ' kanban-column--drop-over' : ''}`}
       data-status={status}
+      data-droppable-id={droppableId}
       data-testid="kanban-column"
       data-virtualized={virtualize ? '1' : '0'}
       data-virtual-count={issues.length}

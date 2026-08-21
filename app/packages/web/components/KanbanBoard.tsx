@@ -644,6 +644,37 @@ function KanbanBoardInner({
     [updateIssue],
   );
 
+  // 泳道同道跨列：与列表同语义的状态变更（批量接口，乐观更新 + invalidate）
+  const handleSwimlaneStatusChange = useCallback(
+    (id: string, status: IssueStatus) => {
+      bulkUpdateStatus.mutate({ issueIds: [id], status });
+    },
+    [bulkUpdateStatus],
+  );
+
+  // 泳道跨道改派：先 bulk-assign（服务端 target preflight——拒绝则整体失败，
+  // 乐观回滚 + toastError，卡片不动）；成功后再补目标列状态（状态相同则跳过）
+  const handleSwimlaneReassign = useCallback(
+    (
+      id: string,
+      target: { assigneeType: 'agent' | 'squad' | null; assigneeId: string | null },
+      status: IssueStatus,
+    ) => {
+      bulkUpdateAssignee.mutate(
+        { issueIds: [id], assigneeType: target.assigneeType, assigneeId: target.assigneeId },
+        {
+          onSuccess: () => {
+            const iss = (issues ?? []).find((i) => i.id === id);
+            if (iss && iss.status !== status) {
+              bulkUpdateStatus.mutate({ issueIds: [id], status });
+            }
+          },
+        },
+      );
+    },
+    [bulkUpdateAssignee, bulkUpdateStatus, issues],
+  );
+
   // 服务端已按 q/label/assignee 过滤；failed=1 / status / scope 客户端再滤（含 cancelled 列）
   const visible = useMemo(() => {
     return (issues ?? []).filter((i) => {
@@ -911,6 +942,8 @@ function KanbanBoardInner({
             getDetailHref={getIssueSheetHref}
             onOpenDetail={handleOpenIssueDetail}
             onQuickCreate={handleColumnQuickCreate}
+            onStatusChange={handleSwimlaneStatusChange}
+            onReassign={handleSwimlaneReassign}
           />
         )
       ) : (

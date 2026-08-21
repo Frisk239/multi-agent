@@ -1,7 +1,16 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { DndContext, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  MeasuringStrategy,
+  PointerSensor,
+  closestCorners,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import type {
   AgentReadiness,
   AgentSummary,
@@ -12,13 +21,20 @@ import type {
 import { COLUMNS } from './KanbanBoard.shared';
 import { KanbanColumn } from './KanbanColumn';
 import { Icon } from './Icon';
+import {
+  SWIMLANE_DROPPABLE_PREFIX,
+  resolveSwimlaneDrop,
+  swimlaneLaneDroppableId,
+} from '@/lib/kanban-swimlane-dnd';
 
 /**
- * 看板泳道视图（薄版，学 Multica swimlane 分道形态）：
+ * 看板泳道视图（学 Multica swimlane 分道形态）：
  * - 按 assignee 分组：agent 道（名字典序）→ squad 道（名字典序）→「未指派」道殿后
  * - 道头：agent 名 + readiness chip / 小队名 + 小队 icon + 计数
  * - 道体横向滚动的状态子列（复用 COLUMNS + KanbanColumn；空列隐藏）
- * - 薄版 Out：跨道拖拽改派 / 折叠 / 排序配置（见 .scratch/kanban-swimlane-view/spec.md）
+ * - 单层 DndContext 包全部道：跨道拖拽改派 / 同道跨列状态变更
+ *   （纯逻辑在 lib/kanban-swimlane-dnd.ts resolveSwimlaneDrop；mutation 在 KanbanBoard 接线）
+ * - Out：道内排序 / 折叠 / 排序配置（见 .scratch/swimlane-drag-reassign/spec.md）
  */
 export interface KanbanSwimlaneViewProps {
   /** 已应用全部筛选（q/status/scope/label/project/failed…）的可见 issue */
@@ -36,6 +52,17 @@ export interface KanbanSwimlaneViewProps {
   getDetailHref?: (issue: Issue) => string;
   onOpenDetail?: (issueId: string, e?: React.MouseEvent) => void;
   onQuickCreate?: (status: IssueStatus) => void;
+  /** 同道跨列状态变更（KanbanBoard 接线到既有批量状态变更路径） */
+  onStatusChange?: (issueId: string, status: IssueStatus) => void;
+  /**
+   * 跨道改派：assignee 变更（bulk-assign，服务端 target preflight/skip 语义）+ 目标列状态；
+   * preflight 失败由接线方回滚 + toast，卡片不动。
+   */
+  onReassign?: (
+    issueId: string,
+    target: { assigneeType: 'agent' | 'squad' | null; assigneeId: string | null },
+    status: IssueStatus,
+  ) => void;
 }
 
 interface Lane {
@@ -44,6 +71,8 @@ interface Lane {
   name: string;
   /** agent 道：readiness 查询键 */
   agentId?: string;
+  /** squad 道：改派目标 */
+  squadId?: string;
   issues: Issue[];
 }
 
@@ -86,9 +115,15 @@ export function KanbanSwimlaneView({
   getDetailHref,
   onOpenDetail,
   onQuickCreate,
+  onStatusChange,
+  onReassign,
 }: KanbanSwimlaneViewProps) {
-  // 薄版不做拖拽：无传感器（DndContext 仅为 KanbanColumn/IssueCard 的 dnd hooks 提供宿主）
-  const emptySensors = useSensors();
+  // 与看板同款指针传感器：按 5px 距离激活（与点击/多选框不冲突）
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
 
   const lanes = useMemo<Lane[]>(() => {
     const agentName = new Map(agents.map((a) => [a.id, a.name] as const));
@@ -101,11 +136,11 @@ export function KanbanSwimlaneView({
       key: string,
       kind: Lane['kind'],
       name: string,
-      agentId?: string,
+      ids?: { agentId?: string; squadId?: string },
     ): Lane => {
       let lane = byKey.get(key);
       if (!lane) {
-        lane = { key, kind, name, agentId, issues: [] };
+        lane = { key, kind, name, agentId: ids?.agentId, squadId: ids?.squadId, issues: [] };
         byKey.set(key, lane);
       }
       return lane;
@@ -119,7 +154,7 @@ export function KanbanSwimlaneView({
           `agent:${a.id}`,
           'agent',
           agentName.get(a.id) ?? agentLabelFallback.get(a.id) ?? `agent:${shortId(a.id)}`,
-          a.id,
+          { agentId: a.id },
         ).issues.push(iss);
       } else if (a?.type === 'squad') {
         if (a.label) squadLabelFallback.set(a.id, a.label);
@@ -127,11 +162,26 @@ export function KanbanSwimlaneView({
           `squad:${a.id}`,
           'squad',
           squadName.get(a.id) ?? squadLabelFallback.get(a.id) ?? `squad:${shortId(a.id)}`,
+          { squadId: a.id },
         ).issues.push(iss);
       } else {
         ensureLane('unassigned', 'unassigned', '未指派').issues.push(iss);
       }
     }
+
+    // 空道兜底：跨道改派的核心场景是把工作分给当前没活的人（ensureLane 幂等，
+    // 已有道不覆盖——归档 agent 的 label fallback 名优先于 active 列表名）
+    for (const a of agents) {
+      ensureLane(`agent:${a.id}`, 'agent', agentName.get(a.id) ?? `agent:${shortId(a.id)}`, {
+        agentId: a.id,
+      });
+    }
+    for (const s of squads) {
+      ensureLane(`squad:${s.id}`, 'squad', squadName.get(s.id) ?? `squad:${shortId(s.id)}`, {
+        squadId: s.id,
+      });
+    }
+    ensureLane('unassigned', 'unassigned', '未指派');
 
     const all = [...byKey.values()];
     const agentLanes = all
@@ -144,49 +194,85 @@ export function KanbanSwimlaneView({
     return [...agentLanes, ...squadLanes, ...unassigned];
   }, [issues, agents, squads]);
 
+  // 泳道无排序语义：只区分跨道改派 / 同道状态变更 / 同道同列无操作（纯函数可测）
+  function handleDragEnd(event: DragEndEvent) {
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+    const result = resolveSwimlaneDrop(
+      activeId,
+      overId,
+      lanes.map((l) => ({
+        key: l.key,
+        kind: l.kind,
+        agentId: l.agentId,
+        squadId: l.squadId,
+        issues: l.issues.map((i) => ({ id: i.id, status: i.status })),
+      })),
+    );
+    if (result.kind === 'none') return;
+    if (result.kind === 'status') {
+      onStatusChange?.(activeId, result.status);
+      return;
+    }
+    onReassign?.(
+      activeId,
+      { assigneeType: result.assigneeType, assigneeId: result.assigneeId },
+      result.status,
+    );
+  }
+
   return (
-    <div className="kanban-swimlanes" data-testid="kanban-swimlanes" data-lane-count={lanes.length}>
-      {lanes.map((lane) => {
-        const chip = lane.agentId ? readinessChip(readinessByAgentId[lane.agentId]) : null;
-        // 空列隐藏：道内只渲染 count>0 的状态列（?status= 聚焦时数据源已滤，自然只剩该列）
-        const statusGroups = COLUMNS.map((col) => ({
-          col,
-          list: lane.issues.filter((i) => i.status === col.status),
-        })).filter((g) => g.list.length > 0);
-        return (
-          <section
-            key={lane.key}
-            className="kanban-swimlane"
-            data-testid="kanban-swimlane"
-            data-lane-key={lane.key}
-            data-lane-kind={lane.kind}
-            data-count={lane.issues.length}
-          >
-            <header className="kanban-swimlane-header">
-              {lane.kind === 'squad' ? (
-                <Icon name="squad" size={14} className="kanban-swimlane-squad-icon" />
-              ) : null}
-              <strong className="kanban-swimlane-title" title={lane.name}>
-                {lane.name}
-              </strong>
-              {chip ? (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      // 拖拽中空道 zone / 空列才挂载，必须实时测量新 droppable 的矩形
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      onDragEnd={handleDragEnd}
+    >
+      <div
+        className="kanban-swimlanes"
+        data-testid="kanban-swimlanes"
+        data-lane-count={lanes.length}
+      >
+        {lanes.map((lane) => {
+          const chip = lane.agentId ? readinessChip(readinessByAgentId[lane.agentId]) : null;
+          // 空列隐藏：道内只渲染 count>0 的状态列（?status= 聚焦时数据源已滤，自然只剩该列）
+          const statusGroups = COLUMNS.map((col) => ({
+            col,
+            list: lane.issues.filter((i) => i.status === col.status),
+          })).filter((g) => g.list.length > 0);
+          return (
+            <section
+              key={lane.key}
+              className="kanban-swimlane"
+              data-testid="kanban-swimlane"
+              data-lane-key={lane.key}
+              data-lane-kind={lane.kind}
+              data-count={lane.issues.length}
+            >
+              <header className="kanban-swimlane-header">
+                {lane.kind === 'squad' ? (
+                  <Icon name="squad" size={14} className="kanban-swimlane-squad-icon" />
+                ) : null}
+                <strong className="kanban-swimlane-title" title={lane.name}>
+                  {lane.name}
+                </strong>
+                {chip ? (
+                  <span
+                    className={`kanban-swimlane-ready kanban-swimlane-ready--${chip.tone}`}
+                    data-testid="kanban-swimlane-ready"
+                    data-tone={chip.tone}
+                  >
+                    {chip.label}
+                  </span>
+                ) : null}
                 <span
-                  className={`kanban-swimlane-ready kanban-swimlane-ready--${chip.tone}`}
-                  data-testid="kanban-swimlane-ready"
-                  data-tone={chip.tone}
+                  className="kanban-swimlane-count"
+                  data-testid="kanban-swimlane-count"
                 >
-                  {chip.label}
+                  {lane.issues.length}
                 </span>
-              ) : null}
-              <span
-                className="kanban-swimlane-count"
-                data-testid="kanban-swimlane-count"
-              >
-                {lane.issues.length}
-              </span>
-            </header>
-            {/* 每道独立 DndContext：无传感器禁拖；同 status 列跨道不共用注册表 */}
-            <DndContext sensors={emptySensors} onDragEnd={() => { /* 薄版：跨道拖拽改派 Out */ }}>
+              </header>
               <div className="kanban-swimlane-body" data-testid="kanban-swimlane-body">
                 {statusGroups.map(({ col, list }) => (
                   <KanbanColumn
@@ -194,6 +280,8 @@ export function KanbanSwimlaneView({
                     title={col.title}
                     status={col.status}
                     color={col.color}
+                    // droppable id = swimlane:<laneKey>:<status>（单层 DndContext 跨道不冲突）
+                    droppableIdPrefix={`${SWIMLANE_DROPPABLE_PREFIX}:${lane.key}`}
                     issues={list}
                     readinessByAgentId={readinessByAgentId}
                     failedIssueIds={failedIssueIds}
@@ -207,11 +295,31 @@ export function KanbanSwimlaneView({
                     onQuickCreate={onQuickCreate}
                   />
                 ))}
+                {statusGroups.length === 0 ? (
+                  <EmptyLaneDropZone laneKey={lane.key} />
+                ) : null}
               </div>
-            </DndContext>
-          </section>
-        );
-      })}
+            </section>
+          );
+        })}
+      </div>
+    </DndContext>
+  );
+}
+
+/** 空道整道 drop zone：跨道改派的核心场景是把工作分给当前没活的人（空列隐藏后道内无 droppable，需兜底）。
+ *  id 用独立 `swimlane-empty:` 前缀——laneKey 自含冒号，复用三段形态会被从右误解析。 */
+function EmptyLaneDropZone({ laneKey }: { laneKey: string }) {
+  const zoneId = swimlaneLaneDroppableId(laneKey);
+  const { setNodeRef, isOver } = useDroppable({ id: zoneId });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`kanban-swimlane-dropzone${isOver ? ' is-over' : ''}`}
+      data-testid="kanban-swimlane-dropzone"
+      data-droppable-id={zoneId}
+    >
+      拖卡到此处改派
     </div>
   );
 }

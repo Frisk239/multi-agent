@@ -983,6 +983,14 @@ a:hover {
   --kanban-col-tint: color-mix(in srgb, var(--status-blocked) 10%, transparent);
 }
 
+/* 拖拽目标列 hover 高亮（dnd-kit useDroppable isOver → kanban-column--drop-over；
+   看板/泳道共用；拖动中卡片本身沿用 IssueCard isDragging 半透明样式） */
+.kanban-column--drop-over {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+
 .kanban-column-header {
   display: flex;
   align-items: center;
@@ -14251,4 +14259,23 @@ a.issue-card-run-fail--link:hover {
   background: color-mix(in srgb, var(--color-amber, #f59e0b) 30%, transparent);
   border-radius: 2px;
   padding: 0 1px;
+}
+
+/* swimlane-drag-reassign：空道整道 drop zone（跨道改派兜底） */
+.kanban-swimlane-dropzone {
+  min-width: 240px;
+  min-height: 96px;
+  border: 1px dashed var(--border-color, var(--color-border, #d4d4d8));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  background: transparent;
+}
+.kanban-swimlane-dropzone.is-over {
+  border-color: var(--color-accent, #3b82f6);
+  color: var(--color-accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
 }
