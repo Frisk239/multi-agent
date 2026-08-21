@@ -138,3 +138,12 @@ export function parseAssigneeParam(raw: string | null): {
 }
 
 export type KanbanScopeFilter = (issue: Issue) => boolean;
+
+/** P2-A / 泳道：视图三态（URL `?view=` 唯一真源；缺省=看板） */
+export type KanbanViewMode = 'board' | 'list' | 'swimlane';
+
+export function parseViewMode(raw: string | null): KanbanViewMode {
+  if (raw === 'list') return 'list';
+  if (raw === 'swimlane') return 'swimlane';
+  return 'board';
+}

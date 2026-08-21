@@ -1122,6 +1122,106 @@ button.kanban-column-add:hover {
   user-select: none;
 }
 
+/* —— 泳道视图（按 Agent 分道，薄版） —— */
+
+.kanban-swimlanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.kanban-swimlane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kanban-swimlane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  min-height: 26px;
+}
+
+.kanban-swimlane-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+
+.kanban-swimlane-squad-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.kanban-swimlane-ready {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+.kanban-swimlane-ready--ok {
+  color: var(--color-green, #16a34a);
+  background: color-mix(in srgb, var(--color-green, #16a34a) 12%, transparent);
+}
+
+.kanban-swimlane-ready--warn {
+  color: var(--color-orange, #ea580c);
+  background: color-mix(in srgb, var(--color-orange, #ea580c) 14%, transparent);
+}
+
+.kanban-swimlane-ready--bad {
+  color: var(--color-red, #dc2626);
+  background: color-mix(in srgb, var(--color-red, #dc2626) 12%, transparent);
+}
+
+.kanban-swimlane-count {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* 道体：横向滚动的状态子列（空列已隐藏） */
+.kanban-swimlane-body {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  align-items: flex-start;
+  padding-bottom: var(--space-2);
+}
+
+/* 道内复用 kanban-column：压扁高度、缩窄宽度，横向多列滚动 */
+.kanban-swimlane .kanban-column {
+  width: 240px;
+  min-height: 0;
+  max-height: none;
+}
+
+.kanban-swimlane .kanban-column-body {
+  max-height: 320px;
+}
+
+/* 泳道空态（与列表空态同款留白） */
+.kanban-swimlane-empty {
+  padding: var(--space-3) 0;
+}
+
 /* —— Issue 卡片 —— */
 
 /* Multica：卡片右键 / ⋯ 管理菜单壳 */

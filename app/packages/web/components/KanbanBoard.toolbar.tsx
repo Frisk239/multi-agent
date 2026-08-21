@@ -7,7 +7,7 @@ import { Select } from './Select';
 import { NewIssueForm, type NewIssueQuickCreate } from './NewIssueForm';
 import { EmptyState } from './EmptyState';
 import type { Density } from '@/lib/density';
-import { PRIORITY_OPTIONS, COLUMNS } from './KanbanBoard.shared';
+import { PRIORITY_OPTIONS, COLUMNS, type KanbanViewMode } from './KanbanBoard.shared';
 
 /**
  * O4 拆分：看板工具栏（视图/范围/搜索/筛选/导入导出/活动筛选 chips/空状态）。
@@ -26,8 +26,8 @@ export interface KanbanToolbarProps {
   qFromUrl: string;
   searchParams: URLSearchParams;
   // 视图 / 排序
-  viewMode: 'board' | 'list';
-  setViewMode: (v: 'board' | 'list') => void;
+  viewMode: KanbanViewMode;
+  setViewMode: (v: KanbanViewMode) => void;
   sortMode: 'manual' | 'updated';
   setSortMode: (v: 'manual' | 'updated') => void;
   // 快捷创建
@@ -185,6 +185,16 @@ export function KanbanToolbar(props: KanbanToolbarProps) {
               onClick={() => setViewMode('list')}
             >
               列表
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={`kanban-scope-tab${viewMode === 'swimlane' ? ' is-active' : ''}`}
+              aria-selected={viewMode === 'swimlane'}
+              data-testid="kanban-view-swimlane"
+              onClick={() => setViewMode('swimlane')}
+            >
+              泳道
             </button>
           </div>
           {viewMode === 'list' ? (

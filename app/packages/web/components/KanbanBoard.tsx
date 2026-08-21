@@ -34,6 +34,7 @@ import {
 import { KanbanColumn } from './KanbanColumn';
 import { IssueCard } from './IssueCard';
 import { IssueListView, type IssueListSortCol } from './IssueListView';
+import { KanbanSwimlaneView } from './KanbanSwimlaneView';
 import {
   IssueSideSheet,
   buildIssueSheetHref,
@@ -66,7 +67,9 @@ import {
   COLUMNS,
   kanbanKeyboardCoordinates,
   parseAssigneeParam,
+  parseViewMode,
   type KanbanScopeFilter,
+  type KanbanViewMode,
 } from './KanbanBoard.shared';
 import { computeDragReorder } from './KanbanBoard.dnd';
 import { KanbanToolbar } from './KanbanBoard.toolbar';
@@ -91,8 +94,8 @@ function KanbanBoardInner({
   const failedOnly = searchParams.get('failed') === '1';
   // URL 可分享：?status= 仅显示该列
   const statusFromUrl = searchParams.get('status') ?? '';
-  // P2-A：?view=list|board（默认看板）
-  const viewMode = searchParams.get('view') === 'list' ? 'list' : 'board';
+  // P2-A：?view=list|board（默认看板）；泳道刀：+swimlane 三态
+  const viewMode: KanbanViewMode = parseViewMode(searchParams.get('view'));
   // DS2：列表 sort=manual|updated（默认 manual 与看板一致）
   const sortMode =
     searchParams.get('sort') === 'updated' ? 'updated' : 'manual';
@@ -231,13 +234,16 @@ function KanbanBoardInner({
   );
 
   const setViewMode = useCallback(
-    (mode: 'board' | 'list') => {
+    (mode: KanbanViewMode) => {
       const sp = new URLSearchParams(searchParams.toString());
-      if (mode === 'list') sp.set('view', 'list');
-      else {
+      if (mode === 'board') {
         sp.delete('view');
         // 看板固定 manual 序；离开列表时清 sort 参数
         sp.delete('sort');
+      } else {
+        sp.set('view', mode);
+        // 泳道无排序语义：不带 list 的 sort 参数
+        if (mode === 'swimlane') sp.delete('sort');
       }
       const qs = sp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -855,6 +861,34 @@ function KanbanBoardInner({
             onStatusChange={handleListStatusChange}
             getDetailHref={getIssueSheetHref}
             onOpenDetail={handleOpenIssueDetail}
+          />
+        )
+      ) : viewMode === 'swimlane' ? (
+        visible.length === 0 ? (
+          <div className="kanban-swimlane-empty" data-testid="kanban-swimlane-empty">
+            <div style={{ padding: 24 }}>
+              <EmptyState
+                title="泳道中无符合条件的 Issue"
+                icon="📭"
+                description="请尝试调整筛选条件或重置视图。"
+              />
+            </div>
+          </div>
+        ) : (
+          <KanbanSwimlaneView
+            issues={visible}
+            agents={agents}
+            squads={squads}
+            readinessByAgentId={readinessMap}
+            assigneeAgentByIssueId={assigneeAgentByIssueId}
+            failedIssueIds={failedIssueIds}
+            activeIssueIds={activeIssueIds}
+            waitingIssueIds={waitingIssueIds}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            getDetailHref={getIssueSheetHref}
+            onOpenDetail={handleOpenIssueDetail}
+            onQuickCreate={handleColumnQuickCreate}
           />
         )
       ) : (
