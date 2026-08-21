@@ -225,6 +225,7 @@ progress 证据 → §4 队列状态更新 → CONTEXT.md 方位更新
 | 35 | **历史小队浏览入口** | G3 | ✅（2026-08-20，[closeout](app/.progress/archived-squads-browsing-impl-1.md)：服务端 ?archived= 三态补齐、「已归档」tab URL 持久化、归档 chip+只读直达、独立空态；隔离 E2E 8/8；Owner 勘误 agents/squads 路由误读） |
 | 36 | **Issue 截止日期全链路** | G3 | ✅（2026-08-20，[closeout](app/.progress/issue-due-date-impl-1.md)：dueDate 三态 chip/列表排序列/双详情编辑/迁移 0056；隔离 E2E 11/11；调研源自 Multica 对照扫描，另产出 webhook/泳道/表格二阶候选） |
 | 37 | **Automation Webhook 触发** | G5/G2 | ✅（2026-08-20，[closeout](app/.progress/automation-webhook-trigger-impl-1.md)：token 即凭证公开端点+guard 放行、事件过滤、delivery 审计（迁移 0057）、复用 dispatch 核心source=webhook、UI 面板；隔离 E2E 9/9；payload 模板注入留后续刀） |
+| 38 | **Webhook Payload 模板注入** | G2/G4 | ✅（2026-08-20，[closeout](app/.progress/webhook-payload-template-impl-1.md)：`{{webhook.event/payload/payload.key}}` 变量+跨触发源占位符安全清空、dispatch 可选 ctx 穿透两分支、表单 hint；隔离 E2E 9/9） |
 
 **取刀规则：** 序号仅建议；Slice Owner 可按「当前痛点 + 依赖就绪」在 §3 池中取刀，但 Goal 优先级（G1/G2 > G3/G4 > G5）默认不动。一刀跨 Goal 时挂主要 Goal。
 
