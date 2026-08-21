@@ -73,3 +73,6 @@ app/packages/server/AGENTS.md
 /test*.js
 
 
+
+# Slice Owner 隔离 E2E 运行产物（DB/截图/临时脚本）——不入库
+.scratch/**/owner-e2e-*/
